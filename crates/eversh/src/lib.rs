@@ -8,6 +8,7 @@
 
 pub mod error;
 pub mod limits;
+pub mod remote;
 
 pub use error::Error;
 pub use limits::Limits;
