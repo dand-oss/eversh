@@ -1,0 +1,45 @@
+[package]
+name = "eversh-fuzz"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# Separate workspace: the production workspace yields exactly three binaries.
+# cargo-fuzz runs here only (ask-first; requires nightly).
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "=0.4.13"
+everpty = { path = "../crates/everpty" }
+everlink = { path = "../crates/everlink" }
+eversh = { path = "../crates/eversh" }
+
+[[bin]]
+name = "fuzz_frame"
+path = "fuzz_targets/fuzz_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_bootstrap_record"
+path = "fuzz_targets/fuzz_bootstrap_record.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_auth_frame"
+path = "fuzz_targets/fuzz_auth_frame.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_remote_control"
+path = "fuzz_targets/fuzz_remote_control.rs"
+test = false
+doc = false
+bench = false
