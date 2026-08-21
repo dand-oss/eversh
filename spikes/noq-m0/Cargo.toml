@@ -1,0 +1,18 @@
+[package]
+name = "noq-m0"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = false
+description = "Disposable M0 feasibility spike: one authenticated OpenSSH byte stream over QUIC via noq 1.1.1"
+
+[dependencies]
+noq = { version = "=1.1.1", default-features = false, features = ["runtime-tokio", "rustls", "ring", "bloom"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "process", "io-util", "sync", "io-std"] }
+# Ephemeral self-signed certificate generation for the one-shot server.
+# MPL-2.0; spike-only justification recorded in results.md.
+rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"] }
+# Same ring already pulled by noq's rustls path; used for SHA-256 and the CSPRNG.
+ring = "0.17"
+
+[workspace]
