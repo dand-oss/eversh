@@ -40,6 +40,7 @@ fn main() {
             "record" => run_record().await,
             "proxy" => run_proxy().await,
             "proxy-peer" => run_proxy_peer().await,
+            "migrate-client" => run_migrate_client().await,
             _ => {
                 eprintln!("noq-m0: unknown or missing role (private spike binary)");
                 2
@@ -160,7 +161,13 @@ async fn run_server() -> i32 {
         }
     };
     let id = generate_identity();
-    let bind = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    // Loopback by default; the netns migration gate overrides with a
+    // namespace-local address (never a secret).
+    let bind_ip: IpAddr = std::env::var("NOQ_M0_BIND_ADDR")
+        .ok()
+        .and_then(|a| a.parse().ok())
+        .unwrap_or(IpAddr::V4(Ipv4Addr::LOCALHOST));
+    let bind = SocketAddr::new(bind_ip, 0);
     let ep = match server_endpoint(&id, bind, &l) {
         Ok(ep) => ep,
         Err(e) => {
@@ -234,6 +241,101 @@ async fn run_record() -> i32 {
     // Same as bootstrap-parent but the child is not detached from our lifetime
     // management here; used only by scripts to inspect the record format.
     run_bootstrap_parent().await
+}
+
+/// M0 gate 5b role: connects, streams numbered frames, rebinds the endpoint
+/// to a second local address mid-stream, and reports evidence. Arguments:
+///   migrate-client SERVER_IP:PORT SECOND_LOCAL_IP FRAME_COUNT
+/// The bootstrap record and target port arrive on stdin (2 lines).
+async fn run_migrate_client() -> i32 {
+    let l = Limits::default();
+    let mut args = std::env::args().skip(2);
+    let (server, second_ip, frames) = match (args.next(), args.next(), args.next()) {
+        (Some(s), Some(i), Some(f)) => (s, i, f),
+        _ => {
+            eprintln!("noq-m0 migrate-client: usage: migrate-client SERVER_IP:PORT SECOND_LOCAL_IP FRAMES");
+            return 2;
+        }
+    };
+    let frames: u64 = frames.parse().unwrap_or(1000);
+    let server: SocketAddr = match server.parse() {
+        Ok(s) => s,
+        Err(_) => {
+            eprintln!("noq-m0 migrate-client: bad server addr");
+            return 2;
+        }
+    };
+    let mut reader = BufReader::new(tokio::io::stdin());
+    let record = match read_record(&mut reader, &l).await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("noq-m0 migrate-client: {e}");
+            return 3;
+        }
+    };
+    let mut port_line = String::new();
+    if reader.read_line(&mut port_line).await.is_err() || port_line.trim().is_empty() {
+        eprintln!("noq-m0 migrate-client: no port line");
+        return 3;
+    }
+    let target_port: u16 = match port_line.trim().parse() {
+        Ok(p) => p,
+        Err(_) => return 3,
+    };
+    let ep = match client_endpoint(record.spki_sha256, &l) {
+        Ok(ep) => ep,
+        Err(e) => {
+            eprintln!("noq-m0 migrate-client: {e}");
+            return 3;
+        }
+    };
+    let (conn, mut send, _recv) =
+        match client_connect_auth(&ep, server, &record.token, target_port, &l).await {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("noq-m0 migrate-client: {e}");
+                return 4;
+            }
+        };
+    let stable_before = conn.stable_id();
+    let old_local = ep.local_addr().unwrap();
+    let mut frame = vec![0u8; 1024];
+    for (j, b) in frame.iter_mut().enumerate() {
+        *b = j as u8;
+    }
+    let rebind_at = frames / 2;
+    let mut new_local = old_local;
+    for i in 0..frames {
+        if i == rebind_at {
+            let addr = format!("{second_ip}:0");
+            let sock = match std::net::UdpSocket::bind(&addr) {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("noq-m0 migrate-client: bind {addr}: {e}");
+                    return 5;
+                }
+            };
+            new_local = sock.local_addr().unwrap();
+            if let Err(e) = ep.rebind(sock) {
+                eprintln!("noq-m0 migrate-client: rebind: {e}");
+                return 5;
+            }
+            eprintln!("noq-m0 migrate-client: REBOUND {old_local} -> {new_local}");
+        }
+        frame[..8].copy_from_slice(&i.to_be_bytes());
+        if let Err(e) = send.write_all(&frame).await {
+            eprintln!("noq-m0 migrate-client: write at {i}: {e}");
+            return 6;
+        }
+    }
+    let _ = send.finish();
+    let stable_after = conn.stable_id();
+    println!(
+        "migrate-result stable_before={stable_before} stable_after={stable_after} old={old_local} new={new_local} frames={frames} bytes={}",
+        frames * 1024
+    );
+    let _ = ep.wait_idle().await;
+    0
 }
 
 /// Test-only client role: identical bridging to `proxy` but the bootstrap
