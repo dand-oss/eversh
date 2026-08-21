@@ -6,6 +6,7 @@
 
 pub mod error;
 pub mod frame;
+pub mod lifecycle;
 pub mod limits;
 
 pub use error::Error;
