@@ -31,7 +31,7 @@ fn arbitrary_binary_args_roundtrip() {
         version: 1,
         args: vec![
             vec![0xff, 0x80, 0x01],
-            (1u16..600).map(|i| i as u8).collect(), // NUL is rejected by contract
+            (0u16..600).map(|i| (i % 255 + 1) as u8).collect(), // never NUL (rejected by contract)
             b"-".repeat(1000),
         ],
     };

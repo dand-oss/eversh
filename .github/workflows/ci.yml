@@ -1,0 +1,49 @@
+name: ci
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - run: rustup toolchain install 1.95.0 --profile minimal
+      - run: cargo +1.95.0 fmt --all -- --check
+      - run: cargo +1.95.0 clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo +1.95.0 test --workspace --all-features --locked
+      - run: cargo +1.95.0 check --workspace --no-default-features --lib --locked
+
+  msrv:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - run: rustup toolchain install 1.88.0 --profile minimal
+      - run: cargo +1.88.0 check --workspace --all-targets --locked
+
+  cross:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - run: rustup toolchain install 1.95.0 --profile minimal
+      - run: rustup target add aarch64-unknown-linux-gnu --toolchain 1.95.0
+      - run: cargo +1.95.0 check --target aarch64-unknown-linux-gnu --locked
+
+  fuzz-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - run: rustup toolchain install 1.95.0 --profile minimal
+      - run: cargo +1.95.0 fmt --manifest-path fuzz/Cargo.toml -- --check
+      - run: cargo +1.95.0 check --manifest-path fuzz/Cargo.toml --all-targets --locked
+      - run: cargo +1.95.0 install cargo-deny --version 0.20.2 --locked
+      - run: cargo-deny --manifest-path fuzz/Cargo.toml --all-features --locked check
+
+  audit:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+      - run: rustup toolchain install 1.95.0 --profile minimal
+      - run: cargo +1.95.0 install cargo-deny --version 0.20.2 --locked
+      - run: cargo-deny --all-features --locked check
