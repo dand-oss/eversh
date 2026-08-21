@@ -1,0 +1,29 @@
+[package]
+name = "everlink"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "One-stream QUIC transport for eversh over noq (skeleton in M1)"
+
+[features]
+default = []
+# CLI support at the binary edge only; the library builds without it.
+cli = ["dep:clap"]
+
+[dependencies]
+clap = { version = "=4.6.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"], optional = true }
+noq = { version = "=1.1.1", default-features = false, features = ["runtime-tokio", "rustls", "ring", "bloom"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "process", "io-util", "io-std", "time", "sync", "macros"] }
+ring = "0.17"
+rcgen = { version = "=0.13.2", default-features = false, features = ["ring"] }
+
+[lib]
+name = "everlink"
+
+[[bin]]
+name = "everlink"
+required-features = ["cli"]
+
+[lints]
+workspace = true

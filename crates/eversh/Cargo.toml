@@ -1,0 +1,30 @@
+[package]
+name = "eversh"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Multi-role supervisor binary for eversh (skeleton in M1)"
+
+[features]
+default = []
+# CLI support at the binary edge only; the library builds without it.
+cli = ["dep:clap"]
+
+[dependencies]
+everpty = { path = "../everpty" }
+everlink = { path = "../everlink" }
+clap = { version = "=4.6.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"], optional = true }
+
+[dev-dependencies]
+cargo_metadata = "=0.23.1"
+
+[lib]
+name = "eversh"
+
+[[bin]]
+name = "eversh"
+required-features = ["cli"]
+
+[lints]
+workspace = true
