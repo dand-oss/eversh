@@ -284,6 +284,9 @@ async fn copy_quic_to_tcp(
             break;
         }
     }
+    if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+        eprintln!("noq-m0 copy q2t done");
+    }
     let _ = quic_recv.stop(VarInt::from_u32(0));
 }
 
@@ -320,6 +323,9 @@ async fn copy_tcp_to_quic(
             state.request(TerminalCause::QuicClosed);
             break;
         }
+    }
+    if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+        eprintln!("noq-m0 copy t2q done clean={clean_finish}");
     }
     if !clean_finish {
         // Abnormal exit: reset so the peer does not wait for a FIN.

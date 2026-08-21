@@ -27,13 +27,16 @@ UsePAM no
 PasswordAuthentication no
 PubkeyAuthentication yes
 AllowAgentForwarding no
-AllowTcpForwarding no
+AllowTcpForwarding yes
 X11Forwarding no
 PermitTunnel no
-PermitOpen none
-PermitListen none
+PermitOpen 127.0.0.1:$SSHD_PORT
+PermitListen *
 StrictModes no
 AuthorizedKeysFile $HDIR/authorized_keys
+Subsystem sftp internal-sftp
+PerSourcePenalties no
+MaxStartups 30:30:60
 LogLevel VERBOSE
 EOF
     cat "$HDIR/client_key.pub" > "$HDIR/authorized_keys"

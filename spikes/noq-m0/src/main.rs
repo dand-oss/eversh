@@ -39,6 +39,7 @@ fn main() {
             "server" => run_server().await,
             "record" => run_record().await,
             "proxy" => run_proxy().await,
+            "proxy-peer" => run_proxy_peer().await,
             _ => {
                 eprintln!("noq-m0: unknown or missing role (private spike binary)");
                 2
@@ -48,13 +49,12 @@ fn main() {
     std::process::exit(code);
 }
 
-/// Read exactly one newline-terminated record (bounded) from a reader.
+/// Read exactly one newline-terminated record (bounded) from a buffered reader.
 async fn read_record<R: tokio::io::AsyncRead + Unpin>(
-    r: R,
+    reader: &mut BufReader<R>,
     l: &Limits,
 ) -> Result<BootstrapRecord, String> {
     let mut line = String::new();
-    let mut reader = BufReader::new(r);
     let n = tokio::time::timeout(l.bootstrap_timeout, reader.read_line(&mut line))
         .await
         .map_err(|_| "bootstrap record timeout".to_string())?
@@ -129,7 +129,7 @@ async fn run_bootstrap_parent() -> i32 {
     drop(stdin);
 
     let mut stdout = child.stdout.take().expect("child stdout");
-    let record = match read_record(&mut stdout, &l).await {
+    let record = match read_record(&mut BufReader::new(&mut stdout), &l).await {
         Ok(r) => r,
         Err(e) => {
             eprintln!("noq-m0 bootstrap: {e}");
@@ -200,6 +200,9 @@ async fn run_server() -> i32 {
             return 4;
         }
     };
+    if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+        eprintln!("noq-m0 server: auth ok (retried={}), stable_id={}", auth.retried, auth.conn.stable_id());
+    }
     // Target TCP connect happens only here, after authentication.
     let target = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), authorized_port);
     let tcp =
@@ -214,7 +217,14 @@ async fn run_server() -> i32 {
                 return 5;
             }
         };
+    if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+        eprintln!("noq-m0 server: target connected, bridging");
+    }
+    let cause_before = state.cause();
     bridge(auth.send, auth.recv, tcp, l, state).await;
+    if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+        eprintln!("noq-m0 server: bridge done cause={cause_before:?}");
+    }
     ep.wait_idle().await;
     0
 }
@@ -226,48 +236,54 @@ async fn run_record() -> i32 {
     run_bootstrap_parent().await
 }
 
-/// Client proxy: one bootstrap record on stdin, then bridge stdin/stdout to
-/// the authenticated QUIC stream. Diagnostics on stderr only; stdout carries
-/// only opaque SSH bytes.
-async fn run_proxy() -> i32 {
+/// Test-only client role: identical bridging to `proxy` but the bootstrap
+/// record and target port arrive on stdin (no ssh), so binary-level tests can
+/// drive the real process stdin/stdout path.
+async fn run_proxy_peer() -> i32 {
     let l = Limits::default();
-    let record = match read_record(tokio::io::stdin(), &l).await {
+    // Record and port share one buffered stdin in this test-only role.
+    let mut reader = BufReader::new(tokio::io::stdin());
+    let record = match read_record(&mut reader, &l).await {
         Ok(r) => r,
         Err(e) => {
-            eprintln!("noq-m0 proxy: {e}");
+            eprintln!("noq-m0 proxy-peer: {e}");
             return 3;
         }
     };
+    let mut port_line = String::new();
+    if tokio::time::timeout(std::time::Duration::from_secs(10), reader.read_line(&mut port_line))
+        .await
+        .is_err()
+        || port_line.trim().is_empty()
+    {
+        eprintln!("noq-m0 proxy-peer: no port line");
+        return 3;
+    }
+    let target_port: u16 = match port_line.trim().parse() {
+        Ok(p) => p,
+        Err(_) => {
+            eprintln!("noq-m0 proxy-peer: bad port");
+            return 3;
+        }
+    };
+    drop(reader);
     let server = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), record.udp_port);
     let ep = match client_endpoint(record.spki_sha256, &l) {
         Ok(ep) => ep,
         Err(e) => {
-            eprintln!("noq-m0 proxy: {e}");
+            eprintln!("noq-m0 proxy-peer: {e}");
             return 3;
         }
     };
-    // The authorized target port is the sshd port the outer SSH client thinks
-    // it is talking to; in the spike harness it is carried by the record's
-    // connection context. The harness stamps it on stdin after the record.
-    let target_port = match read_port_pipe().await {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("noq-m0 proxy: {e}");
-            return 3;
-        }
-    };
-    let (_conn, send, recv) =
+    let (_conn, mut send, mut recv) =
         match client_connect_auth(&ep, server, &record.token, target_port, &l).await {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("noq-m0 proxy: {e}");
+                eprintln!("noq-m0 proxy-peer: {e}");
                 return 4;
             }
         };
     let state = Arc::new(ShutdownState::new());
-    // Bridge local stdin/stdout to the QUIC stream. stdout carries only SSH
-    // bytes (the auth frame was already sent on the stream).
-    let (mut send, mut recv) = (send, recv);
     let mut stdin = tokio::io::stdin();
     let mut stdout = tokio::io::stdout();
     let mut buf = vec![0u8; l.copy_buf];
@@ -287,6 +303,9 @@ async fn run_proxy() -> i32 {
                         break;
                     }
                 };
+                if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+                    eprintln!("noq-m0 proxy-peer s2q read {n}");
+                }
                 if send.write_all(&buf[..n]).await.is_err() {
                     state.request(TerminalCause::QuicClosed);
                     break;
@@ -304,7 +323,12 @@ async fn run_proxy() -> i32 {
                     break;
                 }
                 Ok(Some(n)) => {
-                    if stdout.write_all(&rbuf[..n]).await.is_err() {
+                    if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+                        eprintln!("noq-m0 proxy-peer q2s got {n}");
+                    }
+                    if stdout.write_all(&rbuf[..n]).await.is_err()
+                        || stdout.flush().await.is_err()
+                    {
                         state.request(TerminalCause::Cancelled);
                         break;
                     }
@@ -317,6 +341,174 @@ async fn run_proxy() -> i32 {
         }
     };
     tokio::join!(s2q, q2s);
+    state.drain();
+    state.finalize();
+    ep.wait_idle().await;
+    0
+}
+
+/// Client proxy (ProxyCommand role): `noq-m0 proxy DESTINATION PORT`.
+///
+/// Launches the bootstrap over the system ssh to DESTINATION:PORT (same keys,
+/// same authentication as any ordinary ssh), reads the one bootstrap record,
+/// connects and authenticates QUIC, then bridges local stdin/stdout to the
+/// stream. stdout carries only opaque SSH bytes; all diagnostics on stderr.
+/// The token never enters argv or environment of any process.
+async fn run_proxy() -> i32 {
+    let l = Limits::default();
+    let mut args = std::env::args().skip(2);
+    let (dest, port) = match (args.next(), args.next()) {
+        (Some(d), Some(p)) => (d, p),
+        _ => {
+            eprintln!("noq-m0 proxy: usage: proxy DESTINATION PORT [extra ssh options...]");
+            return 2;
+        }
+    };
+    // Remaining args are passed verbatim to the bootstrap ssh (keys, options).
+    let extra: Vec<String> = args.collect();
+    let target_port: u16 = match port.parse() {
+        Ok(p) => p,
+        Err(_) => {
+            eprintln!("noq-m0 proxy: bad port");
+            return 2;
+        }
+    };
+    let self_exe =
+        std::env::current_exe().expect("self exe path").to_string_lossy().to_string();
+    let mut bootstrap = match tokio::process::Command::new("ssh")
+        .args({
+            let mut v: Vec<String> = vec![
+            "-o".into(), "ProxyCommand=none".into(),
+            "-o".into(), "ClearAllForwardings=yes".into(),
+            "-o".into(), "ForwardX11=no".into(),
+            "-o".into(), "RequestTTY=no".into(),
+            "-o".into(), "BatchMode=yes".into(),
+            "-p".into(), port.clone(),
+            ];
+            v.extend(extra);
+            v.push(dest.clone());
+            v.push(format!("{self_exe} bootstrap-parent"));
+            v
+        })
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("noq-m0 proxy: ssh bootstrap: {e}");
+            return 3;
+        }
+    };
+    // Authorized target port travels over the authenticated SSH stdin channel.
+    let mut bin = bootstrap.stdin.take().expect("bootstrap stdin");
+    let _ = bin.write_all(format!("{target_port}\n").as_bytes()).await;
+    let _ = bin.shutdown().await;
+    drop(bin);
+    let mut bstdout = bootstrap.stdout.take().expect("bootstrap stdout");
+    let record = match read_record(&mut BufReader::new(&mut bstdout), &l).await {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("noq-m0 proxy: {e}");
+            let mut errout = String::new();
+            if let Some(mut es) = bootstrap.stderr.take() {
+                use tokio::io::AsyncReadExt as _;
+                let _ = es.read_to_string(&mut errout).await;
+            }
+            let st = bootstrap.wait().await;
+            eprintln!("noq-m0 proxy: bootstrap status={st:?} stderr: {errout}");
+            return 3;
+        }
+    };
+    let status = bootstrap.wait().await;
+    if !status.map(|s| s.success()).unwrap_or(false) {
+        eprintln!("noq-m0 proxy: bootstrap parent failed");
+        return 3;
+    }
+    if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+        eprintln!("noq-m0 proxy: record ok udp={} pid={}", record.udp_port, record.pid);
+    }
+    let server = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), record.udp_port);
+    let ep = match client_endpoint(record.spki_sha256, &l) {
+        Ok(ep) => ep,
+        Err(e) => {
+            eprintln!("noq-m0 proxy: {e}");
+            return 3;
+        }
+    };
+    if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+        eprintln!("noq-m0 proxy: endpoint ready");
+    }
+    let (_conn, mut send, mut recv) =
+        match client_connect_auth(&ep, server, &record.token, target_port, &l).await {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("noq-m0 proxy: {e}");
+                return 4;
+            }
+        };
+    let state = Arc::new(ShutdownState::new());
+    let mut stdin = tokio::io::stdin();
+    let mut stdout = tokio::io::stdout();
+    let mut buf = vec![0u8; l.copy_buf];
+    let s2q = {
+        let state = state.clone();
+        async move {
+            loop {
+                let n = match stdin.read(&mut buf).await {
+                    Ok(0) => {
+                        let _ = send.finish();
+                        state.request(TerminalCause::LocalEof);
+                        break;
+                    }
+                    Ok(n) => n,
+                    Err(_) => {
+                        state.request(TerminalCause::Cancelled);
+                        break;
+                    }
+                };
+                if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+                    eprintln!("noq-m0 proxy-peer s2q read {n}");
+                }
+                if send.write_all(&buf[..n]).await.is_err() {
+                    state.request(TerminalCause::QuicClosed);
+                    break;
+                }
+            }
+        }
+    };
+    let q2s = async {
+        let mut rbuf = vec![0u8; l.copy_buf];
+        loop {
+            match recv.read(&mut rbuf).await {
+                Ok(None) => {
+                    let _ = stdout.shutdown().await;
+                    state.request(TerminalCause::QuicClosed);
+                    break;
+                }
+                Ok(Some(n)) => {
+                    if stdout.write_all(&rbuf[..n]).await.is_err()
+                        || stdout.flush().await.is_err()
+                    {
+                        state.request(TerminalCause::Cancelled);
+                        break;
+                    }
+                }
+                Err(_) => {
+                    state.request(TerminalCause::QuicClosed);
+                    break;
+                }
+            }
+        }
+    };
+    if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+        eprintln!("noq-m0 proxy: auth ok, bridging");
+    }
+    tokio::join!(s2q, q2s);
+    if std::env::var_os("NOQ_M0_DEBUG").is_some() {
+        eprintln!("noq-m0 proxy: bridge done cause={:?}", state.cause());
+    }
     state.drain();
     state.finalize();
     ep.wait_idle().await;
