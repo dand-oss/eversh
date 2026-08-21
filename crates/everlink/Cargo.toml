@@ -18,6 +18,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "net", "process", "io-ut
 ring = "0.17"
 rcgen = { version = "=0.13.2", default-features = false, features = ["ring"] }
 
+[dev-dependencies]
+rcgen = { version = "=0.13.2", default-features = false, features = ["ring"] }
+
 [lib]
 name = "everlink"
 

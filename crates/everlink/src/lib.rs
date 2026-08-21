@@ -5,8 +5,10 @@
 //! pinning types, limits. No endpoint, no bridge (M3). Library code never
 //! prints, reads global arguments, or exits.
 
+pub mod bootstrap;
 pub mod error;
 pub mod limits;
+pub mod pinning;
 
 pub use error::Error;
 pub use limits::Limits;
