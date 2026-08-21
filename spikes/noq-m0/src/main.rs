@@ -208,7 +208,11 @@ async fn run_server() -> i32 {
         }
     };
     if std::env::var_os("NOQ_M0_DEBUG").is_some() {
-        eprintln!("noq-m0 server: auth ok (retried={}), stable_id={}", auth.retried, auth.conn.stable_id());
+        eprintln!(
+            "noq-m0 server: auth ok (retried={}), stable_id={}",
+            auth.retried,
+            auth.conn.stable_id()
+        );
     }
     // Target TCP connect happens only here, after authentication.
     let target = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), authorized_port);
@@ -353,9 +357,12 @@ async fn run_proxy_peer() -> i32 {
         }
     };
     let mut port_line = String::new();
-    if tokio::time::timeout(std::time::Duration::from_secs(10), reader.read_line(&mut port_line))
-        .await
-        .is_err()
+    if tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        reader.read_line(&mut port_line),
+    )
+    .await
+    .is_err()
         || port_line.trim().is_empty()
     {
         eprintln!("noq-m0 proxy-peer: no port line");
@@ -428,8 +435,7 @@ async fn run_proxy_peer() -> i32 {
                     if std::env::var_os("NOQ_M0_DEBUG").is_some() {
                         eprintln!("noq-m0 proxy-peer q2s got {n}");
                     }
-                    if stdout.write_all(&rbuf[..n]).await.is_err()
-                        || stdout.flush().await.is_err()
+                    if stdout.write_all(&rbuf[..n]).await.is_err() || stdout.flush().await.is_err()
                     {
                         state.request(TerminalCause::Cancelled);
                         break;
@@ -475,17 +481,25 @@ async fn run_proxy() -> i32 {
             return 2;
         }
     };
-    let self_exe =
-        std::env::current_exe().expect("self exe path").to_string_lossy().to_string();
+    let self_exe = std::env::current_exe()
+        .expect("self exe path")
+        .to_string_lossy()
+        .to_string();
     let mut bootstrap = match tokio::process::Command::new("ssh")
         .args({
             let mut v: Vec<String> = vec![
-            "-o".into(), "ProxyCommand=none".into(),
-            "-o".into(), "ClearAllForwardings=yes".into(),
-            "-o".into(), "ForwardX11=no".into(),
-            "-o".into(), "RequestTTY=no".into(),
-            "-o".into(), "BatchMode=yes".into(),
-            "-p".into(), port.clone(),
+                "-o".into(),
+                "ProxyCommand=none".into(),
+                "-o".into(),
+                "ClearAllForwardings=yes".into(),
+                "-o".into(),
+                "ForwardX11=no".into(),
+                "-o".into(),
+                "RequestTTY=no".into(),
+                "-o".into(),
+                "BatchMode=yes".into(),
+                "-p".into(),
+                port.clone(),
             ];
             v.extend(extra);
             v.push(dest.clone());
@@ -529,7 +543,10 @@ async fn run_proxy() -> i32 {
         return 3;
     }
     if std::env::var_os("NOQ_M0_DEBUG").is_some() {
-        eprintln!("noq-m0 proxy: record ok udp={} pid={}", record.udp_port, record.pid);
+        eprintln!(
+            "noq-m0 proxy: record ok udp={} pid={}",
+            record.udp_port, record.pid
+        );
     }
     let server = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), record.udp_port);
     let ep = match client_endpoint(record.spki_sha256, &l) {
@@ -590,8 +607,7 @@ async fn run_proxy() -> i32 {
                     break;
                 }
                 Ok(Some(n)) => {
-                    if stdout.write_all(&rbuf[..n]).await.is_err()
-                        || stdout.flush().await.is_err()
+                    if stdout.write_all(&rbuf[..n]).await.is_err() || stdout.flush().await.is_err()
                     {
                         state.request(TerminalCause::Cancelled);
                         break;

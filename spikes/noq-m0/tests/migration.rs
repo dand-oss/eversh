@@ -4,7 +4,7 @@
 use noq_m0::config::Limits;
 use noq_m0::shutdown::{ShutdownState, TerminalCause};
 use noq_m0::spike::{
-    client_endpoint, client_connect_auth, generate_identity, server_accept_auth, server_endpoint,
+    client_connect_auth, client_endpoint, generate_identity, server_accept_auth, server_endpoint,
 };
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
@@ -58,7 +58,9 @@ async fn established() -> LivePair {
         let auth = server_accept_auth(&sep, &token, tport, &l, &state)
             .await
             .expect("server auth");
-        let tcp = tokio::net::TcpStream::connect(localhost(tport)).await.unwrap();
+        let tcp = tokio::net::TcpStream::connect(localhost(tport))
+            .await
+            .unwrap();
         noq_m0::spike::bridge(auth.send, auth.recv, tcp, l, state).await;
     });
 
@@ -142,7 +144,11 @@ async fn rebind_preserves_connection_and_stream_no_loss_dup_reorder() {
     .await
     .expect("all frames delivered post-rebind");
     verify_frames(&p.got.lock().unwrap(), 120);
-    assert_eq!(p.client.stable_id(), stable_before, "connection identity preserved");
+    assert_eq!(
+        p.client.stable_id(),
+        stable_before,
+        "connection identity preserved"
+    );
 }
 
 #[tokio::test]
@@ -169,7 +175,7 @@ async fn total_path_loss_closes_stream_and_no_replay_on_fresh_connection() {
     // of the old stream.
     let id2 = generate_identity();
     let ep2 = server_endpoint(&id2, localhost(0), &l).unwrap();
-    let port2 = ep2.local_addr().unwrap().port();
+    let _port2 = ep2.local_addr().unwrap().port();
     let state2 = Arc::new(ShutdownState::new());
     // Reuse the SAME TCP sink to observe any replayed bytes globally.
     let got2 = p.got.clone();
@@ -207,7 +213,10 @@ async fn server_lease_and_stall_terminate_with_finite_state() {
     let start = std::time::Instant::now();
     let r = noq_m0::spike::server_accept_auth(&ep, &id.token, 22, &ll, &state).await;
     assert!(r.is_err());
-    assert!(start.elapsed() < Duration::from_secs(5), "lease expiry is bounded");
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "lease expiry is bounded"
+    );
     assert_eq!(state.cause(), Some(TerminalCause::LeaseExpired));
     let _ = ep.wait_idle().await;
 }

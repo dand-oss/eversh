@@ -5,10 +5,8 @@
 
 use noq_m0::config::Limits;
 use std::io::{Read, Write};
-use std::net::TcpListener;
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_noq-m0")
@@ -24,7 +22,7 @@ impl EchoTarget {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         std::thread::spawn(move || {
-            let (mut c, _) = listener.accept().unwrap();
+            let (c, _) = listener.accept().unwrap();
             c.set_read_timeout(Some(Duration::from_secs(30))).unwrap();
             let mut c = std::io::BufWriter::new(c);
             c.write_all(b"SSH-2.0-EchoTarget\r\n").unwrap();
@@ -108,7 +106,7 @@ async fn server_process_bridge_survives_banner_then_delayed_echo() {
     .expect("auth");
 
     // Banner arrives with no uplink data at all.
-    let mut banner = vec![0u8; 64];
+    let mut banner = [0u8; 64];
     let mut got = 0usize;
     tokio::time::timeout(Duration::from_secs(5), async {
         while got < 19 {
@@ -181,7 +179,7 @@ fn proxy_peer_process_end_to_end_banner_and_echo() {
 
     let mut proxy_stdout = proxy.stdout.take().unwrap();
     // Banner first, with no uplink written yet.
-    let mut banner = vec![0u8; 64];
+    let mut banner = [0u8; 64];
     let mut got = 0;
     let deadline = Instant::now() + Duration::from_secs(5);
     while got < 19 && Instant::now() < deadline {
