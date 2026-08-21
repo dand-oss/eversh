@@ -6,6 +6,9 @@ rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 publish = false
 
+[package.metadata]
+cargo-fuzz = true
+
 # Separate workspace: the production workspace yields exactly three binaries.
 # cargo-fuzz runs here only (ask-first; requires nightly).
 [workspace]

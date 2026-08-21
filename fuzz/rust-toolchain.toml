@@ -1,0 +1,3 @@
+# cargo-fuzz requires nightly; pinned per M1 authorization.
+[toolchain]
+channel = "nightly-2026-08-20"
