@@ -1,0 +1,196 @@
+# eversh engineering references
+
+Status: evidence inventory supporting the locked Rust design | Last updated: 2026-08-21
+
+This document records reviewed projects, source snapshots, protocol evidence, and licence decisions for `everpty`, `everlink`, and `eversh`. A reference is not automatically a dependency or source of code. The normative contract is [design.md](design.md); this file records why its boundaries were selected.
+
+## Governing contract
+
+- The local terminal emulator owns rendering, screen state, scrollback, copy, paste, keyboard encoding, and terminal features.
+- `everpty` owns a PTY and child process, forwards live bytes unchanged, keeps attached observers receiving future output even without a writer, drains and discards only when no attached client can accept bytes, and never reconstructs a previous screen.
+- `everlink` carries opaque OpenSSH bytes over one ordered QUIC stream and never parses terminal or SSH data.
+- System OpenSSH remains responsible for user authentication, host authentication, configuration, PTY negotiation, forwarding, command execution, SFTP, and SCP.
+- A live QUIC connection may hold bounded unacknowledged transport data, but a replacement connection never receives application bytes from an expired connection.
+- A failed migration ends the SSH stream; `eversh` opens a fresh SSH connection and reattaches the surviving `everpty` session.
+- No component provides local echo, prediction, terminal-state synchronization, or application replay.
+
+## Locked implementation decision
+
+All original implementation code is Rust in one Cargo workspace. The workspace has three reusable crates and exactly three physical binaries: standalone everpty, standalone everlink, and combined/multi-role eversh. everpty has no Tokio or noq dependency in its core and uses a small poll-based loop or bounded fixed workers. everlink uses exactly one Tokio runtime, noq, and its reviewed rustls path.
+
+Milestone 0 is a bounded Rust/noq feasibility and exact dependency-pin gate, not a language comparison. The gate proves one-stream ProxyCommand behavior, SSH bootstrap trust, standard migration, loss and reordering, half-close, bounded backpressure, path failure, process exit, and Request -> Drain -> Finalize shutdown. Quinn remains a documented Rust fallback only if noq fails a required migration test or cannot provide a supportable exact pin.
+
+## Reviewed source snapshots
+
+These exact commits were reviewed on 2026-08-21. They are evidence snapshots, not approved dependencies unless the design and licence checks explicitly add them.
+
+| Project | Reviewed snapshot | Licence | Use or boundary |
+| --- | --- | --- | --- |
+| [Keepty](https://github.com/BorjaGM1/keepty) | `5db15668a6843b3f2640619c4837fe4f34e7ae26` | MIT OR Apache-2.0 | Primary PTY ownership, Unix-socket framing, roles, and deferred-spawn reference; compatible code may be adapted with attribution. |
+| [atch](https://github.com/dand-oss/atch) | `90c3d2f09834a3394a144296ec65efea18f34859` | GPL | Session names and management behavior reference only; no source, tests, comments, logs, or distinctive structure. |
+| [dtach](https://github.com/crigler/dtach) | `b027c27b2439081064d07a86883c8e0b20a183c9` | GPL-2.0 | Minimal PTY loop and drain behavior reference only. |
+| [zmx](https://github.com/neurosnap/zmx) | `ea45749278bac648ab13a4280a6035012854d717`; zmosh base `cd88d1b` | MIT | Daemon-per-session and discovery UX reference; screen snapshots and scrollback excluded. |
+| [zmosh](https://github.com/dand-oss/zmosh) | `205e8394c8841798d96c21d66bdba5155ee04868` on `replant-zmx0.7` | MIT | QUIC adapter failure cases, timers, bounded egress, FIN, loss, reorder, and SSH-bootstrap test reference. |
+| [quicz](https://github.com/dand-oss/quicz) | `067e7bab687536c1327fb436484dee85d5368318` | MIT | Zig transport test evidence only; eversh does not inherit zmosh's language or Ghostty constraints. |
+| [quicssh-rs](https://github.com/oowl/quicssh-rs) | `d748a0f0f5fafea95ff4072d58c397a0afa809ac` | MIT | Rust ProxyCommand topology reference; reviewed certificate and gateway shortcuts are rejected. |
+| [noq](https://github.com/n0-computer/noq) | `c334d2da218226777d61fdfd32cb0a45b2cdb7e3`; API baseline examined at `1.1.1` | MIT OR Apache-2.0 | Locked Rust QUIC feasibility target; exact release and checksum are chosen by Milestone 0. |
+| [Quinn](https://github.com/quinn-rs/quinn) | API/behavior reference reviewed alongside noq | MIT OR Apache-2.0 | Rust fallback only if noq fails required standard migration tests. |
+| [moul/quicssh](https://github.com/moul/quicssh) | `1c771b69d1a702804637d1aa47ffadb9fc724109` | Apache-2.0 | One-stream OpenSSH ProxyCommand topology reference; old security and lifecycle choices are rejected. |
+| [udp-link](https://github.com/pgul/udp-link) | `5493f7de5939829acc770deda8793e6d6fb5e8df` | MIT | SSH-assisted one-shot launch and stdout bootstrap boundary reference; custom reliable-UDP protocol is rejected. |
+| [tsshd](https://github.com/trzsz/tsshd) | `7fe3f454a8446de849b56e6b93fcaa0fd2604fd1` | MIT | Ownership, reconnect, PTY, and hostile-network test ideas; its SSH replacement and output cache are rejected. |
+| [trzsz-ssh](https://github.com/trzsz/trzsz-ssh) | `dca1425cd9c63f342e03706e53f3e3885cee9597` | MIT | Bootstrap and reconnect comparison; terminal filtering, redraw, and input policy are rejected. |
+| [StableSSH](https://github.com/hrntknr/stablessh) | `22318e4fd7736cc89128fb89378ac5ea8574e495` | MIT | Proof of the application acknowledgements, replay queues, and persistent gateway required for hard stream resumption; rejected by design. |
+| [quic-go](https://github.com/quic-go/quic-go) | `cf0c4ffd0ce6af5172fa59cde9b82ec19b2bf029` | MIT | Historical one-stream and migration API evidence only; it is not an eversh implementation candidate. |
+| [Asupersync](https://github.com/Dicklesworthstone/asupersync) | `289402bcf6746533d98153ca1fcae21333fe6a71` | custom MIT-like licence with OpenAI/Anthropic restriction | Request -> Drain -> Finalize and structured-cancellation reference only; no dependency or copied source. |
+| [ATP](https://github.com/Dicklesworthstone/atp) | distribution `1df65ca1f483418ccdf9c6c977184a83df4df531`; pinned Asupersync `cb87a3546bc7cf5d87ccbcca3a95c74ec3fcdcbd` | custom MIT-like licence with OpenAI/Anthropic restriction | Fountain-coded bulk-transfer and bounded-memory test comparison only; no dependency or protocol reuse. |
+| [Mosh](https://github.com/mobile-shell/mosh) | current product/protocol reference | GPL-3.0-or-later | Roaming and sleep/wake test conditions; terminal state, prediction, and replay are permanent non-goals. |
+| [MoshCatty](https://github.com/binaricat/MoshCatty) | `554b9d305e7ac4b11de740d764bbc3e05f816d7b` | GPL-3.0-or-later | Rust loss/reorder and Mosh interoperability test reference only. |
+| [RoSE](https://github.com/nikhiljha/rose) | `f145dfc383d925d9703d500d24f8f95bf8edcdfd` | GPL-3.0-or-later | Quinn/rustls and hostile-network test comparison only; remote terminal state is excluded. |
+
+## PTY references
+
+Keepty is the strongest permissively licensed structural reference. It separates a broker-owned PTY from clients over typed length-prefixed Unix-socket frames, supports roles and terminal size, delays spawn until a client is ready, and has byte-oriented tests. eversh may adapt compatible Rust code only with the required notices and only after removing incompatible behavior.
+
+Keepty's output ring, replay on attach, vt100 monitor, screen state, alternate-screen handling, resize/redraw nudge, newline transformation, and intercepted input are not disabled options; they are absent from the eversh protocol and data structures.
+
+dtach confirms the minimal process model: one process owns the PTY, Unix sockets attach clients, output is forwarded as bytes, and the PTY is drained without an attached client. It is GPL-2.0, permits behavior eversh rejects, and is a behavioral reference only.
+
+atch and zmx confirm useful names, session directories, list/current/kill, stale cleanup, daemon-per-session separation, and attach-versus-create UX. Their logs, scrollback, replay, multiple writers, terminal parsing, and screen restoration are excluded.
+
+## Terminal ownership evidence
+
+Kitty's [FAQ](https://sw.kovidgoyal.net/kitty/faq/) and [multiplexer explanation](https://github.com/kovidgoyal/kitty/issues/391#issuecomment-638320745) support keeping a real local terminal directly attached so it retains native scrollback, graphics, OSC-52, keyboard protocols, and rendering. The narrower eversh claim is testable: eversh itself never parses terminal output.
+
+Ghostty and ghostty-vt are useful compatibility-test targets for transparent bytes, but no terminal-emulation crate, virtual grid, snapshot, scrollback model, or restore behavior belongs in the production graph. tmux or screen may run inside an everpty session if the user chooses; eversh does not reproduce them.
+
+## QUIC and SSH evidence
+
+The one-stream ProxyCommand topology in moul/quicssh and quicssh-rs proves that unmodified OpenSSH can run over a QUIC byte stream. Their old certificate verification, always-on gateway, and incomplete EOF behavior are not acceptable security or lifecycle defaults.
+
+udp-link demonstrates an SSH-assisted one-shot process and a bootstrap record over stdout. Its custom reliable-UDP protocol, weak or process-visible key handling, and missing transport guarantees are rejected; QUIC supplies the standardized TLS 1.3, congestion control, connection IDs, path validation, and migration required here.
+
+StableSSH demonstrates the cost of hard resumption: application packet IDs, acknowledgements, resend queues, persistent gateway state, and memory limits. Because its queue contains encrypted SSH bytes, including terminal output, it is direct evidence for keeping hard reconnect above everlink and re-opening OpenSSH.
+
+The [Teleport QUIC discussion](https://github.com/gravitational/teleport/issues/1595) correctly separates transport mobility from perceived latency: QUIC by itself does not provide Mosh-style prediction or remove head-of-line blocking from a single ordered SSH byte stream. eversh intentionally chooses transparent OpenSSH compatibility and migration without claiming terminal prediction or magical latency reduction.
+
+The tsshd/tssh source audit found reconnect output caching, input policy, status injection, escape filtering, and redraw behavior. In particular, the reviewed tsshd output path caches at least a line-count or PTY-height-derived reconnect window, flushes retained output after reconnection, removes cursor-position queries, and may resize the PTY or inject discard warnings. Those choices may be valid for that product, but violate eversh's byte-transparent, no-replay contract.
+
+Mosh reports [#1041](https://github.com/mobile-shell/mosh/issues/1041), [#1281](https://github.com/mobile-shell/mosh/issues/1281), and [#1295](https://github.com/mobile-shell/mosh/issues/1295) document screen corruption or redraw problems reported with Neovim, Vim, tmux, and wrapped lines. Individual issue reports do not prove one root cause, but they are concrete compatibility cases for the rule that everpty and everlink never interpret terminal state and for the byte fixtures that must cover wrapped lines, redraws, and multiplexers running as ordinary child applications.
+
+Standard QUIC migration is distinct from hard reconnect. Migration keeps one connection and its bounded in-flight state over a validated path. Hard reconnect creates new QUIC and SSH connections and cannot preserve the old stream without application replay and exactly-once semantics, which eversh permanently rejects.
+
+## noq, Quinn, rustls, and runtime evidence
+
+noq is the locked feasibility target because it is Rust, MIT OR Apache-2.0, derived from Quinn, and exposes the required QUIC family. The v1 requirement is the standard reliable ordered stream and RFC migration behavior, not noq's draft QAD, multipath, or QNT features. Those features remain disabled until separately justified and tested.
+
+Quinn is retained as a documented fallback within Rust. It is not a second production implementation: the selected library is pinned after Milestone 0, and the unused alternative is removed from the production graph.
+
+Asupersync's documented Request -> Drain -> Finalize cancellation pattern is useful for everlink's full-duplex shutdown. The supervisor requests cancellation after the first terminal condition, drains owned copy directions and protocol close work within deadlines, then finalizes sockets, tasks, process state, and secret memory. This pattern is implemented directly in Rust/Tokio and is not an Asupersync dependency.
+
+The [Asupersync integration guide](https://github.com/Dicklesworthstone/asupersync/blob/main/docs/integration.md) explicitly provides selected I/O, Hyper, and Tower bridges but does not construct or enter a Tokio runtime. It does not provide a noq, Quinn, QUIC, UDP, or `noq::Runtime` adapter. A separate runtime island or new adapter would violate the one-Tokio/noq runtime boundary, and its custom licence is outside the project's MIT OR Apache-2.0 dependency policy.
+
+ATP's fountain-coded bulk transfer separates control and data planes, verifies complete objects, and supplies useful pacing, fault, and bounded-memory test ideas. An interactive SSH byte stream is ordered and non-fungible: applying fountain coding would add reconstruction windows, manifests, repair rounds, and application buffering without removing the need for strict ordering. ATP's code and Asupersync source are also outside the dependency licence policy.
+
+## Overlay deployment evidence
+
+ZeroTier is the v1 deployment baseline because it supplies authenticated membership, stable overlay addresses, routing, and NAT traversal. Tailscale is a compatible alternative. eversh therefore does not need a public relay, rendezvous service, account system, or custom NAT traversal in v1.
+
+Ordinary OpenSSH over the same overlay must be measured across Wi-Fi loss, interface changes, sleep/wake, NAT rebinding, packet loss, reordering, and high RTT. That baseline determines whether everlink's standard migration materially improves recovery; it does not weaken the no-replay or OpenSSH ownership contract.
+
+## Additional transport references
+
+### kcp-go
+
+[kcp-go](https://github.com/xtaci/kcp-go) at reviewed commit `f3f1bbd9b9f2c18fde5882c19335ae31c131b077` is MIT-licensed and provides an ordered reliable `net.Conn`-like stream over UDP with retransmission, optional FEC, and packet encryption. It is useful as a recovery-time benchmark under loss and high RTT and as a comparison already exercised by tsshd. It is not selected for everlink: KCP would still require separate authentication, congestion, keepalive, close, MTU, and roaming policy that QUIC standardizes.
+
+### qtelnet
+
+[qtelnet](https://github.com/1995parham/qtelnet) at reviewed commit `012cd6dafbcb02450ba2c0477b6a67ff3d5de2eb` is GPL-3.0 and demonstrates minimal bidirectional terminal-like data over QUIC. It is a smoke-test and API-shape reference only; it has no OpenSSH compatibility, SSH-assisted bootstrap, PTY persistence, hard-reconnect boundary, or eversh licence compatibility.
+
+### USSH and draft-x1co-ussh
+
+[USSH](https://github.com/x1colegal/ussh) at reviewed commit `100447a9cdb291745307b006949d1503a00585f9` and its [draft-x1co-ussh](https://datatracker.ietf.org/doc/draft-x1co-ussh/) describe an experimental SSH-like Python shell over USTPS, not a tunnel for the OpenSSH wire protocol. They are useful for separating transport sequence numbers from application stream positions, retry-token anti-amplification, duplicate/stale handling, and selective-retransmission tests. They are rejected as the everlink protocol because they introduce a separate password/host identity, TOFU store, PTY server, and session protocol and therefore replace OpenSSH authentication, sshd, forwarding, SCP, and SFTP.
+
+The project's [Reddit announcement thread](https://www.reddit.com/r/ssh/comments/1tyo3t0/built_an_sshlike_remote_shell_over_udp_instead_of/) is retained as provenance for the product claims and discussion, not as protocol or security evidence; the repository and Internet-Drafts are the technical sources.
+
+### USTP-Secure and draft-x1co-ustps
+
+[USTP-Secure](https://github.com/x1colegal/USTP-Secure) at reviewed commit `493f268313ca5dc23c435594f8c759d07bfceaa9` and its [draft-x1co-ustps](https://datatracker.ietf.org/doc/draft-x1co-ustps/) define a custom reliable-unordered UDP protocol with transport sequence, application stream position, selective ACK/NACK, X25519 setup, retry tokens, AEAD, congestion options, and a fixed payload. They supply useful reorder, duplicate, gap, bound, and negative custom-roaming tests. They are not everlink: an ordered OpenSSH stream still needs application reassembly, while custom cryptography, congestion, MTU, migration, and endpoint validation duplicate QUIC.
+
+## QUIC-native SSH and HTTP/3 references
+
+### draft-bider-ssh-quic
+
+[draft-bider-ssh-quic-09](https://datatracker.ietf.org/doc/draft-bider-ssh-quic/) is an expired 2020 individual Internet-Draft proposing a new SSH-over-QUIC exchange and channel mapping. It supplies background on duplicate flow control, host-key trust, connection IDs, path mobility, packet sizing, and amplification defense. It is not v1: it is not an OpenSSH standard, changes both endpoints, and would abandon the transparent byte-proxy boundary.
+
+### SSH3
+
+[SSH3](https://github.com/francoismichel/ssh3) at reviewed commit `5b4b242db02a5cfbb9ebf9dfc5aad2c32e10f245` is Apache-2.0 and implements a distinct remote shell over HTTP/3 Extended CONNECT, QUIC/TLS 1.3, HTTP Authorization, X.509 server identity, and its own server. It is useful for HTTP/3, forwarding, PTY, agent, and integration-test comparisons. It is not the everlink transport because it owns a new protocol, server, identity/configuration surface, and session semantics.
+
+### SSHOQ
+
+[SSHOQ](https://github.com/h4sh5/sshoq) at reviewed commit `a46ca8953da9e4e4e6bc4859eb3267de7d913db7` is Apache-2.0 and the maintained SSH3 continuation with HTTP/3, QUIC, rustls-adjacent certificate/authorization handling, OpenSSH-format keys and agent support, OIDC, forwarding, SFTP, and ProxyJump-over-UDP ideas. It is a current comparison for integration and error handling, not a transparent OpenSSH stream and not an eversh dependency.
+
+## Product and UI references
+
+### Oryxis
+
+[Oryxis](https://github.com/wilsonglasser/oryxis) at reviewed commit `a7d66c0b9f96fdac825d412b83f1415c2d02f879` is AGPL-3.0-or-later and is a native Rust SSH desktop client with host import, an encrypted vault, SFTP, and a UI. Its `russh` path and Quinn-based synchronization are useful UX and integration comparisons only; no AGPL code or desktop terminal manager enters eversh.
+
+### Netcatty
+
+[Netcatty](https://github.com/binaricat/Netcatty) is an Electron/React/xterm.js SSH workspace and host for MoshCatty. It supplies examples of session, SFTP, split-terminal, and Mosh integration UX. It is not a production dependency and its xterm.js rendering, workspace, and terminal manager remain outside the eversh core.
+
+### latch
+
+[latch](https://github.com/unixshells/latch) at reviewed commit `44417b56aa122bddc679384cc02a9a7404118c9a` is MIT and combines native SSH, Mosh, browser access, a persistent QUIC relay, a VT emulator, windows, and scrollback. It is useful for relay/NAT architecture, transport adapters, and multi-client test ideas. Its server-side rendering, relay account, browser terminal, and persistent screen are explicitly rejected.
+
+### HerdR and ratatui
+
+The [HerdR guide](https://betterstack.com/community/guides/ai/herdr-ai-agent/) and [ratatui](https://github.com/ratatui/ratatui) demonstrate an application TUI that intentionally renders by interpreting input and emitting terminal control sequences. They are not transparent PTY or transport layers. A ratatui program may run inside everpty like any child, but no ratatui or TUI parser belongs in the eversh data path.
+
+## Historical implementation evidence
+
+### quic-go
+
+[quic-go](https://github.com/quic-go/quic-go) at reviewed commit `cf0c4ffd0ce6af5172fa59cde9b82ec19b2bf029` is MIT and documents standard migration, connection IDs, path probing/switching, TLS, flow control, keepalive, and qlog. Its API and tests are historical transport evidence only; the Rust/noq decision is locked and quic-go is not an eversh implementation candidate.
+
+### tssh and tsshd
+
+[trzsz-ssh](https://github.com/trzsz/trzsz-ssh) at `dca1425cd9c63f342e03706e53f3e3885cee9597` and [tsshd](https://github.com/trzsz/tsshd) at `7fe3f454a8446de849b56e6b93fcaa0fd2604fd1` provide maintained bootstrap, UDP, path-authentication, PTY, forwarding, reconnect, and multi-platform test examples. The source audit also records why they are not a runtime component: reconnect caches output, filters cursor requests, injects status/redraw sequences, controls input during timeout, and implements a replacement SSH/session layer rather than carrying the unmodified OpenSSH stream.
+
+## Decision summary
+
+| Concern | Adopt | Reject |
+| --- | --- | --- |
+| PTY core | Keepty-informed Unix socket, deferred spawn, one writer, observers, drain/discard | Replay ring, parser, screen state, redraw, newline conversion, logs, input interception |
+| Session UX | Names, list/current/kill, stale cleanup, atomic attach-or-create, explicit takeover | Multiple writers, screen restoration, remote scrollback |
+| Byte transport | One noq reliable stream, TLS 1.3, Retry, standard migration, SSH bootstrap trust | Custom reliable UDP, QUIC datagrams for SSH, application replay |
+| Rust fallback | Quinn only after noq gate failure, with an exact reviewed pin | Parallel production implementations or a second runtime |
+| Shutdown | Direct Request -> Drain -> Finalize states with owned tasks and deadlines | Asupersync dependency, unowned cancellation |
+| Trust | Existing OpenSSH keys, agent, host keys, ssh_config, authenticated ephemeral pin/token | Long-lived eversh identity, custom account service, unauthenticated gateway |
+| Rendering | Local Kitty/Ghostty/terminal emulator | Remote VT, snapshots, scrollback, prediction, viewport emulation |
+| Deployment | Linux direct UDP, ZeroTier, Tailscale | v1 relay, rendezvous, custom NAT traversal |
+
+## Required pre-implementation evidence
+
+- Measure ordinary OpenSSH over ZeroTier and Tailscale under interface change, sleep/wake, loss, reorder, NAT rebinding, and high RTT.
+- Build the bounded Rust/noq one-stream proxy with authenticated bootstrap and exact rustls feature path.
+- Prove real migration by changing the UDP path while preserving the same QUIC connection and SSH stream; replacement QUIC plus hidden replay does not count.
+- Prove hard failure by destroying all paths, closing old SSH, opening a new SSH connection, and reattaching everpty with no old output.
+- Saturate stdin, stdout, target TCP, writer queue, and observer queue independently and record finite resource behavior.
+- Exercise EOF, half-close, SSH commands, SFTP, SCP, forwarding, bootstrap failures, and process kill at every handshake boundary.
+- Capture arbitrary binary and terminal escape fixtures and verify byte-for-byte forwarding through every layer.
+
+## Licence rules
+
+- Original eversh code is MIT OR Apache-2.0.
+- MIT, Apache-2.0, and dual MIT/Apache-2.0 source may be adapted only with required notices retained at the point of reuse.
+- GPL and AGPL projects in this file are behavioral references only; do not copy their source, tests, comments, creative fixtures, or distinctive structure.
+- Custom-restricted and source-available projects are reference-only unless a separate licence review approves their use; a licence is not compatible merely because it begins with MIT wording.
+- Internet-Drafts are protocol background and are not source-reuse permission.
+- Every dependency is audited at an exact release or commit before addition; this inventory is not dependency approval.
+
+## Maintenance rule
+
+When a reference changes a design decision, record the exact reviewed release or commit, the evidence used, and the adopted or rejected behavior here, then update [design.md](design.md) so the normative contract does not contradict this inventory.
