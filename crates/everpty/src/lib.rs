@@ -5,6 +5,7 @@
 //! prints, reads global arguments, or exits.
 
 pub mod error;
+pub mod frame;
 pub mod limits;
 
 pub use error::Error;
