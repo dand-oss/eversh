@@ -33,7 +33,7 @@ These exact commits were reviewed on 2026-08-21. They are evidence snapshots, no
 | [zmosh](https://github.com/dand-oss/zmosh) | `205e8394c8841798d96c21d66bdba5155ee04868` on `replant-zmx0.7` | MIT | QUIC adapter failure cases, timers, bounded egress, FIN, loss, reorder, and SSH-bootstrap test reference. |
 | [quicz](https://github.com/dand-oss/quicz) | `067e7bab687536c1327fb436484dee85d5368318` | MIT | Zig transport test evidence only; eversh does not inherit zmosh's language or Ghostty constraints. |
 | [quicssh-rs](https://github.com/oowl/quicssh-rs) | `d748a0f0f5fafea95ff4072d58c397a0afa809ac` | MIT | Rust ProxyCommand topology reference; reviewed certificate and gateway shortcuts are rejected. |
-| [noq](https://github.com/n0-computer/noq) | `c334d2da218226777d61fdfd32cb0a45b2cdb7e3`; API baseline examined at `1.1.1` | MIT OR Apache-2.0 | Locked Rust QUIC feasibility target; exact release and checksum are chosen by Milestone 0. |
+| [noq](https://github.com/n0-computer/noq) | `c334d2da218226777d61fdfd32cb0a45b2cdb7e3`; selected release `=1.1.1`, crate SHA-256 `09e4bb6601fa543c110d8957813267d5a8d775a0f8fbaccf1f615d06ba9b10da`, tag noq-v1.1.1 at `12a4bf0b42070b570fb8cf90fe315c630b03f56e` | MIT OR Apache-2.0 | Selected transport by Milestone 0 (2026-08-21): default features off, exactly `runtime-tokio`, `rustls`, `ring`, `bloom`; rustls 0.23.43 via `noq::rustls` with ring; build toolchain Rust 1.95.0, MSRV 1.88. |
 | [Quinn](https://github.com/quinn-rs/quinn) | API/behavior reference reviewed alongside noq | MIT OR Apache-2.0 | Rust fallback only if noq fails required standard migration tests. |
 | [moul/quicssh](https://github.com/moul/quicssh) | `1c771b69d1a702804637d1aa47ffadb9fc724109` | Apache-2.0 | One-stream OpenSSH ProxyCommand topology reference; old security and lifecycle choices are rejected. |
 | [udp-link](https://github.com/pgul/udp-link) | `5493f7de5939829acc770deda8793e6d6fb5e8df` | MIT | SSH-assisted one-shot launch and stdout bootstrap boundary reference; custom reliable-UDP protocol is rejected. |
@@ -83,7 +83,7 @@ Standard QUIC migration is distinct from hard reconnect. Migration keeps one con
 
 noq is the locked feasibility target because it is Rust, MIT OR Apache-2.0, derived from Quinn, and exposes the required QUIC family. The v1 requirement is the standard reliable ordered stream and RFC migration behavior, not noq's draft QAD, multipath, or QNT features. Those features remain disabled until separately justified and tested.
 
-Quinn is retained as a documented fallback within Rust. It is not a second production implementation: the selected library is pinned after Milestone 0, and the unused alternative is removed from the production graph.
+Quinn was retained as a documented fallback within Rust until Milestone 0 selected noq (2026-08-21). It is not a second production implementation: noq is pinned, Quinn was not selected, and the alternative is removed from the production graph.
 
 Asupersync's documented Request -> Drain -> Finalize cancellation pattern is useful for everlink's full-duplex shutdown. The supervisor requests cancellation after the first terminal condition, drains owned copy directions and protocol close work within deadlines, then finalizes sockets, tasks, process state, and secret memory. This pattern is implemented directly in Rust/Tokio and is not an Asupersync dependency.
 

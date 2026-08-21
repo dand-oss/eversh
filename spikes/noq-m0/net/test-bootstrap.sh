@@ -20,6 +20,7 @@ echo "[bootstrap] starting ssh bootstrap against isolated sshd port $SSHD_PORT"
 RECORD="$(ssh_bootstrap "$SSHD_PORT" 2>"$HDIR/bootstrap.stderr")" || {
     echo "FAIL: ssh bootstrap exited nonzero"; cat "$HDIR/bootstrap.stderr"; exit 1;
 }
+[[ -n "$RECORD" ]] || { echo "FAIL: empty bootstrap record"; exit 1; }
 LINES=$(printf "%s\n" "$RECORD" | wc -l)
 [[ "$LINES" == 1 ]] || { echo "FAIL: expected exactly 1 record line, got $LINES"; exit 1; }
 [[ -s "$HDIR/bootstrap.stderr" ]] && { echo "note: stderr diagnostics present (expected only on failure):"; cat "$HDIR/bootstrap.stderr"; }

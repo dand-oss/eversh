@@ -259,6 +259,8 @@ Build a minimal Rust/noq one-stream ProxyCommand to a loopback byte server with 
 
 Exit criteria are a passing migration test on the intended Linux network setup, passing hard-failure and shutdown tests, bounded resource evidence, acceptable dependency/licence audit, and a recorded fallback decision. If noq fails a required standard migration test or cannot provide a supportable pinned integration, run the same bounded test against Quinn and record why it is selected. No alternative implementation is maintained.
 
+**Milestone 0 outcome (2026-08-21, evidence in `spikes/noq-m0/results.md` and eversh-chl.1): noq is selected.** Pins: Rust 1.95.0 build toolchain with MSRV 1.88 (`rust-version = "1.88"`); `noq = "=1.1.1"` with default features disabled and exactly `runtime-tokio`, `rustls`, `ring`, `bloom` enabled; crate SHA-256 `09e4bb6601fa543c110d8957813267d5a8d775a0f8fbaccf1f615d06ba9b10da` (upstream tag noq-v1.1.1 at 12a4bf0b42070b570fb8cf90fe315c630b03f56e); rustls 0.23.43 through the `noq::rustls` re-export using the ring provider. Real address rebinding preserved the same QUIC connection and stream on netns/veth paths under loss with byte-exact delivery; total path loss closed bounded without replay; the full OpenSSH ProxyCommand compatibility gate passed. Quinn was not selected and is not maintained. Spike limit values remain candidates for Milestone 1 remeasurement (section 4).
+
 ### Milestone 1: Cargo workspace and wire skeleton
 
 Create one Cargo workspace, three libraries, three binary targets, licenses, attribution, CI, typed errors, versioned everpty frames, bootstrap/auth schemas, limit configuration, deterministic byte fixtures, and fuzz harnesses. Keep implementation stubs nonfunctional until boundary tests compile.

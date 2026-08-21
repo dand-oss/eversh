@@ -346,17 +346,23 @@ pub async fn bridge(
     state: Arc<ShutdownState>,
 ) {
     let (tcp_r, tcp_w) = tcp.into_split();
-    let q2t = tokio::spawn(copy_quic_to_tcp(quic_recv, tcp_w, l, state.clone()));
-    let t2q = tokio::spawn(copy_tcp_to_quic(tcp_r, quic_send, l, state.clone()));
-    // Drain: both directions run to their terminal events under the drain
-    // deadline; a missed deadline is itself a terminal cause.
-    let drained = tokio::time::timeout(l.drain_timeout, async {
-        let _ = q2t.await;
-        let _ = t2q.await;
-    })
-    .await;
-    if drained.is_err() {
-        state.request(TerminalCause::Stalled);
+    let mut q2t = tokio::spawn(copy_quic_to_tcp(quic_recv, tcp_w, l, state.clone()));
+    let mut t2q = tokio::spawn(copy_tcp_to_quic(tcp_r, quic_send, l, state.clone()));
+    // Both directions run concurrently while the bridge is healthy; the drain
+    // deadline bounds only the SECOND direction after the first one reaches
+    // its terminal event. Every individual operation is separately bounded by
+    // the stall deadline, so a live bridge is never killed early.
+    tokio::select! {
+        _ = &mut q2t => {
+            if tokio::time::timeout(l.drain_timeout, &mut t2q).await.is_err() {
+                state.request(TerminalCause::Stalled);
+            }
+        }
+        _ = &mut t2q => {
+            if tokio::time::timeout(l.drain_timeout, &mut q2t).await.is_err() {
+                state.request(TerminalCause::Stalled);
+            }
+        }
     }
     state.drain();
     state.finalize();

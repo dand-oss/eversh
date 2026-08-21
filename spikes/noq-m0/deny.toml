@@ -1,0 +1,39 @@
+# cargo-deny configuration for the M0 spike.
+# Permissive-only licences. All dependencies in the locked graph are
+# MIT / Apache-2.0 / ISC / BSD-3-Clause / Zlib.
+
+[licenses]
+version = 2
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Zlib",
+]
+confidence-threshold = 0.92
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[bans]
+multiple-versions = "warn"
+deny = [
+  # No second SSH implementation, no async runtime besides Tokio.
+  { name = "russh" },
+  { name = "thrussh" },
+  { name = "ssh2" },
+  { name = "libssh2-sys" },
+  { name = "openssh" },
+  { name = "async-std" },
+  { name = "smol" },
+  { name = "aws-lc-rs" },
+  { name = "aws-lc-sys" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
