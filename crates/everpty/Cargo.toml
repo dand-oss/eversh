@@ -12,6 +12,8 @@ default = []
 cli = ["dep:clap"]
 
 [dependencies]
+nix = { version = "=0.31.3", default-features = false, features = ["fs", "poll", "process", "signal", "socket", "term", "user"] }
+libc = "=0.2.189"
 clap = { version = "=4.6.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"], optional = true }
 
 [lib]
