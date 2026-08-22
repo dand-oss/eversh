@@ -74,4 +74,6 @@
 # sync.remote: "git+ssh://git@github.com/dand-oss/eversh.git"
 dolt:
     shared-server: true
-    local-only: true
+    auto-start: false
+sync:
+    remote: "git+ssh://git@github.com/dand-oss/eversh.git"
