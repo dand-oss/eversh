@@ -22,14 +22,19 @@ use crate::frame;
 use crate::limits::Limits;
 use crate::sys::{self, ProbeOutcome};
 
-/// Complete metadata record cap in bytes (moves into `Limits` in M2
-/// commit 5, with the provisional-limit inventory test).
+/// Complete metadata record cap in bytes. M2 commit 5 moved the
+/// AUTHORITATIVE value into [`Limits::metadata_max_bytes`]; these
+/// commit-3 constants remain exported because existing tests import
+/// them, and their values are pinned equal to the Limits defaults.
 pub const METADATA_MAX_BYTES: usize = 4096;
-/// Executable display-label cap in bytes (cut on a char boundary).
+/// Executable display-label cap in bytes (cut on a char boundary);
+/// authoritative value is [`Limits::exec_label_max_bytes`].
 pub const EXEC_LABEL_MAX_BYTES: usize = 256;
-/// Per-origin label cap in bytes (over-cap is an error, never truncated).
+/// Per-origin label cap in bytes (over-cap is an error, never
+/// truncated); authoritative value is [`Limits::origin_label_max_bytes`].
 pub const ORIGIN_LABEL_MAX_BYTES: usize = 64;
-/// Maximum origin entries per record.
+/// Maximum origin entries per record; authoritative value is
+/// [`Limits::origin_count_max`].
 pub const ORIGIN_COUNT_MAX: usize = 4;
 
 const MAGIC: &[u8; 8] = b"EVPTYM1\0";
@@ -368,8 +373,8 @@ impl SessionDir {
     /// required). The `meta` entry must fd-stat as a regular 0600
     /// euid-owned file — a FIFO or device planted there can neither
     /// block (`O_NONBLOCK` open) nor be read; a symlink fails the
-    /// no-follow open. At most `METADATA_MAX_BYTES + 1` bytes are ever
-    /// read; an over-cap file is [`Error::MetadataTooLarge`].
+    /// no-follow open. At most `limits.metadata_max_bytes + 1` bytes are
+    /// ever read; an over-cap file is [`Error::MetadataTooLarge`].
     pub fn load_metadata(&self, limits: &Limits) -> Result<SessionMeta, Error> {
         let fd = match sys::open_meta_read_at(self.dirfd.as_fd(), OsStr::new(META_FILE)) {
             Ok(fd) => fd,
@@ -386,18 +391,20 @@ impl SessionDir {
         if !stat_is_safe_private_file(&st, sys::effective_uid()) {
             return Err(Error::StatePathUnsafe);
         }
+        let max = limits.metadata_max_bytes;
+        let max_read = max.checked_add(1).ok_or(Error::MetadataTooLarge)?;
         let mut file = std::fs::File::from(fd);
         let mut buf = Vec::with_capacity(512);
         let mut chunk = [0u8; 1024];
-        while buf.len() <= METADATA_MAX_BYTES {
-            let want = chunk.len().min(METADATA_MAX_BYTES + 1 - buf.len());
+        while buf.len() <= max {
+            let want = chunk.len().min(max_read - buf.len());
             let n = file.read(&mut chunk[..want])?;
             if n == 0 {
                 break;
             }
             buf.extend_from_slice(&chunk[..n]);
         }
-        if buf.len() > METADATA_MAX_BYTES {
+        if buf.len() > max {
             return Err(Error::MetadataTooLarge);
         }
         SessionMeta::decode(&buf, limits)
@@ -414,10 +421,60 @@ pub struct LockedSession {
 
 static META_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// A broker's bound session: the listening socket PLUS the exclusive
+/// per-session lock and directory capability it was bound through,
+/// fused so no listener can outlive the flock that authorizes it.
+/// [`Broker`](crate::broker::Broker) consumes this whole object.
+pub struct BoundSession {
+    listener: OwnedFd,
+    name: String,
+    _locked: LockedSession,
+}
+
+impl BoundSession {
+    /// The validated session name this socket was bound for.
+    pub fn session_name(&self) -> &str {
+        &self.name
+    }
+
+    /// The listening socket fd.
+    pub fn listener(&self) -> BorrowedFd<'_> {
+        self.listener.as_fd()
+    }
+}
+
 impl LockedSession {
     /// The locked session directory.
     pub fn dir(&self) -> &SessionDir {
         &self.dir
+    }
+
+    /// Binds the broker's session listener INSIDE this locked directory
+    /// and CONSUMES the lock: the returned [`BoundSession`] owns the
+    /// listener and the lock/session capability together, so the flock
+    /// is held exactly as long as the broker lives. The whole
+    /// bind/chmod/verify/listen sequence is ONE identity-aware
+    /// operation through the dirfd
+    /// ([`sys::bind_unix_listener_at`]): the entry ends up exactly
+    /// 0600, euid-owned, no-follow verified, and already listening;
+    /// every post-identity failure cleans up only an entry that still
+    /// matches the captured identity. Backlog covers the connection
+    /// cap.
+    pub fn bind_broker_socket(self, limits: &Limits) -> Result<BoundSession, Error> {
+        let backlog = i32::try_from(limits.max_connections).map_err(|_| {
+            Error::Io(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "backlog out of range",
+            ))
+        })?;
+        let dirfd = self.dir.dirfd.as_fd();
+        let fd = sys::bind_unix_listener_at(dirfd, OsStr::new(SOCKET_FILE), backlog)?;
+        let name = self.dir.name.clone();
+        Ok(BoundSession {
+            listener: fd,
+            name,
+            _locked: self,
+        })
     }
 
     fn create_meta_temp(&self) -> Result<(OsString, OwnedFd), Error> {
@@ -570,14 +627,18 @@ pub struct SessionMeta {
 }
 
 /// argv0 → bounded UTF-8 display label (`to_string_lossy`, capped on a
-/// char boundary, with the truncation flagged).
-fn display_label(argv0: &OsStr) -> (String, bool) {
+/// char boundary, with the truncation flagged). The cap is the minimum
+/// of the authoritative [`Limits::exec_label_max_bytes`] and the u16
+/// WIRE width the encoded length field can carry — a custom Limits
+/// profile can never produce an unencodable label.
+fn display_label(argv0: &OsStr, cap: usize) -> (String, bool) {
+    let cap = cap.min(u16::MAX as usize);
     let full = argv0.to_string_lossy();
     let s: &str = &full;
-    if s.len() <= EXEC_LABEL_MAX_BYTES {
+    if s.len() <= cap {
         return (s.to_owned(), false);
     }
-    let mut end = EXEC_LABEL_MAX_BYTES;
+    let mut end = cap;
     while !s.is_char_boundary(end) {
         end -= 1;
     }
@@ -585,7 +646,9 @@ fn display_label(argv0: &OsStr) -> (String, bool) {
 }
 
 impl SessionMeta {
-    /// Builds the pre-spawn record (`child_present = 0`).
+    /// Builds the pre-spawn record (`child_present = 0`). The name is
+    /// rejected at construction when it cannot fit the PHYSICAL u16
+    /// wire width, whatever the configurable limits say.
     pub fn new(
         name: &str,
         limits: &Limits,
@@ -597,10 +660,13 @@ impl SessionMeta {
         if !frame::validate_name(name, limits) {
             return Err(Error::NameInvalid);
         }
+        if name.len() > u16::MAX as usize {
+            return Err(Error::MetadataInvalid);
+        }
         if broker_pid <= 0 {
             return Err(Error::MetadataInvalid);
         }
-        let (exec_label, exec_truncated) = display_label(argv0);
+        let (exec_label, exec_truncated) = display_label(argv0, limits.exec_label_max_bytes);
         Ok(Self {
             name: name.to_owned(),
             broker_pid: broker_pid as u32,
@@ -613,12 +679,16 @@ impl SessionMeta {
         })
     }
 
-    /// Sets validated origins: at most [`ORIGIN_COUNT_MAX`] entries of
-    /// at most [`ORIGIN_LABEL_MAX_BYTES`] bytes each. Over-cap input is
-    /// [`Error::MetadataInvalid`] — never truncated.
-    pub fn with_origins(mut self, origins: Vec<String>) -> Result<Self, Error> {
-        if origins.len() > ORIGIN_COUNT_MAX
-            || origins.iter().any(|o| o.len() > ORIGIN_LABEL_MAX_BYTES)
+    /// Sets validated origins against the authoritative `Limits` fields
+    /// AND the physical u8 wire widths (count and each length):
+    /// over-cap or unwireable input is [`Error::MetadataInvalid`] —
+    /// never truncated.
+    pub fn with_origins(mut self, limits: &Limits, origins: Vec<String>) -> Result<Self, Error> {
+        if origins.len() > limits.origin_count_max
+            || origins.len() > u8::MAX as usize
+            || origins.iter().any(|o| {
+                o.len() > limits.origin_label_max_bytes || o.len() > u8::MAX as usize
+            })
         {
             return Err(Error::MetadataInvalid);
         }
@@ -673,9 +743,14 @@ impl SessionMeta {
         &self.origins
     }
 
-    /// Encodes the exact v1 record, re-validating every cap. The total
-    /// size check is defense-in-depth ([`Error::MetadataTooLarge`]) —
-    /// with default limits, individually-bounded fields cannot reach it.
+    /// Encodes the exact v1 record, re-validating every cap (against the
+    /// authoritative `Limits` fields) AND every physical wire width:
+    /// name/exec-label lengths must fit u16, origin count and each
+    /// origin length must fit u8, and the total size is computed with
+    /// checked arithmetic BEFORE the caller's buffer is touched — a
+    /// failure of any kind leaves `out` completely unchanged (the
+    /// record is built in a scratch buffer and moved in only on
+    /// success; no transient over-cap record ever exists).
     pub fn encode_into(&self, limits: &Limits, out: &mut Vec<u8>) -> Result<(), Error> {
         if !frame::validate_name(&self.name, limits) {
             return Err(Error::NameInvalid);
@@ -685,52 +760,79 @@ impl SessionMeta {
             None => true,
             Some(c) => pid_ok(c.pid) && pid_ok(c.pgid),
         };
-        if self.name.len() > usize::from(u16::MAX)
-            || self.exec_label.len() > EXEC_LABEL_MAX_BYTES
-            || self.origins.len() > ORIGIN_COUNT_MAX
-            || self.origins.iter().any(|o| o.len() > ORIGIN_LABEL_MAX_BYTES)
+        if self.exec_label.len() > limits.exec_label_max_bytes
+            || self.origins.len() > limits.origin_count_max
+            || self
+                .origins
+                .iter()
+                .any(|o| o.len() > limits.origin_label_max_bytes)
             || !pid_ok(self.broker_pid)
             || !child_ok
         {
             return Err(Error::MetadataInvalid);
         }
-        let start = out.len();
-        out.extend_from_slice(MAGIC);
-        out.extend_from_slice(&(self.name.len() as u16).to_be_bytes());
-        out.extend_from_slice(self.name.as_bytes());
-        out.extend_from_slice(&self.broker_pid.to_be_bytes());
-        out.extend_from_slice(&self.broker_start_ticks.to_be_bytes());
-        match &self.child {
-            None => out.push(0),
-            Some(c) => {
-                out.push(1);
-                out.extend_from_slice(&c.pid.to_be_bytes());
-                out.extend_from_slice(&c.pgid.to_be_bytes());
-                out.extend_from_slice(&c.start_ticks.to_be_bytes());
-            }
+        // Physical wire widths: checked conversions, never wrapped.
+        let name_len = u16::try_from(self.name.len()).map_err(|_| Error::MetadataInvalid)?;
+        let label_len = u16::try_from(self.exec_label.len()).map_err(|_| Error::MetadataInvalid)?;
+        let origin_count = u8::try_from(self.origins.len()).map_err(|_| Error::MetadataInvalid)?;
+        let origin_lens: Vec<u8> = self
+            .origins
+            .iter()
+            .map(|o| u8::try_from(o.len()))
+            .collect::<Result<_, _>>()
+            .map_err(|_| Error::MetadataInvalid)?;
+        // Checked total, verified against the cap BEFORE any write.
+        let mut total = 0usize;
+        for part in [
+            MAGIC.len(),
+            2 + self.name.len(),
+            4 + 8,
+            if self.child.is_some() { 1 + 4 + 4 + 8 } else { 1 },
+            8,
+            2 + self.exec_label.len() + 1 + 1,
+            self.origins.iter().map(|o| 1 + o.len()).sum::<usize>(),
+        ] {
+            total = total.checked_add(part).ok_or(Error::MetadataTooLarge)?;
         }
-        out.extend_from_slice(&self.created_unix_ms.to_be_bytes());
-        out.extend_from_slice(&(self.exec_label.len() as u16).to_be_bytes());
-        out.extend_from_slice(self.exec_label.as_bytes());
-        out.push(u8::from(self.exec_truncated));
-        out.push(self.origins.len() as u8);
-        for origin in &self.origins {
-            out.push(origin.len() as u8);
-            out.extend_from_slice(origin.as_bytes());
-        }
-        if out.len() - start > METADATA_MAX_BYTES {
-            out.truncate(start);
+        if total > limits.metadata_max_bytes {
             return Err(Error::MetadataTooLarge);
         }
+        let mut rec = Vec::with_capacity(total);
+        rec.extend_from_slice(MAGIC);
+        rec.extend_from_slice(&name_len.to_be_bytes());
+        rec.extend_from_slice(self.name.as_bytes());
+        rec.extend_from_slice(&self.broker_pid.to_be_bytes());
+        rec.extend_from_slice(&self.broker_start_ticks.to_be_bytes());
+        match &self.child {
+            None => rec.push(0),
+            Some(c) => {
+                rec.push(1);
+                rec.extend_from_slice(&c.pid.to_be_bytes());
+                rec.extend_from_slice(&c.pgid.to_be_bytes());
+                rec.extend_from_slice(&c.start_ticks.to_be_bytes());
+            }
+        }
+        rec.extend_from_slice(&self.created_unix_ms.to_be_bytes());
+        rec.extend_from_slice(&label_len.to_be_bytes());
+        rec.extend_from_slice(self.exec_label.as_bytes());
+        rec.push(u8::from(self.exec_truncated));
+        rec.push(origin_count);
+        for (origin, &len) in self.origins.iter().zip(&origin_lens) {
+            rec.push(len);
+            rec.extend_from_slice(origin.as_bytes());
+        }
+        debug_assert_eq!(rec.len(), total, "computed total matches the record");
+        out.extend_from_slice(&rec);
         Ok(())
     }
 
     /// Total parser: validates the size cap, magic, every length
-    /// against the remaining bytes, option bytes, origin caps, UTF-8
-    /// fields, the name policy, stored PID ranges, and trailing EOF —
-    /// all before any heap allocation.
+    /// against the remaining bytes, option bytes, origin caps (from the
+    /// authoritative `Limits` fields), UTF-8 fields, the name policy,
+    /// stored PID ranges, and trailing EOF — all before any heap
+    /// allocation.
     pub fn decode(buf: &[u8], limits: &Limits) -> Result<Self, Error> {
-        if buf.len() > METADATA_MAX_BYTES {
+        if buf.len() > limits.metadata_max_bytes {
             return Err(Error::MetadataTooLarge);
         }
         let mut r = Reader { buf, pos: 0 };
@@ -767,7 +869,7 @@ impl SessionMeta {
         };
         let created_unix_ms = r.u64()?;
         let label_len = usize::from(r.u16()?);
-        if label_len > EXEC_LABEL_MAX_BYTES {
+        if label_len > limits.exec_label_max_bytes {
             return Err(Error::MetadataInvalid);
         }
         let exec_label =
@@ -778,21 +880,31 @@ impl SessionMeta {
             _ => return Err(Error::MetadataInvalid),
         };
         let origin_count = usize::from(r.u8()?);
-        if origin_count > ORIGIN_COUNT_MAX {
+        if origin_count > limits.origin_count_max {
             return Err(Error::MetadataInvalid);
         }
-        let mut origin_slices: [&str; ORIGIN_COUNT_MAX] = [""; ORIGIN_COUNT_MAX];
-        for slot in origin_slices.iter_mut().take(origin_count) {
+        // Pass 1 over the origins: validate every length cap and UTF-8
+        // without allocating; the pass-2 reader position is saved first.
+        let origins_pos = r.pos;
+        for _ in 0..origin_count {
             let len = usize::from(r.u8()?);
-            if len > ORIGIN_LABEL_MAX_BYTES {
+            if len > limits.origin_label_max_bytes {
                 return Err(Error::MetadataInvalid);
             }
-            *slot = std::str::from_utf8(r.take(len)?).map_err(|_| Error::MetadataInvalid)?;
+            let _ = std::str::from_utf8(r.take(len)?).map_err(|_| Error::MetadataInvalid)?;
         }
         if r.pos != buf.len() {
             return Err(Error::MetadataInvalid);
         }
-        // Every check passed; only now do the field allocations happen.
+        // Pass 2: every check passed; only now do the field allocations
+        // happen.
+        r.pos = origins_pos;
+        let mut origins = Vec::with_capacity(origin_count);
+        for _ in 0..origin_count {
+            let len = usize::from(r.u8()?);
+            let s = std::str::from_utf8(r.take(len)?).map_err(|_| Error::MetadataInvalid)?;
+            origins.push(s.to_owned());
+        }
         Ok(Self {
             name: name.to_owned(),
             broker_pid,
@@ -801,7 +913,7 @@ impl SessionMeta {
             created_unix_ms,
             exec_label: exec_label.to_owned(),
             exec_truncated,
-            origins: origin_slices[..origin_count].iter().map(|s| (*s).to_owned()).collect(),
+            origins,
         })
     }
 }
@@ -1012,7 +1124,7 @@ mod tests {
     fn sample_meta(name: &str) -> SessionMeta {
         SessionMeta::new(name, &limits(), OsStr::new("/bin/sh"), 1234, 42, 1_000)
             .expect("meta")
-            .with_origins(vec!["cli".to_owned(), "env".to_owned()])
+            .with_origins(&limits(), vec!["cli".to_owned(), "env".to_owned()])
             .expect("origins")
             .with_child(ChildMeta::new(4321, 4321, 77).expect("child"))
     }
@@ -1167,14 +1279,14 @@ mod tests {
         }
         let base = SessionMeta::new("s1", &limits(), OsStr::new("sh"), 1, 0, 0).expect("meta");
         assert!(matches!(
-            base.clone().with_origins(vec![String::new(); 5]),
+            base.clone().with_origins(&limits(), vec![String::new(); 5]),
             Err(Error::MetadataInvalid)
         ));
         assert!(matches!(
-            base.clone().with_origins(vec!["a".repeat(65)]),
+            base.clone().with_origins(&limits(), vec!["a".repeat(65)]),
             Err(Error::MetadataInvalid)
         ));
-        assert!(base.with_origins(vec!["a".repeat(64); 4]).is_ok());
+        assert!(base.with_origins(&limits(), vec!["a".repeat(64); 4]).is_ok());
         for (pid, pgid) in [(0, 1), (1, 0), (-1, 1)] {
             assert!(
                 matches!(ChildMeta::new(pid, pgid, 0), Err(Error::MetadataInvalid)),
@@ -1182,6 +1294,88 @@ mod tests {
             );
         }
         assert!(ChildMeta::new(1, 1, 0).is_ok());
+    }
+
+    #[test]
+    fn wire_widths_and_total_are_enforced_with_custom_limits() {
+        // A custom Limits profile cannot widen past the PHYSICAL wire
+        // widths: a name longer than u16::MAX is rejected AT
+        // CONSTRUCTION, not just at encode.
+        let mut wide = limits();
+        wide.name_max = 200_000;
+        wide.metadata_max_bytes = usize::MAX;
+        let long_name = "a".repeat(70_000);
+        assert!(matches!(
+            SessionMeta::new(&long_name, &wide, OsStr::new("sh"), 1, 0, 0),
+            Err(Error::MetadataInvalid)
+        ));
+
+        // An origin longer than u8::MAX with a raised config cap is
+        // rejected by with_origins, never stored.
+        let mut wide = limits();
+        wide.origin_label_max_bytes = 1_000;
+        wide.metadata_max_bytes = usize::MAX;
+        let base = SessionMeta::new("s1", &wide, OsStr::new("sh"), 1, 0, 0).expect("meta");
+        assert!(matches!(
+            base.clone().with_origins(&wide, vec!["b".repeat(300)]),
+            Err(Error::MetadataInvalid)
+        ));
+
+        // More than 255 origins with a raised count cap: same.
+        let mut wide = limits();
+        wide.origin_count_max = 300;
+        wide.metadata_max_bytes = usize::MAX;
+        let base = SessionMeta::new("s1", &wide, OsStr::new("sh"), 1, 0, 0).expect("meta");
+        assert!(matches!(
+            base.clone().with_origins(&wide, vec![String::new(); 300]),
+            Err(Error::MetadataInvalid)
+        ));
+
+        // The total cap is still checked at encode BEFORE the buffer
+        // grows: no transient over-cap record, out unchanged.
+        let mut tight = limits();
+        tight.metadata_max_bytes = 8;
+        let meta = SessionMeta::new("s1", &tight, OsStr::new("sh"), 1, 0, 0).expect("meta");
+        let mut out = b"keep".to_vec();
+        assert!(matches!(
+            meta.encode_into(&tight, &mut out),
+            Err(Error::MetadataTooLarge)
+        ));
+        assert_eq!(out, b"keep");
+
+        // Encode keeps its defensive width validation against records
+        // that could only exist through private mutation: a hand-built
+        // oversized origin (impossible via with_origins) fails
+        // MetadataInvalid with the caller's buffer unchanged.
+        let mut oversized = SessionMeta::new("s1", &limits(), OsStr::new("sh"), 1, 0, 0)
+            .expect("meta");
+        oversized.origins = vec!["x".repeat(300)];
+        let mut out = b"sentinel".to_vec();
+        assert!(matches!(
+            oversized.encode_into(&limits(), &mut out),
+            Err(Error::MetadataInvalid)
+        ));
+        assert_eq!(out, b"sentinel", "failed encode leaves out unchanged");
+        // A hand-built over-u16 name likewise — with a raised name cap
+        // so the u16 wire-width conversion is the check that fires
+        // (with default limits the name policy would fire first).
+        let mut wide_name = limits();
+        wide_name.name_max = 200_000;
+        oversized.origins = Vec::new();
+        oversized.name = "a".repeat(u16::MAX as usize + 1);
+        assert!(matches!(
+            oversized.encode_into(&wide_name, &mut out),
+            Err(Error::MetadataInvalid)
+        ));
+        assert_eq!(out, b"sentinel");
+
+        // The display label clamps to the u16 wire width as well.
+        let mut wide = limits();
+        wide.exec_label_max_bytes = 100_000;
+        let argv0: String = std::iter::repeat_n('a', 70_000).collect();
+        let meta = SessionMeta::new("s1", &wide, OsStr::new(&argv0), 1, 0, 0).expect("meta");
+        assert!(meta.exec_truncated());
+        assert!(meta.exec_label().len() <= u16::MAX as usize);
     }
 
     static FIXTURE: AtomicUsize = AtomicUsize::new(0);

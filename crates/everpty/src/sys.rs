@@ -15,12 +15,15 @@
 
 use std::ffi::CString;
 use std::io;
-use std::os::fd::{AsRawFd, BorrowedFd, IntoRawFd, OwnedFd, RawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, IntoRawFd, OwnedFd, RawFd};
 use std::path::Path;
 
 use nix::fcntl::{Flock, FlockArg, OFlag};
 use nix::sys::signal::Signal;
 use nix::sys::socket::{getsockopt, sockopt::PeerCredentials};
+
+// Re-exported so the broker names poll types through this module only.
+pub use nix::poll::{PollFd, PollFlags};
 
 // ---------------------------------------------------------------------------
 // PTY
@@ -289,6 +292,241 @@ pub fn send_no_sigpipe(fd: BorrowedFd<'_>, buf: &[u8]) -> io::Result<usize> {
         return Err(io::Error::last_os_error());
     }
     Ok(n as usize)
+}
+
+// ---------------------------------------------------------------------------
+// Poll, identity-bound listener sockets, monotonic clock
+// ---------------------------------------------------------------------------
+
+/// `poll(2)` (nix `poll`). `None` waits indefinitely; `Some(ms)` is
+/// CLAMPED to `i32::MAX` milliseconds (the syscall's own limit — a
+/// caller asking for more gets the maximum legal wait, never an
+/// error). Returns the number of entries with nonzero revents.
+pub fn poll(fds: &mut [PollFd<'_>], timeout_ms: Option<u32>) -> io::Result<usize> {
+    use nix::poll::{poll, PollTimeout};
+    let timeout = match timeout_ms {
+        None => PollTimeout::NONE,
+        Some(ms) => PollTimeout::try_from(ms.min(i32::MAX as u32))
+            .expect("clamped to the i32::MAX legal range"),
+    };
+    poll(fds, timeout)
+        .map(|n| n as usize)
+        .map_err(io::Error::from)
+}
+
+/// `listen(2)` (nix `socket`). The backlog is clamped by the kernel.
+pub fn listen(fd: BorrowedFd<'_>, backlog: i32) -> io::Result<()> {
+    use nix::sys::socket::{listen, Backlog};
+    let backlog = Backlog::new(backlog).map_err(io::Error::other)?;
+    listen(&fd, backlog).map_err(io::Error::from)
+}
+
+/// `accept4(SOCK_NONBLOCK|SOCK_CLOEXEC)` (nix `socket`). `Ok(None)`
+/// means the backlog is empty (`EAGAIN`/`EWOULDBLOCK`); the returned
+/// descriptor is nonblocking and close-on-exec like the listener.
+pub fn accept_nonblock(listener: BorrowedFd<'_>) -> io::Result<Option<OwnedFd>> {
+    use nix::sys::socket::{accept4, SockFlag};
+    use std::os::fd::FromRawFd;
+    match accept4(
+        listener.as_raw_fd(),
+        SockFlag::SOCK_NONBLOCK | SockFlag::SOCK_CLOEXEC,
+    ) {
+        Ok(raw) => Ok(Some(unsafe { OwnedFd::from_raw_fd(raw) })),
+        Err(e) if e == nix::errno::Errno::EAGAIN || e == nix::errno::Errno::EWOULDBLOCK => {
+            Ok(None)
+        }
+        Err(e) => Err(io::Error::from(e)),
+    }
+}
+
+/// `recv(2)` with no flags (nix `socket`), retrying `EINTR`. `Ok(None)`
+/// is `EAGAIN` (nothing readable now); `Ok(Some(0))` is EOF (peer shut
+/// down); any bytes are data received this call.
+pub fn recv(fd: BorrowedFd<'_>, buf: &mut [u8]) -> io::Result<Option<usize>> {
+    use nix::sys::socket::{recv, MsgFlags};
+    loop {
+        match recv(fd.as_raw_fd(), buf, MsgFlags::empty()) {
+            Ok(n) => return Ok(Some(n)),
+            Err(e) if e == nix::errno::Errno::EINTR => continue,
+            Err(e) if e == nix::errno::Errno::EAGAIN || e == nix::errno::Errno::EWOULDBLOCK => {
+                return Ok(None)
+            }
+            Err(e) => return Err(io::Error::from(e)),
+        }
+    }
+}
+
+/// One normal directory component: non-empty, not `.`/`..`, no `/`.
+fn normal_entry_name(name: &std::ffi::OsStr) -> io::Result<()> {
+    use std::os::unix::ffi::OsStrExt;
+    let b = name.as_bytes();
+    if b.is_empty() || b == b"." || b == b".." || b.contains(&b'/') {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "socket entry name must be one normal path component",
+        ));
+    }
+    Ok(())
+}
+
+/// The no-follow dirfd-relative identity of a directory entry: the
+/// (device, inode, type, uid) tuple that pins any cleanup to the exact
+/// object this call created, never a replaced one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EntryIdentity {
+    pub dev: u64,
+    pub ino: u64,
+    pub kind: u32,
+    pub uid: libc::uid_t,
+}
+
+impl EntryIdentity {
+    /// Captures the identity from a no-follow stat.
+    pub fn from_stat(st: &nix::sys::stat::FileStat) -> Self {
+        Self {
+            dev: st.st_dev,
+            ino: st.st_ino,
+            kind: st.st_mode & libc::S_IFMT,
+            uid: st.st_uid,
+        }
+    }
+
+    /// The pure cleanup gate: the captured identity still names an
+    /// euid-owned Unix socket entry.
+    pub fn still_is_socket_of(&self, euid: libc::uid_t) -> bool {
+        self.uid == euid && self.kind == libc::S_IFSOCK
+    }
+}
+
+/// The pure failure-cleanup decision: after any post-identity failure
+/// (chmod, verify, listen), the just-created entry may be unlinked
+/// ONLY when a fresh no-follow stat still returns the EXACT captured
+/// identity. A vanished entry (`None`), a replaced one, or a missing
+/// capture never justifies an unlink.
+pub(crate) fn cleanup_should_unlink(
+    captured: &EntryIdentity,
+    fresh: Option<EntryIdentity>,
+) -> bool {
+    fresh == Some(*captured)
+}
+
+/// `socket(2)` + `bind(2)` + `fstatat(AT_SYMLINK_NOFOLLOW)` +
+/// `fchmodat(AT_SYMLINK_NOFOLLOW)` + `listen(2)` (nix): ONE
+/// identity-aware operation that binds an `AF_UNIX` `SOCK_STREAM`
+/// `SOCK_NONBLOCK|SOCK_CLOEXEC` listener at `<dirfd>/name` THROUGH THE
+/// DIRECTORY CAPABILITY and returns it already listening. The bind
+/// path is built from RAW OsStr bytes as `/proc/self/fd/<dirfd>/<name>`
+/// (renaming the display path cannot divert it; non-UTF-8 names
+/// survive intact). NO process-global umask is ever touched. After the
+/// bind the entry's no-follow identity (device/inode/type/uid) is
+/// captured — if that capture itself fails, the error is returned
+/// WITHOUT any unlink. The mode is then set to EXACTLY 0600 with
+/// no-follow `fchmodat`, a re-stat must show the SAME identity, euid
+/// ownership, and exactly 0600, and the listener is started. ANY
+/// failure after identity capture (chmod, verify, listen) attempts the
+/// identity-gated cleanup — a fresh no-follow stat that still matches
+/// the captured identity unlinks the entry; a replaced or unverified
+/// entry is retained — and the ORIGINAL failure is returned. If safe
+/// no-follow chmod is unsupported the call fails: there is no
+/// path-following chmod and no umask fallback.
+pub fn bind_unix_listener_at(
+    dirfd: BorrowedFd<'_>,
+    name: &std::ffi::OsStr,
+    backlog: i32,
+) -> io::Result<OwnedFd> {
+    use nix::sys::socket::{bind, socket, AddressFamily, SockFlag, SockType, UnixAddr};
+    use nix::sys::stat::{fchmodat, FchmodatFlags, Mode};
+    normal_entry_name(name)?;
+    let fd = socket(
+        AddressFamily::Unix,
+        SockType::Stream,
+        SockFlag::SOCK_NONBLOCK | SockFlag::SOCK_CLOEXEC,
+        None,
+    )
+    .map_err(io::Error::from)?;
+    // Raw-byte /proc path: no to_string_lossy, non-UTF-8 intact.
+    let via_fd = {
+        let mut p = std::ffi::OsString::from(format!("/proc/self/fd/{}/", dirfd.as_raw_fd()));
+        p.push(name);
+        std::path::PathBuf::from(p)
+    };
+    let addr = UnixAddr::new(&via_fd).map_err(io::Error::from)?;
+    bind(fd.as_raw_fd(), &addr).map_err(io::Error::from)?;
+    // Capture the created entry's identity before touching anything.
+    // A failed capture returns the error WITHOUT a blind unlink.
+    let created = match fstatat_nofollow(dirfd, name) {
+        Ok(st) => EntryIdentity::from_stat(&st),
+        Err(e) => return Err(e),
+    };
+    let euid = effective_uid();
+    if !created.still_is_socket_of(euid) {
+        // Wrong shape/owner: unverified objects are never unlinked.
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "bound entry is not an euid-owned socket",
+        ));
+    }
+    // The identity-gated cleanup helper: fresh no-follow stat must
+    // still match the captured identity or the entry is retained.
+    let cleanup_if_ours = || {
+        let fresh = fstatat_nofollow(dirfd, name)
+            .ok()
+            .map(|st| EntryIdentity::from_stat(&st));
+        if cleanup_should_unlink(&created, fresh) {
+            let _ = unlinkat_file(dirfd, name);
+        }
+    };
+    let mode_0600 = Mode::S_IRUSR.union(Mode::S_IWUSR);
+    if let Err(e) = fchmodat(dirfd, name, mode_0600, FchmodatFlags::NoFollowSymlink) {
+        let original = io::Error::from(e);
+        cleanup_if_ours();
+        return Err(original);
+    }
+    match fstatat_nofollow(dirfd, name) {
+        // A failed verification stat propagates its ORIGINAL error.
+        Err(e) => {
+            cleanup_if_ours();
+            return Err(e);
+        }
+        Ok(st) => {
+            let verified = EntryIdentity::from_stat(&st) == created
+                && st.st_uid == euid
+                && (st.st_mode & libc::S_IFMT) == libc::S_IFSOCK
+                && (st.st_mode & 0o7777) == 0o600;
+            if !verified {
+                // A logical identity/mode mismatch stays PermissionDenied.
+                cleanup_if_ours();
+                return Err(io::Error::new(
+                    io::ErrorKind::PermissionDenied,
+                    "socket entry failed the identity+exact-0600 verification",
+                ));
+            }
+        }
+    }
+    if let Err(e) = listen(fd.as_fd(), backlog) {
+        let original = io::Error::from(e);
+        cleanup_if_ours();
+        return Err(original);
+    }
+    Ok(fd)
+}
+
+/// `clock_gettime(CLOCK_MONOTONIC)` — libc: the production monotonic
+/// millisecond source behind the broker's injected `Clock`. Failure is
+/// EXPLICIT (`io::Result`): a release build never substitutes a zero
+/// timestamp. The millisecond conversion saturates at `u64::MAX`.
+pub fn clock_monotonic_ms() -> io::Result<u64> {
+    let mut ts: libc::timespec = unsafe { std::mem::zeroed() };
+    // SAFETY: `ts` is a valid, fully-sized out-parameter.
+    let r = unsafe { libc::clock_gettime(libc::CLOCK_MONOTONIC, &mut ts) };
+    if r != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let ms = (ts.tv_sec as u64)
+        .checked_mul(1000)
+        .and_then(|m| m.checked_add(ts.tv_nsec as u64 / 1_000_000))
+        .unwrap_or(u64::MAX);
+    Ok(ms)
 }
 
 // ---------------------------------------------------------------------------
@@ -653,6 +891,24 @@ pub fn read_byte_blocking(fd: BorrowedFd<'_>) -> io::Result<bool> {
             Err(e) => return Err(io::Error::from(e)),
         }
     }
+}
+
+/// Blocking `read(2)` of exactly `buf.len()` bytes (nix), retrying
+/// `EINTR` and short reads. EOF before the buffer fills is
+/// `UnexpectedEof` — the record was truncated, never half-accepted.
+pub fn read_exact_blocking(fd: BorrowedFd<'_>, buf: &mut [u8]) -> io::Result<()> {
+    let mut done = 0usize;
+    while done < buf.len() {
+        match nix::unistd::read(fd, &mut buf[done..]) {
+            Ok(0) => {
+                return Err(io::Error::from(io::ErrorKind::UnexpectedEof));
+            }
+            Ok(n) => done += n,
+            Err(nix::errno::Errno::EINTR) => continue,
+            Err(e) => return Err(io::Error::from(e)),
+        }
+    }
+    Ok(())
 }
 
 /// Re-homes a descriptor above the stdio slots with
@@ -1178,5 +1434,180 @@ mod tests {
         rename_atomic(&tmp, &fin).expect("rename");
         assert_eq!(std::fs::read(&fin).expect("read"), b"hello");
         let _ = std::fs::remove_file(&fin);
+    }
+
+    /// Bounded-retry EXCLUSIVE 0700 fixture base as an RAII guard: it
+    /// owns only the directory it itself created (plain create, never
+    /// create_dir_all, never pre-cleaning), and Drop removes exactly
+    /// that base — never anything else.
+    struct BaseGuard(std::path::PathBuf);
+
+    impl BaseGuard {
+        fn new(tag: &str) -> Self {
+            use std::os::unix::fs::DirBuilderExt;
+            for i in 0..64u32 {
+                let p = std::env::temp_dir().join(format!(
+                    "everpty-sys-{tag}-{}-{i}",
+                    std::process::id()
+                ));
+                let mut b = std::fs::DirBuilder::new();
+                b.mode(0o700);
+                if b.create(&p).is_ok() {
+                    return Self(p);
+                }
+            }
+            panic!("no exclusive fixture base for {tag}");
+        }
+
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+
+    impl Drop for BaseGuard {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn poll_reports_ready_immediate_empty_and_clamps_huge_waits() {
+        use std::io::Write;
+        let (r, w) = pipe_cloexec().expect("pipe");
+        let mut w = std::fs::File::from(w);
+        // Nothing writable on the read end: a zero timeout returns 0.
+        let mut fds = [PollFd::new(r.as_fd(), PollFlags::POLLIN)];
+        assert_eq!(poll(&mut fds, Some(0)).expect("poll empty"), 0);
+        w.write(b"x").expect("write");
+        // A ready fd with an over-i32::MAX requested wait returns
+        // immediately: the clamp turns an invalid duration into the
+        // maximum legal one instead of an error.
+        let mut fds = [PollFd::new(r.as_fd(), PollFlags::POLLIN)];
+        assert_eq!(poll(&mut fds, Some(u32::MAX)).expect("poll clamped"), 1);
+        assert!(fds[0]
+            .revents()
+            .unwrap_or(PollFlags::empty())
+            .contains(PollFlags::POLLIN));
+    }
+
+    #[test]
+    fn clock_monotonic_never_goes_backwards() {
+        let a = clock_monotonic_ms().expect("t1");
+        let b = clock_monotonic_ms().expect("t2");
+        assert!(b >= a, "monotonic clock went backwards: {a} -> {b}");
+    }
+
+    #[test]
+    fn entry_identity_gate_is_pure_and_conservative() {
+        let euid = effective_uid();
+        // stat_with-shaped identities through the pure gate.
+        let id = |mode: u32, uid: libc::uid_t| {
+            // SAFETY: libc::stat is plain data; a zeroed value is valid.
+            let mut st: nix::sys::stat::FileStat = unsafe { std::mem::zeroed() };
+            st.st_mode = mode;
+            st.st_uid = uid;
+            EntryIdentity::from_stat(&st)
+        };
+        assert!(id(libc::S_IFSOCK | 0o600, euid).still_is_socket_of(euid));
+        // Wrong type, wrong owner, or both → refuse.
+        assert!(!id(libc::S_IFREG | 0o600, euid).still_is_socket_of(euid));
+        assert!(!id(libc::S_IFLNK | 0o600, euid).still_is_socket_of(euid));
+        assert!(!id(libc::S_IFSOCK | 0o600, euid.wrapping_add(1)).still_is_socket_of(euid));
+        // Equality pins the exact object (dev/ino participate).
+        let mut a = id(libc::S_IFSOCK | 0o600, euid);
+        assert_eq!(a, id(libc::S_IFSOCK | 0o600, euid));
+        let mut b = a;
+        b.ino += 1;
+        assert_ne!(a, b);
+        a.dev += 1;
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn cleanup_decision_is_identity_gated() {
+        // The injected failure-path matrix for the cleanup rule: only
+        // an EXACT identity match may unlink.
+        let euid = effective_uid();
+        let captured = EntryIdentity {
+            dev: 7,
+            ino: 42,
+            kind: libc::S_IFSOCK,
+            uid: euid,
+        };
+        // Fresh stat identical → unlink.
+        assert!(cleanup_should_unlink(&captured, Some(captured)));
+        // Replaced entry (different inode, device, type, or owner) →
+        // retain.
+        for mutated in [
+            EntryIdentity { ino: 43, ..captured },
+            EntryIdentity { dev: 8, ..captured },
+            EntryIdentity { kind: libc::S_IFREG, ..captured },
+            EntryIdentity { uid: euid.wrapping_add(1), ..captured },
+        ] {
+            assert!(
+                !cleanup_should_unlink(&captured, Some(mutated)),
+                "a replaced entry must be retained"
+            );
+        }
+        // Vanished entry (fresh stat failed) → nothing to remove, and
+        // no missing capture ever justifies an unlink.
+        assert!(!cleanup_should_unlink(&captured, None));
+    }
+
+    #[test]
+    fn identity_bound_listener_is_exact_0600_and_round_trips() {
+        use std::os::unix::ffi::OsStrExt;
+        use std::os::unix::fs::MetadataExt;
+        let guard = BaseGuard::new("l");
+        let dir = guard.path();
+        let name = std::ffi::OsString::from("socket");
+        let dirf = std::fs::File::open(dir).expect("dir open");
+
+        // Bad entry names are rejected before any syscall.
+        for bad in ["", ".", "..", "a/b"] {
+            assert_eq!(
+                bind_unix_listener_at(dirf.as_fd(), std::ffi::OsStr::new(bad), 16)
+                    .expect_err("bad entry name")
+                    .kind(),
+                io::ErrorKind::InvalidInput
+            );
+        }
+
+        let listener = bind_unix_listener_at(dirf.as_fd(), &name, 16).expect("bind");
+        let st = std::fs::symlink_metadata(dir.join(&name)).expect("stat entry");
+        assert_eq!(st.mode() & libc::S_IFMT, libc::S_IFSOCK, "must be a socket");
+        assert_eq!(st.mode() & 0o7777, 0o600, "exact 0600 mode");
+        drop(listener);
+        let _ = std::fs::remove_file(dir.join(&name));
+
+        // A RAW NON-UTF-8 component name binds and cleans up the same
+        // way (no to_string_lossy anywhere in the path).
+        let raw = std::ffi::OsStr::from_bytes(b"\xff\xfe-raw");
+        let listener = bind_unix_listener_at(dirf.as_fd(), raw, 16).expect("raw bind");
+        let st = std::fs::symlink_metadata(dir.join(raw)).expect("stat raw entry");
+        assert_eq!(st.mode() & 0o7777, 0o600, "raw-name socket exact 0600");
+        drop(listener);
+        let _ = std::fs::remove_file(dir.join(raw));
+
+        // Full round trip on a fresh name.
+        let name2 = std::ffi::OsString::from("socket2");
+        let listener = bind_unix_listener_at(dirf.as_fd(), &name2, 16).expect("bind");
+        // Empty backlog: accept returns None without blocking.
+        assert!(accept_nonblock(listener.as_fd()).expect("accept empty").is_none());
+        // Real same-UID peer: connect, accept, credentials, data, EOF.
+        let client = std::os::unix::net::UnixStream::connect(dir.join(&name2)).expect("connect");
+        client.set_nonblocking(true).expect("client nonblock");
+        let accepted = accept_nonblock(listener.as_fd()).expect("accept").expect("conn");
+        assert_eq!(peer_uid(accepted.as_fd()).expect("uid"), effective_uid());
+        assert!(recv(accepted.as_fd(), &mut [0u8; 8]).expect("recv empty").is_none());
+        assert_eq!(send_no_sigpipe(client.as_fd(), b"hi").expect("send"), 2);
+        let mut buf = [0u8; 8];
+        assert_eq!(recv(accepted.as_fd(), &mut buf).expect("recv"), Some(2));
+        assert_eq!(&buf[..2], b"hi");
+        drop(client);
+        // Peer gone: recv reports EOF (0), never an error.
+        assert_eq!(recv(accepted.as_fd(), &mut buf).expect("eof"), Some(0));
+        drop(listener);
+        let _ = std::fs::remove_file(dir.join(&name2));
     }
 }

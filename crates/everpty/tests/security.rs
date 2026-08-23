@@ -96,7 +96,7 @@ fn sample_meta(name: &str, limits: &Limits) -> SessionMeta {
         1_000_000,
     )
     .unwrap()
-    .with_origins(vec!["cli-origin".to_owned()])
+    .with_origins(limits, vec!["cli-origin".to_owned()])
     .unwrap()
 }
 
