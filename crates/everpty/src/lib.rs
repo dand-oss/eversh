@@ -8,6 +8,7 @@ pub mod error;
 pub mod frame;
 pub mod lifecycle;
 pub mod limits;
+pub mod session;
 pub mod sys;
 
 pub use error::Error;

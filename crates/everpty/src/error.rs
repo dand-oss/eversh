@@ -9,6 +9,10 @@ pub enum Error {
     SocketStale,
     StartupDeadline,
     PathTooLong,
+    MetadataInvalid,
+    MetadataTooLarge,
+    StateRootUnavailable,
+    StatePathUnsafe,
     Io(std::io::Error),
 }
 
@@ -24,6 +28,10 @@ impl std::fmt::Display for Error {
             Self::SocketStale => write!(f, "stale session socket"),
             Self::StartupDeadline => write!(f, "startup deadline expired"),
             Self::PathTooLong => write!(f, "socket path exceeds the Unix pathname limit"),
+            Self::MetadataInvalid => write!(f, "invalid session metadata record"),
+            Self::MetadataTooLarge => write!(f, "session metadata record exceeds the size cap"),
+            Self::StateRootUnavailable => write!(f, "no usable state directory candidate"),
+            Self::StatePathUnsafe => write!(f, "state path has unsafe type, owner, or mode"),
             Self::Io(e) => write!(f, "io: {e}"),
         }
     }

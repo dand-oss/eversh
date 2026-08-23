@@ -2,14 +2,18 @@
 //!
 //! Every OS interface everpty touches goes through this module. Direct
 //! `libc` is used only where nix 0.31.3 is insufficient: the
-//! TIOCGWINSZ/TIOCSWINSZ/TIOCSCTTY ioctls, `send(MSG_NOSIGNAL)`, and the
-//! allocation-free `execve` for the post-fork child. Each wrapper names
-//! the syscall it wraps. Nothing here prints, reads global args, exits,
-//! or allocates from untrusted lengths.
+//! TIOCGWINSZ/TIOCSWINSZ/TIOCSCTTY ioctls, `send(MSG_NOSIGNAL)`, the
+//! allocation-free `execve` for the post-fork child, and dirfd
+//! directory enumeration (`fdopendir`/`readdir` — nix's `dir::Dir`
+//! sits behind the unpinned `dir` feature). Each wrapper names the
+//! syscall it wraps. Nothing here prints, reads global args, or exits,
+//! and nothing allocates from untrusted encoded lengths (directory
+//! enumeration and path construction allocate only from OS-provided
+//! names).
 
 use std::ffi::CString;
 use std::io;
-use std::os::fd::{AsRawFd, BorrowedFd, OwnedFd, RawFd};
+use std::os::fd::{AsRawFd, BorrowedFd, IntoRawFd, OwnedFd, RawFd};
 use std::path::Path;
 
 use nix::fcntl::{Flock, FlockArg, OFlag};
@@ -309,6 +313,246 @@ pub fn open_read_nofollow(path: &Path) -> io::Result<OwnedFd> {
 /// `rename(2)` (std) for the atomic publish half of metadata writes.
 pub fn rename_atomic(old: &Path, new: &Path) -> io::Result<()> {
     std::fs::rename(old, new)
+}
+
+// ---------------------------------------------------------------------------
+// Directory-relative session state (session.rs)
+// ---------------------------------------------------------------------------
+//
+// These wrappers preserve the raw errno (`io::Error::from(Errno)`) because
+// session.rs dispatches on ENOENT/EEXIST/ELOOP/ENOTDIR to walk, create,
+// and classify paths without ever trusting a path string twice.
+
+const PRIVATE_DIR_MODE: nix::sys::stat::Mode = nix::sys::stat::Mode::S_IRWXU;
+
+/// `open("/", O_RDONLY|O_DIRECTORY|O_CLOEXEC)` (nix `fs`): the anchor fd
+/// for component-by-component directory walks. `/` cannot be a symlink.
+pub fn open_root_dir() -> io::Result<OwnedFd> {
+    nix::fcntl::open(
+        Path::new("/"),
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
+        nix::sys::stat::Mode::empty(),
+    )
+    .map_err(io::Error::from)
+}
+
+/// `openat(2)` with `O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC` (nix
+/// `fs`): opens one child directory, refusing symlinks and non-dirs.
+pub fn openat_dir(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<OwnedFd> {
+    nix::fcntl::openat(
+        dirfd,
+        name,
+        OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        nix::sys::stat::Mode::empty(),
+    )
+    .map_err(io::Error::from)
+}
+
+/// `mkdirat(2)` mode 0700 (nix `fs`).
+pub fn mkdirat_private(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<()> {
+    nix::sys::stat::mkdirat(dirfd, name, PRIVATE_DIR_MODE).map_err(io::Error::from)
+}
+
+/// `openat(2)` with `O_RDWR|O_CREAT|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK`,
+/// mode 0600 (nix `fs`): the lock-file opener. No `O_EXCL` (the lock file
+/// is reopened across owner death) and no `O_TRUNC`; `O_NONBLOCK` keeps a
+/// FIFO planted at the lock name from blocking the open.
+pub fn open_lock_file_at(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<OwnedFd> {
+    nix::fcntl::openat(
+        dirfd,
+        name,
+        OFlag::O_RDWR | OFlag::O_CREAT | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK,
+        PRIVATE_FILE_MODE,
+    )
+    .map_err(io::Error::from)
+}
+
+/// `openat(2)` with `O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK` (nix
+/// `fs`): metadata reader open; `O_NONBLOCK` keeps a FIFO named `meta`
+/// from blocking, and the caller fd-stats before reading a byte.
+pub fn open_meta_read_at(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<OwnedFd> {
+    nix::fcntl::openat(
+        dirfd,
+        name,
+        OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK,
+        nix::sys::stat::Mode::empty(),
+    )
+    .map_err(io::Error::from)
+}
+
+/// `openat(2)` with `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC`,
+/// mode 0600 (nix `fs`): exclusive-create of a metadata temp file
+/// relative to the session directory fd.
+pub fn create_exclusive_private_at(
+    dirfd: BorrowedFd<'_>,
+    name: &std::ffi::OsStr,
+) -> io::Result<OwnedFd> {
+    nix::fcntl::openat(
+        dirfd,
+        name,
+        OFlag::O_WRONLY | OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        PRIVATE_FILE_MODE,
+    )
+    .map_err(io::Error::from)
+}
+
+/// `renameat(2)` (nix `fs`) with the same directory fd on both sides:
+/// the atomic publish half of a metadata rewrite.
+pub fn renameat_within(
+    dirfd: BorrowedFd<'_>,
+    old: &std::ffi::OsStr,
+    new: &std::ffi::OsStr,
+) -> io::Result<()> {
+    nix::fcntl::renameat(dirfd, old, dirfd, new).map_err(io::Error::from)
+}
+
+/// `unlinkat(2)` without `AT_REMOVEDIR` (nix `fs`): removes one
+/// non-directory entry relative to the directory fd.
+pub fn unlinkat_file(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<()> {
+    nix::unistd::unlinkat(dirfd, name, nix::unistd::UnlinkatFlags::NoRemoveDir)
+        .map_err(io::Error::from)
+}
+
+/// `fstatat(2)` with `AT_SYMLINK_NOFOLLOW` (nix `fs`): stats the entry
+/// itself — a symlink stats as a symlink, never its target.
+pub fn fstatat_nofollow(
+    dirfd: BorrowedFd<'_>,
+    name: &std::ffi::OsStr,
+) -> io::Result<nix::sys::stat::FileStat> {
+    nix::sys::stat::fstatat(dirfd, name, nix::fcntl::AtFlags::AT_SYMLINK_NOFOLLOW)
+        .map_err(io::Error::from)
+}
+
+/// `fstat(2)` (nix `fs`) on an already-open fd — the only stat a policy
+/// decision may trust, since it cannot race a path swap.
+pub fn fstat_fd(fd: BorrowedFd<'_>) -> io::Result<nix::sys::stat::FileStat> {
+    nix::sys::stat::fstat(fd).map_err(io::Error::from)
+}
+
+/// Directory enumeration on a dirfd — libc `fdopendir(3)`/`readdir(3)`
+/// (nix's `dir::Dir` sits behind the unpinned `dir` feature). Opens
+/// `.` through the dirfd first so the DIR stream owns an INDEPENDENT
+/// open file description — an `F_DUPFD` duplicate would share, and
+/// mutate, the caller's directory offset. Returns entry names minus
+/// `.`/`..`; never recurses.
+pub fn read_dir_at(dirfd: BorrowedFd<'_>) -> io::Result<Vec<std::ffi::OsString>> {
+    let snapshot = openat_dir(dirfd, std::ffi::OsStr::new("."))?;
+    let raw = snapshot.into_raw_fd();
+    // SAFETY: on success the DIR stream takes ownership of `raw`.
+    let dir = unsafe { libc::fdopendir(raw) };
+    if dir.is_null() {
+        let e = io::Error::last_os_error();
+        // SAFETY: fdopendir failed, so `raw` is still owned here.
+        unsafe { libc::close(raw) };
+        return Err(e);
+    }
+    // SAFETY: `dir` stays valid until the closedir below; read_entries
+    // only dereferences entry pointers between readdir calls.
+    let result = unsafe { read_entries(dir) };
+    // SAFETY: closes the stream and its fd exactly once.
+    let closed = unsafe { libc::closedir(dir) };
+    if closed != 0 && result.is_ok() {
+        return Err(io::Error::last_os_error());
+    }
+    result
+}
+
+/// # Safety
+/// `dir` must be a valid open DIR stream; the caller closes it.
+unsafe fn read_entries(dir: *mut libc::DIR) -> io::Result<Vec<std::ffi::OsString>> {
+    use std::os::unix::ffi::OsStrExt;
+    let mut names = Vec::new();
+    loop {
+        // readdir signals end-of-stream and error identically (NULL);
+        // only a changed errno distinguishes them.
+        nix::errno::Errno::clear();
+        let ent = libc::readdir(dir);
+        if ent.is_null() {
+            let e = io::Error::last_os_error();
+            return match e.raw_os_error() {
+                Some(0) => Ok(names),
+                _ => Err(e),
+            };
+        }
+        let name = std::ffi::CStr::from_ptr((*ent).d_name.as_ptr());
+        let bytes = name.to_bytes();
+        if bytes != b"." && bytes != b".." {
+            names.push(std::ffi::OsStr::from_bytes(bytes).to_os_string());
+        }
+    }
+}
+
+/// What a non-blocking `connect(2)` on a session socket path proved.
+/// Only `Refused` is evidence of staleness; `Connected` and `Pending`
+/// mean exactly "not proven stale" — a handshake reached something.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProbeOutcome {
+    /// The connect completed: some process accepted or holds the socket.
+    Connected,
+    /// `EINPROGRESS`/`EAGAIN`: the connect is still in flight or the
+    /// listener backlog is full — uncertain, so treated as not stale.
+    Pending,
+    /// `ENOENT`: no filesystem entry at the path.
+    Absent,
+    /// `ECONNREFUSED`: an entry exists but nothing accepts on it.
+    Refused,
+}
+
+/// Maps a connect errno onto [`ProbeOutcome`]; anything unclassified
+/// (`None`) must propagate as an error and never justify an unlink.
+pub(crate) fn classify_probe_errno(e: nix::errno::Errno) -> Option<ProbeOutcome> {
+    use nix::errno::Errno;
+    match e {
+        Errno::EINPROGRESS | Errno::EAGAIN => Some(ProbeOutcome::Pending),
+        Errno::ENOENT => Some(ProbeOutcome::Absent),
+        Errno::ECONNREFUSED => Some(ProbeOutcome::Refused),
+        _ => None,
+    }
+}
+
+/// `socket(2)` + non-blocking `connect(2)` on an `AF_UNIX` stream path
+/// (nix `socket`, `SOCK_NONBLOCK|SOCK_CLOEXEC`). The probe fd drops
+/// immediately; no byte is ever sent. This raw-path form re-resolves
+/// `path` — whenever a directory capability exists, use
+/// [`probe_unix_connect_at`] instead so the probe cannot be diverted
+/// by a renamed or replaced display path.
+pub fn probe_unix_connect(path: &Path) -> io::Result<ProbeOutcome> {
+    use nix::sys::socket::{connect, socket, AddressFamily, SockFlag, SockType, UnixAddr};
+    let fd = socket(
+        AddressFamily::Unix,
+        SockType::Stream,
+        SockFlag::SOCK_NONBLOCK | SockFlag::SOCK_CLOEXEC,
+        None,
+    )
+    .map_err(io::Error::from)?;
+    let addr = UnixAddr::new(path).map_err(io::Error::from)?;
+    match connect(fd.as_raw_fd(), &addr) {
+        Ok(()) => Ok(ProbeOutcome::Connected),
+        Err(e) => classify_probe_errno(e).ok_or_else(|| io::Error::from(e)),
+    }
+}
+
+/// Non-blocking connect probe on `<dirfd>/name` through the
+/// `/proc/self/fd` magic link: resolution goes through the OPEN FILE
+/// DESCRIPTION, so the probe is bound to the directory's identity even
+/// after its display path is renamed or replaced. Whenever a directory
+/// capability exists, probes must use this form, never a re-resolvable
+/// path. `name` must be exactly one normal component: empty, `.`,
+/// `..`, or anything containing `/` is `InvalidInput`.
+pub fn probe_unix_connect_at(
+    dirfd: BorrowedFd<'_>,
+    name: &std::ffi::OsStr,
+) -> io::Result<ProbeOutcome> {
+    use std::os::unix::ffi::OsStrExt;
+    let bytes = name.as_bytes();
+    if bytes.is_empty() || bytes == b"." || bytes == b".." || bytes.contains(&b'/') {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "probe name must be one normal path component",
+        ));
+    }
+    let via_fd = format!("/proc/self/fd/{}", dirfd.as_raw_fd());
+    probe_unix_connect(&Path::new(&via_fd).join(name))
 }
 
 // ---------------------------------------------------------------------------
