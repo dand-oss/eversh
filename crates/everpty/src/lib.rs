@@ -1,9 +1,12 @@
 //! everpty: named PTY session broker for eversh.
 //!
-//! M1 scope: typed errors, wire-frame codec, limits, and pure lifecycle
-//! state machines. No PTY syscalls, no broker loop (M2). Library code never
-//! prints, reads global arguments, or exits.
+//! M1 delivered typed errors, the wire-frame codec, limits, and pure
+//! lifecycle state machines; M2 adds the audited syscall layer, session
+//! state, and the child PTY lifecycle (no broker loop yet). Library
+//! code never prints, reads global arguments, or exits — the post-fork
+//! child's `_exit` is the one sanctioned exception.
 
+pub mod child;
 pub mod error;
 pub mod frame;
 pub mod lifecycle;

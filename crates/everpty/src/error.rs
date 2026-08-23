@@ -13,6 +13,10 @@ pub enum Error {
     MetadataTooLarge,
     StateRootUnavailable,
     StatePathUnsafe,
+    SpawnFailed {
+        stage: crate::child::SpawnStage,
+        errno: i32,
+    },
     Io(std::io::Error),
 }
 
@@ -32,6 +36,9 @@ impl std::fmt::Display for Error {
             Self::MetadataTooLarge => write!(f, "session metadata record exceeds the size cap"),
             Self::StateRootUnavailable => write!(f, "no usable state directory candidate"),
             Self::StatePathUnsafe => write!(f, "state path has unsafe type, owner, or mode"),
+            Self::SpawnFailed { stage, errno } => {
+                write!(f, "child spawn failed at the {stage} stage (errno {errno})")
+            }
             Self::Io(e) => write!(f, "io: {e}"),
         }
     }
