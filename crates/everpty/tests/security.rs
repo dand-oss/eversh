@@ -19,7 +19,7 @@ use std::sync::Arc;
 use everpty::error::Error;
 use everpty::limits::Limits;
 use everpty::session::{
-    ChildMeta, METADATA_MAX_BYTES, resolve_state_root_from, SessionMeta, StateRoot,
+    resolve_state_root_from, ChildMeta, SessionMeta, StateRoot, METADATA_MAX_BYTES,
 };
 
 static FIXTURE: AtomicUsize = AtomicUsize::new(0);
@@ -75,7 +75,11 @@ fn make_root(base: &Path) -> StateRoot {
 }
 
 fn mode_of(path: &Path) -> u32 {
-    std::fs::symlink_metadata(path).unwrap().permissions().mode() & 0o7777
+    std::fs::symlink_metadata(path)
+        .unwrap()
+        .permissions()
+        .mode()
+        & 0o7777
 }
 
 fn chmod(path: &Path, mode: u32) {
@@ -143,7 +147,10 @@ fn state_root_skips_unsafe_candidates() {
         Err(Error::StateRootUnavailable)
     ));
     // Nothing was repaired into acceptance.
-    assert!(std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+    assert!(std::fs::symlink_metadata(&link)
+        .unwrap()
+        .file_type()
+        .is_symlink());
     assert!(file.is_file());
     assert_eq!(mode_of(&open), 0o777, "never chmod-repaired");
 }
@@ -167,6 +174,85 @@ fn session_dir_0700_lock_meta_0600() {
         .filter(|n| n.to_string_lossy().starts_with("meta.tmp"))
         .collect();
     assert!(leftovers.is_empty(), "{leftovers:?}");
+}
+
+#[test]
+fn bound_session_retirement_is_dirfd_relative_and_idempotent() {
+    let fx = Fixture::new();
+    let root = make_root(fx.base());
+    let limits = Limits::default();
+    let locked = root.session("retire", &limits).unwrap().lock().unwrap();
+    locked
+        .store_metadata(&limits, &sample_meta("retire", &limits))
+        .unwrap();
+    let mut bound = locked.bind_broker_socket(&limits).unwrap();
+    let dir = root.path().join("retire");
+    assert!(dir.join("socket").exists());
+    bound.retire_socket().unwrap();
+    assert!(!dir.join("socket").exists());
+    assert!(dir.exists(), "terminal replies may still be draining");
+    bound.retire_socket().unwrap();
+    bound.retire_state().unwrap();
+    assert!(!dir.exists());
+    bound.retire_state().unwrap();
+}
+
+#[test]
+fn retirement_retains_unknown_entries_and_parent_replacements() {
+    let fx = Fixture::new();
+    let root = make_root(fx.base());
+    let limits = Limits::default();
+
+    let locked = root.session("unknown", &limits).unwrap().lock().unwrap();
+    let mut bound = locked.bind_broker_socket(&limits).unwrap();
+    let unknown = root.path().join("unknown").join("foreign");
+    std::fs::write(&unknown, b"keep").unwrap();
+    assert!(bound.retire_state().is_err());
+    assert!(
+        unknown.exists(),
+        "unknown object must never be recursively removed"
+    );
+
+    let locked = root.session("swapped", &limits).unwrap().lock().unwrap();
+    let mut swapped = locked.bind_broker_socket(&limits).unwrap();
+    let original = root.path().join("swapped");
+    let moved = root.path().join("moved-original");
+    std::fs::rename(&original, &moved).unwrap();
+    let mut replacement = std::fs::DirBuilder::new();
+    replacement.mode(0o700);
+    replacement.create(&original).unwrap();
+    std::fs::write(original.join("sentinel"), b"replacement").unwrap();
+    assert!(matches!(
+        swapped.retire_socket(),
+        Err(Error::StatePathUnsafe)
+    ));
+    assert_eq!(
+        std::fs::read(original.join("sentinel")).unwrap(),
+        b"replacement"
+    );
+    assert!(
+        moved.join("socket").exists(),
+        "original entry is retained safely"
+    );
+
+    let locked = root.session("meta-swap", &limits).unwrap().lock().unwrap();
+    locked
+        .store_metadata(&limits, &sample_meta("meta-swap", &limits))
+        .unwrap();
+    let mut meta_swapped = locked.bind_broker_socket(&limits).unwrap();
+    let meta = root.path().join("meta-swap").join("meta");
+    std::fs::rename(&meta, root.path().join("saved-owned-meta")).unwrap();
+    std::fs::write(&meta, b"foreign-safe-shaped-metadata").unwrap();
+    std::fs::set_permissions(&meta, std::fs::Permissions::from_mode(0o600)).unwrap();
+    assert!(matches!(
+        meta_swapped.retire_state(),
+        Err(Error::StatePathUnsafe)
+    ));
+    assert_eq!(
+        std::fs::read(&meta).unwrap(),
+        b"foreign-safe-shaped-metadata",
+        "same-mode metadata replacement must be retained"
+    );
 }
 
 #[test]
@@ -225,7 +311,10 @@ fn socket_path_over_limit_is_path_too_long_and_nothing_created() {
     let limits = Limits::default();
     // Sanity: root + "/s1/socket" exceeds the 107-byte sun_path bound.
     assert!(root.path().as_os_str().len() + 1 + 2 + 1 + 6 > limits.unix_path_max);
-    assert!(matches!(root.session("s1", &limits), Err(Error::PathTooLong)));
+    assert!(matches!(
+        root.session("s1", &limits),
+        Err(Error::PathTooLong)
+    ));
     assert!(
         !root.path().join("s1").exists(),
         "the length gate must fire before any session state is created"
@@ -242,14 +331,20 @@ fn meta_unsafe_entries_rejected_without_blocking() {
     // promptly and the fd-stat type check rejects it unread.
     let m1 = root.session("m1", &limits).unwrap();
     fifo(&root.path().join("m1/meta"));
-    assert!(matches!(m1.load_metadata(&limits), Err(Error::StatePathUnsafe)));
+    assert!(matches!(
+        m1.load_metadata(&limits),
+        Err(Error::StatePathUnsafe)
+    ));
 
     // Loose-mode regular file.
     let m2 = root.session("m2", &limits).unwrap();
     let loose = root.path().join("m2/meta");
     std::fs::write(&loose, b"x").unwrap();
     chmod(&loose, 0o644);
-    assert!(matches!(m2.load_metadata(&limits), Err(Error::StatePathUnsafe)));
+    assert!(matches!(
+        m2.load_metadata(&limits),
+        Err(Error::StatePathUnsafe)
+    ));
     assert_eq!(mode_of(&loose), 0o644, "never chmod-repaired");
 
     // Symlink, even to a safe 0600 regular file.
@@ -258,20 +353,29 @@ fn meta_unsafe_entries_rejected_without_blocking() {
     std::fs::write(&target, b"x").unwrap();
     chmod(&target, 0o600);
     std::os::unix::fs::symlink("target", root.path().join("m3/meta")).unwrap();
-    assert!(matches!(m3.load_metadata(&limits), Err(Error::StatePathUnsafe)));
+    assert!(matches!(
+        m3.load_metadata(&limits),
+        Err(Error::StatePathUnsafe)
+    ));
 
     // Unix socket planted at the meta name: ENXIO before any read,
     // resolved to the typed error by no-follow stat evidence.
     let m4 = root.session("m4", &limits).unwrap();
     let _sock_holder = UnixListener::bind(root.path().join("m4/meta")).unwrap();
-    assert!(matches!(m4.load_metadata(&limits), Err(Error::StatePathUnsafe)));
+    assert!(matches!(
+        m4.load_metadata(&limits),
+        Err(Error::StatePathUnsafe)
+    ));
 
     // Mode-000 metadata file we own: EACCES, same typed resolution.
     let m5 = root.session("m5", &limits).unwrap();
     let dark_meta = root.path().join("m5/meta");
     std::fs::write(&dark_meta, b"x").unwrap();
     chmod(&dark_meta, 0o000);
-    assert!(matches!(m5.load_metadata(&limits), Err(Error::StatePathUnsafe)));
+    assert!(matches!(
+        m5.load_metadata(&limits),
+        Err(Error::StatePathUnsafe)
+    ));
 }
 
 #[test]
@@ -302,7 +406,10 @@ fn metadata_file_over_cap_is_too_large() {
     let meta_path = root.path().join("big/meta");
     std::fs::write(&meta_path, vec![0u8; METADATA_MAX_BYTES + 1]).unwrap();
     chmod(&meta_path, 0o600);
-    assert!(matches!(sd.load_metadata(&limits), Err(Error::MetadataTooLarge)));
+    assert!(matches!(
+        sd.load_metadata(&limits),
+        Err(Error::MetadataTooLarge)
+    ));
 }
 
 fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -318,7 +425,9 @@ fn collect_files(dir: &Path, out: &mut Vec<PathBuf>) {
 }
 
 fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    haystack.windows(needle.len()).any(|window| window == needle)
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
 }
 
 #[test]

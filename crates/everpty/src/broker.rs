@@ -1,19 +1,16 @@
-//! Single-threaded poll-loop broker (plans/m2-plan.md §3–§6; commit 6,
-//! corrected detached-boundary and terminal-pressure pass).
+//! Single-threaded poll-loop broker (plans/m2-plan.md §3–§7; commit 7).
 //!
-//! One thread, one `poll(2)` per iteration over the listener, PTY
-//! master, and every client socket. All descriptors are `O_NONBLOCK`;
-//! all socket writes go through
-//! `send(MSG_NOSIGNAL)`. Time comes from an injected [`Clock`] so every
-//! deadline is deterministically testable — no sleeps anywhere, and a
-//! clock failure propagates instead of being masked.
+//! One thread, one `poll(2)` per iteration over the listener, signalfd,
+//! PTY master, and every client socket. All descriptors are `O_NONBLOCK`;
+//! all socket writes go through `send(MSG_NOSIGNAL)`. Time comes from an
+//! injected [`Clock`] so every deadline is deterministically testable — no
+//! sleeps occur in the broker loop, and a clock failure is never hidden.
 //!
 //! Every frame decision goes through the pure reducer
-//! ([`crate::state::reduce`]); this module only executes effects. The
-//! deferred effects (`SpawnChild`, `BeginKill`, `ApplyDimensions`,
-//! `Shutdown`) are recorded and NEVER executed here — commit 7 owns
-//! signal wiring, spawn, and shutdown. In particular `Kill` never
-//! terminates anything in commit 6.
+//! ([`crate::state::reduce`]); this module executes its ordered effects.
+//! Production mode owns a [`SpawnPlan`] and executes spawn, resize,
+//! TERM/KILL, terminal delivery, and cleanup. The no-plan mode retained for
+//! commit-5/6 tests continues to expose those effects without spawning.
 //!
 //! **No-loss writer input.** A Writer's socket is read only while its
 //! input queue has headroom for the maximum legal Input payload, and
@@ -36,25 +33,25 @@
 //! authorizes it, and the session name is derived from the bound
 //! session — never accepted as an independent parameter.
 //!
-//! **Readiness/SIGPIPE boundary**: the normative CLOEXEC readiness pipe
-//! is implemented as a fixed-size record codec, ownership halves, and
-//! the blocking READ side. The WRITE side is deliberately NOT wired:
-//! the broker does not yet ignore SIGPIPE (that arrives with the
-//! commit-7 signal setup), and a pipe write to a dead starter would
-//! kill the broker. [`Broker::readiness_record`] hands the encoded
-//! record to the commit-7 loop as an explicit later effect; no
-//! socketpair is substituted and no closed pipe is ever written.
+//! **Readiness/SIGPIPE boundary**: production startup ignores SIGPIPE,
+//! installs the signal source, publishes child-absent metadata, and only
+//! then writes one fixed-size record to the CLOEXEC readiness pipe. EPIPE
+//! is a startup failure and no child is spawned.
 
+use std::ffi::OsString;
 use std::io::{self, Read, Write};
-use std::os::fd::{AsFd, OwnedFd};
+use std::os::fd::{AsFd, AsRawFd, OwnedFd};
 use std::rc::Rc;
 
+use nix::sys::signal::Signal;
+
+use crate::child::{self, ChildProc, ExitOutcome, SpawnSpec};
 use crate::client::{aggregate_live_bytes, ClientConn, ConnRole, SharedChunk};
 use crate::error::Error;
 use crate::frame::{self, Frame, Kind};
-use crate::lifecycle::{Lifecycle, Ownership};
+use crate::lifecycle::{Lifecycle, Ownership, TerminalCause};
 use crate::limits::Limits;
-use crate::session::BoundSession;
+use crate::session::{BoundSession, ChildMeta, SessionMeta};
 use crate::state::{self, ConnId, Effect, Event, Runtime, Target};
 use crate::sys::{self, PollFd, PollFlags};
 
@@ -77,7 +74,7 @@ impl Clock for MonotonicClock {
 }
 
 // ---------------------------------------------------------------------------
-// Readiness record (normative CLOEXEC pipe; READ side only in commit 5)
+// Readiness record (normative CLOEXEC pipe)
 // ---------------------------------------------------------------------------
 
 /// Fixed size of the readiness record.
@@ -131,8 +128,7 @@ impl ReadyStatus {
 }
 
 /// Ownership halves of the CLOEXEC readiness pipe. The starter keeps
-/// `read`; the broker keeps `write` UNWRITTEN until commit 7's loop
-/// performs the explicit write effect (see the module boundary note).
+/// `read`; production broker startup consumes `write` for exactly one record.
 pub struct ReadinessChannel {
     pub read: OwnedFd,
     pub write: OwnedFd,
@@ -207,6 +203,11 @@ struct ConnSlot {
     conn: ConnId,
     fd: OwnedFd,
     client: ClientConn,
+    /// A terminal Error/Exit that must follow already-queued Output. It is
+    /// materialized into the hard-capped OutQueue only when both the target
+    /// and aggregate caps have room; until then the fixed reply deadline is
+    /// the bound. At most one terminal frame exists per bounded connection.
+    terminal_pending: Option<Frame>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -225,6 +226,7 @@ struct WriterStall {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PollOwner {
     Listener,
+    Signals,
     Master,
     Client { idx: usize, conn: ConnId },
 }
@@ -233,6 +235,13 @@ enum PollOwner {
 enum BarrierResult {
     Safe,
     Deferred,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MasterReadResult {
+    Data,
+    Boundary,
+    WouldBlock,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -247,6 +256,71 @@ struct Recipient {
     conn: ConnId,
     client_id: u32,
     kind: RecipientKind,
+}
+
+/// Owned pre-spawn inputs captured by the future start API before the
+/// broker enters its loop. Metadata is published child-absent before Ready
+/// and rewritten without changing its discovery fields after spawn.
+pub struct SpawnPlan {
+    pub argv: Vec<OsString>,
+    pub env: Vec<OsString>,
+    pub path_var: Option<OsString>,
+    pub metadata: SessionMeta,
+}
+
+impl SpawnPlan {
+    pub fn new(
+        argv: Vec<OsString>,
+        env: Vec<OsString>,
+        path_var: Option<OsString>,
+        metadata: SessionMeta,
+    ) -> Self {
+        Self {
+            argv,
+            env,
+            path_var,
+            metadata,
+        }
+    }
+}
+
+/// Stable terminal result returned by the library loop; callers at the
+/// binary edge decide whether to use the suggested process exit code.
+#[derive(Debug)]
+pub struct BrokerExit {
+    pub cause: TerminalCause,
+    pub child: Option<ExitOutcome>,
+    pub suggested_exit_code: u8,
+    pub failure: Option<Error>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KillPhase {
+    Idle,
+    TermSent { deadline_ms: u64 },
+    KillSent,
+    Finalized,
+}
+
+enum SignalSource {
+    Real(sys::BrokerSignals),
+    Injected(OwnedFd),
+}
+
+fn exit_parts(outcome: ExitOutcome) -> (bool, u32) {
+    match outcome {
+        ExitOutcome::Exited(value) => (false, value),
+        ExitOutcome::Signaled(value) => (true, value),
+    }
+}
+
+impl SignalSource {
+    fn fd(&self) -> std::os::fd::BorrowedFd<'_> {
+        match self {
+            Self::Real(signals) => signals.fd(),
+            Self::Injected(fd) => fd.as_fd(),
+        }
+    }
 }
 
 /// What one `run_once` pass did.
@@ -277,9 +351,20 @@ pub struct Broker {
     writer_stall: Option<WriterStall>,
     accepted_total: usize,
     closed_total: usize,
-    /// Held for ownership, never written in commit 6 (see the module
-    /// boundary note); the commit-7 loop writes it.
-    _readiness_write: Option<OwnedFd>,
+    readiness_write: Option<OwnedFd>,
+    spawn_plan: Option<SpawnPlan>,
+    signal_source: Option<SignalSource>,
+    started: bool,
+    child: Option<ChildProc>,
+    observed_outcome: Option<ExitOutcome>,
+    final_outcome: Option<ExitOutcome>,
+    pty_exit_deadline_ms: Option<u64>,
+    kill_phase: KillPhase,
+    internal_cleanup_pending: bool,
+    shutdown_requested: bool,
+    finalized: bool,
+    exit: Option<BrokerExit>,
+    first_failure: Option<Error>,
 }
 
 impl Broker {
@@ -333,8 +418,52 @@ impl Broker {
             writer_stall: None,
             accepted_total: 0,
             closed_total: 0,
-            _readiness_write: readiness_write,
+            readiness_write,
+            spawn_plan: None,
+            signal_source: None,
+            started: false,
+            child: None,
+            observed_outcome: None,
+            final_outcome: None,
+            pty_exit_deadline_ms: None,
+            kill_phase: KillPhase::Idle,
+            internal_cleanup_pending: false,
+            shutdown_requested: false,
+            finalized: false,
+            exit: None,
+            first_failure: None,
         })
+    }
+
+    /// Supplies production spawn inputs before startup. Manual brokers leave
+    /// this unset and continue exposing deferred SpawnChild effects.
+    pub fn set_spawn_plan(&mut self, plan: SpawnPlan) -> Result<(), Error> {
+        if self.started || self.child.is_some() || self.spawn_plan.is_some() {
+            return Err(Error::Io(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "spawn plan is already fixed",
+            )));
+        }
+        if plan.metadata.name() != self.bound.session_name() || plan.metadata.child().is_some() {
+            return Err(Error::MetadataInvalid);
+        }
+        self.spawn_plan = Some(plan);
+        Ok(())
+    }
+
+    /// Injects a nonblocking fd carrying signalfd-shaped records. This is a
+    /// narrow deterministic-test seam; production startup creates a real
+    /// mask-restoring signalfd guard.
+    pub fn set_signal_fd(&mut self, fd: OwnedFd) -> io::Result<()> {
+        if self.started || self.signal_source.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "signal source is already fixed",
+            ));
+        }
+        sys::set_nonblocking(fd.as_fd())?;
+        self.signal_source = Some(SignalSource::Injected(fd));
+        Ok(())
     }
 
     /// Installs the one PTY master owned by this broker. Replacement is
@@ -350,6 +479,74 @@ impl Broker {
         self.master = Some(std::fs::File::from(fd));
         self.master_terminal_pending = false;
         Ok(())
+    }
+
+    /// One-time production boundary: signal safety and metadata precede the
+    /// readiness record. Any failure requests terminal cleanup and spawns no
+    /// child.
+    pub fn start(&mut self) -> Result<(), Error> {
+        if self.started {
+            return Ok(());
+        }
+        self.started = true;
+        if let Err(error) = sys::ignore_sigpipe() {
+            return self.fail_startup(Error::Io(error));
+        }
+        if self.spawn_plan.is_some() && self.signal_source.is_none() {
+            match sys::broker_signals() {
+                Ok(signals) => self.signal_source = Some(SignalSource::Real(signals)),
+                Err(error) => return self.fail_startup(Error::Io(error)),
+            }
+        }
+        if let Some(plan) = self.spawn_plan.as_ref() {
+            if let Err(error) = self.bound.store_metadata(&self.limits, &plan.metadata) {
+                return self.fail_startup(error);
+            }
+        }
+        if let Err(error) = self.write_ready_status(ReadyStatus::Ready) {
+            return self.fail_startup(Error::Io(error));
+        }
+        Ok(())
+    }
+
+    fn write_ready_status(&mut self, status: ReadyStatus) -> io::Result<()> {
+        let Some(fd) = self.readiness_write.take() else {
+            return Ok(());
+        };
+        let mut file = std::fs::File::from(fd);
+        file.write_all(&status.encode())
+    }
+
+    fn fail_startup<T>(&mut self, error: Error) -> Result<T, Error> {
+        let errno = match &error {
+            Error::Io(io) => io.raw_os_error().unwrap_or(libc::EIO),
+            _ => libc::EINVAL,
+        };
+        let _ = self.write_ready_status(ReadyStatus::Failed { errno });
+        self.first_failure = Some(error);
+        let now = self.clock.now_ms().unwrap_or(self.ready_at_ms);
+        let fx = state::reduce(&mut self.runtime, &self.limits, Event::SpawnFailed);
+        self.apply_effects(fx, now);
+        self.maybe_finalize(now);
+        Err(Error::Io(io::Error::other("broker startup failed")))
+    }
+
+    /// Runs the production loop without exiting the process. Systemic loop
+    /// errors become InternalError and still drive owned-child cleanup.
+    pub fn serve(&mut self) -> BrokerExit {
+        let _ = self.start();
+        while !self.finalized {
+            if let Err(error) = self.run_once(None) {
+                let now = self.clock.now_ms().unwrap_or(self.ready_at_ms);
+                self.request_internal_failure(Error::Io(error), now);
+            }
+        }
+        self.exit.take().unwrap_or(BrokerExit {
+            cause: TerminalCause::InternalError,
+            child: self.final_outcome,
+            suggested_exit_code: 1,
+            failure: self.first_failure.take(),
+        })
     }
 
     // -- read-only observability (tests and the future CLI) --
@@ -405,6 +602,30 @@ impl Broker {
         self.master_terminal_pending
     }
 
+    pub fn child_pid(&self) -> Option<libc::pid_t> {
+        self.child.as_ref().map(ChildProc::pid)
+    }
+
+    pub fn child_outcome(&self) -> Option<ExitOutcome> {
+        self.final_outcome
+    }
+
+    pub fn pty_exit_deadline(&self) -> Option<u64> {
+        self.pty_exit_deadline_ms
+    }
+
+    pub fn kill_is_active(&self) -> bool {
+        self.kill_phase != KillPhase::Idle
+    }
+
+    pub fn is_finalized(&self) -> bool {
+        self.finalized
+    }
+
+    pub fn broker_exit(&self) -> Option<&BrokerExit> {
+        self.exit.as_ref()
+    }
+
     pub fn writer_output_live_bytes(&self) -> Option<usize> {
         let (idx, _) = self.eligible_writer_slot()?;
         Some(self.slots[idx].as_ref()?.client.out().live_bytes())
@@ -423,8 +644,7 @@ impl Broker {
             .map(|stall| (stall.writer_id, stall.since_ms, stall.band))
     }
 
-    /// Deferred effects recorded so far (SpawnChild/BeginKill/
-    /// ApplyDimensions/Shutdown). Commit 7 wires their execution.
+    /// Effects retained only by the no-plan/manual-PTY compatibility mode.
     pub fn deferred(&self) -> &[Effect] {
         &self.deferred
     }
@@ -433,9 +653,7 @@ impl Broker {
         std::mem::take(&mut self.deferred)
     }
 
-    /// The encoded readiness record for the commit-7 loop to WRITE as
-    /// an explicit effect once SIGPIPE is handled. Commit 6 never
-    /// writes to the pipe.
+    /// The canonical encoded Ready record (also used by legacy tests).
     pub fn readiness_record(&self) -> [u8; READY_RECORD_LEN] {
         ReadyStatus::Ready.encode()
     }
@@ -448,33 +666,61 @@ impl Broker {
     pub fn run_once(&mut self, max_wait_ms: Option<u32>) -> io::Result<Iteration> {
         let accepted_before = self.accepted_total;
         let closed_before = self.closed_total;
+        if !self.started && self.start().is_err() && self.finalized {
+            return Ok(Iteration {
+                accepted: 0,
+                closed: self.closed_total - closed_before,
+                connections: self.connection_count(),
+            });
+        }
+        if self.finalized {
+            return Ok(Iteration {
+                accepted: 0,
+                closed: 0,
+                connections: self.connection_count(),
+            });
+        }
         let now = self.clock.now_ms()?;
         self.check_deadlines(now)?;
+        self.advance_lifecycle(now)?;
         self.reconcile_writer_stall(now);
         self.expire_writer_stall(now);
+        self.maybe_finalize(now);
+        if self.finalized {
+            return Ok(Iteration {
+                accepted: self.accepted_total - accepted_before,
+                closed: self.closed_total - closed_before,
+                connections: self.connection_count(),
+            });
+        }
 
-        // Build the complete poll set under immutable borrows, then
-        // harvest identity-bound events before mutating anything.
-        let mut pfds: Vec<PollFd<'_>> = Vec::with_capacity(2 + self.slots.len());
-        let mut owners: Vec<PollOwner> = Vec::with_capacity(2 + self.slots.len());
-        pfds.push(PollFd::new(self.bound.listener(), PollFlags::POLLIN));
-        owners.push(PollOwner::Listener);
-
+        // Build the complete poll set under immutable borrows, then harvest
+        // identity-bound events before mutating anything.
+        let mut pfds: Vec<PollFd<'_>> = Vec::with_capacity(3 + self.slots.len());
+        let mut owners: Vec<PollOwner> = Vec::with_capacity(3 + self.slots.len());
+        if !self.shutdown_requested && !self.internal_cleanup_pending && self.bound.has_listener() {
+            pfds.push(PollFd::new(self.bound.listener(), PollFlags::POLLIN));
+            owners.push(PollOwner::Listener);
+        }
+        if let Some(signals) = self.signal_source.as_ref() {
+            pfds.push(PollFd::new(signals.fd(), PollFlags::POLLIN));
+            owners.push(PollOwner::Signals);
+        }
         let master_events = self.master_poll_events();
         if let (Some(master), Some(events)) = (self.master.as_ref(), master_events) {
             pfds.push(PollFd::new(master.as_fd(), events));
             owners.push(PollOwner::Master);
         }
-
         for (idx, slot) in self.slots.iter().enumerate() {
             let Some(slot) = slot else { continue };
-            // Even a socket with no requested readiness stays in the
-            // set so HUP/ERR/NVAL cannot hide behind backpressure.
             let mut events = PollFlags::empty();
-            if self.read_admitted(slot) {
+            if !self.shutdown_requested
+                && !self.internal_cleanup_pending
+                && self.read_admitted(slot)
+            {
                 events |= PollFlags::POLLIN;
             }
-            if !slot.client.out().is_empty() {
+            if !slot.client.out().is_empty() || self.pending_terminal_fits(idx) {
                 events |= PollFlags::POLLOUT;
             }
             pfds.push(PollFd::new(slot.fd.as_fd(), events));
@@ -487,6 +733,7 @@ impl Broker {
         let wait = self.poll_wait_ms(now, max_wait_ms);
         sys::poll(&mut pfds, wait)?;
         let mut listener_ready = false;
+        let mut signals_ready = None;
         let mut master_ready = None;
         let mut conn_events = Vec::new();
         for (pfd, owner) in pfds.iter().zip(&owners) {
@@ -496,6 +743,7 @@ impl Broker {
             }
             match *owner {
                 PollOwner::Listener => listener_ready = true,
+                PollOwner::Signals => signals_ready = Some(re),
                 PollOwner::Master => master_ready = Some(re),
                 PollOwner::Client { idx, conn } => conn_events.push((idx, conn, re)),
             }
@@ -503,18 +751,20 @@ impl Broker {
         drop(pfds);
         drop(owners);
 
-        // Deadline expiry wins ties with readiness and is reconciled
-        // again after the poll wait, before any PTY byte is consumed.
         let now = self.clock.now_ms()?;
         self.check_deadlines(now)?;
+        self.advance_lifecycle(now)?;
         self.reconcile_writer_stall(now);
         self.expire_writer_stall(now);
 
         let mut discard_budget = self.limits.accepts_per_iteration.max(1);
+        if let Some(re) = signals_ready {
+            self.handle_signal_events(re, now)?;
+        }
         if let Some(re) = master_ready {
             self.handle_master_events(re, now, &mut discard_budget)?;
         }
-        if listener_ready {
+        if listener_ready && !self.shutdown_requested && self.bound.has_listener() {
             self.handle_accept()?;
         }
         for (idx, conn, re) in conn_events {
@@ -523,7 +773,9 @@ impl Broker {
             }
             self.handle_conn_events(idx, re, now, &mut discard_budget)?;
         }
+        self.advance_lifecycle(now)?;
         self.reconcile_writer_stall(now);
+        self.maybe_finalize(now);
 
         Ok(Iteration {
             accepted: self.accepted_total - accepted_before,
@@ -754,6 +1006,12 @@ impl Broker {
                 &mut best_abs,
             );
         }
+        if let Some(deadline) = self.pty_exit_deadline_ms {
+            consider(deadline, &mut best_abs);
+        }
+        if let KillPhase::TermSent { deadline_ms } = self.kill_phase {
+            consider(deadline_ms, &mut best_abs);
+        }
         let remaining = best_abs.map(|d| d.saturating_sub(now));
         match (max_wait_ms, remaining) {
             (Some(m), Some(r)) => Some(u64::from(m).min(r).min(i32::MAX as u64) as u32),
@@ -806,6 +1064,255 @@ impl Broker {
             }
         }
         Ok(())
+    }
+
+    fn note_pty_terminal(&mut self, now: u64) {
+        if self.child.is_some() && self.pty_exit_deadline_ms.is_none() {
+            self.pty_exit_deadline_ms = Some(now.saturating_add(self.limits.pty_exit_drain_ms));
+        }
+    }
+
+    fn observe_child(&mut self, now: u64) -> io::Result<()> {
+        if self.observed_outcome.is_some() {
+            return Ok(());
+        }
+        let observed = match self.child.as_mut() {
+            Some(child) => child.observe_exit()?,
+            None => None,
+        };
+        if let Some(outcome) = observed {
+            self.observed_outcome = Some(outcome);
+            self.note_pty_terminal(now);
+            let (signal, value) = exit_parts(outcome);
+            let fx = state::reduce(
+                &mut self.runtime,
+                &self.limits,
+                Event::ChildExitObserved { signal, value },
+            );
+            self.apply_effects(fx, now);
+        }
+        Ok(())
+    }
+
+    fn handle_signal_events(&mut self, re: PollFlags, now: u64) -> io::Result<()> {
+        if re.contains(PollFlags::POLLNVAL) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "signal fd became invalid",
+            ));
+        }
+        let budget = self.limits.accepts_per_iteration.max(1);
+        for _ in 0..budget {
+            let signal = {
+                let Some(source) = self.signal_source.as_ref() else {
+                    return Ok(());
+                };
+                sys::read_signalfd(source.fd())?
+            };
+            let Some(signal) = signal else { break };
+            match signal {
+                libc::SIGCHLD => self.observe_child(now)?,
+                libc::SIGTERM | libc::SIGINT | libc::SIGQUIT | libc::SIGHUP => {
+                    let fx =
+                        state::reduce(&mut self.runtime, &self.limits, Event::TerminationRequested);
+                    self.apply_effects(fx, now);
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    fn start_kill(&mut self, now: u64) -> Result<(), Error> {
+        if self.kill_phase != KillPhase::Idle {
+            return Ok(());
+        }
+        let Some(child) = self.child.as_ref() else {
+            return Err(Error::NotLive);
+        };
+        child.signal_group_checked(Signal::SIGTERM)?;
+        self.pty_exit_deadline_ms = None;
+        self.kill_phase = KillPhase::TermSent {
+            deadline_ms: now.saturating_add(self.limits.kill_grace_ms),
+        };
+        Ok(())
+    }
+
+    fn advance_lifecycle(&mut self, now: u64) -> io::Result<()> {
+        if self.child.is_none() {
+            return Ok(());
+        }
+        self.observe_child(now)?;
+
+        let pty_deadline_expired = self
+            .pty_exit_deadline_ms
+            .is_some_and(|deadline| now >= deadline);
+        if pty_deadline_expired
+            && self.kill_phase == KillPhase::Idle
+            && (self.master.is_some() || self.observed_outcome.is_none())
+        {
+            self.start_kill(now).map_err(io::Error::other)?;
+        }
+
+        if matches!(
+            self.kill_phase,
+            KillPhase::TermSent { deadline_ms } if now >= deadline_ms
+        ) {
+            let child = self.child.as_ref().expect("kill phase owns child");
+            child
+                .signal_group_checked(Signal::SIGKILL)
+                .map_err(io::Error::other)?;
+            self.kill_phase = KillPhase::KillSent;
+        }
+
+        self.observe_child(now)?;
+        let may_reap = self.observed_outcome.is_some()
+            && (self.kill_phase == KillPhase::KillSent
+                || (self.kill_phase == KillPhase::Idle && self.master.is_none()));
+        if may_reap && self.final_outcome.is_none() {
+            let outcome = self
+                .child
+                .as_mut()
+                .expect("observed child")
+                .reap_observed_nohang()?;
+            if let Some(outcome) = outcome {
+                self.final_outcome = Some(outcome);
+                if self.kill_phase == KillPhase::KillSent {
+                    self.kill_phase = KillPhase::Finalized;
+                    // Give the kernel one final bounded drain window after
+                    // the proven group is gone. An escaped slave-holder may
+                    // still produce bytes, but it cannot keep this broker
+                    // alive beyond the same finite PTY-drain policy.
+                    self.pty_exit_deadline_ms =
+                        Some(now.saturating_add(self.limits.pty_exit_drain_ms));
+                }
+            }
+        }
+
+        // Once SIGKILL finalized the group, poll/read any remaining kernel
+        // PTY bytes. WouldBlock proves the current drain complete; the
+        // deadline also cuts off a continuously-writing escaped process or
+        // output backpressure that would otherwise prevent WouldBlock.
+        if self.kill_phase == KillPhase::Finalized && self.master.is_some() {
+            let final_drain_expired = self
+                .pty_exit_deadline_ms
+                .is_some_and(|deadline| now >= deadline);
+            if final_drain_expired {
+                self.detach_master();
+            } else if self.master_read_admitted()
+                && self.read_master_output_once(now)? == MasterReadResult::WouldBlock
+            {
+                // The proven group is finalized and no byte is currently
+                // readable. A slave inherited by an escaped process must not
+                // hold cleanup open waiting for hypothetical future output.
+                self.detach_master();
+            }
+        }
+
+        if let Some(outcome) = self.final_outcome {
+            if self.master.is_none() {
+                self.child.take();
+                self.pty_exit_deadline_ms = None;
+                let internal_was_first = self.internal_cleanup_pending
+                    && self.runtime.terminal_request() == Some(TerminalCause::InternalError);
+                let fx = if internal_was_first {
+                    state::reduce(&mut self.runtime, &self.limits, Event::SpawnFailed)
+                } else {
+                    // KillRequested/ChildExit won an earlier race: preserve
+                    // that cause and deliver the actual outcome to every
+                    // terminal recipient even if a later cleanup fault is
+                    // reported through BrokerExit::failure.
+                    let (signal, value) = exit_parts(outcome);
+                    state::reduce(
+                        &mut self.runtime,
+                        &self.limits,
+                        Event::ChildFinished { signal, value },
+                    )
+                };
+                self.apply_effects(fx, now);
+            }
+        }
+        Ok(())
+    }
+
+    fn request_internal_failure(&mut self, error: Error, now: u64) {
+        if self.first_failure.is_none() {
+            self.first_failure = Some(error);
+        }
+        self.internal_cleanup_pending = true;
+        if self.child.is_some() {
+            let fx = state::reduce(
+                &mut self.runtime,
+                &self.limits,
+                Event::InternalFailureRequested,
+            );
+            self.apply_effects(fx, now);
+        } else {
+            let fx = state::reduce(&mut self.runtime, &self.limits, Event::SpawnFailed);
+            self.apply_effects(fx, now);
+        }
+    }
+
+    fn request_shutdown(&mut self, now: u64) {
+        if self.shutdown_requested {
+            return;
+        }
+        self.shutdown_requested = true;
+        if let Err(error) = self.bound.retire_socket() {
+            if self.first_failure.is_none() {
+                self.first_failure = Some(error);
+            }
+        }
+        let close: Vec<usize> = self
+            .slots
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, slot)| {
+                slot.as_ref()
+                    .is_some_and(|slot| !slot.client.is_draining())
+                    .then_some(idx)
+            })
+            .collect();
+        for idx in close {
+            self.remove_conn(idx, now);
+        }
+        self.maybe_finalize(now);
+    }
+
+    fn maybe_finalize(&mut self, _now: u64) {
+        if self.finalized
+            || !self.shutdown_requested
+            || self.connection_count() != 0
+            || self.child.is_some()
+        {
+            return;
+        }
+        self.detach_master();
+        if let Err(error) = self.bound.retire_state() {
+            if self.first_failure.is_none() {
+                self.first_failure = Some(error);
+            }
+        }
+        self.signal_source.take();
+        let cause = self
+            .runtime
+            .state
+            .terminal
+            .or(self.runtime.terminal_request())
+            .unwrap_or(TerminalCause::InternalError);
+        let suggested_exit_code =
+            if self.runtime.state.lifecycle == Lifecycle::Exited && self.first_failure.is_none() {
+                0
+            } else {
+                1
+            };
+        self.exit = Some(BrokerExit {
+            cause,
+            child: self.final_outcome,
+            suggested_exit_code,
+            failure: self.first_failure.take(),
+        });
+        self.finalized = true;
     }
 
     fn handle_accept(&mut self) -> io::Result<()> {
@@ -861,7 +1368,12 @@ impl Broker {
                 continue; // fd + refused drop → close
             };
             let client = ClientConn::new(&self.limits);
-            let slot = ConnSlot { conn, fd, client };
+            let slot = ConnSlot {
+                conn,
+                fd,
+                client,
+                terminal_pending: None,
+            };
             match self.slots.iter().position(|s| s.is_none()) {
                 Some(idx) => self.slots[idx] = Some(slot),
                 None => self.slots.push(Some(slot)),
@@ -880,6 +1392,7 @@ impl Broker {
             return Ok(());
         }
         if re.contains(PollFlags::POLLNVAL) {
+            self.note_pty_terminal(now);
             self.detach_master();
             return Ok(());
         }
@@ -888,13 +1401,14 @@ impl Broker {
         let terminal_hint = re.intersects(PollFlags::POLLHUP | PollFlags::POLLERR);
         if self.master_read_admitted() && (re.contains(PollFlags::POLLIN) || terminal_hint) {
             if self.has_output_recipients() {
-                self.read_master_output_once(now)?;
+                let _ = self.read_master_output_once(now)?;
             } else {
-                let _ = self.discard_master_until_boundary(discard_budget)?;
+                let _ = self.discard_master_until_boundary(discard_budget, now)?;
             }
         }
 
         if terminal_hint {
+            self.note_pty_terminal(now);
             if self.master.is_some() {
                 self.master_terminal_pending = true;
             }
@@ -904,7 +1418,7 @@ impl Broker {
         }
         if re.contains(PollFlags::POLLOUT) && !self.master_terminal_pending && self.master.is_some()
         {
-            self.drain_writer_input()?;
+            self.drain_writer_input(now)?;
         }
         Ok(())
     }
@@ -914,7 +1428,7 @@ impl Broker {
         self.master_terminal_pending = false;
     }
 
-    fn read_master_output_once(&mut self, now: u64) -> io::Result<()> {
+    fn read_master_output_once(&mut self, now: u64) -> io::Result<MasterReadResult> {
         loop {
             let result = {
                 let master = self.master.as_mut().expect("master checked");
@@ -922,25 +1436,33 @@ impl Broker {
             };
             match result {
                 Ok(0) => {
+                    self.note_pty_terminal(now);
                     self.detach_master();
-                    return Ok(());
+                    return Ok(MasterReadResult::Boundary);
                 }
                 Ok(n) => {
                     self.fan_out_output(n, now);
-                    return Ok(());
+                    return Ok(MasterReadResult::Data);
                 }
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
-                Err(error) if error.kind() == io::ErrorKind::WouldBlock => return Ok(()),
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                    return Ok(MasterReadResult::WouldBlock);
+                }
                 Err(error) if error.raw_os_error() == Some(libc::EIO) => {
+                    self.note_pty_terminal(now);
                     self.detach_master();
-                    return Ok(());
+                    return Ok(MasterReadResult::Boundary);
                 }
                 Err(error) => return Err(error),
             }
         }
     }
 
-    fn discard_master_until_boundary(&mut self, budget: &mut usize) -> io::Result<BarrierResult> {
+    fn discard_master_until_boundary(
+        &mut self,
+        budget: &mut usize,
+        now: u64,
+    ) -> io::Result<BarrierResult> {
         if self.master.is_none() {
             return Ok(BarrierResult::Safe);
         }
@@ -952,6 +1474,7 @@ impl Broker {
             };
             match result {
                 Ok(0) => {
+                    self.note_pty_terminal(now);
                     self.detach_master();
                     return Ok(BarrierResult::Safe);
                 }
@@ -963,6 +1486,7 @@ impl Broker {
                 // bounded grant barrier, not an unbounded retry loop.
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
                 Err(error) if error.raw_os_error() == Some(libc::EIO) => {
+                    self.note_pty_terminal(now);
                     self.detach_master();
                     return Ok(BarrierResult::Safe);
                 }
@@ -972,7 +1496,7 @@ impl Broker {
         Ok(BarrierResult::Deferred)
     }
 
-    fn drain_writer_input(&mut self) -> io::Result<()> {
+    fn drain_writer_input(&mut self, now: u64) -> io::Result<()> {
         if self.master_terminal_pending || self.master.is_none() {
             return Ok(());
         }
@@ -1006,6 +1530,7 @@ impl Broker {
                 if error.kind() == io::ErrorKind::WriteZero
                     || error.raw_os_error() == Some(libc::EIO) =>
             {
+                self.note_pty_terminal(now);
                 self.master_terminal_pending = true;
                 Ok(())
             }
@@ -1216,7 +1741,10 @@ impl Broker {
             self.remove_conn(idx, now);
             return Ok(());
         }
-        if re.contains(PollFlags::POLLIN) {
+        if re.contains(PollFlags::POLLIN)
+            && !self.shutdown_requested
+            && !self.internal_cleanup_pending
+        {
             self.handle_readable(idx, now, discard_budget)?;
         }
         if !self.slot_live(idx) {
@@ -1244,7 +1772,11 @@ impl Broker {
     ) -> io::Result<()> {
         loop {
             // Admission is re-checked before EVERY recv — the poll-set
-            // decision alone is never trusted.
+            // decision alone is never trusted. A failure raised while
+            // dispatching one frame also stops pipelined semantics now.
+            if self.shutdown_requested || self.internal_cleanup_pending {
+                return Ok(());
+            }
             if !self.slot_live(idx) {
                 return Ok(());
             }
@@ -1260,7 +1792,9 @@ impl Broker {
                 ConnRole::AwaitingFirstFrame
             );
             if awaiting_grant && !self.has_output_recipients() {
-                if self.discard_master_until_boundary(discard_budget)? == BarrierResult::Deferred {
+                if self.discard_master_until_boundary(discard_budget, now)?
+                    == BarrierResult::Deferred
+                {
                     return Ok(());
                 }
                 // Never cache the safe boundary: the next fragmented
@@ -1371,12 +1905,105 @@ impl Broker {
         self.apply_effects(fx, now);
     }
 
+    fn execute_spawn(&mut self, rows: u16, cols: u16, now: u64) -> bool {
+        let Some(plan) = self.spawn_plan.as_ref() else {
+            self.deferred.push(Effect::SpawnChild { rows, cols });
+            return true;
+        };
+        let metadata = plan.metadata.clone();
+        let mut close_in_child = Vec::with_capacity(self.slots.len() + 3);
+        if self.bound.has_listener() {
+            close_in_child.push(self.bound.listener().as_raw_fd());
+        }
+        if let Some(signals) = self.signal_source.as_ref() {
+            close_in_child.push(signals.fd().as_raw_fd());
+        }
+        if let Some(fd) = self.readiness_write.as_ref() {
+            close_in_child.push(fd.as_raw_fd());
+        }
+        close_in_child.extend(self.slots.iter().flatten().map(|slot| slot.fd.as_raw_fd()));
+        close_in_child.sort_unstable();
+        close_in_child.dedup();
+        let spawned = {
+            let plan = self.spawn_plan.as_ref().expect("plan checked");
+            let spec = SpawnSpec {
+                session_name: self.bound.session_name(),
+                argv: &plan.argv,
+                env: &plan.env,
+                path_var: plan.path_var.as_deref(),
+                rows,
+                cols,
+                close_in_child: &close_in_child,
+            };
+            child::spawn(&spec, &self.limits)
+        };
+        let child::Spawned { child, master } = match spawned {
+            Ok(spawned) => spawned,
+            Err(error) => {
+                if self.first_failure.is_none() {
+                    self.first_failure = Some(error);
+                }
+                let fx = state::reduce(&mut self.runtime, &self.limits, Event::SpawnFailed);
+                self.apply_effects(fx, now);
+                return false;
+            }
+        };
+
+        // Install the capability before any later fallible operation: every
+        // post-spawn failure therefore has a proof-gated cleanup path.
+        let child_meta = ChildMeta::new(child.pid(), child.pgid(), child.start_ticks());
+        self.child = Some(child);
+        if let Err(error) = self.attach_pty_master(master) {
+            self.request_internal_failure(Error::Io(error), now);
+            return false;
+        }
+        let metadata = match child_meta {
+            Ok(child_meta) => metadata.with_child(child_meta),
+            Err(error) => {
+                self.request_internal_failure(error, now);
+                return false;
+            }
+        };
+        if let Err(error) = self.bound.store_metadata(&self.limits, &metadata) {
+            self.request_internal_failure(error, now);
+            return false;
+        }
+        true
+    }
+
+    fn execute_dimensions(&mut self, rows: u16, cols: u16, now: u64) -> bool {
+        let Some(master) = self.master.as_ref() else {
+            if self.spawn_plan.is_none() {
+                self.deferred.push(Effect::ApplyDimensions { rows, cols });
+                return true;
+            }
+            self.request_internal_failure(
+                Error::Io(io::Error::new(
+                    io::ErrorKind::NotConnected,
+                    "cannot resize a missing PTY master",
+                )),
+                now,
+            );
+            return false;
+        };
+        match sys::get_winsize(master.as_fd()) {
+            Ok(current) if current == (rows, cols) => true,
+            Ok(_) => match sys::set_winsize(master.as_fd(), rows, cols) {
+                Ok(()) => true,
+                Err(error) => {
+                    self.request_internal_failure(Error::Io(error), now);
+                    false
+                }
+            },
+            Err(error) => {
+                self.request_internal_failure(Error::Io(error), now);
+                false
+            }
+        }
+    }
+
     fn apply_effects(&mut self, fx: Vec<Effect>, now: u64) {
         for effect in fx {
-            if effect.is_deferred() {
-                self.deferred.push(effect);
-                continue;
-            }
             match effect {
                 Effect::SetRole { target, role } => {
                     if let Some(idx) = self.resolve(target) {
@@ -1439,7 +2066,25 @@ impl Broker {
                         self.begin_draining(idx, now);
                     }
                 }
-                deferred => self.deferred.push(deferred),
+                Effect::SpawnChild { rows, cols } => {
+                    if !self.execute_spawn(rows, cols, now) {
+                        break;
+                    }
+                }
+                Effect::ApplyDimensions { rows, cols } => {
+                    if !self.execute_dimensions(rows, cols, now) {
+                        break;
+                    }
+                }
+                Effect::BeginKill => {
+                    if self.child.is_none() && self.spawn_plan.is_none() {
+                        self.deferred.push(Effect::BeginKill);
+                    } else if let Err(error) = self.start_kill(now) {
+                        self.request_internal_failure(error, now);
+                        break;
+                    }
+                }
+                Effect::Shutdown => self.request_shutdown(now),
             }
         }
     }
@@ -1448,6 +2093,22 @@ impl Broker {
         let Some(idx) = self.resolve(target) else {
             return;
         };
+        let terminal_delivery = matches!(
+            self.runtime.state.lifecycle,
+            Lifecycle::Exited | Lifecycle::Failed
+        ) && matches!(frame.kind(), Kind::Exit | Kind::Error);
+        if terminal_delivery {
+            // A full Output queue must not turn terminal shutdown into an
+            // immediate queue drop. Keep one semantic frame out-of-band and
+            // append it only after prior Output creates hard-cap headroom.
+            let slot = self.slots[idx].as_mut().expect("resolved");
+            if slot.terminal_pending.is_none() {
+                slot.terminal_pending = Some(frame);
+            }
+            self.flush_slot(idx, now);
+            return;
+        }
+
         let conn = self.slots[idx].as_ref().expect("resolved").conn;
         let is_control_reply = {
             let slot = self.slots[idx].as_ref().expect("resolved");
@@ -1517,43 +2178,129 @@ impl Broker {
         debug_assert!(self.aggregate_output_live_bytes() <= self.limits.aggregate_queue_bytes);
     }
 
+    fn terminal_encoded_len(terminal: &Frame) -> Option<usize> {
+        match terminal {
+            Frame::Exit { .. } => Some(frame::HEADER_LEN + 5),
+            Frame::Error { text, .. } => frame::HEADER_LEN
+                .checked_add(4)
+                .and_then(|base| base.checked_add(text.len())),
+            _ => None,
+        }
+    }
+
+    fn pending_terminal_fits(&self, idx: usize) -> bool {
+        let Some(slot) = self.slots.get(idx).and_then(Option::as_ref) else {
+            return false;
+        };
+        let Some(encoded_len) = slot
+            .terminal_pending
+            .as_ref()
+            .and_then(Self::terminal_encoded_len)
+        else {
+            return false;
+        };
+        let target_fits = slot
+            .client
+            .out()
+            .live_bytes()
+            .checked_add(encoded_len)
+            .is_some_and(|projected| projected <= slot.client.out().cap_bytes());
+        let aggregate_fits = self
+            .aggregate_output_live_bytes()
+            .checked_add(encoded_len)
+            .is_some_and(|projected| projected <= self.limits.aggregate_queue_bytes);
+        target_fits && aggregate_fits
+    }
+
+    /// Moves a pending terminal frame behind all existing Output only when
+    /// both configured hard caps can accept it. No observer is evicted here:
+    /// terminal recipients instead race their immutable reply deadlines.
+    fn try_queue_terminal(&mut self, idx: usize) -> bool {
+        if !self.pending_terminal_fits(idx) {
+            return false;
+        }
+        let encoded: SharedChunk = self.slots[idx]
+            .as_ref()
+            .expect("pending target")
+            .terminal_pending
+            .as_ref()
+            .expect("fit implies pending")
+            .encode()
+            .into();
+        let slot = self.slots[idx].as_mut().expect("pending target");
+        if slot.client.out_mut().push_shared(encoded) {
+            slot.terminal_pending = None;
+            true
+        } else {
+            false
+        }
+    }
+
     fn begin_draining(&mut self, idx: usize, now: u64) {
         if let Some(slot) = self.slots[idx].as_mut() {
+            let terminal_writer = matches!(
+                self.runtime.state.lifecycle,
+                Lifecycle::Exited | Lifecycle::Failed
+            ) && matches!(slot.client.role(), ConnRole::Writer { .. });
+            let deadline = if terminal_writer {
+                self.limits.stall_deadline_ms
+            } else {
+                self.limits.control_reply_deadline_ms
+            };
             slot.client.begin_draining();
-            slot.client
-                .arm_reply_deadline(now, self.limits.control_reply_deadline_ms);
+            slot.client.arm_reply_deadline(now, deadline);
         }
         self.reconcile_writer_stall(now);
         self.flush_slot(idx, now);
     }
 
-    /// Best-effort immediate flush; closes on hard I/O errors and on a
-    /// finished drain.
-    fn flush_slot(&mut self, idx: usize, now: u64) {
-        let result = {
-            let Some(slot) = self.slots[idx].as_mut() else {
-                return;
-            };
-            let ConnSlot { fd, client, .. } = slot;
-            client
-                .out_mut()
-                .flush_with(|buf| sys::send_no_sigpipe(fd.as_fd(), buf))
+    fn flush_out_once(&mut self, idx: usize) -> io::Result<bool> {
+        let Some(slot) = self.slots[idx].as_mut() else {
+            return Ok(true);
         };
+        let ConnSlot { fd, client, .. } = slot;
+        client
+            .out_mut()
+            .flush_with(|buf| sys::send_no_sigpipe(fd.as_fd(), buf))
+    }
+
+    /// Best-effort immediate flush; closes on hard I/O errors and on a
+    /// finished drain. A terminal frame is appended only behind all prior
+    /// Output and is itself retained through EAGAIN until flush or deadline.
+    fn flush_slot(&mut self, idx: usize, now: u64) {
+        let first = self.flush_out_once(idx);
         self.reconcile_writer_stall(now);
-        match result {
-            Ok(fully_flushed) => {
-                let drained_done = fully_flushed
-                    && self
-                        .slots
-                        .get(idx)
-                        .and_then(Option::as_ref)
-                        .is_some_and(|slot| slot.client.is_draining());
-                if drained_done {
+        let retry_now = match first {
+            Ok(fully_flushed) => fully_flushed,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => false,
+            Err(_) => {
+                self.remove_conn(idx, now);
+                return;
+            }
+        };
+        let queued_terminal = self.try_queue_terminal(idx);
+        if retry_now && queued_terminal {
+            match self.flush_out_once(idx) {
+                Ok(_) => {}
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
+                Err(_) => {
                     self.remove_conn(idx, now);
+                    return;
                 }
             }
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
-            Err(_) => self.remove_conn(idx, now),
+            self.reconcile_writer_stall(now);
+        }
+        let drained_done = self
+            .slots
+            .get(idx)
+            .and_then(Option::as_ref)
+            .is_some_and(|slot| {
+                slot.client.is_draining()
+                    && slot.client.out().is_empty()
+                    && slot.terminal_pending.is_none()
+            });
+        if drained_done {
+            self.remove_conn(idx, now);
         }
         debug_assert!(self.aggregate_output_live_bytes() <= self.limits.aggregate_queue_bytes);
     }
@@ -1568,6 +2315,7 @@ impl Broker {
             return;
         };
         let role = slot.client.role();
+        let conn = slot.conn;
         // A takeover joins the old writer to ObserverSet before its
         // ordered SetRole effect. If an intervening bounded queue
         // refusal closes it, repair that pending membership here too.
@@ -1579,7 +2327,7 @@ impl Broker {
         let fx = state::reduce(
             &mut self.runtime,
             &self.limits,
-            Event::Disconnected { role },
+            Event::Disconnected { conn, role },
         );
         self.apply_effects(fx, now);
         self.reconcile_writer_stall(now);
@@ -1778,6 +2526,21 @@ mod tests {
         std::fs::File::from(slave)
     }
 
+    fn write_test_signal_record(writer: &mut std::fs::File, signal: i32) {
+        use std::io::Write;
+
+        let mut info: libc::signalfd_siginfo = unsafe { std::mem::zeroed() };
+        info.ssi_signo = signal as u32;
+        // SAFETY: info is initialized and viewed only as its own byte extent.
+        let bytes = unsafe {
+            std::slice::from_raw_parts(
+                (&info as *const libc::signalfd_siginfo).cast::<u8>(),
+                std::mem::size_of::<libc::signalfd_siginfo>(),
+            )
+        };
+        writer.write_all(bytes).expect("write signal record");
+    }
+
     #[test]
     fn conn_fault_classifier_splits_local_from_systemic() {
         let local = |errno| classify_conn_fault(&io::Error::from_raw_os_error(errno));
@@ -1903,22 +2666,111 @@ mod tests {
 
     #[test]
     fn startup_deadline_armed_once_from_nonzero_clock() {
-        let (_base, clock, mut broker) = broker_at(12_345);
+        let (base, clock, mut broker) = broker_at(12_345);
         assert_eq!(broker.lifecycle(), Lifecycle::WaitingForWriter);
         // Before the deadline: repeated iterations stay Waiting.
         clock.set(12_345 + 9_999);
         broker.run_once(Some(0)).expect("iterate");
         assert_eq!(broker.lifecycle(), Lifecycle::WaitingForWriter);
-        // At/after the deadline (armed once at 12_345, +10s): Failed +
-        // a single deferred Shutdown.
+        // At/after the deadline (armed once at 12_345, +10s): Failed,
+        // terminal cleanup executes once, and no stale session remains.
         clock.set(12_345 + 10_000);
         broker.run_once(Some(0)).expect("iterate");
         assert_eq!(broker.lifecycle(), Lifecycle::Failed);
-        assert!(
-            matches!(broker.deferred(), [Effect::Shutdown]),
-            "unexpected deferred: {:?}",
-            broker.deferred()
+        assert!(broker.is_finalized());
+        assert!(!base.path().join("s1").exists());
+        let exit = broker.broker_exit().expect("terminal outcome");
+        assert_eq!(exit.cause, TerminalCause::StartupDeadline);
+        assert_eq!(exit.suggested_exit_code, 1);
+    }
+
+    #[test]
+    fn resize_noop_and_change_follow_the_real_master_winsize() {
+        let (_base, _clock, mut broker) = broker_at(0);
+        let _slave = attach_test_master(&mut broker);
+        assert!(broker.execute_dimensions(24, 80, 0));
+        assert_eq!(
+            sys::get_winsize(broker.master.as_ref().expect("master").as_fd())
+                .expect("read initial winsize"),
+            (24, 80)
         );
+        assert!(broker.execute_dimensions(31, 101, 0));
+        assert_eq!(
+            sys::get_winsize(broker.master.as_ref().expect("master").as_fd())
+                .expect("read updated winsize"),
+            (31, 101)
+        );
+    }
+
+    #[test]
+    fn injected_signal_fd_drives_broker_termination_path() {
+        let (base, _clock, mut broker) = broker_at(0);
+        let (read, write) = sys::pipe_cloexec().expect("signal pipe");
+        broker.set_signal_fd(read).expect("inject signal source");
+        let mut writer = std::fs::File::from(write);
+        write_test_signal_record(&mut writer, 999);
+        write_test_signal_record(&mut writer, libc::SIGTERM);
+
+        broker.run_once(Some(0)).expect("process signal records");
+
+        assert!(broker.is_finalized());
+        assert_eq!(broker.lifecycle(), Lifecycle::Exited);
+        assert_eq!(
+            broker.broker_exit().expect("terminal outcome").cause,
+            TerminalCause::KillRequested
+        );
+        assert!(!base.path().join("s1").exists());
+    }
+
+    #[test]
+    fn readiness_epipe_fails_before_spawn_and_retires_state() {
+        use crate::session::resolve_state_root_from;
+
+        let limits = Limits::default();
+        let base = BaseGuard::new("ready-epipe");
+        let root = resolve_state_root_from(std::slice::from_ref(&base.path().to_path_buf()))
+            .expect("root");
+        let locked = root
+            .session("s1", &limits)
+            .expect("session")
+            .lock()
+            .expect("lock");
+        let bound = locked.bind_broker_socket(&limits).expect("bind");
+        let readiness = ReadinessChannel::new().expect("readiness pipe");
+        drop(readiness.read);
+        let clock = Rc::new(Cell::new(100));
+        let mut broker = Broker::new(
+            bound,
+            &limits,
+            Rc::new(MockClock(clock)),
+            Some(readiness.write),
+        )
+        .expect("broker");
+        let pid = std::process::id() as libc::pid_t;
+        let metadata = SessionMeta::new(
+            "s1",
+            &limits,
+            std::ffi::OsStr::new("/bin/true"),
+            pid,
+            sys::proc_start_ticks(pid).expect("start ticks"),
+            1,
+        )
+        .expect("metadata");
+        broker
+            .set_spawn_plan(SpawnPlan::new(
+                vec![OsString::from("/bin/true")],
+                Vec::new(),
+                None,
+                metadata,
+            ))
+            .expect("spawn plan");
+
+        assert!(broker.start().is_err());
+        assert!(broker.is_finalized());
+        assert!(broker.child_pid().is_none());
+        assert_eq!(broker.lifecycle(), Lifecycle::Failed);
+        assert!(broker.broker_exit().expect("exit").failure.is_some());
+        assert!(!base.path().join("s1").exists());
     }
 
     #[test]
@@ -2317,5 +3169,235 @@ mod tests {
             .flatten()
             .collect();
         assert_eq!(output, b"final!");
+    }
+
+    #[test]
+    fn terminal_exit_waits_outside_a_completely_full_eagain_queue() {
+        use nix::sys::socket::{setsockopt, sockopt};
+
+        let limits = Limits::default();
+        let (base, clock, mut broker) = broker_with_limits_at(100, limits);
+        let mut writer = connect_and_grant(&base, &mut broker, crate::frame::Role::Writer, false);
+        let _ = drain_test_frames(&mut writer, &limits);
+        let (idx, _) = broker.eligible_writer_slot().expect("writer");
+        setsockopt(
+            &broker.slots[idx].as_ref().expect("writer slot").fd,
+            sockopt::SndBuf,
+            &4096usize,
+        )
+        .expect("small send buffer");
+
+        let output: SharedChunk = Frame::Output(vec![0x41; 1000]).encode().into();
+        for _ in 0..10_000 {
+            if broker.slots[idx]
+                .as_ref()
+                .expect("writer")
+                .client
+                .out()
+                .is_empty()
+            {
+                assert!(broker.slots[idx]
+                    .as_mut()
+                    .expect("writer")
+                    .client
+                    .out_mut()
+                    .push_shared(output.clone()));
+            }
+            broker.flush_slot(idx, 100);
+            if broker.slots[idx]
+                .as_ref()
+                .expect("writer")
+                .client
+                .out()
+                .live_bytes()
+                > 0
+            {
+                break;
+            }
+        }
+        let live = broker.slots[idx]
+            .as_ref()
+            .expect("writer")
+            .client
+            .out()
+            .live_bytes();
+        assert!(live > 0, "writer socket never reached EAGAIN");
+        assert!(broker.slots[idx]
+            .as_mut()
+            .expect("writer")
+            .client
+            .out_mut()
+            .push_shared(vec![0x42; limits.writer_queue_bytes - live].into()));
+
+        let _ = state::reduce(
+            &mut broker.runtime,
+            &limits,
+            Event::ChildExitObserved {
+                signal: false,
+                value: 4,
+            },
+        );
+        let effects = state::reduce(
+            &mut broker.runtime,
+            &limits,
+            Event::ChildFinished {
+                signal: false,
+                value: 4,
+            },
+        );
+        broker.apply_effects(effects, 100);
+        let slot = broker.slots[idx]
+            .as_ref()
+            .expect("terminal writer retained");
+        assert_eq!(slot.client.out().live_bytes(), limits.writer_queue_bytes);
+        assert!(matches!(
+            slot.terminal_pending.as_ref(),
+            Some(Frame::Exit {
+                signal: false,
+                value: 4
+            })
+        ));
+        assert!(broker.shutdown_requested);
+        assert!(!broker.is_finalized());
+
+        clock.set(100u64.saturating_add(limits.stall_deadline_ms));
+        broker.run_once(Some(0)).expect("terminal deadline pass");
+        assert!(broker.is_finalized());
+    }
+
+    #[test]
+    fn terminal_shutdown_retains_eagain_output_then_exit_until_flush() {
+        use nix::sys::socket::{setsockopt, sockopt};
+
+        let limits = Limits::default();
+        let (base, _clock, mut broker) = broker_with_limits_at(100, limits);
+        let mut writer = connect_and_grant(&base, &mut broker, crate::frame::Role::Writer, false);
+        let _ = drain_test_frames(&mut writer, &limits);
+        let (idx, _) = broker.eligible_writer_slot().expect("writer");
+        setsockopt(
+            &broker.slots[idx].as_ref().expect("writer slot").fd,
+            sockopt::SndBuf,
+            &4096usize,
+        )
+        .expect("small send buffer");
+
+        let output: SharedChunk = Frame::Output(vec![0x5a; 1000]).encode().into();
+        for _ in 0..10_000 {
+            if broker.slots[idx]
+                .as_ref()
+                .expect("writer")
+                .client
+                .out()
+                .is_empty()
+            {
+                assert!(broker.slots[idx]
+                    .as_mut()
+                    .expect("writer")
+                    .client
+                    .out_mut()
+                    .push_shared(output.clone()));
+            }
+            broker.flush_slot(idx, 100);
+            if broker.slots[idx]
+                .as_ref()
+                .expect("writer")
+                .client
+                .out()
+                .live_bytes()
+                > 0
+            {
+                break;
+            }
+        }
+        assert!(
+            broker.slots[idx]
+                .as_ref()
+                .expect("writer")
+                .client
+                .out()
+                .live_bytes()
+                > 0,
+            "writer socket never reached EAGAIN"
+        );
+
+        let _ = state::reduce(
+            &mut broker.runtime,
+            &limits,
+            Event::ChildExitObserved {
+                signal: false,
+                value: 4,
+            },
+        );
+        let effects = state::reduce(
+            &mut broker.runtime,
+            &limits,
+            Event::ChildFinished {
+                signal: false,
+                value: 4,
+            },
+        );
+        broker.apply_effects(effects, 100);
+        assert!(broker.shutdown_requested);
+        assert_eq!(broker.connection_count(), 1, "draining writer retained");
+        assert!(
+            !broker.is_finalized(),
+            "cleanup must wait for queued frames"
+        );
+        assert!(base.path().join("s1").exists());
+
+        let mut wire = Vec::new();
+        let mut chunk = [0u8; 8192];
+        for _ in 0..1000 {
+            loop {
+                match writer.read(&mut chunk) {
+                    Ok(0) => break,
+                    Ok(n) => wire.extend_from_slice(&chunk[..n]),
+                    Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
+                    Err(error) => panic!("terminal read: {error}"),
+                }
+            }
+            broker.run_once(Some(0)).expect("terminal flush pass");
+            if broker.is_finalized() {
+                loop {
+                    match writer.read(&mut chunk) {
+                        Ok(0) => break,
+                        Ok(n) => wire.extend_from_slice(&chunk[..n]),
+                        Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+                        Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
+                        Err(error) => panic!("final terminal read: {error}"),
+                    }
+                }
+                break;
+            }
+        }
+        assert!(broker.is_finalized());
+        assert!(!base.path().join("s1").exists());
+
+        let mut frames = Vec::new();
+        while !wire.is_empty() {
+            assert!(wire.len() >= frame::HEADER_LEN);
+            let total =
+                Frame::validate_header(&wire[..frame::HEADER_LEN], &limits).expect("header");
+            assert!(wire.len() >= total);
+            let (frame, used) = Frame::decode(&wire[..total], &limits).expect("frame");
+            wire.drain(..used);
+            frames.push(frame);
+        }
+        let exit = frames
+            .iter()
+            .position(|frame| matches!(frame, Frame::Exit { .. }))
+            .expect("Exit");
+        assert!(frames[..exit]
+            .iter()
+            .all(|frame| matches!(frame, Frame::Output(_))));
+        assert!(matches!(
+            frames[exit],
+            Frame::Exit {
+                signal: false,
+                value: 4
+            }
+        ));
+        assert_eq!(exit + 1, frames.len());
     }
 }

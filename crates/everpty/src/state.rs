@@ -13,17 +13,16 @@
 //! and cap-rejected connections never consume a client id. Client ids
 //! are positive, monotonic, and never wrap.
 //!
-//! Deferred effects ([`Effect::SpawnChild`], [`Effect::BeginKill`],
-//! [`Effect::ApplyDimensions`], [`Effect::Shutdown`]) are recorded,
-//! never executed: commit 7 owns signal wiring, child spawn, and
-//! shutdown; nothing in this module signals or terminates anything.
+//! Deferred OS effects ([`Effect::SpawnChild`], [`Effect::BeginKill`],
+//! [`Effect::ApplyDimensions`], [`Effect::Shutdown`]) are emitted here and
+//! executed by the commit-7 broker; this reducer itself never performs I/O.
 
 use std::fmt;
 
 use crate::client::ConnRole;
 use crate::frame::{self, AttachStatus, Frame, Kind, OwnershipEvent};
 use crate::lifecycle::{
-    BrokerState, InvalidTransition, Lifecycle, Ownership, WriterRequestOutcome,
+    BrokerState, InvalidTransition, Lifecycle, Ownership, TerminalCause, WriterRequestOutcome,
 };
 use crate::limits::Limits;
 
@@ -135,6 +134,11 @@ pub struct Runtime {
     pub observers: ObserverSet,
     pub session_name: String,
     next_client_id: u32,
+    /// First terminal request/observation while lifecycle remains Running.
+    terminal_request: Option<TerminalCause>,
+    /// Every live one-shot Kill control connection awaiting the same Exit.
+    kill_waiters: Vec<ConnId>,
+    kill_started: bool,
 }
 
 impl Runtime {
@@ -146,6 +150,9 @@ impl Runtime {
             observers: ObserverSet::new(limits.observer_count),
             session_name: session_name.to_owned(),
             next_client_id: 1,
+            terminal_request: None,
+            kill_waiters: Vec::new(),
+            kill_started: false,
         })
     }
 
@@ -181,6 +188,20 @@ impl Runtime {
             None => false,
         }
     }
+
+    pub fn terminal_request(&self) -> Option<TerminalCause> {
+        self.terminal_request
+    }
+
+    pub fn kill_waiters(&self) -> &[ConnId] {
+        &self.kill_waiters
+    }
+
+    fn latch_terminal(&mut self, cause: TerminalCause) {
+        if self.terminal_request.is_none() {
+            self.terminal_request = Some(cause);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -196,38 +217,63 @@ pub enum Target {
 }
 
 /// Ordered effects. `SpawnChild`, `BeginKill`, `ApplyDimensions`, and
-/// `Shutdown` are DEFERRED: the broker records them; commit 7 wires
-/// their execution. Nothing here may signal or terminate a process.
+/// `Shutdown` cross the pure reducer/commit-7 broker boundary. Nothing in
+/// this module directly signals or terminates a process.
 pub enum Effect {
-    SetRole { target: Target, role: ConnRole },
-    QueueFrame { target: Target, frame: Frame },
+    SetRole {
+        target: Target,
+        role: ConnRole,
+    },
+    QueueFrame {
+        target: Target,
+        frame: Frame,
+    },
     /// Raw writer input destined for the bounded writer-input queue.
-    DeliverInput { client_id: u32, bytes: Vec<u8> },
+    DeliverInput {
+        client_id: u32,
+        bytes: Vec<u8>,
+    },
     /// Discard the target's queued output and input (takeover/detach).
-    DropQueues { target: Target },
+    DropQueues {
+        target: Target,
+    },
     /// Silent immediate close (framing faults, deadline expiry).
-    CloseNow { conn: ConnId },
+    CloseNow {
+        conn: ConnId,
+    },
     /// Bounded close-after-flush: stop reading, drain the reply, close
     /// on empty or the reply deadline.
-    CloseAfterFlush { conn: ConnId },
+    CloseAfterFlush {
+        conn: ConnId,
+    },
     /// [`Effect::CloseNow`] resolved by protocol client id.
-    CloseClientNow { client_id: u32 },
+    CloseClientNow {
+        client_id: u32,
+    },
     /// [`Effect::CloseAfterFlush`] resolved by protocol client id.
-    CloseClientAfterFlush { client_id: u32 },
+    CloseClientAfterFlush {
+        client_id: u32,
+    },
     /// DEFERRED: spawn the PTY child with the granted dimensions.
-    SpawnChild { rows: u16, cols: u16 },
+    SpawnChild {
+        rows: u16,
+        cols: u16,
+    },
     /// DEFERRED: begin the kill path (commit 7: TERM→grace→KILL, reap,
     /// then `Exit` delivery).
     BeginKill,
     /// DEFERRED: apply new dimensions (commit 7: TIOCSWINSZ only when
     /// actually changed).
-    ApplyDimensions { rows: u16, cols: u16 },
+    ApplyDimensions {
+        rows: u16,
+        cols: u16,
+    },
     /// DEFERRED: broker shutdown (unlink state, close all, exit).
     Shutdown,
 }
 
 impl Effect {
-    /// Whether this effect must be recorded, not executed, in commit 5.
+    /// Whether this effect crosses into broker-owned OS/lifecycle work.
     pub fn is_deferred(&self) -> bool {
         matches!(
             self,
@@ -286,15 +332,29 @@ impl fmt::Debug for Effect {
 pub enum Event<'a> {
     /// A complete, decoded frame arrived on a connection with the given
     /// settled role.
-    Frame { conn: ConnId, role: ConnRole, frame: &'a Frame },
+    Frame {
+        conn: ConnId,
+        role: ConnRole,
+        frame: &'a Frame,
+    },
     /// A connection went away (EOF, HUP, or error close).
-    Disconnected { role: ConnRole },
+    Disconnected { conn: ConnId, role: ConnRole },
     /// The incomplete-frame deadline expired mid-frame.
     IncompleteFrameExpired { conn: ConnId },
     /// A reply-drain deadline expired.
     ReplyDeadlineExpired { conn: ConnId },
     /// No initial writer arrived before the startup deadline.
     StartupDeadlineExpired,
+    /// A catchable broker signal requested the same kill path as Kill.
+    TerminationRequested,
+    /// The leader outcome was observed without consuming its identity anchor.
+    ChildExitObserved { signal: bool, value: u32 },
+    /// The recorded leader was reaped and PTY output reached its boundary.
+    ChildFinished { signal: bool, value: u32 },
+    /// Startup/spawn failed with no owned child left alive.
+    SpawnFailed,
+    /// A failure after spawn requires child cleanup before SpawnFailed.
+    InternalFailureRequested,
 }
 
 // ---------------------------------------------------------------------------
@@ -305,10 +365,7 @@ pub enum Event<'a> {
 pub fn reduce(rt: &mut Runtime, limits: &Limits, ev: Event<'_>) -> Vec<Effect> {
     match ev {
         Event::Frame { conn, role, frame } => {
-            if matches!(
-                rt.state.lifecycle,
-                Lifecycle::Exited | Lifecycle::Failed
-            ) {
+            if matches!(rt.state.lifecycle, Lifecycle::Exited | Lifecycle::Failed) {
                 // Terminal broker: no new semantics, no replies owed.
                 return vec![Effect::CloseNow { conn }];
             }
@@ -342,7 +399,8 @@ pub fn reduce(rt: &mut Runtime, limits: &Limits, ev: Event<'_>) -> Vec<Effect> {
                 }
             }
         }
-        Event::Disconnected { role } => {
+        Event::Disconnected { conn, role } => {
+            rt.kill_waiters.retain(|&waiter| waiter != conn);
             match role {
                 ConnRole::Writer { client_id } => {
                     if rt.state.ownership == Ownership::Writer(client_id) {
@@ -367,7 +425,129 @@ pub fn reduce(rt: &mut Runtime, limits: &Limits, ev: Event<'_>) -> Vec<Effect> {
             }
             vec![Effect::Shutdown]
         }
+        Event::TerminationRequested => match rt.state.lifecycle {
+            Lifecycle::Running => request_kill(rt, TerminalCause::KillRequested),
+            Lifecycle::WaitingForWriter => {
+                rt.latch_terminal(TerminalCause::KillRequested);
+                match rt.state.terminal(TerminalCause::KillRequested, true) {
+                    Ok(next) => rt.state = next,
+                    Err(_) => return vec![Effect::Shutdown],
+                }
+                vec![Effect::Shutdown]
+            }
+            Lifecycle::Starting | Lifecycle::Exited | Lifecycle::Failed => Vec::new(),
+        },
+        Event::InternalFailureRequested => request_kill(rt, TerminalCause::InternalError),
+        Event::ChildExitObserved { signal, value } => {
+            if rt.state.lifecycle == Lifecycle::Running {
+                rt.latch_terminal(TerminalCause::ChildExit { signal, value });
+            }
+            Vec::new()
+        }
+        Event::ChildFinished { signal, value } => child_finished(rt, signal, value),
+        Event::SpawnFailed => spawn_failed(rt, limits),
     }
+}
+
+fn request_kill(rt: &mut Runtime, cause: TerminalCause) -> Vec<Effect> {
+    if rt.state.lifecycle != Lifecycle::Running {
+        return Vec::new();
+    }
+    rt.latch_terminal(cause);
+    if rt.kill_started {
+        Vec::new()
+    } else {
+        rt.kill_started = true;
+        vec![Effect::BeginKill]
+    }
+}
+
+fn child_finished(rt: &mut Runtime, signal: bool, value: u32) -> Vec<Effect> {
+    if rt.state.lifecycle != Lifecycle::Running {
+        return Vec::new();
+    }
+    let writer = match rt.state.ownership {
+        Ownership::Writer(id) => Some(id),
+        Ownership::NoWriter => None,
+    };
+    let observers = rt.observers.client_ids().to_vec();
+    let waiters = rt.kill_waiters.clone();
+    let cause = rt
+        .terminal_request
+        .unwrap_or(TerminalCause::ChildExit { signal, value });
+    let exited = matches!(
+        cause,
+        TerminalCause::ChildExit { .. } | TerminalCause::KillRequested
+    );
+    match rt.state.terminal(cause, exited) {
+        Ok(next) => rt.state = next,
+        Err(_) => return vec![Effect::Shutdown],
+    }
+
+    let frame = Frame::Exit { signal, value };
+    let mut fx = Vec::new();
+    if let Some(client_id) = writer {
+        fx.push(Effect::QueueFrame {
+            target: Target::Client(client_id),
+            frame: frame.clone(),
+        });
+    }
+    for client_id in observers.iter().copied() {
+        fx.push(Effect::QueueFrame {
+            target: Target::Client(client_id),
+            frame: frame.clone(),
+        });
+    }
+    for conn in waiters.iter().copied() {
+        fx.push(Effect::QueueFrame {
+            target: Target::Conn(conn),
+            frame: frame.clone(),
+        });
+    }
+    if let Some(client_id) = writer {
+        fx.push(Effect::CloseClientAfterFlush { client_id });
+    }
+    for client_id in observers {
+        fx.push(Effect::CloseClientAfterFlush { client_id });
+    }
+    for conn in waiters {
+        fx.push(Effect::CloseAfterFlush { conn });
+    }
+    rt.kill_waiters.clear();
+    fx.push(Effect::Shutdown);
+    fx
+}
+
+fn spawn_failed(rt: &mut Runtime, limits: &Limits) -> Vec<Effect> {
+    if matches!(rt.state.lifecycle, Lifecycle::Exited | Lifecycle::Failed) {
+        return Vec::new();
+    }
+    let writer = match rt.state.ownership {
+        Ownership::Writer(id) => Some(id),
+        Ownership::NoWriter => None,
+    };
+    let observers = rt.observers.client_ids().to_vec();
+    rt.latch_terminal(TerminalCause::InternalError);
+    match rt.state.terminal(TerminalCause::InternalError, false) {
+        Ok(next) => rt.state = next,
+        Err(_) => return vec![Effect::Shutdown],
+    }
+    let mut fx = Vec::new();
+    if let Some(client_id) = writer {
+        fx.push(Effect::QueueFrame {
+            target: Target::Client(client_id),
+            frame: error_frame(ErrorCode::Internal, "child spawn failed", limits),
+        });
+        fx.push(Effect::CloseClientAfterFlush { client_id });
+    }
+    for client_id in observers {
+        fx.push(Effect::CloseClientNow { client_id });
+    }
+    for conn in rt.kill_waiters.drain(..) {
+        fx.push(Effect::CloseNow { conn });
+    }
+    fx.push(Effect::Shutdown);
+    fx
 }
 
 fn protocol_error(limits: &Limits, conn: ConnId) -> Vec<Effect> {
@@ -474,9 +654,16 @@ fn control_kill(rt: &mut Runtime, limits: &Limits, conn: ConnId) -> Vec<Effect> 
         // Kill depends on the child/lifecycle state, NOT ownership: a
         // child exists in Running whether or not a writer is attached.
         Lifecycle::Running => {
-            fx.push(Effect::BeginKill);
-            // The control connection stays open awaiting the Exit
-            // reply, which commit 7's kill path delivers.
+            if !rt.kill_waiters.contains(&conn) {
+                rt.kill_waiters.push(conn);
+            }
+            rt.latch_terminal(TerminalCause::KillRequested);
+            if !rt.kill_started {
+                rt.kill_started = true;
+                fx.push(Effect::BeginKill);
+            }
+            // Every live Kill control connection stays open awaiting the
+            // same final Exit; only the first request starts signalling.
         }
         // Pre-spawn: no child exists; report NoWriter, close, and
         // leave WaitingForWriter untouched — never a secret
@@ -768,10 +955,7 @@ mod tests {
         let candidate = rt.peek_client_id().expect("candidate");
         assert_eq!(candidate, id);
         assert!(rt.commit_client_id(candidate));
-        rt.state = rt
-            .state
-            .initial_writer(id)
-            .expect("initial writer");
+        rt.state = rt.state.initial_writer(id).expect("initial writer");
         rt
     }
 
@@ -793,10 +977,12 @@ mod tests {
     }
 
     fn frames_of(fx: &[Effect]) -> Vec<&Frame> {
-        fx.iter().filter_map(|e| match e {
-            Effect::QueueFrame { frame, .. } => Some(frame),
-            _ => None,
-        }).collect()
+        fx.iter()
+            .filter_map(|e| match e {
+                Effect::QueueFrame { frame, .. } => Some(frame),
+                _ => None,
+            })
+            .collect()
     }
 
     #[test]
@@ -837,44 +1023,94 @@ mod tests {
                 frame: &hello(WireRole::Writer, false, 24, 80),
             },
         );
-        assert_eq!(rt.state.lifecycle, Lifecycle::Running, "initial_writer assigned");
+        assert_eq!(
+            rt.state.lifecycle,
+            Lifecycle::Running,
+            "initial_writer assigned"
+        );
         assert_eq!(rt.state.ownership, Ownership::Writer(1));
         // Self-detach revokes for real.
-        reduce(&mut rt, &limits(), Event::Frame {
-            conn: 1,
-            role: ConnRole::Writer { client_id: 1 },
-            frame: &Frame::DetachWriter,
-        });
+        reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 1,
+                role: ConnRole::Writer { client_id: 1 },
+                frame: &Frame::DetachWriter,
+            },
+        );
         assert_eq!(rt.state.ownership, Ownership::NoWriter, "revoke assigned");
         // A later writer grants again.
-        reduce(&mut rt, &limits(), Event::Frame {
-            conn: 2,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Writer, false, 0, 0),
-        });
+        reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 2,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Writer, false, 0, 0),
+            },
+        );
         assert_eq!(rt.state.ownership, Ownership::Writer(2));
         // Control detach revokes for real.
-        reduce(&mut rt, &limits(), Event::Frame {
-            conn: 3,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &Frame::DetachWriter,
-        });
-        assert_eq!(rt.state.ownership, Ownership::NoWriter, "control revoke assigned");
+        reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 3,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &Frame::DetachWriter,
+            },
+        );
+        assert_eq!(
+            rt.state.ownership,
+            Ownership::NoWriter,
+            "control revoke assigned"
+        );
         // Writer disconnect revokes for real; a stale id is a no-op.
-        reduce(&mut rt, &limits(), Event::Frame {
-            conn: 4,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Writer, false, 24, 80),
-        });
+        reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 4,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Writer, false, 24, 80),
+            },
+        );
         assert_eq!(rt.state.ownership, Ownership::Writer(3));
-        reduce(&mut rt, &limits(), Event::Disconnected { role: ConnRole::Writer { client_id: 2 } });
-        assert_eq!(rt.state.ownership, Ownership::Writer(3), "stale disconnect is a no-op");
-        reduce(&mut rt, &limits(), Event::Disconnected { role: ConnRole::Writer { client_id: 3 } });
-        assert_eq!(rt.state.ownership, Ownership::NoWriter, "disconnect revoke assigned");
+        reduce(
+            &mut rt,
+            &limits(),
+            Event::Disconnected {
+                conn: 2,
+                role: ConnRole::Writer { client_id: 2 },
+            },
+        );
+        assert_eq!(
+            rt.state.ownership,
+            Ownership::Writer(3),
+            "stale disconnect is a no-op"
+        );
+        reduce(
+            &mut rt,
+            &limits(),
+            Event::Disconnected {
+                conn: 3,
+                role: ConnRole::Writer { client_id: 3 },
+            },
+        );
+        assert_eq!(
+            rt.state.ownership,
+            Ownership::NoWriter,
+            "disconnect revoke assigned"
+        );
         // Startup expiry fails the lifecycle for real.
         let mut rt = fresh_rt();
         reduce(&mut rt, &limits(), Event::StartupDeadlineExpired);
-        assert_eq!(rt.state.lifecycle, Lifecycle::Failed, "startup_deadline assigned");
+        assert_eq!(
+            rt.state.lifecycle,
+            Lifecycle::Failed,
+            "startup_deadline assigned"
+        );
     }
 
     #[test]
@@ -904,23 +1140,45 @@ mod tests {
                 broker_protocol_version: 1,
                 status: AttachStatus::WriterGranted,
             },
-            Frame::Exit { signal: false, value: 0 },
-            Frame::Error { code: 1, text: "x".to_owned() },
+            Frame::Exit {
+                signal: false,
+                value: 0,
+            },
+            Frame::Error {
+                code: 1,
+                text: "x".to_owned(),
+            },
             Frame::Ownership(OwnershipEvent::Granted),
-            Frame::Busy { current_writer_id: 1 },
+            Frame::Busy {
+                current_writer_id: 1,
+            },
         ];
         for frame in &illegal {
             let mut rt = fresh_rt();
             let fx = reduce(
                 &mut rt,
                 &limits(),
-                Event::Frame { conn: 1, role: ConnRole::AwaitingFirstFrame, frame },
+                Event::Frame {
+                    conn: 1,
+                    role: ConnRole::AwaitingFirstFrame,
+                    frame,
+                },
             );
             let frames = frames_of(&fx);
             assert_eq!(frames.len(), 1, "{:?} -> one error frame", frame.kind());
-            assert!(matches!(frames[0], Frame::Error { code: 1, .. }), "Protocol=1");
-            assert!(matches!(fx.last(), Some(Effect::CloseAfterFlush { conn: 1 })));
-            assert_eq!(rt.state.lifecycle, Lifecycle::WaitingForWriter, "no mutation");
+            assert!(
+                matches!(frames[0], Frame::Error { code: 1, .. }),
+                "Protocol=1"
+            );
+            assert!(matches!(
+                fx.last(),
+                Some(Effect::CloseAfterFlush { conn: 1 })
+            ));
+            assert_eq!(
+                rt.state.lifecycle,
+                Lifecycle::WaitingForWriter,
+                "no mutation"
+            );
         }
     }
 
@@ -944,14 +1202,19 @@ mod tests {
         let ack = frames_of(&fx)
             .iter()
             .find_map(|f| match f {
-                Frame::HelloAck { client_id, status, .. } => Some((*client_id, *status)),
+                Frame::HelloAck {
+                    client_id, status, ..
+                } => Some((*client_id, *status)),
                 _ => None,
             })
             .expect("ack");
         assert_eq!(ack, (1, AttachStatus::WriterGranted));
         assert!(matches!(
             fx[0],
-            Effect::SetRole { role: ConnRole::Writer { client_id: 1 }, .. }
+            Effect::SetRole {
+                role: ConnRole::Writer { client_id: 1 },
+                ..
+            }
         ));
     }
 
@@ -968,7 +1231,10 @@ mod tests {
                     frame: &hello(WireRole::Writer, false, rows, cols),
                 },
             );
-            assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 1, .. })));
+            assert!(matches!(
+                frames_of(&fx).first(),
+                Some(Frame::Error { code: 1, .. })
+            ));
             assert_eq!(rt.state.lifecycle, Lifecycle::WaitingForWriter);
         }
     }
@@ -992,32 +1258,49 @@ mod tests {
                 frame: &frame,
             },
         );
-        assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 1, .. })));
+        assert!(matches!(
+            frames_of(&fx).first(),
+            Some(Frame::Error { code: 1, .. })
+        ));
     }
 
     #[test]
     fn observer_hello_flow_and_guards() {
         // take_over=true → Forbidden.
         let mut rt = fresh_rt();
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 1,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Observer, true, 0, 0),
-        });
-        assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 2, .. })));
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 1,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Observer, true, 0, 0),
+            },
+        );
+        assert!(matches!(
+            frames_of(&fx).first(),
+            Some(Frame::Error { code: 2, .. })
+        ));
 
         // Observer may attach while WaitingForWriter; receives ObserverAccepted.
         let mut rt = fresh_rt();
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 1,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Observer, false, 0, 0),
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 1,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Observer, false, 0, 0),
+            },
+        );
         assert_eq!(rt.observers.len(), 1);
-        let ack = frames_of(&fx).iter().find_map(|f| match f {
-            Frame::HelloAck { status, .. } => Some(*status),
-            _ => None,
-        }).expect("ack");
+        let ack = frames_of(&fx)
+            .iter()
+            .find_map(|f| match f {
+                Frame::HelloAck { status, .. } => Some(*status),
+                _ => None,
+            })
+            .expect("ack");
         assert_eq!(ack, AttachStatus::ObserverAccepted);
 
         // Full set → ResourceLimit, no id granted.
@@ -1025,12 +1308,19 @@ mod tests {
         for id in 1..=8 {
             rt.observers.join(id);
         }
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 9,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Observer, false, 0, 0),
-        });
-        assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 4, .. })));
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 9,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Observer, false, 0, 0),
+            },
+        );
+        assert!(matches!(
+            frames_of(&fx).first(),
+            Some(Frame::Error { code: 4, .. })
+        ));
         assert_eq!(rt.observers.len(), 8);
         assert_eq!(rt.next_client_id, 1, "no id consumed");
     }
@@ -1039,34 +1329,61 @@ mod tests {
     fn busy_changes_nothing_and_consumes_no_client_id() {
         let mut rt = running_with_writer(1);
         let before = rt.state;
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 5,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Writer, false, 24, 80),
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Writer, false, 24, 80),
+            },
+        );
         assert_eq!(rt.state, before, "state untouched");
         assert_eq!(rt.observers.len(), 0);
         assert_eq!(rt.next_client_id, 2, "no id consumed for Busy");
         assert!(matches!(
             frames_of(&fx).first(),
-            Some(Frame::Busy { current_writer_id: 1 })
+            Some(Frame::Busy {
+                current_writer_id: 1
+            })
         ));
-        assert!(matches!(fx.last(), Some(Effect::CloseAfterFlush { conn: 5 })));
+        assert!(matches!(
+            fx.last(),
+            Some(Effect::CloseAfterFlush { conn: 5 })
+        ));
     }
 
     #[test]
     fn takeover_orders_revoked_discard_grant() {
         let mut rt = running_with_writer(1);
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 5,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Writer, true, 30, 100),
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Writer, true, 30, 100),
+            },
+        );
         assert_eq!(rt.state.ownership, Ownership::Writer(2));
         // Exact effect order.
-        assert!(matches!(fx[0], Effect::DropQueues { target: Target::Client(1) }));
-        assert!(matches!(fx[1], Effect::QueueFrame { target: Target::Client(1), .. }));
-        assert!(matches!(frame_of(&fx[1]), Frame::Ownership(OwnershipEvent::Revoked)));
+        assert!(matches!(
+            fx[0],
+            Effect::DropQueues {
+                target: Target::Client(1)
+            }
+        ));
+        assert!(matches!(
+            fx[1],
+            Effect::QueueFrame {
+                target: Target::Client(1),
+                ..
+            }
+        ));
+        assert!(matches!(
+            frame_of(&fx[1]),
+            Frame::Ownership(OwnershipEvent::Revoked)
+        ));
         assert!(matches!(
             fx[2],
             Effect::SetRole {
@@ -1074,7 +1391,13 @@ mod tests {
                 role: ConnRole::Observer { client_id: 1 }
             }
         ));
-        assert!(matches!(fx[3], Effect::ApplyDimensions { rows: 30, cols: 100 }));
+        assert!(matches!(
+            fx[3],
+            Effect::ApplyDimensions {
+                rows: 30,
+                cols: 100
+            }
+        ));
         assert!(matches!(
             fx[4],
             Effect::SetRole {
@@ -1083,16 +1406,25 @@ mod tests {
             }
         ));
         assert!(matches!(frame_of(&fx[5]), Frame::HelloAck { .. }));
-        assert!(matches!(frame_of(&fx[6]), Frame::Ownership(OwnershipEvent::Granted)));
+        assert!(matches!(
+            frame_of(&fx[6]),
+            Frame::Ownership(OwnershipEvent::Granted)
+        ));
         assert_eq!(rt.observers.len(), 1, "old writer joined observers");
         // (0,0) takeover preserves size: no dimension effect.
         let mut rt = running_with_writer(1);
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 6,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Writer, true, 0, 0),
-        });
-        assert!(!fx.iter().any(|e| matches!(e, Effect::ApplyDimensions { .. })));
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 6,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Writer, true, 0, 0),
+            },
+        );
+        assert!(!fx
+            .iter()
+            .any(|e| matches!(e, Effect::ApplyDimensions { .. })));
     }
 
     #[test]
@@ -1101,15 +1433,18 @@ mod tests {
         for id in 2..=9 {
             rt.observers.join(id);
         }
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 5,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Writer, true, 24, 80),
-        });
-        assert!(
-            fx.iter()
-                .any(|e| matches!(e, Effect::CloseClientAfterFlush { client_id: 1 }))
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Writer, true, 24, 80),
+            },
         );
+        assert!(fx
+            .iter()
+            .any(|e| matches!(e, Effect::CloseClientAfterFlush { client_id: 1 })));
         assert!(!rt.observers.contains(1));
     }
 
@@ -1117,54 +1452,91 @@ mod tests {
     fn running_regrant_preserving_dimensions() {
         let mut rt = running_with_writer(1);
         rt.state = rt.state.revoke_writer().expect("revoke");
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 5,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Writer, false, 0, 0),
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Writer, false, 0, 0),
+            },
+        );
         assert_eq!(rt.state.ownership, Ownership::Writer(2));
-        assert!(!fx.iter().any(|e| matches!(e, Effect::ApplyDimensions { .. })));
+        assert!(!fx
+            .iter()
+            .any(|e| matches!(e, Effect::ApplyDimensions { .. })));
         // Mixed zero is invalid even for a re-attach.
         let mut rt = running_with_writer(1);
         rt.state = rt.state.revoke_writer().expect("revoke");
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 5,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Writer, false, 0, 80),
-        });
-        assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 1, .. })));
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Writer, false, 0, 80),
+            },
+        );
+        assert!(matches!(
+            frames_of(&fx).first(),
+            Some(Frame::Error { code: 1, .. })
+        ));
     }
 
     #[test]
     fn writer_frame_rules() {
         // Input from the current writer is delivered.
         let mut rt = running_with_writer(1);
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 5,
-            role: ConnRole::Writer { client_id: 1 },
-            frame: &Frame::Input(vec![9, 9]),
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::Writer { client_id: 1 },
+                frame: &Frame::Input(vec![9, 9]),
+            },
+        );
         assert!(matches!(&fx[0], Effect::DeliverInput { client_id: 1, bytes } if bytes == &[9, 9]));
 
         // Valid Resize applies (deferred).
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 5,
-            role: ConnRole::Writer { client_id: 1 },
-            frame: &Frame::Resize { rows: 40, cols: 120 },
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::Writer { client_id: 1 },
+                frame: &Frame::Resize {
+                    rows: 40,
+                    cols: 120,
+                },
+            },
+        );
         assert!(
-            matches!(fx.as_slice(), [Effect::ApplyDimensions { rows: 40, cols: 120 }]),
+            matches!(
+                fx.as_slice(),
+                [Effect::ApplyDimensions {
+                    rows: 40,
+                    cols: 120
+                }]
+            ),
             "unexpected effects: {fx:?}"
         );
 
         // Zero-valued Resize is a protocol error.
         for (rows, cols) in [(0, 0), (0, 80), (24, 0)] {
-            let fx = reduce(&mut rt, &limits(), Event::Frame {
-                conn: 5,
-                role: ConnRole::Writer { client_id: 1 },
-                frame: &Frame::Resize { rows, cols },
-            });
-            assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 1, .. })));
+            let fx = reduce(
+                &mut rt,
+                &limits(),
+                Event::Frame {
+                    conn: 5,
+                    role: ConnRole::Writer { client_id: 1 },
+                    frame: &Frame::Resize { rows, cols },
+                },
+            );
+            assert!(matches!(
+                frames_of(&fx).first(),
+                Some(Frame::Error { code: 1, .. })
+            ));
         }
 
         // Post-Hello control frames and a second Hello are protocol
@@ -1175,19 +1547,33 @@ mod tests {
             hello(WireRole::Writer, false, 24, 80),
             Frame::Pong,
         ] {
-            let fx = reduce(&mut rt, &limits(), Event::Frame {
-                conn: 5,
-                role: ConnRole::Writer { client_id: 1 },
-                frame: &frame,
-            });
-            assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 1, .. })));
+            let fx = reduce(
+                &mut rt,
+                &limits(),
+                Event::Frame {
+                    conn: 5,
+                    role: ConnRole::Writer { client_id: 1 },
+                    frame: &frame,
+                },
+            );
+            assert!(matches!(
+                frames_of(&fx).first(),
+                Some(Frame::Error { code: 1, .. })
+            ));
         }
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 5,
-            role: ConnRole::Writer { client_id: 77 },
-            frame: &Frame::Input(vec![1]),
-        });
-        assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 1, .. })));
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::Writer { client_id: 77 },
+                frame: &Frame::Input(vec![1]),
+            },
+        );
+        assert!(matches!(
+            frames_of(&fx).first(),
+            Some(Frame::Error { code: 1, .. })
+        ));
     }
 
     #[test]
@@ -1201,11 +1587,15 @@ mod tests {
             Frame::Resize { rows: 1, cols: 1 },
             hello(WireRole::Observer, false, 0, 0),
         ] {
-            let fx = reduce(&mut rt, &limits(), Event::Frame {
-                conn: 5,
-                role: ConnRole::Observer { client_id: 3 },
-                frame: &frame,
-            });
+            let fx = reduce(
+                &mut rt,
+                &limits(),
+                Event::Frame {
+                    conn: 5,
+                    role: ConnRole::Observer { client_id: 3 },
+                    frame: &frame,
+                },
+            );
             assert!(
                 matches!(frames_of(&fx).first(), Some(Frame::Error { code: 1, .. })),
                 "{:?}",
@@ -1217,52 +1607,109 @@ mod tests {
     #[test]
     fn writer_self_detach_revokes_and_closes_after_reply() {
         let mut rt = running_with_writer(1);
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 5,
-            role: ConnRole::Writer { client_id: 1 },
-            frame: &Frame::DetachWriter,
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::Writer { client_id: 1 },
+                frame: &Frame::DetachWriter,
+            },
+        );
         assert_eq!(rt.state.ownership, Ownership::NoWriter);
         assert!(matches!(fx[0], Effect::DropQueues { .. }));
-        assert!(matches!(frame_of(&fx[1]), Frame::Ownership(OwnershipEvent::Revoked)));
-        assert!(matches!(fx.last(), Some(Effect::CloseAfterFlush { conn: 5 })));
+        assert!(matches!(
+            frame_of(&fx[1]),
+            Frame::Ownership(OwnershipEvent::Revoked)
+        ));
+        assert!(matches!(
+            fx.last(),
+            Some(Effect::CloseAfterFlush { conn: 5 })
+        ));
     }
 
     #[test]
     fn control_ping_pong_bounded_close() {
         let mut rt = fresh_rt();
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 2,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &Frame::Ping,
-        });
-        assert!(matches!(fx[0], Effect::SetRole { role: ConnRole::Control, .. }));
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 2,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &Frame::Ping,
+            },
+        );
+        assert!(matches!(
+            fx[0],
+            Effect::SetRole {
+                role: ConnRole::Control,
+                ..
+            }
+        ));
         assert!(matches!(frame_of(&fx[1]), Frame::Pong));
-        assert!(matches!(fx.last(), Some(Effect::CloseAfterFlush { conn: 2 })));
+        assert!(matches!(
+            fx.last(),
+            Some(Effect::CloseAfterFlush { conn: 2 })
+        ));
         // A second frame on a control connection is a protocol error.
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 2,
-            role: ConnRole::Control,
-            frame: &Frame::Ping,
-        });
-        assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 1, .. })));
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 2,
+                role: ConnRole::Control,
+                frame: &Frame::Ping,
+            },
+        );
+        assert!(matches!(
+            frames_of(&fx).first(),
+            Some(Frame::Error { code: 1, .. })
+        ));
     }
 
     #[test]
     fn control_detach_full_sequence() {
         let mut rt = running_with_writer(1);
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 9,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &Frame::DetachWriter,
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 9,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &Frame::DetachWriter,
+            },
+        );
         assert_eq!(rt.state.ownership, Ownership::NoWriter);
-        assert!(matches!(fx[0], Effect::SetRole { role: ConnRole::Control, .. }));
-        assert!(matches!(fx[1], Effect::DropQueues { target: Target::Client(1) }));
-        assert!(matches!(frame_of(&fx[2]), Frame::Ownership(OwnershipEvent::Revoked)));
-        assert!(matches!(fx[3], Effect::CloseClientAfterFlush { client_id: 1 }));
-        assert!(matches!(frame_of(&fx[4]), Frame::Ownership(OwnershipEvent::Revoked)));
-        assert!(matches!(fx.last(), Some(Effect::CloseAfterFlush { conn: 9 })));
+        assert!(matches!(
+            fx[0],
+            Effect::SetRole {
+                role: ConnRole::Control,
+                ..
+            }
+        ));
+        assert!(matches!(
+            fx[1],
+            Effect::DropQueues {
+                target: Target::Client(1)
+            }
+        ));
+        assert!(matches!(
+            frame_of(&fx[2]),
+            Frame::Ownership(OwnershipEvent::Revoked)
+        ));
+        assert!(matches!(
+            fx[3],
+            Effect::CloseClientAfterFlush { client_id: 1 }
+        ));
+        assert!(matches!(
+            frame_of(&fx[4]),
+            Frame::Ownership(OwnershipEvent::Revoked)
+        ));
+        assert!(matches!(
+            fx.last(),
+            Some(Effect::CloseAfterFlush { conn: 9 })
+        ));
     }
 
     #[test]
@@ -1277,11 +1724,15 @@ mod tests {
                 }
             };
             let before = rt.state;
-            let fx = reduce(&mut rt, &limits(), Event::Frame {
-                conn: 9,
-                role: ConnRole::AwaitingFirstFrame,
-                frame: &Frame::DetachWriter,
-            });
+            let fx = reduce(
+                &mut rt,
+                &limits(),
+                Event::Frame {
+                    conn: 9,
+                    role: ConnRole::AwaitingFirstFrame,
+                    frame: &Frame::DetachWriter,
+                },
+            );
             assert_eq!(rt.state, before, "{setup}: no mutation");
             assert!(
                 matches!(frames_of(&fx).first(), Some(Frame::Error { code: 3, .. })),
@@ -1295,22 +1746,33 @@ mod tests {
         // Pre-spawn: NoWriter error, lifecycle untouched.
         let mut rt = fresh_rt();
         let before = rt.state;
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 9,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &Frame::Kill,
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 9,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &Frame::Kill,
+            },
+        );
         assert_eq!(rt.state, before);
-        assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 3, .. })));
+        assert!(matches!(
+            frames_of(&fx).first(),
+            Some(Frame::Error { code: 3, .. })
+        ));
         assert!(!fx.iter().any(|e| matches!(e, Effect::BeginKill)));
 
         // Running with a writer: deferred BeginKill only.
         let mut rt = running_with_writer(1);
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 9,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &Frame::Kill,
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 9,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &Frame::Kill,
+            },
+        );
         assert_eq!(rt.state.lifecycle, Lifecycle::Running, "no terminal jump");
         assert!(fx.iter().any(|e| matches!(e, Effect::BeginKill)));
         assert!(
@@ -1323,11 +1785,15 @@ mod tests {
         // Running with NO writer: still BeginKill.
         let mut rt = running_with_writer(1);
         rt.state = rt.state.revoke_writer().expect("revoke");
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 9,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &Frame::Kill,
-        });
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 9,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &Frame::Kill,
+            },
+        );
         assert!(fx.iter().any(|e| matches!(e, Effect::BeginKill)));
     }
 
@@ -1335,19 +1801,34 @@ mod tests {
     fn disconnect_revoke_and_observer_leave() {
         let mut rt = running_with_writer(1);
         rt.observers.join(3);
-        reduce(&mut rt, &limits(), Event::Disconnected { role: ConnRole::Writer { client_id: 1 } });
+        reduce(
+            &mut rt,
+            &limits(),
+            Event::Disconnected {
+                conn: 1,
+                role: ConnRole::Writer { client_id: 1 },
+            },
+        );
         assert_eq!(rt.state.ownership, Ownership::NoWriter);
         reduce(
             &mut rt,
             &limits(),
             Event::Disconnected {
+                conn: 3,
                 role: ConnRole::Observer { client_id: 3 },
             },
         );
         assert!(!rt.observers.contains(3));
         // A stale writer disconnect must not revoke the new writer.
         let mut rt = running_with_writer(2);
-        reduce(&mut rt, &limits(), Event::Disconnected { role: ConnRole::Writer { client_id: 1 } });
+        reduce(
+            &mut rt,
+            &limits(),
+            Event::Disconnected {
+                conn: 1,
+                role: ConnRole::Writer { client_id: 1 },
+            },
+        );
         assert_eq!(rt.state.ownership, Ownership::Writer(2));
     }
 
@@ -1385,13 +1866,175 @@ mod tests {
         // with ResourceLimit while the existing writer is untouched.
         // (A no-takeover attempt is Busy — which never peeks an id at
         // all, as its own test pins.)
-        let fx = reduce(&mut rt, &limits(), Event::Frame {
-            conn: 5,
-            role: ConnRole::AwaitingFirstFrame,
-            frame: &hello(WireRole::Writer, true, 24, 80),
-        });
-        assert!(matches!(frames_of(&fx).first(), Some(Frame::Error { code: 4, .. })));
-        assert_eq!(rt.state.ownership, Ownership::Writer(1), "existing clients unaffected");
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &hello(WireRole::Writer, true, 24, 80),
+            },
+        );
+        assert!(matches!(
+            frames_of(&fx).first(),
+            Some(Frame::Error { code: 4, .. })
+        ));
+        assert_eq!(
+            rt.state.ownership,
+            Ownership::Writer(1),
+            "existing clients unaffected"
+        );
+    }
+
+    #[test]
+    fn duplicate_kill_tracks_every_waiter_but_starts_once() {
+        let mut rt = running_with_writer(1);
+        rt.observers.join(2);
+        let first = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 9,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &Frame::Kill,
+            },
+        );
+        let second = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 10,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &Frame::Kill,
+            },
+        );
+        assert_eq!(rt.kill_waiters(), &[9, 10]);
+        assert_eq!(
+            first
+                .iter()
+                .filter(|effect| matches!(effect, Effect::BeginKill))
+                .count(),
+            1
+        );
+        assert!(!second
+            .iter()
+            .any(|effect| matches!(effect, Effect::BeginKill)));
+
+        let finished = reduce(
+            &mut rt,
+            &limits(),
+            Event::ChildFinished {
+                signal: true,
+                value: libc::SIGTERM as u32,
+            },
+        );
+        for target in [
+            Target::Client(1),
+            Target::Client(2),
+            Target::Conn(9),
+            Target::Conn(10),
+        ] {
+            assert!(finished.iter().any(|effect| {
+                matches!(effect, Effect::QueueFrame { target: actual, frame: Frame::Exit { signal: true, value } }
+                    if *actual == target && *value == libc::SIGTERM as u32)
+            }));
+        }
+        assert_eq!(rt.state.lifecycle, Lifecycle::Exited);
+        assert_eq!(rt.state.terminal, Some(TerminalCause::KillRequested));
+        assert!(matches!(finished.last(), Some(Effect::Shutdown)));
+        assert!(reduce(
+            &mut rt,
+            &limits(),
+            Event::ChildFinished {
+                signal: false,
+                value: 0,
+            }
+        )
+        .is_empty());
+    }
+
+    #[test]
+    fn kill_waiter_disconnect_and_first_observed_cause_are_preserved() {
+        let mut rt = running_with_writer(1);
+        let _ = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 9,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &Frame::Kill,
+            },
+        );
+        let _ = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 10,
+                role: ConnRole::AwaitingFirstFrame,
+                frame: &Frame::Kill,
+            },
+        );
+        reduce(
+            &mut rt,
+            &limits(),
+            Event::Disconnected {
+                conn: 9,
+                role: ConnRole::Control,
+            },
+        );
+        assert_eq!(rt.kill_waiters(), &[10]);
+
+        let mut natural = running_with_writer(1);
+        reduce(
+            &mut natural,
+            &limits(),
+            Event::ChildExitObserved {
+                signal: false,
+                value: 7,
+            },
+        );
+        reduce(&mut natural, &limits(), Event::TerminationRequested);
+        reduce(
+            &mut natural,
+            &limits(),
+            Event::ChildFinished {
+                signal: false,
+                value: 7,
+            },
+        );
+        assert_eq!(
+            natural.state.terminal,
+            Some(TerminalCause::ChildExit {
+                signal: false,
+                value: 7
+            })
+        );
+    }
+
+    #[test]
+    fn broker_signal_before_spawn_requests_clean_shutdown() {
+        let mut rt = fresh_rt();
+        let effects = reduce(&mut rt, &limits(), Event::TerminationRequested);
+        assert_eq!(rt.state.lifecycle, Lifecycle::Exited);
+        assert_eq!(rt.state.terminal, Some(TerminalCause::KillRequested));
+        assert!(matches!(effects.as_slice(), [Effect::Shutdown]));
+    }
+
+    #[test]
+    fn spawn_failed_queues_internal_before_shutdown() {
+        let mut rt = running_with_writer(1);
+        rt.observers.join(2);
+        let effects = reduce(&mut rt, &limits(), Event::SpawnFailed);
+        assert_eq!(rt.state.lifecycle, Lifecycle::Failed);
+        assert_eq!(rt.state.terminal, Some(TerminalCause::InternalError));
+        assert!(matches!(
+            effects.first(),
+            Some(Effect::QueueFrame {
+                target: Target::Client(1),
+                frame: Frame::Error { code: 5, .. },
+            })
+        ));
+        assert!(matches!(effects.last(), Some(Effect::Shutdown)));
     }
 
     #[test]

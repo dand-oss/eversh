@@ -407,7 +407,9 @@ fn build_close_plan(
             return Err(invalid("close_in_child must not contain stdio descriptors"));
         }
         if protected.contains(&fd) || internal_close.contains(&fd) {
-            return Err(invalid("close_in_child collides with an internal descriptor"));
+            return Err(invalid(
+                "close_in_child collides with an internal descriptor",
+            ));
         }
         if !plan.contains(&fd) {
             plan.push(fd);
@@ -787,10 +789,39 @@ impl ChildProc {
         }
     }
 
-    /// The ONE anchor-consuming reap — private, called only by
-    /// [`ChildProc::terminate`] after group finalization. (A narrowly
-    /// scoped post-quiescence reap for the broker loop is commit-7
-    /// work.)
+    /// Proof-gated signal used by the broker's nonblocking kill state
+    /// machine. The recorded PID/PGID/start-time identity is checked before
+    /// every group signal; a vanished group at the signal syscall is benign.
+    pub(crate) fn signal_group_checked(&self, sig: Signal) -> Result<(), Error> {
+        if !self.identity_matches().map_err(Error::Io)? {
+            return Err(Error::NotLive);
+        }
+        self.signal_group(sig)
+    }
+
+    /// The broker's one nonblocking anchor-consuming reap. Callers may use
+    /// this only after `observe_exit` returned Some and after either PTY EOF
+    /// established quiescence or the process group was finalized. It waits on
+    /// exactly the recorded positive PID and caches the result exactly once.
+    pub(crate) fn reap_observed_nohang(&mut self) -> io::Result<Option<ExitOutcome>> {
+        if let Some(outcome) = self.outcome {
+            return Ok(Some(outcome));
+        }
+        if self.observed.is_none() && self.observe_exit()?.is_none() {
+            return Ok(None);
+        }
+        match sys::waitpid_nohang(self.pid)? {
+            Some((signaled, code)) => {
+                let outcome = outcome_from_wait(signaled, code);
+                self.outcome = Some(outcome);
+                Ok(Some(outcome))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// The ONE blocking anchor-consuming reap, called by the existing
+    /// synchronous terminate API after group finalization.
     fn reap_blocking(&mut self) -> io::Result<ExitOutcome> {
         if let Some(o) = self.outcome {
             return Ok(o);

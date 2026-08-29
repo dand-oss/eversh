@@ -15,7 +15,7 @@
 
 use std::ffi::CString;
 use std::io;
-use std::os::fd::{AsFd, AsRawFd, BorrowedFd, IntoRawFd, OwnedFd, RawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, IntoRawFd, OwnedFd, RawFd};
 use std::path::Path;
 
 use nix::fcntl::{Flock, FlockArg, OFlag};
@@ -75,6 +75,129 @@ pub fn set_winsize(fd: BorrowedFd<'_>, rows: u16, cols: u16) -> io::Result<()> {
 //
 // These wrappers preserve the raw errno (`io::Error::from(Errno)`) so
 // callers can dispatch on `ESRCH`/`ECHILD` without guessing.
+
+/// The exact catchable signals consumed by the broker's signalfd.
+const BROKER_SIGNALS: [libc::c_int; 5] = [
+    libc::SIGCHLD,
+    libc::SIGTERM,
+    libc::SIGINT,
+    libc::SIGQUIT,
+    libc::SIGHUP,
+];
+
+/// Installs `SIG_IGN` for SIGPIPE with `sigaction(2)`. Broker readiness
+/// pipe writes must observe EPIPE rather than terminating the process;
+/// socket writes additionally use MSG_NOSIGNAL. The spawned child resets
+/// SIGPIPE to SIG_DFL before exec.
+pub fn ignore_sigpipe() -> io::Result<()> {
+    // SAFETY: a zeroed sigaction is initialized fully before the call.
+    let mut action: libc::sigaction = unsafe { std::mem::zeroed() };
+    action.sa_sigaction = libc::SIG_IGN;
+    action.sa_flags = 0;
+    // SAFETY: the mask pointer belongs to the initialized action.
+    if unsafe { libc::sigemptyset(&mut action.sa_mask) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: both pointers are valid; no old action is requested.
+    if unsafe { libc::sigaction(libc::SIGPIPE, &action, std::ptr::null_mut()) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// A nonblocking+CLOEXEC signalfd plus the calling thread's previous
+/// signal mask. Dropping it closes the fd and restores that mask, which
+/// keeps in-process library tests from leaking blocked signals.
+pub struct BrokerSignals {
+    fd: OwnedFd,
+    old_mask: libc::sigset_t,
+}
+
+impl BrokerSignals {
+    pub fn fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
+    }
+}
+
+impl Drop for BrokerSignals {
+    fn drop(&mut self) {
+        // SAFETY: old_mask was populated by pthread_sigmask for this
+        // thread. Drop cannot report restoration failure.
+        let _ = unsafe {
+            libc::pthread_sigmask(libc::SIG_SETMASK, &self.old_mask, std::ptr::null_mut())
+        };
+    }
+}
+
+/// `pthread_sigmask(SIG_BLOCK)` for the broker signal set followed by
+/// `signalfd(2, SFD_NONBLOCK|SFD_CLOEXEC)`. A signalfd creation failure
+/// restores the previous mask before returning.
+pub fn broker_signals() -> io::Result<BrokerSignals> {
+    // SAFETY: both sets are initialized by libc before use.
+    let mut set: libc::sigset_t = unsafe { std::mem::zeroed() };
+    let mut old_mask: libc::sigset_t = unsafe { std::mem::zeroed() };
+    // SAFETY: set is a valid out-parameter.
+    if unsafe { libc::sigemptyset(&mut set) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    for signal in BROKER_SIGNALS {
+        // SAFETY: set remains valid across each insertion.
+        if unsafe { libc::sigaddset(&mut set, signal) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+    // pthread APIs return the errno value directly.
+    // SAFETY: set and old_mask are valid for the duration of the call.
+    let mask_error = unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &set, &mut old_mask) };
+    if mask_error != 0 {
+        return Err(io::Error::from_raw_os_error(mask_error));
+    }
+    // SAFETY: signalfd copies the supplied mask and returns a new fd.
+    let raw = unsafe { libc::signalfd(-1, &set, libc::SFD_NONBLOCK | libc::SFD_CLOEXEC) };
+    if raw < 0 {
+        let error = io::Error::last_os_error();
+        // SAFETY: restore the calling thread's prior mask on failure.
+        let _ =
+            unsafe { libc::pthread_sigmask(libc::SIG_SETMASK, &old_mask, std::ptr::null_mut()) };
+        return Err(error);
+    }
+    // SAFETY: raw is a newly-created owned descriptor.
+    let fd = unsafe { OwnedFd::from_raw_fd(raw) };
+    Ok(BrokerSignals { fd, old_mask })
+}
+
+/// Reads exactly one Linux `signalfd_siginfo` record from any fd.
+/// `None` means EAGAIN; EOF or a short record is InvalidData. Keeping
+/// this fd-generic permits deterministic synthetic-record tests.
+pub fn read_signalfd(fd: BorrowedFd<'_>) -> io::Result<Option<i32>> {
+    let mut info: libc::signalfd_siginfo = unsafe { std::mem::zeroed() };
+    let expected = std::mem::size_of::<libc::signalfd_siginfo>();
+    loop {
+        // SAFETY: info is valid writable storage of exactly expected bytes.
+        let n = unsafe {
+            libc::read(
+                fd.as_raw_fd(),
+                (&mut info as *mut libc::signalfd_siginfo).cast(),
+                expected,
+            )
+        };
+        if n == expected as libc::ssize_t {
+            return Ok(Some(info.ssi_signo as i32));
+        }
+        if n >= 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "short signalfd record",
+            ));
+        }
+        let error = io::Error::last_os_error();
+        match error.kind() {
+            io::ErrorKind::Interrupted => continue,
+            io::ErrorKind::WouldBlock => return Ok(None),
+            _ => return Err(error),
+        }
+    }
+}
 
 /// `waitpid(pid, WNOHANG)` (nix). `Ok(None)` while the child still
 /// runs. Rejects every non-positive PID before waitpid runs —
@@ -332,9 +455,7 @@ pub fn accept_nonblock(listener: BorrowedFd<'_>) -> io::Result<Option<OwnedFd>> 
         SockFlag::SOCK_NONBLOCK | SockFlag::SOCK_CLOEXEC,
     ) {
         Ok(raw) => Ok(Some(unsafe { OwnedFd::from_raw_fd(raw) })),
-        Err(e) if e == nix::errno::Errno::EAGAIN || e == nix::errno::Errno::EWOULDBLOCK => {
-            Ok(None)
-        }
+        Err(e) if e == nix::errno::Errno::EAGAIN || e == nix::errno::Errno::EWOULDBLOCK => Ok(None),
         Err(e) => Err(io::Error::from(e)),
     }
 }
@@ -414,8 +535,9 @@ pub(crate) fn cleanup_should_unlink(
 /// `fchmodat(AT_SYMLINK_NOFOLLOW)` + `listen(2)` (nix): ONE
 /// identity-aware operation that binds an `AF_UNIX` `SOCK_STREAM`
 /// `SOCK_NONBLOCK|SOCK_CLOEXEC` listener at `<dirfd>/name` THROUGH THE
-/// DIRECTORY CAPABILITY and returns it already listening. The bind
-/// path is built from RAW OsStr bytes as `/proc/self/fd/<dirfd>/<name>`
+/// DIRECTORY CAPABILITY and returns it already listening together with
+/// the exact captured filesystem-entry identity. The bind path is built
+/// from RAW OsStr bytes as `/proc/self/fd/<dirfd>/<name>`
 /// (renaming the display path cannot divert it; non-UTF-8 names
 /// survive intact). NO process-global umask is ever touched. After the
 /// bind the entry's no-follow identity (device/inode/type/uid) is
@@ -433,7 +555,7 @@ pub fn bind_unix_listener_at(
     dirfd: BorrowedFd<'_>,
     name: &std::ffi::OsStr,
     backlog: i32,
-) -> io::Result<OwnedFd> {
+) -> io::Result<(OwnedFd, EntryIdentity)> {
     use nix::sys::socket::{bind, socket, AddressFamily, SockFlag, SockType, UnixAddr};
     use nix::sys::stat::{fchmodat, FchmodatFlags, Mode};
     normal_entry_name(name)?;
@@ -508,7 +630,7 @@ pub fn bind_unix_listener_at(
         cleanup_if_ours();
         return Err(original);
     }
-    Ok(fd)
+    Ok((fd, created))
 }
 
 /// `clock_gettime(CLOCK_MONOTONIC)` — libc: the production monotonic
@@ -681,6 +803,13 @@ pub fn renameat_within(
 /// non-directory entry relative to the directory fd.
 pub fn unlinkat_file(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<()> {
     nix::unistd::unlinkat(dirfd, name, nix::unistd::UnlinkatFlags::NoRemoveDir)
+        .map_err(io::Error::from)
+}
+
+/// `unlinkat(2)` with `AT_REMOVEDIR` (nix `fs`): removes one empty
+/// directory entry relative to its retained parent-directory capability.
+pub fn unlinkat_dir(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<()> {
+    nix::unistd::unlinkat(dirfd, name, nix::unistd::UnlinkatFlags::RemoveDir)
         .map_err(io::Error::from)
 }
 
@@ -1323,6 +1452,58 @@ mod tests {
     }
 
     #[test]
+    fn signalfd_record_decode_is_exact_and_fd_generic() {
+        use std::io::Write;
+
+        let (read, write) = pipe_cloexec().expect("pipe");
+        let mut info: libc::signalfd_siginfo = unsafe { std::mem::zeroed() };
+        info.ssi_signo = libc::SIGCHLD as u32;
+        // SAFETY: info is initialized and viewed only as its own byte extent.
+        let bytes = unsafe {
+            std::slice::from_raw_parts(
+                (&info as *const libc::signalfd_siginfo).cast::<u8>(),
+                std::mem::size_of::<libc::signalfd_siginfo>(),
+            )
+        };
+        std::fs::File::from(write)
+            .write_all(bytes)
+            .expect("write record");
+        assert_eq!(
+            read_signalfd(read.as_fd()).expect("decode"),
+            Some(libc::SIGCHLD)
+        );
+
+        let (read, write) = pipe_cloexec().expect("short pipe");
+        let mut writer = std::fs::File::from(write);
+        writer.write_all(&[1, 2, 3]).expect("short write");
+        drop(writer);
+        assert_eq!(
+            read_signalfd(read.as_fd())
+                .expect_err("short record")
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        let (read, write) = pipe_cloexec().expect("unknown pipe");
+        let mut unknown: libc::signalfd_siginfo = unsafe { std::mem::zeroed() };
+        unknown.ssi_signo = 999;
+        // SAFETY: unknown is initialized and viewed as bytes.
+        let bytes = unsafe {
+            std::slice::from_raw_parts(
+                (&unknown as *const libc::signalfd_siginfo).cast::<u8>(),
+                std::mem::size_of::<libc::signalfd_siginfo>(),
+            )
+        };
+        std::fs::File::from(write)
+            .write_all(bytes)
+            .expect("unknown write");
+        assert_eq!(
+            read_signalfd(read.as_fd()).expect("unknown decode"),
+            Some(999)
+        );
+    }
+
+    #[test]
     fn signal_targets_are_validated_without_sending_signals() {
         for target in [0, -1, -2] {
             assert_eq!(
@@ -1349,7 +1530,9 @@ mod tests {
                 io::ErrorKind::InvalidInput
             );
             assert_eq!(
-                observe_exit_nowait(target).expect_err("waitid guard").kind(),
+                observe_exit_nowait(target)
+                    .expect_err("waitid guard")
+                    .kind(),
                 io::ErrorKind::InvalidInput
             );
             // SAFETY: the rejection path performs no syscall; prctl is
@@ -1413,10 +1596,17 @@ mod tests {
             // SAFETY: querying flags on an owned, open descriptor.
             let flags = unsafe { libc::fcntl(fd, libc::F_GETFD) };
             assert!(flags >= 0, "F_GETFD");
-            assert_ne!(flags & libc::FD_CLOEXEC, 0, "exec must revoke the sync socket");
+            assert_ne!(
+                flags & libc::FD_CLOEXEC,
+                0,
+                "exec must revoke the sync socket"
+            );
         }
         assert_eq!(send_no_sigpipe(a.as_fd(), &[1]).expect("ready send"), 1);
-        assert!(read_byte_blocking(b.as_fd()).expect("ready"), "byte expected");
+        assert!(
+            read_byte_blocking(b.as_fd()).expect("ready"),
+            "byte expected"
+        );
         assert_eq!(send_no_sigpipe(b.as_fd(), &[1]).expect("go send"), 1);
         assert!(read_byte_blocking(a.as_fd()).expect("go"), "byte expected");
         drop(a);
@@ -1446,10 +1636,8 @@ mod tests {
         fn new(tag: &str) -> Self {
             use std::os::unix::fs::DirBuilderExt;
             for i in 0..64u32 {
-                let p = std::env::temp_dir().join(format!(
-                    "everpty-sys-{tag}-{}-{i}",
-                    std::process::id()
-                ));
+                let p = std::env::temp_dir()
+                    .join(format!("everpty-sys-{tag}-{}-{i}", std::process::id()));
                 let mut b = std::fs::DirBuilder::new();
                 b.mode(0o700);
                 if b.create(&p).is_ok() {
@@ -1539,10 +1727,19 @@ mod tests {
         // Replaced entry (different inode, device, type, or owner) →
         // retain.
         for mutated in [
-            EntryIdentity { ino: 43, ..captured },
+            EntryIdentity {
+                ino: 43,
+                ..captured
+            },
             EntryIdentity { dev: 8, ..captured },
-            EntryIdentity { kind: libc::S_IFREG, ..captured },
-            EntryIdentity { uid: euid.wrapping_add(1), ..captured },
+            EntryIdentity {
+                kind: libc::S_IFREG,
+                ..captured
+            },
+            EntryIdentity {
+                uid: euid.wrapping_add(1),
+                ..captured
+            },
         ] {
             assert!(
                 !cleanup_should_unlink(&captured, Some(mutated)),
@@ -1573,8 +1770,10 @@ mod tests {
             );
         }
 
-        let listener = bind_unix_listener_at(dirf.as_fd(), &name, 16).expect("bind");
+        let (listener, captured) = bind_unix_listener_at(dirf.as_fd(), &name, 16).expect("bind");
         let st = std::fs::symlink_metadata(dir.join(&name)).expect("stat entry");
+        let fresh = fstatat_nofollow(dirf.as_fd(), &name).expect("fresh identity");
+        assert_eq!(captured, EntryIdentity::from_stat(&fresh));
         assert_eq!(st.mode() & libc::S_IFMT, libc::S_IFSOCK, "must be a socket");
         assert_eq!(st.mode() & 0o7777, 0o600, "exact 0600 mode");
         drop(listener);
@@ -1583,7 +1782,7 @@ mod tests {
         // A RAW NON-UTF-8 component name binds and cleans up the same
         // way (no to_string_lossy anywhere in the path).
         let raw = std::ffi::OsStr::from_bytes(b"\xff\xfe-raw");
-        let listener = bind_unix_listener_at(dirf.as_fd(), raw, 16).expect("raw bind");
+        let (listener, _) = bind_unix_listener_at(dirf.as_fd(), raw, 16).expect("raw bind");
         let st = std::fs::symlink_metadata(dir.join(raw)).expect("stat raw entry");
         assert_eq!(st.mode() & 0o7777, 0o600, "raw-name socket exact 0600");
         drop(listener);
@@ -1591,15 +1790,21 @@ mod tests {
 
         // Full round trip on a fresh name.
         let name2 = std::ffi::OsString::from("socket2");
-        let listener = bind_unix_listener_at(dirf.as_fd(), &name2, 16).expect("bind");
+        let (listener, _) = bind_unix_listener_at(dirf.as_fd(), &name2, 16).expect("bind");
         // Empty backlog: accept returns None without blocking.
-        assert!(accept_nonblock(listener.as_fd()).expect("accept empty").is_none());
+        assert!(accept_nonblock(listener.as_fd())
+            .expect("accept empty")
+            .is_none());
         // Real same-UID peer: connect, accept, credentials, data, EOF.
         let client = std::os::unix::net::UnixStream::connect(dir.join(&name2)).expect("connect");
         client.set_nonblocking(true).expect("client nonblock");
-        let accepted = accept_nonblock(listener.as_fd()).expect("accept").expect("conn");
+        let accepted = accept_nonblock(listener.as_fd())
+            .expect("accept")
+            .expect("conn");
         assert_eq!(peer_uid(accepted.as_fd()).expect("uid"), effective_uid());
-        assert!(recv(accepted.as_fd(), &mut [0u8; 8]).expect("recv empty").is_none());
+        assert!(recv(accepted.as_fd(), &mut [0u8; 8])
+            .expect("recv empty")
+            .is_none());
         assert_eq!(send_no_sigpipe(client.as_fd(), b"hi").expect("send"), 2);
         let mut buf = [0u8; 8];
         assert_eq!(recv(accepted.as_fd(), &mut buf).expect("recv"), Some(2));

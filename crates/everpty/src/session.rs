@@ -113,7 +113,9 @@ fn open_failure_error(
     expected_safe: fn(&nix::sys::stat::FileStat, libc::uid_t) -> bool,
     e: std::io::Error,
 ) -> Error {
-    let object_shaped = e.raw_os_error().is_some_and(|n| OBJECT_SHAPED_ERRNOS.contains(&n));
+    let object_shaped = e
+        .raw_os_error()
+        .is_some_and(|n| OBJECT_SHAPED_ERRNOS.contains(&n));
     if !object_shaped {
         return Error::Io(e);
     }
@@ -252,8 +254,12 @@ impl StateRoot {
         if !stat_is_safe_dir(&st, sys::effective_uid()) {
             return Err(Error::StatePathUnsafe);
         }
+        let parent_dirfd = sys::openat_dir(self.dirfd.as_fd(), OsStr::new("."))?;
+        let identity = sys::EntryIdentity::from_stat(&st);
         Ok(SessionDir {
             dirfd,
+            parent_dirfd,
+            identity,
             name: name.to_owned(),
             path: self.path.join(name),
         })
@@ -292,8 +298,12 @@ impl StateRoot {
             if !stat_is_safe_dir(&st, euid) {
                 continue;
             }
+            let parent_dirfd = sys::openat_dir(self.dirfd.as_fd(), OsStr::new("."))?;
+            let identity = sys::EntryIdentity::from_stat(&st);
             let dir = SessionDir {
                 dirfd,
+                parent_dirfd,
+                identity,
                 name: name.to_owned(),
                 path: self.path.join(name),
             };
@@ -318,6 +328,10 @@ impl StateRoot {
 /// A validated 0700 session directory (fd capability + display path).
 pub struct SessionDir {
     dirfd: OwnedFd,
+    /// Independent capability for removing this exact directory entry;
+    /// display paths are never trusted again during cleanup.
+    parent_dirfd: OwnedFd,
+    identity: sys::EntryIdentity,
     name: String,
     path: PathBuf,
 }
@@ -363,6 +377,7 @@ impl SessionDir {
         match sys::acquire_session_lock(std::fs::File::from(fd))? {
             Some(lock) => Ok(LockedSession {
                 dir: self,
+                lock_identity: sys::EntryIdentity::from_stat(&st),
                 _lock: lock,
             }),
             None => Err(Error::AlreadyExists),
@@ -416,6 +431,7 @@ impl SessionDir {
 /// enforced by the type system.
 pub struct LockedSession {
     dir: SessionDir,
+    lock_identity: sys::EntryIdentity,
     _lock: sys::SessionLock,
 }
 
@@ -426,9 +442,15 @@ static META_TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// fused so no listener can outlive the flock that authorizes it.
 /// [`Broker`](crate::broker::Broker) consumes this whole object.
 pub struct BoundSession {
-    listener: OwnedFd,
+    listener: Option<OwnedFd>,
+    socket_identity: sys::EntryIdentity,
+    /// Identity of the last metadata inode published or adopted while this
+    /// lock was held. A same-shaped replacement is foreign and retained.
+    meta_identity: Option<sys::EntryIdentity>,
+    socket_retired: bool,
+    state_retired: bool,
     name: String,
-    _locked: LockedSession,
+    locked: LockedSession,
 }
 
 impl BoundSession {
@@ -437,9 +459,143 @@ impl BoundSession {
         &self.name
     }
 
-    /// The listening socket fd.
+    /// The listening socket fd. It is present until terminal retirement.
     pub fn listener(&self) -> BorrowedFd<'_> {
-        self.listener.as_fd()
+        self.listener
+            .as_ref()
+            .expect("listener requested after retirement")
+            .as_fd()
+    }
+
+    pub fn has_listener(&self) -> bool {
+        self.listener.is_some()
+    }
+
+    /// The locked session directory capability.
+    pub fn dir(&self) -> &SessionDir {
+        &self.locked.dir
+    }
+
+    /// Loads the current metadata through the retained directory fd.
+    pub fn load_metadata(&self, limits: &Limits) -> Result<SessionMeta, Error> {
+        self.locked.dir.load_metadata(limits)
+    }
+
+    /// Publishes metadata while the session lock is held and updates the
+    /// exact identity that terminal retirement is authorized to remove.
+    pub fn store_metadata(&mut self, limits: &Limits, meta: &SessionMeta) -> Result<(), Error> {
+        let identity = self.locked.store_metadata_identity(limits, meta)?;
+        self.meta_identity = Some(identity);
+        Ok(())
+    }
+
+    fn parent_entry_matches(&self) -> Result<bool, Error> {
+        match sys::fstatat_nofollow(self.locked.dir.parent_dirfd.as_fd(), OsStr::new(&self.name)) {
+            Ok(st) => Ok(sys::EntryIdentity::from_stat(&st) == self.locked.dir.identity),
+            Err(e) if e.raw_os_error() == Some(libc::ENOENT) => Ok(false),
+            Err(e) => Err(Error::Io(e)),
+        }
+    }
+
+    /// Stops new attachment by identity-unlinking the exact socket and
+    /// closing the listener. Existing accepted sockets remain usable for
+    /// terminal frame delivery. Repeated calls are harmless.
+    pub fn retire_socket(&mut self) -> Result<(), Error> {
+        if self.socket_retired {
+            return Ok(());
+        }
+        let result = (|| -> Result<(), Error> {
+            if !self.parent_entry_matches()? {
+                return Err(Error::StatePathUnsafe);
+            }
+            let dirfd = self.locked.dir.dirfd.as_fd();
+            match sys::fstatat_nofollow(dirfd, OsStr::new(SOCKET_FILE)) {
+                Ok(st) => {
+                    if sys::EntryIdentity::from_stat(&st) != self.socket_identity {
+                        return Err(Error::StatePathUnsafe);
+                    }
+                    match sys::unlinkat_file(dirfd, OsStr::new(SOCKET_FILE)) {
+                        Ok(()) => {}
+                        Err(e) if e.raw_os_error() == Some(libc::ENOENT) => {}
+                        Err(e) => return Err(Error::Io(e)),
+                    }
+                }
+                Err(e) if e.raw_os_error() == Some(libc::ENOENT) => {}
+                Err(e) => return Err(Error::Io(e)),
+            }
+            Ok(())
+        })();
+        // Closing our descriptor is capability-safe even when a path race or
+        // cleanup I/O error requires retaining and reporting the entry.
+        self.listener.take();
+        if result.is_ok() {
+            self.socket_retired = true;
+        }
+        result
+    }
+
+    /// Removes only this broker's expected state objects and then the exact
+    /// empty session directory through its retained parent fd. Unknown or
+    /// replaced entries are never recursively deleted. Repeated success is
+    /// idempotent.
+    pub fn retire_state(&mut self) -> Result<(), Error> {
+        if self.state_retired {
+            return Ok(());
+        }
+        self.retire_socket()?;
+        if !self.parent_entry_matches()? {
+            return Err(Error::StatePathUnsafe);
+        }
+        let dirfd = self.locked.dir.dirfd.as_fd();
+        let entries = sys::read_dir_at(dirfd)?;
+        if entries
+            .iter()
+            .any(|entry| entry != OsStr::new(META_FILE) && entry != OsStr::new(LOCK_FILE))
+        {
+            return Err(Error::Io(std::io::Error::new(
+                std::io::ErrorKind::DirectoryNotEmpty,
+                "session directory contains an unknown entry",
+            )));
+        }
+
+        match sys::fstatat_nofollow(dirfd, OsStr::new(META_FILE)) {
+            Ok(st) => {
+                let fresh = sys::EntryIdentity::from_stat(&st);
+                if !stat_is_safe_private_file(&st, sys::effective_uid())
+                    || self.meta_identity != Some(fresh)
+                {
+                    return Err(Error::StatePathUnsafe);
+                }
+                match sys::unlinkat_file(dirfd, OsStr::new(META_FILE)) {
+                    Ok(()) => {}
+                    Err(e) if e.raw_os_error() == Some(libc::ENOENT) => {}
+                    Err(e) => return Err(Error::Io(e)),
+                }
+            }
+            Err(e) if e.raw_os_error() == Some(libc::ENOENT) => {}
+            Err(e) => return Err(Error::Io(e)),
+        }
+        match sys::fstatat_nofollow(dirfd, OsStr::new(LOCK_FILE)) {
+            Ok(st) => {
+                if sys::EntryIdentity::from_stat(&st) != self.locked.lock_identity {
+                    return Err(Error::StatePathUnsafe);
+                }
+                match sys::unlinkat_file(dirfd, OsStr::new(LOCK_FILE)) {
+                    Ok(()) => {}
+                    Err(e) if e.raw_os_error() == Some(libc::ENOENT) => {}
+                    Err(e) => return Err(Error::Io(e)),
+                }
+            }
+            Err(e) if e.raw_os_error() == Some(libc::ENOENT) => {}
+            Err(e) => return Err(Error::Io(e)),
+        }
+        match sys::unlinkat_dir(self.locked.dir.parent_dirfd.as_fd(), OsStr::new(&self.name)) {
+            Ok(()) => {}
+            Err(e) if e.raw_os_error() == Some(libc::ENOENT) => {}
+            Err(e) => return Err(Error::Io(e)),
+        }
+        self.state_retired = true;
+        Ok(())
     }
 }
 
@@ -468,12 +624,25 @@ impl LockedSession {
             ))
         })?;
         let dirfd = self.dir.dirfd.as_fd();
-        let fd = sys::bind_unix_listener_at(dirfd, OsStr::new(SOCKET_FILE), backlog)?;
+        let (fd, socket_identity) =
+            sys::bind_unix_listener_at(dirfd, OsStr::new(SOCKET_FILE), backlog)?;
+        let meta_identity = match sys::fstatat_nofollow(dirfd, OsStr::new(META_FILE)) {
+            Ok(st) if stat_is_safe_private_file(&st, sys::effective_uid()) => {
+                Some(sys::EntryIdentity::from_stat(&st))
+            }
+            Ok(_) => None,
+            Err(e) if e.raw_os_error() == Some(libc::ENOENT) => None,
+            Err(e) => return Err(Error::Io(e)),
+        };
         let name = self.dir.name.clone();
         Ok(BoundSession {
-            listener: fd,
+            listener: Some(fd),
+            socket_identity,
+            meta_identity,
+            socket_retired: false,
+            state_retired: false,
             name,
-            _locked: self,
+            locked: self,
         })
     }
 
@@ -500,18 +669,27 @@ impl LockedSession {
     /// fd still open. On any failure after creation, only the temp this
     /// invocation created is unlinked — never a collision path.
     pub fn store_metadata(&self, limits: &Limits, meta: &SessionMeta) -> Result<(), Error> {
+        self.store_metadata_identity(limits, meta).map(|_| ())
+    }
+
+    fn store_metadata_identity(
+        &self,
+        limits: &Limits,
+        meta: &SessionMeta,
+    ) -> Result<sys::EntryIdentity, Error> {
         let mut bytes = Vec::with_capacity(256);
         meta.encode_into(limits, &mut bytes)?;
         let (tmp_name, fd) = self.create_meta_temp()?;
         let mut file = std::fs::File::from(fd);
-        let published = (|| -> Result<(), Error> {
+        let published = (|| -> Result<sys::EntryIdentity, Error> {
             let st = sys::fstat_fd(file.as_fd())?;
             if !stat_is_safe_private_file(&st, sys::effective_uid()) {
                 return Err(Error::StatePathUnsafe);
             }
+            let identity = sys::EntryIdentity::from_stat(&st);
             file.write_all(&bytes)?;
             sys::renameat_within(self.dir.dirfd.as_fd(), &tmp_name, OsStr::new(META_FILE))?;
-            Ok(())
+            Ok(identity)
         })();
         if published.is_err() {
             // The rename never happened, so the temp name still refers
@@ -686,9 +864,9 @@ impl SessionMeta {
     pub fn with_origins(mut self, limits: &Limits, origins: Vec<String>) -> Result<Self, Error> {
         if origins.len() > limits.origin_count_max
             || origins.len() > u8::MAX as usize
-            || origins.iter().any(|o| {
-                o.len() > limits.origin_label_max_bytes || o.len() > u8::MAX as usize
-            })
+            || origins
+                .iter()
+                .any(|o| o.len() > limits.origin_label_max_bytes || o.len() > u8::MAX as usize)
         {
             return Err(Error::MetadataInvalid);
         }
@@ -787,7 +965,11 @@ impl SessionMeta {
             MAGIC.len(),
             2 + self.name.len(),
             4 + 8,
-            if self.child.is_some() { 1 + 4 + 4 + 8 } else { 1 },
+            if self.child.is_some() {
+                1 + 4 + 4 + 8
+            } else {
+                1
+            },
             8,
             2 + self.exec_label.len() + 1 + 1,
             self.origins.iter().map(|o| 1 + o.len()).sum::<usize>(),
@@ -1216,7 +1398,9 @@ mod tests {
         let no_origins =
             SessionMeta::new("s1", &limits(), OsStr::new("sh"), 1, 0, 0).expect("meta");
         let mut base = Vec::new();
-        no_origins.encode_into(&limits(), &mut base).expect("encode");
+        no_origins
+            .encode_into(&limits(), &mut base)
+            .expect("encode");
         let mut five = base.clone();
         *five.last_mut().expect("count byte") = 5;
         five.extend_from_slice(&[0, 0, 0, 0, 0]);
@@ -1286,7 +1470,9 @@ mod tests {
             base.clone().with_origins(&limits(), vec!["a".repeat(65)]),
             Err(Error::MetadataInvalid)
         ));
-        assert!(base.with_origins(&limits(), vec!["a".repeat(64); 4]).is_ok());
+        assert!(base
+            .with_origins(&limits(), vec!["a".repeat(64); 4])
+            .is_ok());
         for (pid, pgid) in [(0, 1), (1, 0), (-1, 1)] {
             assert!(
                 matches!(ChildMeta::new(pid, pgid, 0), Err(Error::MetadataInvalid)),
@@ -1347,8 +1533,8 @@ mod tests {
         // that could only exist through private mutation: a hand-built
         // oversized origin (impossible via with_origins) fails
         // MetadataInvalid with the caller's buffer unchanged.
-        let mut oversized = SessionMeta::new("s1", &limits(), OsStr::new("sh"), 1, 0, 0)
-            .expect("meta");
+        let mut oversized =
+            SessionMeta::new("s1", &limits(), OsStr::new("sh"), 1, 0, 0).expect("meta");
         oversized.origins = vec!["x".repeat(300)];
         let mut out = b"sentinel".to_vec();
         assert!(matches!(
