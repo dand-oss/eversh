@@ -4,7 +4,9 @@
 pub enum Error {
     AlreadyExists,
     NotLive,
-    Busy { current_writer_id: u32 },
+    Busy {
+        current_writer_id: u32,
+    },
     NameInvalid,
     SocketStale,
     StartupDeadline,
@@ -17,6 +19,8 @@ pub enum Error {
         stage: crate::child::SpawnStage,
         errno: i32,
     },
+    Protocol(&'static str),
+    LocalSignal(i32),
     Io(std::io::Error),
 }
 
@@ -39,6 +43,8 @@ impl std::fmt::Display for Error {
             Self::SpawnFailed { stage, errno } => {
                 write!(f, "child spawn failed at the {stage} stage (errno {errno})")
             }
+            Self::Protocol(message) => write!(f, "protocol: {message}"),
+            Self::LocalSignal(signal) => write!(f, "local signal {signal}"),
             Self::Io(e) => write!(f, "io: {e}"),
         }
     }

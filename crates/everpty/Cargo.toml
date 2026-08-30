@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
-description = "Named PTY session broker for eversh (skeleton in M1)"
+description = "Named transparent PTY session broker for eversh"
 
 [features]
 default = []
@@ -22,6 +22,11 @@ name = "everpty"
 [[bin]]
 name = "everpty"
 required-features = ["cli"]
+
+[[test]]
+name = "attach_or_create_race"
+path = "tests/attach_or_create_race.rs"
+harness = false
 
 [lints]
 workspace = true

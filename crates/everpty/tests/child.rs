@@ -16,7 +16,7 @@ use std::ffi::OsString;
 use std::io::Read;
 use std::time::{Duration, Instant};
 
-use everpty::child::{ChildProc, ExitOutcome, spawn, Spawned, SpawnSpec, SpawnStage};
+use everpty::child::{spawn, ChildProc, ExitOutcome, SpawnSpec, SpawnStage, Spawned};
 use everpty::{Error, Limits};
 
 fn os(s: &str) -> OsString {
@@ -164,8 +164,14 @@ fn spawn_wires_ctty_foreground_group_winsize_and_session_env() {
     let mut master = std::fs::File::from(spawned.master);
     let deadline = Duration::from_secs(5);
     let got = read_master_until(&mut master, b"ENV:work", deadline);
-    assert!(contains(&got, b"ENV:work"), "missing session env; got {got:?}");
-    assert!(contains(&got, b"24 80"), "missing initial winsize; got {got:?}");
+    assert!(
+        contains(&got, b"ENV:work"),
+        "missing session env; got {got:?}"
+    );
+    assert!(
+        contains(&got, b"24 80"),
+        "missing initial winsize; got {got:?}"
+    );
     let pid = guard.child().pid().to_string();
     let text = String::from_utf8_lossy(&got);
     let id = text
@@ -232,7 +238,9 @@ fn exec_failure_reports_stage_and_errno() {
     let mut spec = sh_spec("work", &bare, &env);
     let path_var = os("/bin");
     spec.path_var = Some(&path_var);
-    let err = spawn(&spec, &Limits::default()).err().expect("unresolvable name");
+    let err = spawn(&spec, &Limits::default())
+        .err()
+        .expect("unresolvable name");
     assert!(
         matches!(err, Error::Io(ref e) if e.kind() == std::io::ErrorKind::NotFound),
         "unexpected error: {err}"
@@ -293,9 +301,8 @@ fn terminate_kills_term_ignoring_descendant_in_group() {
     // escalation — far sooner than its finite 10-second self-exit
     // fallback, which keeps the test bounded even if escalation ever
     // failed.
-    let argv = sh_argv(
-        "(trap '' TERM; printf 'DESCENDANT-IGNORED-READY\\n'; sleep 10) & read _line",
-    );
+    let argv =
+        sh_argv("(trap '' TERM; printf 'DESCENDANT-IGNORED-READY\\n'; sleep 10) & read _line");
     let env = test_env();
     let spawned = spawn_sh("work", &argv, &env);
     let mut guard = EndOnDrop(Some(spawned.child));

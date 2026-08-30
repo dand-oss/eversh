@@ -271,16 +271,16 @@ impl OutQueue {
         self.entries.len()
     }
 
-    /// Lowers or raises the cap, REFUSING (Err) when live bytes would
+    /// Lowers or raises the cap, returning false when live bytes would
     /// exceed the new ceiling — the wrong cap is never silently kept.
     /// Role transitions run after a queue drop, so a demotion to the
     /// smaller observer cap always succeeds in the ordered flow.
-    pub fn set_cap(&mut self, cap_bytes: usize) -> Result<(), ()> {
+    pub fn set_cap(&mut self, cap_bytes: usize) -> bool {
         if self.live_bytes > cap_bytes {
-            return Err(());
+            return false;
         }
         self.cap_bytes = cap_bytes;
-        Ok(())
+        true
     }
 
     /// Hard-ceiling enqueue of a pre-encoded shared chunk: checked
@@ -497,12 +497,12 @@ impl ClientConn {
         } else {
             limits.observer_queue_bytes
         };
-        self.out.set_cap(cap).map_err(|()| {
-            io::Error::new(
+        if !self.out.set_cap(cap) {
+            return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "role cap change would exceed live queue bytes",
-            )
-        })?;
+            ));
+        }
         self.role = role;
         Ok(())
     }
@@ -773,11 +773,12 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::WouldBlock);
         assert_eq!(q.live_bytes(), total - 3);
         let mut rest = Vec::new();
-        assert!(q.flush_with(|b| {
-            rest.extend_from_slice(b);
-            Ok(b.len())
-        })
-        .expect("flush rest"));
+        assert!(q
+            .flush_with(|b| {
+                rest.extend_from_slice(b);
+                Ok(b.len())
+            })
+            .expect("flush rest"));
         assert!(q.is_empty());
         let expect = Frame::Pong.encode();
         let mut all = w.written;
@@ -800,12 +801,16 @@ mod tests {
         assert!(!q.drain_with(|b| w.write(b)).expect("drain partial"));
         assert_eq!(q.live_bytes(), 2);
         let mut rest = Vec::new();
-        assert!(q.drain_with(|b| {
-            rest.extend_from_slice(b);
-            Ok(b.len())
-        })
-        .expect("drain rest"));
-        assert_eq!([w.written.as_slice(), rest.as_slice()].concat(), vec![7u8; 6]);
+        assert!(q
+            .drain_with(|b| {
+                rest.extend_from_slice(b);
+                Ok(b.len())
+            })
+            .expect("drain rest"));
+        assert_eq!(
+            [w.written.as_slice(), rest.as_slice()].concat(),
+            vec![7u8; 6]
+        );
         q.clear();
         assert!(q.is_empty());
     }
@@ -816,16 +821,18 @@ mod tests {
         let mut c = ClientConn::new(&l);
         assert_eq!(c.role(), ConnRole::AwaitingFirstFrame);
         assert_eq!(c.out().cap_bytes(), l.observer_queue_bytes);
-        c.set_role(&l, ConnRole::Writer { client_id: 1 }).expect("writer role");
+        c.set_role(&l, ConnRole::Writer { client_id: 1 })
+            .expect("writer role");
         assert_eq!(c.out().cap_bytes(), l.writer_queue_bytes);
         // A demotion sets the observer cap EXACTLY (queue is empty).
-        c.set_role(&l, ConnRole::Observer { client_id: 1 }).expect("observer role");
+        c.set_role(&l, ConnRole::Observer { client_id: 1 })
+            .expect("observer role");
         assert_eq!(c.out().cap_bytes(), l.observer_queue_bytes);
         // A cap below live bytes refuses without changing anything.
         let chunk: SharedChunk = vec![0u8; 32].into();
         assert!(c.out_mut().push_shared(chunk));
         assert_eq!(c.out().cap_bytes(), l.observer_queue_bytes);
-        assert!(c.out_mut().set_cap(8).is_err(), "refuses below live");
+        assert!(!c.out_mut().set_cap(8), "refuses below live");
         assert_eq!(c.out().cap_bytes(), l.observer_queue_bytes, "cap unchanged");
         assert!(!c.is_draining());
         assert!(!c.reply_deadline_expired(10_000));
@@ -863,7 +870,10 @@ mod tests {
         r.append(&wire[taken..], 1, &l);
         assert!(r.frame_ready());
         assert_eq!(r.bytes_needed(), 0, "complete frame needs nothing");
-        assert!(matches!(r.take_frame(&l).expect("take"), Some(Frame::Input(_))));
+        assert!(matches!(
+            r.take_frame(&l).expect("take"),
+            Some(Frame::Input(_))
+        ));
         assert_eq!(r.bytes_needed(), frame::HEADER_LEN, "reset for next frame");
     }
 
@@ -871,9 +881,7 @@ mod tests {
     fn queue_writers_over_reporting_is_invalid_data() {
         let mut q = OutQueue::new(64);
         assert!(q.push_frame(&Frame::Pong));
-        let err = q
-            .flush_with(|b| Ok(b.len() + 1))
-            .expect_err("over-report");
+        let err = q.flush_with(|b| Ok(b.len() + 1)).expect_err("over-report");
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         // Accounting unchanged — no underflow, data retained.
         assert_eq!(q.live_bytes(), Frame::Pong.encode().len());
@@ -881,9 +889,7 @@ mod tests {
 
         let mut iq = InputQueue::new(64);
         assert!(iq.push(vec![1u8; 8]));
-        let err = iq
-            .drain_with(|b| Ok(b.len() + 1))
-            .expect_err("over-report");
+        let err = iq.drain_with(|b| Ok(b.len() + 1)).expect_err("over-report");
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         assert_eq!(iq.live_bytes(), 8);
     }
@@ -895,6 +901,9 @@ mod tests {
         assert!(q.push_shared(empty));
         assert!(q.is_empty(), "nothing queued");
         assert_eq!(q.live_bytes(), 0);
-        assert!(q.flush_with(|b| Ok(b.len())).expect("flush"), "flushes trivially");
+        assert!(
+            q.flush_with(|b| Ok(b.len())).expect("flush"),
+            "flushes trivially"
+        );
     }
 }

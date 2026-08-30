@@ -58,8 +58,7 @@ fn setup(name: &str) -> (Fixture, Rc<Cell<u64>>, Broker) {
     let n = FIXTURE.fetch_add(1, Ordering::Relaxed);
     let mut base = None;
     for i in 0..64u32 {
-        let p =
-            std::env::temp_dir().join(format!("everpty-broker-{}-{n}-{i}", std::process::id()));
+        let p = std::env::temp_dir().join(format!("everpty-broker-{}-{n}-{i}", std::process::id()));
         let mut private = std::fs::DirBuilder::new();
         private.mode(0o700);
         if private.create(&p).is_ok() {
@@ -76,8 +75,8 @@ fn setup(name: &str) -> (Fixture, Rc<Cell<u64>>, Broker) {
     // flock and the listener alive, exactly like production.
     let bound = locked.bind_broker_socket(&limits).expect("listener");
     let clock = Rc::new(Cell::new(0u64));
-    let broker = Broker::new(bound, &limits, Rc::new(MockClock(clock.clone())), None)
-        .expect("broker");
+    let broker =
+        Broker::new(bound, &limits, Rc::new(MockClock(clock.clone())), None).expect("broker");
     (Fixture { base }, clock, broker)
 }
 
@@ -86,8 +85,10 @@ impl Fixture {
     fn connect(&self, name: &str) -> UnixStream {
         let path = self.base.join(name).join("socket");
         let s = UnixStream::connect(path).expect("connect");
-        s.set_read_timeout(Some(Duration::from_secs(5))).expect("read timeout");
-        s.set_write_timeout(Some(Duration::from_secs(5))).expect("write timeout");
+        s.set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("read timeout");
+        s.set_write_timeout(Some(Duration::from_secs(5)))
+            .expect("write timeout");
         s
     }
 }
@@ -107,7 +108,9 @@ fn recv_frame(stream: &mut UnixStream) -> Frame {
     let total = frame::Frame::validate_header(&header, &limits).expect("valid header");
     let mut buf = header.to_vec();
     buf.resize(total, 0);
-    stream.read_exact(&mut buf[frame::HEADER_LEN..]).expect("read body");
+    stream
+        .read_exact(&mut buf[frame::HEADER_LEN..])
+        .expect("read body");
     let (decoded, used) = frame::Frame::decode(&buf, &limits).expect("decode");
     assert_eq!(used, total);
     decoded
@@ -171,10 +174,7 @@ fn writer_hello_gets_helloack_and_really_transitions() {
     assert_eq!(broker.connection_count(), 1);
     // The runtime state genuinely changed, not just the effects.
     assert_eq!(broker.lifecycle(), everpty::lifecycle::Lifecycle::Running);
-    assert_eq!(
-        broker.ownership(),
-        everpty::lifecycle::Ownership::Writer(1)
-    );
+    assert_eq!(broker.ownership(), everpty::lifecycle::Ownership::Writer(1));
     match recv_frame(&mut w) {
         Frame::HelloAck {
             client_id,
@@ -284,7 +284,10 @@ fn takeover_fixes_runtime_ownership_and_both_roles() {
         Frame::Ownership(OwnershipEvent::Revoked)
     ));
     // ...and stays attached output-only as a real observer.
-    assert!(would_block_not_eof(&mut w1), "old writer became an observer");
+    assert!(
+        would_block_not_eof(&mut w1),
+        "old writer became an observer"
+    );
     assert_eq!(broker.connection_count(), 2);
     assert_eq!(broker.observer_count(), 1);
     // Runtime ownership AND both connection roles are fixed.
@@ -304,10 +307,13 @@ fn takeover_fixes_runtime_ownership_and_both_roles() {
         Frame::Ownership(OwnershipEvent::Granted)
     ));
     assert!(
-        broker
-            .deferred()
-            .iter()
-            .any(|e| matches!(e, everpty::state::Effect::ApplyDimensions { rows: 30, cols: 100 })),
+        broker.deferred().iter().any(|e| matches!(
+            e,
+            everpty::state::Effect::ApplyDimensions {
+                rows: 30,
+                cols: 100
+            }
+        )),
         "takeover dimensions are a deferred effect"
     );
 }
@@ -326,10 +332,16 @@ fn second_writer_without_takeover_is_busy_then_closed() {
         Frame::Busy { current_writer_id } => assert_eq!(current_writer_id, 1),
         other => panic!("expected Busy, got {other:?}"),
     }
-    assert!(is_eof(&mut w2), "rejected writer closes after its Busy frame");
+    assert!(
+        is_eof(&mut w2),
+        "rejected writer closes after its Busy frame"
+    );
     assert_eq!(broker.connection_count(), 1, "the writer is untouched");
     assert_eq!(broker.ownership(), everpty::lifecycle::Ownership::Writer(1));
-    assert!(would_block_not_eof(&mut w1), "original writer still attached");
+    assert!(
+        would_block_not_eof(&mut w1),
+        "original writer still attached"
+    );
 }
 
 #[test]
@@ -406,7 +418,11 @@ fn incomplete_frame_deadline_closes_via_mock_clock() {
     assert_eq!(broker.connection_count(), 1, "parked mid-frame");
     clock.set(5_001);
     broker.run_once(Some(0)).expect("iterate");
-    assert_eq!(broker.connection_count(), 0, "expired frame closes the conn");
+    assert_eq!(
+        broker.connection_count(),
+        0,
+        "expired frame closes the conn"
+    );
     assert!(is_eof(&mut c));
 }
 
@@ -421,7 +437,10 @@ fn pre_spawn_kill_reports_no_writer_and_mutates_nothing() {
         other => panic!("expected Error(NoWriter), got {other:?}"),
     }
     assert!(is_eof(&mut c));
-    assert_eq!(broker.lifecycle(), everpty::lifecycle::Lifecycle::WaitingForWriter);
+    assert_eq!(
+        broker.lifecycle(),
+        everpty::lifecycle::Lifecycle::WaitingForWriter
+    );
     assert!(
         !broker
             .deferred()
@@ -517,7 +536,11 @@ fn backpressured_writer_hup_stays_observable_and_revokes() {
     drop(w);
     pump(&mut broker);
     pump(&mut broker);
-    assert_eq!(broker.connection_count(), 0, "HUP observed despite backpressure");
+    assert_eq!(
+        broker.connection_count(),
+        0,
+        "HUP observed despite backpressure"
+    );
     assert_eq!(broker.ownership(), everpty::lifecycle::Ownership::NoWriter);
 
     let mut w2 = fx.connect("s1");

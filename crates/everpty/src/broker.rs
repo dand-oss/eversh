@@ -369,39 +369,65 @@ pub struct Broker {
 
 impl Broker {
     pub fn new(
-        bound: BoundSession,
+        mut bound: BoundSession,
         limits: &Limits,
         clock: Rc<dyn Clock>,
         readiness_write: Option<OwnedFd>,
     ) -> Result<Self, Error> {
         let invalid =
             |message: &'static str| Error::Io(io::Error::new(io::ErrorKind::InvalidInput, message));
+        let reject = |bound: &mut BoundSession, primary: Error| match bound.retire_state() {
+            Ok(()) => primary,
+            Err(cleanup) => cleanup,
+        };
         if limits.read_chunk_bytes == 0 {
-            return Err(invalid("read_chunk_bytes must be nonzero"));
+            let error = invalid("read_chunk_bytes must be nonzero");
+            return Err(reject(&mut bound, error));
         }
         if limits.frame_max_body < 2 {
-            return Err(invalid("frame_max_body must include version and kind"));
+            let error = invalid("frame_max_body must include version and kind");
+            return Err(reject(&mut bound, error));
         }
         if limits.read_chunk_bytes > limits.frame_max_body - 2 {
-            return Err(invalid("read chunk exceeds Output payload capacity"));
+            let error = invalid("read chunk exceeds Output payload capacity");
+            return Err(reject(&mut bound, error));
         }
         let output_reservation = limits
             .read_chunk_bytes
             .checked_add(frame::HEADER_LEN)
-            .ok_or_else(|| invalid("encoded Output reservation overflow"))?;
+            .ok_or_else(|| invalid("encoded Output reservation overflow"));
+        let output_reservation = match output_reservation {
+            Ok(value) => value,
+            Err(error) => return Err(reject(&mut bound, error)),
+        };
         if output_reservation > limits.writer_queue_bytes {
-            return Err(invalid("writer queue cannot reserve one full Output frame"));
+            let error = invalid("writer queue cannot reserve one full Output frame");
+            return Err(reject(&mut bound, error));
         }
         if limits.writer_queue_bytes > limits.aggregate_queue_bytes {
-            return Err(invalid("writer queue exceeds aggregate output cap"));
+            let error = invalid("writer queue exceeds aggregate output cap");
+            return Err(reject(&mut bound, error));
         }
 
-        sys::set_nonblocking(bound.listener())?;
-        let runtime = Runtime::new_ready(bound.session_name(), limits)
-            .map_err(|e| Error::Io(io::Error::new(io::ErrorKind::InvalidInput, e.to_string())))?;
+        if let Err(error) = sys::set_nonblocking(bound.listener()) {
+            return Err(reject(&mut bound, Error::Io(error)));
+        }
+        let runtime = match Runtime::new_ready(bound.session_name(), limits) {
+            Ok(runtime) => runtime,
+            Err(error) => {
+                let error = Error::Io(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    error.to_string(),
+                ));
+                return Err(reject(&mut bound, error));
+            }
+        };
         // The startup deadline is armed exactly once, from the injected
         // clock, at construction.
-        let ready_at_ms = clock.now_ms().map_err(Error::Io)?;
+        let ready_at_ms = match clock.now_ms() {
+            Ok(now) => now,
+            Err(error) => return Err(reject(&mut bound, Error::Io(error))),
+        };
         Ok(Self {
             limits: *limits,
             clock,
@@ -449,6 +475,24 @@ impl Broker {
         }
         self.spawn_plan = Some(plan);
         Ok(())
+    }
+
+    /// Retires a broker whose construction succeeded but whose injected
+    /// start inputs failed before readiness. No child can exist at this
+    /// point; the identity-bound state cleanup is therefore complete and
+    /// synchronous.
+    pub(crate) fn retire_unstarted(&mut self) -> Result<(), Error> {
+        if self.started || self.child.is_some() {
+            return Err(Error::Io(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot retire a broker after startup",
+            )));
+        }
+        let retired = self.bound.retire_state();
+        if retired.is_ok() {
+            self.finalized = true;
+        }
+        retired
     }
 
     /// Injects a nonblocking fd carrying signalfd-shaped records. This is a
@@ -2726,6 +2770,7 @@ mod tests {
     fn readiness_epipe_fails_before_spawn_and_retires_state() {
         use crate::session::resolve_state_root_from;
 
+        let _signal_serial = sys::SIGNAL_TEST_LOCK.lock().expect("signal test lock");
         let limits = Limits::default();
         let base = BaseGuard::new("ready-epipe");
         let root = resolve_state_root_from(std::slice::from_ref(&base.path().to_path_buf()))

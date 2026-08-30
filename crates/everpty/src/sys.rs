@@ -22,6 +22,9 @@ use nix::fcntl::{Flock, FlockArg, OFlag};
 use nix::sys::signal::Signal;
 use nix::sys::socket::{getsockopt, sockopt::PeerCredentials};
 
+#[cfg(test)]
+pub(crate) static SIGNAL_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 // Re-exported so the broker names poll types through this module only.
 pub use nix::poll::{PollFd, PollFlags};
 
@@ -69,6 +72,48 @@ pub fn set_winsize(fd: BorrowedFd<'_>, rows: u16, cols: u16) -> io::Result<()> {
     Ok(())
 }
 
+/// An exact `termios` snapshot. Its fields stay private so callers can only
+/// restore a value returned by [`terminal_attributes`].
+#[derive(Clone, PartialEq, Eq)]
+pub struct TerminalAttributes(libc::termios);
+
+/// `tcgetattr(3)` through libc.
+pub fn terminal_attributes(fd: BorrowedFd<'_>) -> io::Result<TerminalAttributes> {
+    let mut attrs: libc::termios = unsafe { std::mem::zeroed() };
+    // SAFETY: attrs is a valid out-parameter and fd remains borrowed.
+    if unsafe { libc::tcgetattr(fd.as_raw_fd(), &mut attrs) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(TerminalAttributes(attrs))
+}
+
+/// `cfmakeraw(3)` followed by `tcsetattr(TCSANOW)`.
+pub fn set_terminal_raw(fd: BorrowedFd<'_>, original: &TerminalAttributes) -> io::Result<()> {
+    let mut raw = original.0;
+    // SAFETY: raw is a fully initialized termios value.
+    unsafe { libc::cfmakeraw(&mut raw) };
+    // SAFETY: raw remains valid for the duration of tcsetattr.
+    if unsafe { libc::tcsetattr(fd.as_raw_fd(), libc::TCSANOW, &raw) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// `tcsetattr(TCSANOW)` restoring an exact earlier snapshot.
+pub fn restore_terminal(fd: BorrowedFd<'_>, original: &TerminalAttributes) -> io::Result<()> {
+    // SAFETY: original is a snapshot produced by tcgetattr.
+    if unsafe { libc::tcsetattr(fd.as_raw_fd(), libc::TCSANOW, &original.0) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// `isatty(3)` without changing process-global state.
+pub fn is_terminal(fd: BorrowedFd<'_>) -> bool {
+    // SAFETY: isatty only inspects the borrowed descriptor.
+    unsafe { libc::isatty(fd.as_raw_fd()) == 1 }
+}
+
 // ---------------------------------------------------------------------------
 // Signals, reaping, process control
 // ---------------------------------------------------------------------------
@@ -111,6 +156,336 @@ pub fn ignore_sigpipe() -> io::Result<()> {
 pub struct BrokerSignals {
     fd: OwnedFd,
     old_mask: libc::sigset_t,
+    old_actions: Vec<(libc::c_int, libc::sigaction)>,
+}
+
+/// The exact attach-side signal set required by the M2 contract.
+const ATTACH_SIGNALS: [libc::c_int; 7] = [
+    libc::SIGINT,
+    libc::SIGTERM,
+    libc::SIGHUP,
+    libc::SIGQUIT,
+    libc::SIGTSTP,
+    libc::SIGCONT,
+    libc::SIGWINCH,
+];
+
+/// Opaque Linux pthread identifier, used to target attach signals without
+/// exposing libc at higher layers (notably deterministic real-signal tests).
+pub type ThreadId = libc::pthread_t;
+
+/// Logical snapshot of the calling thread's complete Linux signal mask.
+/// Equality compares membership for every supported signal rather than raw
+/// struct padding.
+#[derive(Clone)]
+pub struct SignalMask(libc::sigset_t);
+
+impl PartialEq for SignalMask {
+    fn eq(&self, other: &Self) -> bool {
+        (1..=64).all(|signal| {
+            // SAFETY: both sets came from pthread_sigmask and signal is in
+            // Linux's supported standard/realtime range.
+            (unsafe { libc::sigismember(&self.0, signal) })
+                == (unsafe { libc::sigismember(&other.0, signal) })
+        })
+    }
+}
+
+impl Eq for SignalMask {}
+
+impl std::fmt::Debug for SignalMask {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let blocked: Vec<_> = (1..=64)
+            .filter(|&signal| {
+                // SAFETY: the set is initialized and the range is valid.
+                (unsafe { libc::sigismember(&self.0, signal) }) == 1
+            })
+            .collect();
+        f.debug_tuple("SignalMask").field(&blocked).finish()
+    }
+}
+
+/// Captures the calling thread's exact logical signal mask.
+pub fn current_signal_mask() -> io::Result<SignalMask> {
+    let mut current: libc::sigset_t = unsafe { std::mem::zeroed() };
+    // With set=NULL, pthread_sigmask only reports the current mask.
+    let error = unsafe { libc::pthread_sigmask(libc::SIG_SETMASK, std::ptr::null(), &mut current) };
+    if error == 0 {
+        Ok(SignalMask(current))
+    } else {
+        Err(io::Error::from_raw_os_error(error))
+    }
+}
+
+pub fn current_thread_id() -> ThreadId {
+    // SAFETY: pthread_self has no preconditions or failure mode.
+    unsafe { libc::pthread_self() }
+}
+
+pub fn signal_thread(thread: ThreadId, signal: libc::c_int) -> io::Result<()> {
+    if !ATTACH_SIGNALS.contains(&signal) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "signal is not in the attach signal set",
+        ));
+    }
+    // SAFETY: callers supply an identifier returned by current_thread_id;
+    // pthread_kill only queues the signal and reports an errno value.
+    let error = unsafe { libc::pthread_kill(thread, signal) };
+    if error == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::from_raw_os_error(error))
+    }
+}
+
+/// Reports whether `signal` is blocked in the calling thread without
+/// changing its mask.
+pub fn signal_blocked(signal: libc::c_int) -> io::Result<bool> {
+    if !(1..=64).contains(&signal) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid signal number",
+        ));
+    }
+    let mut current: libc::sigset_t = unsafe { std::mem::zeroed() };
+    // With set=NULL, pthread_sigmask only returns the current mask.
+    let error = unsafe { libc::pthread_sigmask(libc::SIG_SETMASK, std::ptr::null(), &mut current) };
+    if error != 0 {
+        return Err(io::Error::from_raw_os_error(error));
+    }
+    // SAFETY: current is initialized and signal was range-validated.
+    match unsafe { libc::sigismember(&current, signal) } {
+        0 => Ok(false),
+        1 => Ok(true),
+        _ => Err(io::Error::last_os_error()),
+    }
+}
+
+/// A nonblocking signalfd whose drop restores the calling thread's mask.
+pub struct AttachSignals {
+    fd: OwnedFd,
+    set: libc::sigset_t,
+    old_mask: libc::sigset_t,
+    old_actions: Vec<(libc::c_int, libc::sigaction)>,
+}
+
+impl AttachSignals {
+    pub fn fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
+    }
+
+    /// Implements the job-control stop half: default+unblock SIGTSTP,
+    /// signal this process, then reinstall the attach mask after continuation.
+    pub fn suspend(&self) -> io::Result<()> {
+        let old_action = replace_signal_with_default(libc::SIGTSTP)?;
+        let mut one: libc::sigset_t = unsafe { std::mem::zeroed() };
+        // SAFETY: one is initialized before use.
+        if unsafe { libc::sigemptyset(&mut one) } != 0
+            || unsafe { libc::sigaddset(&mut one, libc::SIGTSTP) } != 0
+        {
+            let error = io::Error::last_os_error();
+            let _ = restore_signal_action(libc::SIGTSTP, &old_action);
+            return Err(error);
+        }
+        // SAFETY: one is a valid set for the current thread.
+        let error = unsafe { libc::pthread_sigmask(libc::SIG_UNBLOCK, &one, std::ptr::null_mut()) };
+        if error != 0 {
+            let _ = restore_signal_action(libc::SIGTSTP, &old_action);
+            return Err(io::Error::from_raw_os_error(error));
+        }
+        // SAFETY: getpid returns this process and kill with a positive pid
+        // cannot target another process.
+        let raised = if unsafe { libc::kill(libc::getpid(), libc::SIGTSTP) } == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        };
+        // SIGCONT resumes even while blocked. Reinstall the whole attach set
+        // before the caller can alter termios again.
+        let error =
+            unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &self.set, std::ptr::null_mut()) };
+        let reblocked = if error == 0 {
+            Ok(())
+        } else {
+            Err(io::Error::from_raw_os_error(error))
+        };
+        let restored = restore_signal_action(libc::SIGTSTP, &old_action);
+        raised.and(reblocked).and(restored)
+    }
+}
+
+impl Drop for AttachSignals {
+    fn drop(&mut self) {
+        let _ = restore_signal_actions(&self.old_actions);
+        // SAFETY: old_mask was captured for this thread by pthread_sigmask.
+        let _ = unsafe {
+            libc::pthread_sigmask(libc::SIG_SETMASK, &self.old_mask, std::ptr::null_mut())
+        };
+    }
+}
+
+/// Blocks the attach signal set and creates a nonblocking+CLOEXEC signalfd.
+pub fn attach_signals() -> io::Result<AttachSignals> {
+    let mut set: libc::sigset_t = unsafe { std::mem::zeroed() };
+    let mut old_mask: libc::sigset_t = unsafe { std::mem::zeroed() };
+    // SAFETY: set is a valid out-parameter.
+    if unsafe { libc::sigemptyset(&mut set) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    for signal in ATTACH_SIGNALS {
+        // SAFETY: set remains initialized across insertions.
+        if unsafe { libc::sigaddset(&mut set, signal) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+    // SAFETY: both masks are valid for this call.
+    let error = unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &set, &mut old_mask) };
+    if error != 0 {
+        return Err(io::Error::from_raw_os_error(error));
+    }
+    let old_actions = match install_default_signal_actions(&ATTACH_SIGNALS) {
+        Ok(actions) => actions,
+        Err(error) => {
+            // SAFETY: restore the exact mask captured above.
+            let _ = unsafe {
+                libc::pthread_sigmask(libc::SIG_SETMASK, &old_mask, std::ptr::null_mut())
+            };
+            return Err(error);
+        }
+    };
+    // SAFETY: signalfd copies set and returns an owned descriptor.
+    let raw = unsafe { libc::signalfd(-1, &set, libc::SFD_NONBLOCK | libc::SFD_CLOEXEC) };
+    if raw < 0 {
+        let error = io::Error::last_os_error();
+        let _ = restore_signal_actions(&old_actions);
+        // SAFETY: restore the exact mask captured above.
+        let _ =
+            unsafe { libc::pthread_sigmask(libc::SIG_SETMASK, &old_mask, std::ptr::null_mut()) };
+        return Err(error);
+    }
+    // SAFETY: raw is newly owned.
+    let fd = match ensure_fd_above_stdio(unsafe { OwnedFd::from_raw_fd(raw) }) {
+        Ok(fd) => fd,
+        Err(error) => {
+            let _ = restore_signal_actions(&old_actions);
+            // SAFETY: restore the exact mask captured above.
+            let _ = unsafe {
+                libc::pthread_sigmask(libc::SIG_SETMASK, &old_mask, std::ptr::null_mut())
+            };
+            return Err(error);
+        }
+    };
+    Ok(AttachSignals {
+        fd,
+        set,
+        old_mask,
+        old_actions,
+    })
+}
+
+fn replace_signal_with_default(signal: libc::c_int) -> io::Result<libc::sigaction> {
+    let mut action: libc::sigaction = unsafe { std::mem::zeroed() };
+    let mut old_action: libc::sigaction = unsafe { std::mem::zeroed() };
+    action.sa_sigaction = libc::SIG_DFL;
+    // SAFETY: action's mask and old_action are valid sigaction values.
+    if unsafe { libc::sigemptyset(&mut action.sa_mask) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: action is initialized; old_action is a valid out-parameter.
+    if unsafe { libc::sigaction(signal, &action, &mut old_action) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(old_action)
+}
+
+fn restore_signal_action(signal: libc::c_int, action: &libc::sigaction) -> io::Result<()> {
+    // SAFETY: action was returned by sigaction for this signal.
+    if unsafe { libc::sigaction(signal, action, std::ptr::null_mut()) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+fn install_default_signal_actions(
+    signals: &[libc::c_int],
+) -> io::Result<Vec<(libc::c_int, libc::sigaction)>> {
+    let mut actions = Vec::with_capacity(signals.len());
+    for &signal in signals {
+        match replace_signal_with_default(signal) {
+            Ok(action) => actions.push((signal, action)),
+            Err(error) => {
+                let _ = restore_signal_actions(&actions);
+                return Err(error);
+            }
+        }
+    }
+    Ok(actions)
+}
+
+fn restore_signal_actions(actions: &[(libc::c_int, libc::sigaction)]) -> io::Result<()> {
+    let mut first_error = None;
+    for (signal, action) in actions.iter().rev() {
+        if let Err(error) = restore_signal_action(*signal, action) {
+            if first_error.is_none() {
+                first_error = Some(error);
+            }
+        }
+    }
+    match first_error {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
+/// Restores default handling, unblocks one fixed signal, and raises it in
+/// the calling thread. A successful call normally never returns. If the
+/// platform unexpectedly returns, the prior disposition and exact mask are
+/// restored before this function returns to a library caller.
+pub fn reraise_default(signal: libc::c_int) -> io::Result<()> {
+    if !(1..=64).contains(&signal) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid signal number",
+        ));
+    }
+    let old_action = replace_signal_with_default(signal)?;
+    let mut one: libc::sigset_t = unsafe { std::mem::zeroed() };
+    // SAFETY: one is initialized before pthread_sigmask.
+    if unsafe { libc::sigemptyset(&mut one) } != 0
+        || unsafe { libc::sigaddset(&mut one, signal) } != 0
+    {
+        let error = io::Error::last_os_error();
+        let _ = restore_signal_action(signal, &old_action);
+        return Err(error);
+    }
+    let mut old_mask: libc::sigset_t = unsafe { std::mem::zeroed() };
+    let error = unsafe { libc::pthread_sigmask(libc::SIG_UNBLOCK, &one, &mut old_mask) };
+    if error != 0 {
+        let _ = restore_signal_action(signal, &old_action);
+        return Err(io::Error::from_raw_os_error(error));
+    }
+    // SAFETY: signal is validated and raise targets this calling thread.
+    let raised = if unsafe { libc::raise(signal) } == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    };
+
+    // A returned raise is the fallback path. Block the signal while its old
+    // action is restored, then restore the entire original mask atomically.
+    let block_error = unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &one, std::ptr::null_mut()) };
+    let action_result = restore_signal_action(signal, &old_action);
+    let mask_error =
+        unsafe { libc::pthread_sigmask(libc::SIG_SETMASK, &old_mask, std::ptr::null_mut()) };
+    if mask_error != 0 {
+        return Err(io::Error::from_raw_os_error(mask_error));
+    }
+    action_result?;
+    if block_error != 0 {
+        return Err(io::Error::from_raw_os_error(block_error));
+    }
+    raised
 }
 
 impl BrokerSignals {
@@ -121,6 +496,7 @@ impl BrokerSignals {
 
 impl Drop for BrokerSignals {
     fn drop(&mut self) {
+        let _ = restore_signal_actions(&self.old_actions);
         // SAFETY: old_mask was populated by pthread_sigmask for this
         // thread. Drop cannot report restoration failure.
         let _ = unsafe {
@@ -152,18 +528,43 @@ pub fn broker_signals() -> io::Result<BrokerSignals> {
     if mask_error != 0 {
         return Err(io::Error::from_raw_os_error(mask_error));
     }
+    let old_actions = match install_default_signal_actions(&BROKER_SIGNALS) {
+        Ok(actions) => actions,
+        Err(error) => {
+            // SAFETY: restore the calling thread's prior mask on failure.
+            let _ = unsafe {
+                libc::pthread_sigmask(libc::SIG_SETMASK, &old_mask, std::ptr::null_mut())
+            };
+            return Err(error);
+        }
+    };
     // SAFETY: signalfd copies the supplied mask and returns a new fd.
     let raw = unsafe { libc::signalfd(-1, &set, libc::SFD_NONBLOCK | libc::SFD_CLOEXEC) };
     if raw < 0 {
         let error = io::Error::last_os_error();
+        let _ = restore_signal_actions(&old_actions);
         // SAFETY: restore the calling thread's prior mask on failure.
         let _ =
             unsafe { libc::pthread_sigmask(libc::SIG_SETMASK, &old_mask, std::ptr::null_mut()) };
         return Err(error);
     }
     // SAFETY: raw is a newly-created owned descriptor.
-    let fd = unsafe { OwnedFd::from_raw_fd(raw) };
-    Ok(BrokerSignals { fd, old_mask })
+    let fd = match ensure_fd_above_stdio(unsafe { OwnedFd::from_raw_fd(raw) }) {
+        Ok(fd) => fd,
+        Err(error) => {
+            let _ = restore_signal_actions(&old_actions);
+            // SAFETY: restore the calling thread's prior mask on failure.
+            let _ = unsafe {
+                libc::pthread_sigmask(libc::SIG_SETMASK, &old_mask, std::ptr::null_mut())
+            };
+            return Err(error);
+        }
+    };
+    Ok(BrokerSignals {
+        fd,
+        old_mask,
+        old_actions,
+    })
 }
 
 /// Reads exactly one Linux `signalfd_siginfo` record from any fd.
@@ -468,13 +869,89 @@ pub fn recv(fd: BorrowedFd<'_>, buf: &mut [u8]) -> io::Result<Option<usize>> {
     loop {
         match recv(fd.as_raw_fd(), buf, MsgFlags::empty()) {
             Ok(n) => return Ok(Some(n)),
-            Err(e) if e == nix::errno::Errno::EINTR => continue,
+            Err(nix::errno::Errno::EINTR) => continue,
             Err(e) if e == nix::errno::Errno::EAGAIN || e == nix::errno::Errno::EWOULDBLOCK => {
                 return Ok(None)
             }
             Err(e) => return Err(io::Error::from(e)),
         }
     }
+}
+
+/// Nonblocking-friendly `read(2)` for caller-owned stdin/stdout-like fds.
+pub fn read_fd(fd: BorrowedFd<'_>, buf: &mut [u8]) -> io::Result<usize> {
+    loop {
+        match nix::unistd::read(fd, buf) {
+            Ok(n) => return Ok(n),
+            Err(nix::errno::Errno::EINTR) => continue,
+            Err(error) => return Err(io::Error::from(error)),
+        }
+    }
+}
+
+/// Nonblocking-friendly `write(2)` for terminal/stdout fds. The binary edge
+/// ignores SIGPIPE before using this on a pipe.
+pub fn write_fd(fd: BorrowedFd<'_>, buf: &[u8]) -> io::Result<usize> {
+    loop {
+        match nix::unistd::write(fd, buf) {
+            Ok(n) => return Ok(n),
+            Err(nix::errno::Errno::EINTR) => continue,
+            Err(error) => return Err(io::Error::from(error)),
+        }
+    }
+}
+
+/// Creates a nonblocking+CLOEXEC Unix stream and starts `connect(2)` on
+/// `<dirfd>/name` through the identity-bound `/proc/self/fd` capability.
+/// EINPROGRESS/EAGAIN returns the still-owned socket; callers finish it with
+/// poll plus [`socket_error`].
+pub fn connect_unix_at(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<OwnedFd> {
+    use nix::sys::socket::{connect, socket, AddressFamily, SockFlag, SockType, UnixAddr};
+    normal_entry_name(name)?;
+    let via_fd = format!("/proc/self/fd/{}", dirfd.as_raw_fd());
+    let path = Path::new(&via_fd).join(name);
+    let addr = UnixAddr::new(&path).map_err(io::Error::from)?;
+    let fd = socket(
+        AddressFamily::Unix,
+        SockType::Stream,
+        SockFlag::SOCK_NONBLOCK | SockFlag::SOCK_CLOEXEC,
+        None,
+    )
+    .map_err(io::Error::from)?;
+    let fd = ensure_fd_above_stdio(fd)?;
+    match connect(fd.as_raw_fd(), &addr) {
+        Ok(()) => Ok(fd),
+        Err(nix::errno::Errno::EINPROGRESS | nix::errno::Errno::EAGAIN) => Ok(fd),
+        Err(error) => Err(io::Error::from(error)),
+    }
+}
+
+/// `getsockopt(SO_ERROR)` for completion of a nonblocking connect. `None`
+/// means the connection completed successfully.
+pub fn socket_error(fd: BorrowedFd<'_>) -> io::Result<Option<i32>> {
+    let mut value: libc::c_int = 0;
+    let mut len = std::mem::size_of::<libc::c_int>() as libc::socklen_t;
+    // SAFETY: value and len are valid out-parameters of the exact SO_ERROR
+    // representation.
+    let rc = unsafe {
+        libc::getsockopt(
+            fd.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_ERROR,
+            (&mut value as *mut libc::c_int).cast(),
+            &mut len,
+        )
+    };
+    if rc != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if len as usize != std::mem::size_of::<libc::c_int>() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "SO_ERROR returned the wrong size",
+        ));
+    }
+    Ok((value != 0).then_some(value))
 }
 
 /// One normal directory component: non-empty, not `.`/`..`, no `/`.
@@ -626,9 +1103,8 @@ pub fn bind_unix_listener_at(
         }
     }
     if let Err(e) = listen(fd.as_fd(), backlog) {
-        let original = io::Error::from(e);
         cleanup_if_ours();
-        return Err(original);
+        return Err(e);
     }
     Ok((fd, created))
 }
@@ -663,6 +1139,20 @@ impl SessionLock {
     /// The guard is held while this everpty process lives.
     pub fn held(&self) -> bool {
         self.0.metadata().is_ok()
+    }
+
+    /// Closes this process's post-`fork` duplicate without invoking
+    /// `flock(LOCK_UN)`. `nix::fcntl::Flock` explicitly unlocks in `Drop`,
+    /// which would release the shared open-file-description lock still
+    /// owned by the broker child. Closing only this descriptor preserves the
+    /// lock until the child closes or unlocks its copy.
+    pub(crate) fn close_fork_duplicate(self) {
+        let raw = self.0.as_raw_fd();
+        std::mem::forget(self);
+        // SAFETY: ownership of raw was intentionally detached above. On
+        // Linux close may report EINTR after the descriptor is already
+        // closed; there must be no retry that could close a reused number.
+        let _ = unsafe { libc::close(raw) };
     }
 }
 
@@ -721,24 +1211,26 @@ const PRIVATE_DIR_MODE: nix::sys::stat::Mode = nix::sys::stat::Mode::S_IRWXU;
 /// `open("/", O_RDONLY|O_DIRECTORY|O_CLOEXEC)` (nix `fs`): the anchor fd
 /// for component-by-component directory walks. `/` cannot be a symlink.
 pub fn open_root_dir() -> io::Result<OwnedFd> {
-    nix::fcntl::open(
+    let fd = nix::fcntl::open(
         Path::new("/"),
         OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_CLOEXEC,
         nix::sys::stat::Mode::empty(),
     )
-    .map_err(io::Error::from)
+    .map_err(io::Error::from)?;
+    ensure_fd_above_stdio(fd)
 }
 
 /// `openat(2)` with `O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC` (nix
 /// `fs`): opens one child directory, refusing symlinks and non-dirs.
 pub fn openat_dir(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<OwnedFd> {
-    nix::fcntl::openat(
+    let fd = nix::fcntl::openat(
         dirfd,
         name,
         OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
         nix::sys::stat::Mode::empty(),
     )
-    .map_err(io::Error::from)
+    .map_err(io::Error::from)?;
+    ensure_fd_above_stdio(fd)
 }
 
 /// `mkdirat(2)` mode 0700 (nix `fs`).
@@ -751,26 +1243,28 @@ pub fn mkdirat_private(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Res
 /// is reopened across owner death) and no `O_TRUNC`; `O_NONBLOCK` keeps a
 /// FIFO planted at the lock name from blocking the open.
 pub fn open_lock_file_at(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<OwnedFd> {
-    nix::fcntl::openat(
+    let fd = nix::fcntl::openat(
         dirfd,
         name,
         OFlag::O_RDWR | OFlag::O_CREAT | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK,
         PRIVATE_FILE_MODE,
     )
-    .map_err(io::Error::from)
+    .map_err(io::Error::from)?;
+    ensure_fd_above_stdio(fd)
 }
 
 /// `openat(2)` with `O_RDONLY|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK` (nix
 /// `fs`): metadata reader open; `O_NONBLOCK` keeps a FIFO named `meta`
 /// from blocking, and the caller fd-stats before reading a byte.
 pub fn open_meta_read_at(dirfd: BorrowedFd<'_>, name: &std::ffi::OsStr) -> io::Result<OwnedFd> {
-    nix::fcntl::openat(
+    let fd = nix::fcntl::openat(
         dirfd,
         name,
         OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC | OFlag::O_NONBLOCK,
         nix::sys::stat::Mode::empty(),
     )
-    .map_err(io::Error::from)
+    .map_err(io::Error::from)?;
+    ensure_fd_above_stdio(fd)
 }
 
 /// `openat(2)` with `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW|O_CLOEXEC`,
@@ -780,13 +1274,14 @@ pub fn create_exclusive_private_at(
     dirfd: BorrowedFd<'_>,
     name: &std::ffi::OsStr,
 ) -> io::Result<OwnedFd> {
-    nix::fcntl::openat(
+    let fd = nix::fcntl::openat(
         dirfd,
         name,
         OFlag::O_WRONLY | OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
         PRIVATE_FILE_MODE,
     )
-    .map_err(io::Error::from)
+    .map_err(io::Error::from)?;
+    ensure_fd_above_stdio(fd)
 }
 
 /// `renameat(2)` (nix `fs`) with the same directory fd on both sides:
@@ -983,11 +1478,28 @@ pub unsafe fn fork() -> io::Result<Forked> {
     }
 }
 
+/// The one daemonizing `fork(2)` used by `everpty start`. The caller must be
+/// the single-threaded everpty process edge (before any runtime or worker is
+/// initialized). Unlike the PTY-child fork, the child intentionally becomes
+/// the long-lived Rust broker rather than execing immediately.
+///
+/// # Safety
+/// The process must be single-threaded and no borrowed synchronization guard
+/// may be live across the call.
+pub unsafe fn fork_broker() -> io::Result<Forked> {
+    match nix::unistd::fork() {
+        Ok(nix::unistd::ForkResult::Parent { child }) => Ok(Forked::Parent(child.as_raw())),
+        Ok(nix::unistd::ForkResult::Child) => Ok(Forked::Child),
+        Err(error) => Err(io::Error::from(error)),
+    }
+}
+
 /// `pipe2(O_CLOEXEC)` (nix): the exec-error pipe. Returns
 /// `(read, write)`; both ends close on any exec, so a successful
 /// `execve` turns the parent's blocking read into a clean EOF.
 pub fn pipe_cloexec() -> io::Result<(OwnedFd, OwnedFd)> {
-    nix::unistd::pipe2(OFlag::O_CLOEXEC).map_err(io::Error::from)
+    let (read, write) = nix::unistd::pipe2(OFlag::O_CLOEXEC).map_err(io::Error::from)?;
+    Ok((ensure_fd_above_stdio(read)?, ensure_fd_above_stdio(write)?))
 }
 
 /// `socketpair(AF_UNIX, SOCK_STREAM, SOCK_CLOEXEC)` (nix `socket`):
@@ -1066,6 +1578,114 @@ pub fn set_nonblocking(fd: BorrowedFd<'_>) -> io::Result<()> {
     nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_SETFL(flags))
         .map(|_| ())
         .map_err(io::Error::from)
+}
+
+/// Verifies that a caller-owned descriptor is live without changing it.
+pub fn validate_fd(fd: BorrowedFd<'_>) -> io::Result<()> {
+    nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_GETFD)
+        .map(|_| ())
+        .map_err(io::Error::from)
+}
+
+/// Scoped `fcntl(F_GETFL/F_SETFL)` guard used for caller-owned attach fds.
+/// Socket descriptors are owned outright and do not need this guard.
+pub struct NonblockingGuard<'fd> {
+    fd: BorrowedFd<'fd>,
+    original: OFlag,
+    active: bool,
+}
+
+impl<'fd> NonblockingGuard<'fd> {
+    pub fn new(fd: BorrowedFd<'fd>) -> io::Result<Self> {
+        let bits = nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_GETFL).map_err(io::Error::from)?;
+        let original = OFlag::from_bits_retain(bits);
+        let wanted = original | OFlag::O_NONBLOCK;
+        if wanted != original {
+            nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_SETFL(wanted))
+                .map_err(io::Error::from)?;
+        }
+        Ok(Self {
+            fd,
+            original,
+            active: true,
+        })
+    }
+
+    pub fn restore(&mut self) -> io::Result<()> {
+        if self.active {
+            nix::fcntl::fcntl(self.fd, nix::fcntl::FcntlArg::F_SETFL(self.original))
+                .map_err(io::Error::from)?;
+            self.active = false;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for NonblockingGuard<'_> {
+    fn drop(&mut self) {
+        let _ = self.restore();
+    }
+}
+
+/// Broker side of the one daemonizing fork: `setsid(2)`, `umask(0077)`,
+/// and `open/dup2/close` of `/dev/null` onto fd 0/1/2.
+pub fn daemon_broker_setup() -> io::Result<()> {
+    nix::unistd::setsid().map_err(io::Error::from)?;
+    // SAFETY: umask has no failure mode and the broker is the post-fork
+    // single-threaded process.
+    unsafe { libc::umask(0o077) };
+    const DEV_NULL: &[u8] = b"/dev/null\0";
+    // SAFETY: DEV_NULL is a static NUL-terminated path.
+    let null_fd = unsafe { libc::open(DEV_NULL.as_ptr().cast(), libc::O_RDWR | libc::O_CLOEXEC) };
+    if null_fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    for target in 0..=2 {
+        loop {
+            // SAFETY: null_fd is live and target is a stdio descriptor.
+            if unsafe { libc::dup2(null_fd, target) } >= 0 {
+                break;
+            }
+            let error = io::Error::last_os_error();
+            if error.kind() != io::ErrorKind::Interrupted {
+                if null_fd > 2 {
+                    // SAFETY: owned raw fd, best-effort cleanup.
+                    let _ = unsafe { libc::close(null_fd) };
+                }
+                return Err(error);
+            }
+        }
+    }
+    if null_fd > 2 {
+        // SAFETY: duplication completed; this is the original owned fd.
+        if unsafe { libc::close(null_fd) } != 0 {
+            return Err(io::Error::last_os_error());
+        }
+    }
+    Ok(())
+}
+
+/// Replaces one foreground-only descriptor in the long-lived daemon branch
+/// with a CLOEXEC duplicate of `/dev/null` (already installed on fd 0 by
+/// [`daemon_broker_setup`]). Keeping the descriptor number allocated matters:
+/// the typed API returns through the caller's stack, whose owner may later
+/// close that borrowed number; a raw close here could let it be reused and
+/// make that later destructor close an unrelated broker descriptor.
+pub fn replace_daemon_inherited_fd(fd: RawFd) -> io::Result<()> {
+    if fd <= 2 {
+        return Ok(());
+    }
+    loop {
+        // SAFETY: daemon setup made fd 0 a live /dev/null description and
+        // fd is a distinct positive target in this process's descriptor table.
+        if unsafe { libc::dup3(0, fd, libc::O_CLOEXEC) } >= 0 {
+            return Ok(());
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() != io::ErrorKind::Interrupted {
+            return Err(error);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1385,6 +2005,40 @@ mod tests {
     }
 
     #[test]
+    fn closing_a_fork_duplicate_does_not_unlock_the_shared_description() {
+        let dir =
+            std::env::temp_dir().join(format!("everpty-sys-fork-lock-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("fixture directory");
+        let p = dir.join("lock");
+        let _ = std::fs::remove_file(&p);
+        let file = std::fs::File::create(&p).expect("create");
+        let guard = acquire_session_lock(file)
+            .expect("initial flock")
+            .expect("initial lock acquired");
+        let broker_copy = guard.0.try_clone().expect("fork-equivalent duplicate");
+
+        guard.close_fork_duplicate();
+        let contender = std::fs::File::open(&p).expect("contender open");
+        assert!(
+            acquire_session_lock(contender)
+                .expect("contender flock")
+                .is_none(),
+            "parent-side close released the broker's shared flock"
+        );
+
+        drop(broker_copy);
+        let after_child_exit = std::fs::File::open(&p).expect("post-child open");
+        assert!(
+            acquire_session_lock(after_child_exit)
+                .expect("post-child flock")
+                .is_some(),
+            "last shared descriptor close did not release the flock"
+        );
+        let _ = std::fs::remove_file(&p);
+        let _ = std::fs::remove_dir(&dir);
+    }
+
+    #[test]
     fn exclusive_create_refuses_second_and_nofollow() {
         let dir = std::env::temp_dir().join(format!("everpty-sys-x-{}", std::process::id()));
         std::fs::create_dir_all(&dir).ok();
@@ -1444,7 +2098,7 @@ mod tests {
         .expect("plan");
         assert_eq!(plan.argv.len(), 3); // 2 args + null
         assert_eq!(plan.envp.len(), 2);
-        assert!(plan.argv.last().map_or(true, |p| p.is_null()));
+        assert!(plan.argv.last().is_none_or(|p| p.is_null()));
         assert!(
             ExecPlan::new("a\0b".as_ref(), &[], &[]).is_err(),
             "NUL must fail before fork"
@@ -1550,6 +2204,40 @@ mod tests {
     }
 
     #[test]
+    fn attach_signal_guard_restores_a_nontrivial_exact_mask() {
+        let _serial = SIGNAL_TEST_LOCK.lock().expect("signal test lock");
+        struct RestoreMask(libc::sigset_t);
+        impl Drop for RestoreMask {
+            fn drop(&mut self) {
+                // SAFETY: this is the exact mask captured for this thread.
+                let _ = unsafe {
+                    libc::pthread_sigmask(libc::SIG_SETMASK, &self.0, std::ptr::null_mut())
+                };
+            }
+        }
+
+        let original = current_signal_mask().expect("original mask");
+        let _restore = RestoreMask(original.0);
+        let mut added: libc::sigset_t = unsafe { std::mem::zeroed() };
+        // SAFETY: added is initialized before membership changes.
+        assert_eq!(unsafe { libc::sigemptyset(&mut added) }, 0);
+        assert_eq!(unsafe { libc::sigaddset(&mut added, libc::SIGWINCH) }, 0);
+        assert_eq!(unsafe { libc::sigaddset(&mut added, libc::SIGUSR1) }, 0);
+        // SAFETY: added is a valid mask for the calling thread.
+        assert_eq!(
+            unsafe { libc::pthread_sigmask(libc::SIG_BLOCK, &added, std::ptr::null_mut()) },
+            0
+        );
+        let seeded = current_signal_mask().expect("seeded mask");
+        let guard = attach_signals().expect("attach signals");
+        for signal in ATTACH_SIGNALS {
+            assert!(signal_blocked(signal).expect("blocked membership"));
+        }
+        drop(guard);
+        assert_eq!(current_signal_mask().expect("restored mask"), seeded);
+    }
+
+    #[test]
     fn waitpid_nohang_on_non_child_is_error() {
         // Waiting on a non-child fails with ECHILD: never reaps what we
         // did not spawn. The positive PID passes the guard, so the
@@ -1584,6 +2272,24 @@ mod tests {
         let raw = r.as_raw_fd();
         let r = ensure_fd_above_stdio(r).expect("ensure");
         assert_eq!(r.as_raw_fd(), raw);
+    }
+
+    #[test]
+    fn nonblocking_guard_restores_the_exact_status_flags() {
+        let (read, _write) = pipe_cloexec().expect("pipe");
+        let before =
+            nix::fcntl::fcntl(read.as_fd(), nix::fcntl::FcntlArg::F_GETFL).expect("flags before");
+        {
+            let mut guard = NonblockingGuard::new(read.as_fd()).expect("guard");
+            let during = nix::fcntl::fcntl(read.as_fd(), nix::fcntl::FcntlArg::F_GETFL)
+                .expect("flags during");
+            assert_ne!(during & libc::O_NONBLOCK, 0);
+            guard.restore().expect("explicit restore");
+            guard.restore().expect("idempotent restore");
+        }
+        let after =
+            nix::fcntl::fcntl(read.as_fd(), nix::fcntl::FcntlArg::F_GETFL).expect("flags after");
+        assert_eq!(after, before);
     }
 
     #[test]
@@ -1666,7 +2372,7 @@ mod tests {
         // Nothing writable on the read end: a zero timeout returns 0.
         let mut fds = [PollFd::new(r.as_fd(), PollFlags::POLLIN)];
         assert_eq!(poll(&mut fds, Some(0)).expect("poll empty"), 0);
-        w.write(b"x").expect("write");
+        w.write_all(b"x").expect("write");
         // A ready fd with an over-i32::MAX requested wait returns
         // immediately: the clamp turns an invalid duration into the
         // maximum legal one instead of an error.

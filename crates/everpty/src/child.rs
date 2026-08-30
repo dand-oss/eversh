@@ -316,6 +316,16 @@ fn prepare_spec(spec: &SpawnSpec<'_>, limits: &Limits) -> Result<Prepared, Error
     Ok(Prepared { executable, env })
 }
 
+/// Runs the complete allocation-time spawn validation without opening a PTY
+/// or forking. The start API uses this before the daemon fork so malformed
+/// argv/environment/PATH input cannot leave a half-created broker behind.
+pub(crate) fn validate_spawn_spec(spec: &SpawnSpec<'_>, limits: &Limits) -> Result<(), Error> {
+    let prepared = prepare_spec(spec, limits)?;
+    let _ = sys::ExecPlan::new(prepared.executable.as_os_str(), spec.argv, &prepared.env)
+        .map_err(Error::Io)?;
+    Ok(())
+}
+
 /// Resolves `argv[0]` to the path handed to `execve`. A name containing
 /// `/` is used as given — exec is always direct, never shell
 /// evaluation. A bare name is searched through the captured `path_var`,

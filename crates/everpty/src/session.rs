@@ -149,6 +149,15 @@ pub struct StateRoot {
     path: PathBuf,
 }
 
+/// One metadata record tied to the exact directory capability it was read
+/// through. Discovery probes must use this retained capability rather than
+/// reopening the display name and accidentally pairing old metadata with a
+/// replacement session.
+pub(crate) struct DiscoveredSession {
+    pub(crate) dir: SessionDir,
+    pub(crate) meta: SessionMeta,
+}
+
 /// Opens `name` under `dirfd`, creating it 0700 when absent. A lost
 /// `mkdirat` race (`EEXIST`) falls through to the no-follow reopen, so
 /// whatever won the race is validated like any pre-existing entry.
@@ -186,6 +195,36 @@ fn open_walked_dir(candidate: &Path, euid: libc::uid_t) -> Option<(OwnedFd, Path
     Some((fd, walked))
 }
 
+/// Read-only counterpart to [`open_walked_dir`]. Missing components are not
+/// created; attach/discovery commands therefore leave no state behind.
+fn open_walked_dir_existing(
+    candidate: &Path,
+    euid: libc::uid_t,
+) -> Result<Option<(OwnedFd, PathBuf)>, Error> {
+    let Some(comps) = normal_components(candidate) else {
+        return Ok(None);
+    };
+    let mut fd = sys::open_root_dir()?;
+    let mut walked = PathBuf::from("/");
+    for name in comps {
+        fd = match sys::openat_dir(fd.as_fd(), name) {
+            Ok(fd) => fd,
+            Err(error)
+                if matches!(
+                    error.raw_os_error(),
+                    Some(libc::ENOENT | libc::EACCES | libc::EPERM | libc::ELOOP | libc::ENOTDIR)
+                ) =>
+            {
+                return Ok(None);
+            }
+            Err(error) => return Err(Error::Io(error)),
+        };
+        walked.push(name);
+    }
+    let st = sys::fstat_fd(fd.as_fd())?;
+    Ok(stat_is_safe_dir(&st, euid).then_some((fd, walked)))
+}
+
 /// Resolves the first usable candidate into a [`StateRoot`]. A failed
 /// or unsafe candidate is skipped, never repaired; no usable candidate
 /// is [`Error::StateRootUnavailable`]. Injected candidates keep tests
@@ -194,6 +233,18 @@ pub fn resolve_state_root_from(candidates: &[PathBuf]) -> Result<StateRoot, Erro
     let euid = sys::effective_uid();
     for candidate in candidates {
         if let Some((dirfd, path)) = open_walked_dir(candidate, euid) {
+            return Ok(StateRoot { dirfd, path });
+        }
+    }
+    Err(Error::StateRootUnavailable)
+}
+
+/// Opens the first already-existing safe state root without creating any
+/// path component.
+pub fn resolve_state_root_existing_from(candidates: &[PathBuf]) -> Result<StateRoot, Error> {
+    let euid = sys::effective_uid();
+    for candidate in candidates {
+        if let Some((dirfd, path)) = open_walked_dir_existing(candidate, euid)? {
             return Ok(StateRoot { dirfd, path });
         }
     }
@@ -265,6 +316,43 @@ impl StateRoot {
         })
     }
 
+    /// Opens an existing validated session directory without creating it or
+    /// any child object. Absence is the typed [`Error::NotLive`].
+    pub fn open_session(&self, name: &str, limits: &Limits) -> Result<SessionDir, Error> {
+        if !frame::validate_name(name, limits) {
+            return Err(Error::NameInvalid);
+        }
+        let socket_len =
+            self.path.as_os_str().as_bytes().len() + 1 + name.len() + 1 + SOCKET_FILE.len();
+        if socket_len > limits.unix_path_max {
+            return Err(Error::PathTooLong);
+        }
+        let dirfd = match sys::openat_dir(self.dirfd.as_fd(), OsStr::new(name)) {
+            Ok(fd) => fd,
+            Err(error) if error.raw_os_error() == Some(libc::ENOENT) => return Err(Error::NotLive),
+            Err(error) => {
+                return Err(open_failure_error(
+                    self.dirfd.as_fd(),
+                    OsStr::new(name),
+                    stat_is_safe_dir,
+                    error,
+                ))
+            }
+        };
+        let st = sys::fstat_fd(dirfd.as_fd())?;
+        if !stat_is_safe_dir(&st, sys::effective_uid()) {
+            return Err(Error::StatePathUnsafe);
+        }
+        let parent_dirfd = sys::openat_dir(self.dirfd.as_fd(), OsStr::new("."))?;
+        Ok(SessionDir {
+            dirfd,
+            parent_dirfd,
+            identity: sys::EntryIdentity::from_stat(&st),
+            name: name.to_owned(),
+            path: self.path.join(name),
+        })
+    }
+
     /// Enumerates sessions with readable, well-formed metadata. Skips
     /// only expected entry-local conditions (invalid or non-UTF-8
     /// names, `ENOENT` races, unsafe paths, corrupt or oversized
@@ -272,6 +360,17 @@ impl StateRoot {
     /// as `EMFILE`/`ENOMEM`/`EIO` propagates — never a silent partial
     /// listing. The live probe filter arrives with the CLI (commit 8).
     pub fn list_sessions(&self, limits: &Limits) -> Result<Vec<SessionMeta>, Error> {
+        self.discover_sessions(limits)
+            .map(|sessions| sessions.into_iter().map(|session| session.meta).collect())
+    }
+
+    /// Capability-retaining discovery used by the live CLI filter. This is
+    /// deliberately crate-private: public callers receive bounded metadata,
+    /// while control code keeps the exact dirfd until its Ping completes.
+    pub(crate) fn discover_sessions(
+        &self,
+        limits: &Limits,
+    ) -> Result<Vec<DiscoveredSession>, Error> {
         let entries = sys::read_dir_at(self.dirfd.as_fd())?;
         let euid = sys::effective_uid();
         let mut out = Vec::new();
@@ -315,7 +414,7 @@ impl StateRoot {
             if meta.name() != name {
                 continue;
             }
-            out.push(meta);
+            out.push(DiscoveredSession { dir, meta });
         }
         Ok(out)
     }
@@ -347,9 +446,63 @@ impl SessionDir {
         &self.path
     }
 
+    /// Whether the state root still names this exact validated session
+    /// directory. Absence or replacement means the owned broker state has
+    /// retired; a replacement is never mistaken for state the old broker is
+    /// still obliged to remove.
+    pub(crate) fn parent_entry_matches(&self) -> Result<bool, Error> {
+        match sys::fstatat_nofollow(self.parent_dirfd.as_fd(), OsStr::new(&self.name)) {
+            Ok(st) => Ok(sys::EntryIdentity::from_stat(&st) == self.identity),
+            Err(error) if error.raw_os_error() == Some(libc::ENOENT) => Ok(false),
+            Err(error) => Err(Error::Io(error)),
+        }
+    }
+
     /// Display-only socket pathname (`<dir>/socket`).
     pub fn socket_path(&self) -> PathBuf {
         self.path.join(SOCKET_FILE)
+    }
+
+    /// Opens the session socket through this directory capability. The entry
+    /// is no-follow stat-validated before connect; the display path is never
+    /// used for resolution.
+    pub fn connect_socket(&self) -> Result<OwnedFd, Error> {
+        let st = match sys::fstatat_nofollow(self.dirfd.as_fd(), OsStr::new(SOCKET_FILE)) {
+            Ok(st) => st,
+            Err(error) if error.raw_os_error() == Some(libc::ENOENT) => return Err(Error::NotLive),
+            Err(error) => return Err(Error::Io(error)),
+        };
+        if !stat_is_safe_socket(&st, sys::effective_uid()) {
+            return Err(Error::StatePathUnsafe);
+        }
+        let identity = sys::EntryIdentity::from_stat(&st);
+        match sys::connect_unix_at(self.dirfd.as_fd(), OsStr::new(SOCKET_FILE)) {
+            Ok(fd) => {
+                let current =
+                    match sys::fstatat_nofollow(self.dirfd.as_fd(), OsStr::new(SOCKET_FILE)) {
+                        Ok(current) => current,
+                        Err(error) if error.raw_os_error() == Some(libc::ENOENT) => {
+                            return Err(Error::NotLive)
+                        }
+                        Err(error) => return Err(Error::Io(error)),
+                    };
+                if !stat_is_safe_socket(&current, sys::effective_uid())
+                    || sys::EntryIdentity::from_stat(&current) != identity
+                {
+                    return Err(Error::StatePathUnsafe);
+                }
+                Ok(fd)
+            }
+            Err(error)
+                if matches!(
+                    error.raw_os_error(),
+                    Some(libc::ENOENT | libc::ECONNREFUSED)
+                ) =>
+            {
+                Err(Error::NotLive)
+            }
+            Err(error) => Err(Error::Io(error)),
+        }
     }
 
     /// Acquires the per-session `flock`, consuming the directory
@@ -490,11 +643,7 @@ impl BoundSession {
     }
 
     fn parent_entry_matches(&self) -> Result<bool, Error> {
-        match sys::fstatat_nofollow(self.locked.dir.parent_dirfd.as_fd(), OsStr::new(&self.name)) {
-            Ok(st) => Ok(sys::EntryIdentity::from_stat(&st) == self.locked.dir.identity),
-            Err(e) if e.raw_os_error() == Some(libc::ENOENT) => Ok(false),
-            Err(e) => Err(Error::Io(e)),
-        }
+        self.locked.dir.parent_entry_matches()
     }
 
     /// Stops new attachment by identity-unlinking the exact socket and
@@ -603,6 +752,18 @@ impl LockedSession {
     /// The locked session directory.
     pub fn dir(&self) -> &SessionDir {
         &self.dir
+    }
+
+    /// Drops the foreground parent's post-fork capabilities without
+    /// explicitly unlocking the flock shared with the broker child.
+    pub(crate) fn close_parent_fork_duplicate(self) {
+        let Self {
+            dir,
+            lock_identity: _,
+            _lock,
+        } = self;
+        _lock.close_fork_duplicate();
+        drop(dir);
     }
 
     /// Binds the broker's session listener INSIDE this locked directory

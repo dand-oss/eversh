@@ -8,6 +8,7 @@
 //! Library code never prints, reads global arguments, or exits — the
 //! post-fork child's `_exit` is the one sanctioned exception.
 
+pub mod attach;
 pub mod broker;
 pub mod child;
 pub mod client;
@@ -15,6 +16,7 @@ pub mod error;
 pub mod frame;
 pub mod lifecycle;
 pub mod limits;
+pub mod run;
 pub mod session;
 pub mod state;
 pub mod sys;
