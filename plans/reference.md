@@ -1,6 +1,6 @@
 # eversh engineering references
 
-Status: evidence inventory supporting the locked Rust design | Last updated: 2026-08-21
+Status: evidence inventory supporting the locked Rust design | Last updated: 2026-08-30
 
 This document records reviewed projects, source snapshots, protocol evidence, and licence decisions for `everpty`, `everlink`, and `eversh`. A reference is not automatically a dependency or source of code. The normative contract is [design.md](design.md); this file records why its boundaries were selected.
 
@@ -22,7 +22,7 @@ Milestone 0 is a bounded Rust/noq feasibility and exact dependency-pin gate, not
 
 ## Reviewed source snapshots
 
-These exact commits were reviewed on 2026-08-21. They are evidence snapshots, not approved dependencies unless the design and licence checks explicitly add them.
+These exact snapshots were reviewed by 2026-08-30. They are evidence snapshots, not approved dependencies unless the design and licence checks explicitly add them.
 
 | Project | Reviewed snapshot | Licence | Use or boundary |
 | --- | --- | --- | --- |
@@ -30,6 +30,8 @@ These exact commits were reviewed on 2026-08-21. They are evidence snapshots, no
 | [atch](https://github.com/dand-oss/atch) | `90c3d2f09834a3394a144296ec65efea18f34859` | GPL | Session names and management behavior reference only; no source, tests, comments, logs, or distinctive structure. |
 | [dtach](https://github.com/crigler/dtach) | `b027c27b2439081064d07a86883c8e0b20a183c9` | GPL-2.0 | Minimal PTY loop and drain behavior reference only. |
 | [zmx](https://github.com/neurosnap/zmx) | `ea45749278bac648ab13a4280a6035012854d717`; zmosh base `cd88d1b` | MIT | Daemon-per-session and discovery UX reference; screen snapshots and scrollback excluded. |
+| [tty7](https://github.com/l0ng-ai/tty7) | `a2b5ae56d920fa8fadb05b7e9141cb9fe8e23a48` | Apache-2.0 | Raw replay and authoritative client-terminal comparison; a full terminal workbench, not an `everpty` component. |
+| [OpenAI Codex CLI](https://github.com/openai/codex) | `rust-v0.151.0` | Apache-2.0 | Application-owned structured transcript, resize reflow, transcript overlay, and session-resume evidence. |
 | [zmosh](https://github.com/dand-oss/zmosh) | `205e8394c8841798d96c21d66bdba5155ee04868` on `replant-zmx0.7` | MIT | QUIC adapter failure cases, timers, bounded egress, FIN, loss, reorder, and SSH-bootstrap test reference. |
 | [quicz](https://github.com/dand-oss/quicz) | `067e7bab687536c1327fb436484dee85d5368318` | MIT | Zig transport test evidence only; eversh does not inherit zmosh's language or Ghostty constraints. |
 | [quicssh-rs](https://github.com/oowl/quicssh-rs) | `d748a0f0f5fafea95ff4072d58c397a0afa809ac` | MIT | Rust ProxyCommand topology reference; reviewed certificate and gateway shortcuts are rejected. |
@@ -62,6 +64,32 @@ atch and zmx confirm useful names, session directories, list/current/kill, stale
 Kitty's [FAQ](https://sw.kovidgoyal.net/kitty/faq/) and [multiplexer explanation](https://github.com/kovidgoyal/kitty/issues/391#issuecomment-638320745) support keeping a real local terminal directly attached so it retains native scrollback, graphics, OSC-52, keyboard protocols, and rendering. The narrower eversh claim is testable: eversh itself never parses terminal output.
 
 Ghostty and ghostty-vt are useful compatibility-test targets for transparent bytes, but no terminal-emulation crate, virtual grid, snapshot, scrollback model, or restore behavior belongs in the production graph. tmux or screen may run inside an everpty session if the user chooses; eversh does not reproduce them.
+
+### Application-owned redisplay and competing restoration models
+
+The attachment layer cannot safely guess when to restore scrollback. Raw PTY output does not distinguish durable semantic history from alternate-screen state, animations, secrets, or terminal queries with side effects. The stable boundary is therefore ownership, not a better heuristic: `everpty` preserves the child and PTY, applies the attaching writer's real dimensions, and forwards future bytes; the application restores meaning from application state when it supports doing so.
+
+| Layer or product | Retained authority | Attachment or recovery behavior | Relevance to eversh |
+| --- | --- | --- | --- |
+| `everpty` | Child process, PTY, ownership, and bounded live delivery only | Starts future-byte delivery at the accepted boundary | The v1 core contract. |
+| tty7 | Bounded raw-output replay ring segmented by terminal dimensions; its client owns an Alacritty terminal model | Sends the current size and raw snapshot segments for the client terminal to parse and render | Valid full-workbench design, but not safe to copy unless eversh also owns the terminal client and renderer. |
+| zmx and zmosh | A daemon-side Ghostty VT shadow model | Sends a semantic terminal snapshot on attachment | Valid generic-TUI restoration layer, intentionally excluded from `everpty`. |
+| Superlogical | Announced server-side libghostty state plus capable clients running the same terminal state machine | Described design sends synchronized terminal state at attachment, then follows raw PTY output while scrollback arrives separately | Promising terminal-owning product above the PTY layer; pre-beta and not public enough to audit or benchmark, so it does not alter the v1 core. |
+| Codex CLI | Structured conversation cells and persisted thread state | Reflows from application cells on resize, opens its transcript with `Ctrl+T`, and resumes a dead process with `codex resume` | Preferred application-native recovery for Codex sessions; no PTY replay is needed. |
+
+tty7 does not use zmx's shadow-VT architecture. Its daemon [stores a bounded raw replay ring segmented by dimensions](https://github.com/l0ng-ai/tty7/blob/a2b5ae56d920fa8fadb05b7e9141cb9fe8e23a48/crates/tty7-core/src/daemon/scrollback.rs#L1-L63) and [sends size-tagged raw snapshot segments](https://github.com/l0ng-ai/tty7/blob/a2b5ae56d920fa8fadb05b7e9141cb9fe8e23a48/crates/tty7-core/src/daemon/pane.rs#L2435-L2439). The client then feeds those bytes into its [authoritative Alacritty terminal parser](https://github.com/l0ng-ai/tty7/blob/a2b5ae56d920fa8fadb05b7e9141cb9fe8e23a48/src/terminal/remote.rs#L1019-L1027). tty7 can make that replay coherent because it owns the terminal workbench and explicitly handles concerns such as [Kitty graphics commands](https://github.com/l0ng-ai/tty7/blob/a2b5ae56d920fa8fadb05b7e9141cb9fe8e23a48/crates/tty7-core/src/core/kitty_graphics.rs#L1-L16), geometry, resets, and query side effects. A transparent PTY broker does not have that authority.
+
+zmx instead feeds output to both the live client and a daemon-side Ghostty VT, then serializes the terminal model on reattachment; its [implementation description](https://zmx.sh/#impl) explicitly makes the shadow terminal the restoration authority. This is the approach already explored by zmosh and remains available if a higher-level generic terminal-restoration product is required, but it is not needed for applications that can redraw themselves.
+
+Superlogical is the closest announced product to a deliberate hybrid of the tty7 and zmx ideas. Its [official product description](https://www.superlogical.com/) promises long-lived terminal blocks, native scrollback and selection, web and native clients, sharing, and cross-device reconnection; Mitchell Hashimoto's [announcement](https://mitchellh.com/writing/superlogical) says the multiplexer is built on libghostty. The [detailed architecture thread](https://x.com/mitchellh/status/2082936029426892960) describes an authoritative libghostty terminal model on the server while capable clients parse the same raw PTY stream in parallel. On attachment the server supplies synchronized screen state, then live raw output continues; historical scrollback can follow separately. Native splits and view state belong to the clients rather than being redrawn into one server-owned terminal.
+
+That architecture can avoid the normal tmux-style parse-and-re-encode step on the live display path, but it still makes terminal emulation and synchronization part of the product. It must solve exact snapshot/live-stream boundaries, terminal-size authority, version-compatible state machines, client desynchronization, terminal queries, graphics, and access control. The [August 2026 demo](https://x.com/mitchellh/status/2093451043661316217) and [no-learning multiplexer claim](https://x.com/mitchellh/status/2093456226810200230) are useful product-direction evidence, not independent performance or correctness results. As of 2026-08-30 the official site still describes an upcoming beta and possible future open-source releases; there is no public implementation, stable protocol, licence for the complete product, or reproducible benchmark to audit.
+
+Superlogical therefore strengthens rather than weakens the EverPTY boundary. Generic exact restoration is possible when a product deliberately owns matching terminal state on the server and clients. EverPTY does not own those clients and must remain process continuity plus future bytes. Superlogical may become a strong higher-level replacement for zmosh or tty7-style UX when it ships, but it is not a reason to put speculative replay or a VT into the transparent broker.
+
+Codex CLI provides concrete application-owned behavior in the locally reviewed `0.151.0` release. [`Ctrl+T` opens the transcript overlay](https://github.com/openai/codex/blob/rust-v0.151.0/codex-rs/tui/src/app/input.rs#L350-L356), while its [resize handling rebuilds the inline transcript from structured history cells](https://github.com/openai/codex/blob/rust-v0.151.0/codex-rs/tui/src/transcript_reflow.rs#L1-L13). If the application process no longer exists, [`codex resume --last` or `codex resume <thread-id>`](https://learn.chatgpt.com/docs/codex/cli) restores the semantic session. [`Ctrl+L` clears the UI transcript](https://github.com/openai/codex/blob/rust-v0.151.0/codex-rs/tui/src/app/history_ui.rs#L270-L322); it is not a restoration command. This separation is the expected agent workload: EverPTY preserves a still-running process, while Codex owns conversation history and redisplay.
+
+The decision is not to remove `everpty`; it is to keep its abstraction honest. For an opaque full-screen application with no native redraw or semantic history, attachment intentionally yields only future bytes. Users who require exact historical visuals should select a terminal-owning layer such as tty7, zmx/zmosh, tmux, or screen rather than adding replay guesses to the process-continuity core.
 
 ## QUIC and SSH evidence
 

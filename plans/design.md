@@ -1,6 +1,6 @@
 # eversh v1 design
 
-Status: Rust implementation contract and staged delivery baseline | Last updated: 2026-08-21
+Status: Rust implementation contract and staged delivery baseline | Last updated: 2026-08-30
 
 This document is normative for v1 of `everpty`, `everlink`, and `eversh`. The terms MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are normative. A change to a MUST or MUST NOT requires a recorded design revision.
 
@@ -47,6 +47,14 @@ No component may parse, translate, filter, normalize, inject, or synthesize term
 Attach stdout contains only child PTY output. ProxyCommand stdout contains only the target OpenSSH byte stream. Diagnostics, state changes, retries, and errors go to stderr. Secrets and arbitrary payload bytes MUST NOT appear in diagnostics.
 
 No retained/session/replay output buffer is permitted in memory, on disk, in protocol frames, or in metadata. Bounded live delivery queues, kernel queues, and QUIC's unacknowledged retransmission state are delivery mechanisms only; they are discarded when their connection or attachment ends.
+
+### 3.1 Application-owned redisplay
+
+Terminal history is not PTY state. A PTY byte stream does not reveal whether retained bytes represent a shell log, a semantic agent conversation, an alternate-screen repaint, a transient progress frame, sensitive output, or a terminal query whose replay would cause new input or other side effects. `everpty` therefore MUST NOT infer a restoration boundary or decide when or what to redisplay.
+
+On attachment, `everpty` applies only the writer's actual dimensions under section 5.3 and begins future-byte delivery at the accepted output boundary. The child application owns any semantic transcript, repaint, reconnect, or session resume. An application MAY redraw from its own state after a real resize or an explicit user or application command; `everpty` MUST NOT synthesize such commands, input, signals, or terminal output to provoke it.
+
+Agent CLIs that retain structured conversations are a primary compatible workload, but application-owned recovery is not an `everpty` dependency or guarantee. An opaque application without its own redraw or history receives future bytes only. Exact visual restoration requires an optional product above `everpty`, such as zmosh, tty7, tmux, or an application-native equivalent; it does not belong in the broker. `everpty` is a process-continuity substrate for self-restoring applications, not a universal exact-screen-restoration multiplexer.
 
 ## 4. Resource and protocol limits
 
