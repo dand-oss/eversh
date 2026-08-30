@@ -2,7 +2,8 @@
 //!
 //! `extract_spki` walks the certificate DER read-only to return the raw
 //! SubjectPublicKeyInfo bytes; this is parsing, not certificate generation
-//! (rcgen, pinned =0.13.2 with only `ring`, generates the ephemeral
+//! (rcgen, pinned =0.13.2 with `ring` plus application-key zeroization,
+//! generates the ephemeral
 //! certificate in M3). The verifier accepts exactly one SPKI SHA-256 pin
 //! and fails closed for any other key.
 
@@ -12,7 +13,32 @@ use noq::rustls::client::danger::{
 use noq::rustls::crypto::{verify_tls12_signature, verify_tls13_signature, CryptoProvider};
 use noq::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use noq::rustls::DigitallySignedStruct;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+
+#[derive(Debug)]
+pub(crate) struct PinMismatchMarker;
+
+impl std::fmt::Display for PinMismatchMarker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        crate::Error::PinMismatch.fmt(f)
+    }
+}
+
+impl std::error::Error for PinMismatchMarker {}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PinMismatchState(Arc<AtomicBool>);
+
+impl PinMismatchState {
+    fn record(&self) {
+        self.0.store(true, Ordering::Release);
+    }
+
+    pub(crate) fn observed(&self) -> bool {
+        self.0.load(Ordering::Acquire)
+    }
+}
 
 /// A verifier that accepts exactly one SPKI SHA-256 pin and nothing else.
 /// The whole-certificate fingerprint is deliberately NOT used.
@@ -20,11 +46,31 @@ use std::sync::Arc;
 pub struct SpkiPinVerifier {
     pin: [u8; 32],
     provider: Arc<CryptoProvider>,
+    mismatch: PinMismatchState,
 }
 
 impl SpkiPinVerifier {
     pub fn new(pin: [u8; 32], provider: Arc<CryptoProvider>) -> Self {
-        Self { pin, provider }
+        Self {
+            pin,
+            provider,
+            mismatch: PinMismatchState::default(),
+        }
+    }
+
+    pub(crate) fn tracked(
+        pin: [u8; 32],
+        provider: Arc<CryptoProvider>,
+    ) -> (Self, PinMismatchState) {
+        let mismatch = PinMismatchState::default();
+        (
+            Self {
+                pin,
+                provider,
+                mismatch: mismatch.clone(),
+            },
+            mismatch,
+        )
     }
 }
 
@@ -43,8 +89,11 @@ impl ServerCertVerifier for SpkiPinVerifier {
         if crate::bootstrap::ct_eq(&crate::bootstrap::sha256(spki), &self.pin) {
             Ok(ServerCertVerified::assertion())
         } else {
-            Err(noq::rustls::Error::General(
-                crate::Error::PinMismatch.to_string(),
+            self.mismatch.record();
+            Err(noq::rustls::Error::InvalidCertificate(
+                noq::rustls::CertificateError::Other(noq::rustls::OtherError(Arc::new(
+                    PinMismatchMarker,
+                ))),
             ))
         }
     }

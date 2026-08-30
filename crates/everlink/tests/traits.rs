@@ -10,7 +10,7 @@ fn error_is_static_send_sync() {
 #[test]
 fn runtime_limits_are_provisional() {
     let l = everlink::Limits::default();
-    let named: [(&str, u64); 10] = [
+    let named: [(&str, u64); 14] = [
         ("copy_buf", l.copy_buf as u64),
         ("send_window", l.send_window),
         ("receive_window", l.receive_window),
@@ -21,10 +21,19 @@ fn runtime_limits_are_provisional() {
         ("drain_timeout_ms", l.drain_timeout_ms),
         ("finalize_timeout_ms", l.finalize_timeout_ms),
         ("bootstrap_timeout_ms", l.bootstrap_timeout_ms),
+        ("max_pending_handshakes", l.max_pending_handshakes as u64),
+        ("incoming_buffer_size", l.incoming_buffer_size),
+        ("max_retry_attempts", l.max_retry_attempts as u64),
+        ("max_udp_port_span", l.max_udp_port_span as u64),
     ];
     for (name, v) in named {
         assert!(v > 0, "{name} must be finite and named");
     }
+    assert!(l.validate().is_ok());
+    assert_eq!(
+        l.incoming_buffer_total().unwrap(),
+        l.incoming_buffer_size * l.max_pending_handshakes as u64
+    );
 }
 
 #[test]

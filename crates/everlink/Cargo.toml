@@ -16,7 +16,9 @@ clap = { version = "=4.6.6", default-features = false, features = ["std", "deriv
 noq = { version = "=1.1.1", default-features = false, features = ["runtime-tokio", "rustls", "ring", "bloom"] }
 tokio = { version = "1", features = ["rt-multi-thread", "net", "process", "io-util", "io-std", "time", "sync", "macros"] }
 ring = "0.17"
-rcgen = { version = "=0.13.2", default-features = false, features = ["ring"] }
+rcgen = { version = "=0.13.2", default-features = false, features = ["ring", "zeroize"] }
+subtle = "2"
+zeroize = "1"
 
 [dev-dependencies]
 rcgen = { version = "=0.13.2", default-features = false, features = ["ring"] }

@@ -7,14 +7,14 @@ use everlink::limits::Limits;
 use std::net::IpAddr;
 
 fn sample_record() -> BootstrapRecord {
-    BootstrapRecord {
-        version: 1,
-        udp_endpoint: IpAddr::from([127, 0, 0, 1]),
-        udp_port: 4433,
-        spki_sha256: [7; 32],
-        token: [9; 32],
-        pid: 4242,
-    }
+    BootstrapRecord::new(
+        IpAddr::from([127, 0, 0, 1]),
+        4433,
+        [7; 32],
+        SecretToken::from_bytes([9; 32]),
+        4242,
+    )
+    .unwrap()
 }
 
 #[test]
@@ -87,10 +87,14 @@ fn every_truncation_of_record_fails() {
 #[test]
 fn ipv6_literal_roundtrips() {
     let l = Limits::default();
-    let r = BootstrapRecord {
-        udp_endpoint: "fd00::1".parse().unwrap(),
-        ..sample_record()
-    };
+    let r = BootstrapRecord::new(
+        "fd00::1".parse().unwrap(),
+        4433,
+        [7; 32],
+        SecretToken::from_bytes([9; 32]),
+        4242,
+    )
+    .unwrap();
     let parsed = BootstrapRecord::parse(r.encode().trim_end_matches('\n'), &l).unwrap();
     assert_eq!(parsed, r);
 }
@@ -98,17 +102,18 @@ fn ipv6_literal_roundtrips() {
 #[test]
 fn auth_frame_is_exactly_35_bytes_be() {
     let l = Limits::default();
-    let f = encode_auth_frame(&[3; 32], 0x1234, &l);
+    let token = SecretToken::from_bytes([3; 32]);
+    let f = encode_auth_frame(&token, 0x1234, &l);
     assert_eq!(f.len(), 35);
     assert_eq!(f[0], 1);
     assert_eq!(&f[33..35], &[0x12, 0x34], "target port big-endian");
     let (tok, port) = decode_auth_frame(&f, &l).unwrap();
-    assert_eq!(tok, [3; 32]);
+    assert_eq!(tok.as_bytes(), &[3; 32]);
     assert_eq!(port, 0x1234);
     for bad_len in [0usize, 1, 34, 36, 4096] {
         assert!(decode_auth_frame(&vec![0u8; bad_len], &l).is_err());
     }
-    let mut bad_version = f.clone();
+    let mut bad_version = f.as_ref().to_vec();
     bad_version[0] = 2;
     assert!(matches!(
         decode_auth_frame(&bad_version, &l),

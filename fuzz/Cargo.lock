@@ -215,7 +215,9 @@ dependencies = [
  "noq",
  "rcgen",
  "ring",
+ "subtle",
  "tokio",
+ "zeroize",
 ]
 
 [[package]]
@@ -613,6 +615,7 @@ dependencies = [
  "rustls-pki-types",
  "time",
  "yasna",
+ "zeroize",
 ]
 
 [[package]]
