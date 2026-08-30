@@ -3133,6 +3133,7 @@ mod tests {
 
     #[test]
     fn terminal_hint_under_pressure_preserves_master_input_and_deadline() {
+        let _process_serial = sys::SIGNAL_TEST_LOCK.lock().expect("process test lock");
         let mut limits = one_frame_cap_limits(32, 128);
         limits.stall_deadline_ms = 50;
         let (base, clock, mut broker) = broker_with_limits_at(100, limits);
@@ -3180,7 +3181,16 @@ mod tests {
 
         slave.write_all(b"final!").expect("final marker");
         drop(slave);
-        broker.run_once(Some(0)).expect("real pressure-gated HUP");
+        // A concurrently loaded test process can observe the slave's final
+        // data before Linux publishes the terminal HUP.  Keep the assertion
+        // bounded, but do not require both readiness changes in one zero-time
+        // poll.
+        for _ in 0..8 {
+            broker.run_once(Some(1)).expect("real pressure-gated HUP");
+            if broker.pty_terminal_pending() {
+                break;
+            }
+        }
         assert!(broker.has_pty_master());
         assert!(broker.pty_terminal_pending());
         assert_eq!(

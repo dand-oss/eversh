@@ -1618,6 +1618,7 @@ mod tests {
 
     #[test]
     fn tstp_cont_return_restores_termios_mask_and_both_fd_statuses() {
+        let _process_serial = sys::SIGNAL_TEST_LOCK.lock().expect("process test lock");
         let mut isolated = Command::new(std::env::current_exe().expect("unit-test executable"))
             .arg("--exact")
             .arg("attach::tests::tstp_cont_isolated_helper")

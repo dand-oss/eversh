@@ -738,6 +738,7 @@ mod tests {
 
     #[test]
     fn daemon_broker_setup_succeeds_in_the_one_fork_child() {
+        let _process_serial = sys::SIGNAL_TEST_LOCK.lock().expect("process test lock");
         let (read, write) = sys::pipe_cloexec().expect("pipe");
         // SAFETY: the child executes only syscall wrappers and _exit.
         match unsafe { sys::fork_broker().expect("fork") } {

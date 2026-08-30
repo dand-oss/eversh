@@ -23,6 +23,8 @@ use nix::sys::signal::Signal;
 use nix::sys::socket::{getsockopt, sockopt::PeerCredentials};
 
 #[cfg(test)]
+// Serializes signal-state tests and tests whose fork/exec can transiently
+// inherit another test's live descriptors before CLOEXEC takes effect.
 pub(crate) static SIGNAL_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 // Re-exported so the broker names poll types through this module only.
