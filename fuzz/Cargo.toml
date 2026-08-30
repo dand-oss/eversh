@@ -46,3 +46,17 @@ path = "fuzz_targets/fuzz_remote_control.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_metadata"
+path = "fuzz_targets/fuzz_metadata.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_proc_stat"
+path = "fuzz_targets/fuzz_proc_stat.rs"
+test = false
+doc = false
+bench = false

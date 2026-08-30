@@ -104,13 +104,30 @@ fn resolve_closure(m: &cargo_metadata::Metadata, root: &str) -> HashSet<String> 
 #[test]
 fn everpty_dependency_closure_is_pure() {
     let m = metadata();
-    let closure = resolve_closure(&m, "everpty");
+    let mut closure = resolve_closure(&m, "everpty");
     for banned in ["tokio", "noq", "ring", "rcgen", "clap"] {
         assert!(
             !closure.contains(banned),
             "everpty (lib) closure must not contain {banned}: the `cli` feature is optional and off here"
         );
     }
+    assert!(closure.remove("everpty"), "closure contains its root");
+    let approved: HashSet<String> = [
+        "autocfg",
+        "bitflags",
+        "cfg-if",
+        "cfg_aliases",
+        "libc",
+        "memoffset",
+        "nix",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    assert_eq!(
+        closure, approved,
+        "everpty's core closure is exactly nix/libc and their approved support graph"
+    );
 }
 
 #[test]
