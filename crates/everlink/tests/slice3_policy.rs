@@ -106,6 +106,71 @@ fn argv_is_destination_safe_allowlisted_and_fixed() {
 }
 
 #[test]
+fn every_bootstrap_owned_command_line_setting_is_rejected() {
+    for option in [
+        "-oProxyCommand=none",
+        "-oProxyJump=jump.example",
+        "-Jjump.example",
+        "-oControlMaster=no",
+        "-oControlPath=none",
+        "-S/tmp/control",
+        "-oControlPersist=no",
+        "-oForkAfterAuthentication=no",
+        "-oPermitLocalCommand=no",
+        "-oLocalCommand=false",
+        "-oRemoteCommand=none",
+        "-oSessionType=default",
+        "-oRequestTTY=no",
+        "-oClearAllForwardings=yes",
+        "-oForwardAgent=no",
+        "-oForwardX11=no",
+        "-oForwardX11Trusted=no",
+        "-oTunnel=no",
+        "-oStdinNull=yes",
+    ] {
+        assert!(
+            SshPlan::new("alias".into(), "22".into(), vec![option.into()]).is_err(),
+            "accepted bootstrap-owned option {option}"
+        );
+    }
+}
+
+#[test]
+fn duplicate_allowed_values_use_the_first_command_line_value() {
+    let config = temp_path("duplicate-config");
+    fs::write(&config, "Host *\n  ConnectTimeout 17\n").unwrap();
+    let plan = SshPlan::new(
+        "example.invalid".into(),
+        "22".into(),
+        vec![
+            "-oConnectTimeout=3".into(),
+            "-oConnectTimeout=9".into(),
+            format!("-F{}", config.display()),
+        ],
+    )
+    .unwrap();
+    let output = Command::new("ssh")
+        .args(plan.config_query_args())
+        .output()
+        .unwrap();
+    let _ = fs::remove_file(&config);
+    assert!(
+        output.status.success(),
+        "ssh -G failed: {:?}",
+        output.stderr
+    );
+    let text = String::from_utf8(output.stdout).unwrap();
+    assert!(text.lines().any(|line| line == "connecttimeout 3"));
+
+    let query = plan.config_query_args();
+    let bootstrap = plan.bootstrap_args();
+    assert!(!query
+        .windows(2)
+        .any(|pair| pair == ["-o", "ProxyCommand=none"]));
+    assert_eq!(&bootstrap[..2], ["-o", "ProxyCommand=none"]);
+}
+
+#[test]
 fn installed_openssh_honors_first_value_ownership_policy() {
     let config = temp_path("hostile-config");
     fs::write(
@@ -151,6 +216,7 @@ fn installed_openssh_honors_first_value_ownership_policy() {
     }
     assert!(!text.lines().any(|line| line.starts_with("proxycommand ")));
     assert!(!text.lines().any(|line| line.starts_with("controlpath ")));
+    assert!(!text.lines().any(|line| line.starts_with("localcommand ")));
     assert!(!text.lines().any(|line| line.starts_with("remotecommand ")));
 }
 

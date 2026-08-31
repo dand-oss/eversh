@@ -396,6 +396,19 @@ mod tests {
     use crate::bootstrap::SecretToken;
     use std::net::{IpAddr, Ipv4Addr};
 
+    #[test]
+    fn secret_capture_debug_reports_only_shape() {
+        let captured = SecretBytes {
+            bytes: b"sensitive-bootstrap-token".to_vec(),
+            overflow: true,
+        };
+        let debug = format!("{captured:?}");
+        assert!(debug.contains("length: 25"));
+        assert!(debug.contains("overflow: true"));
+        assert!(!debug.contains("sensitive"));
+        assert!(!debug.contains("bootstrap-token"));
+    }
+
     #[tokio::test]
     async fn capped_reader_drains_and_marks_overflow() {
         let input = tokio::io::duplex(64);

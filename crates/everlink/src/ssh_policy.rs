@@ -15,6 +15,7 @@ const MANDATORY: &[&str] = &[
     "ControlPersist=no",
     "ForkAfterAuthentication=no",
     "PermitLocalCommand=no",
+    "LocalCommand=none",
     "RemoteCommand=none",
     "SessionType=default",
     "RequestTTY=no",
@@ -268,6 +269,12 @@ mod tests {
         assert_eq!(args[args.len() - 2], "user@alias");
         assert_eq!(args.last().unwrap(), REMOTE_BOOTSTRAP_COMMAND);
         assert!(!args.iter().any(|arg| arg.contains("BatchMode")));
+        assert_eq!(
+            args.iter()
+                .filter(|arg| arg.as_str() == "LocalCommand=none")
+                .count(),
+            1
+        );
         assert!(
             args.iter().position(|arg| arg == "ControlMaster=no")
                 < args.iter().position(|arg| arg == "-i/tmp/key")
