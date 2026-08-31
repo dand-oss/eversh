@@ -470,14 +470,28 @@ mod tests {
     async fn relay_failure_kills_child_before_release() {
         let script = Script::new("success");
         let authenticated = parse_ssh_connection("192.0.2.1 50000 192.0.2.2 22").unwrap();
+        // The full suite launches several real processes concurrently. Give
+        // this test's child enough time to reach the injected relay seam; the
+        // relay failure itself remains immediate and is still required to reap
+        // the child before release.
+        let limits = Limits {
+            bootstrap_timeout_ms: 5_000,
+            ..test_limits()
+        };
         let result = run_bootstrap_parent(
             authenticated,
             script.executable.clone(),
             FailingRelay,
-            test_limits(),
+            limits,
         )
         .await;
-        assert!(result.is_err());
+        assert!(
+            matches!(
+                &result,
+                Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::BrokenPipe
+            ),
+            "unexpected relay result: {result:?}"
+        );
         let pid = script.pid().await;
         assert!(!std::path::Path::new(&format!("/proc/{pid}")).exists());
     }
