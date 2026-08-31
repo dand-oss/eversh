@@ -1,9 +1,9 @@
 #!/usr/bin/bash
 set -Eeuo pipefail
 
-# Slice 5A exercises three production OpenSSH ProxyCommand sessions (status 0,
-# status 42, and one 1 MiB binary session) while keeping every process, key,
-# and diagnostic artifact owned by this bounded harness.
+# Slice 5A exercises four production OpenSSH ProxyCommand sessions (status 0,
+# status 42, one 1 MiB binary session, and one forced-PTY session) while keeping
+# every process, key, and diagnostic artifact owned by this bounded harness.
 
 readonly BASH_TOOL=/usr/bin/bash
 readonly CHMOD_TOOL=/usr/bin/chmod
@@ -33,10 +33,11 @@ readonly LN_TOOL=/usr/bin/ln
 readonly MV_TOOL=/usr/bin/mv
 readonly ENV_TOOL=/usr/bin/env
 readonly SHA256SUM_TOOL=/usr/bin/sha256sum
-# 3 SSH sessions (2*15s + one dedicated binary timeout) + 3*35s server
-# polls + startup/health checks and bounded failure cleanup, with finite
-# headroom for the three-session run.
-readonly WATCHDOG_SECONDS=300
+readonly STTY_TOOL=/usr/bin/stty
+# 4 SSH sessions (15+15+15+30s) + 4*35s server polls + bounded startup
+# (~50s), five 4s health checks, and bounded failure cleanup (~30s) total
+# about 315s; 420s leaves finite headroom without weakening nested timeouts.
+readonly WATCHDOG_SECONDS=420
 readonly POLL_SECONDS=5
 readonly SERVER_POLL_SECONDS=35
 readonly READINESS_POLL_ATTEMPTS=60
@@ -50,7 +51,7 @@ for tool in "$BASH_TOOL" "$CHMOD_TOOL" "$CMP_TOOL" "$ID_TOOL" "$IP_TOOL" \
     "$SLEEP_TOOL" "$SORT_TOOL" "$SS_TOOL" "$SSH_TOOL" "$SSHD_EXE" \
     "$SSHKEYGEN_TOOL" "$SSHKEYSCAN_TOOL" "$STAT_TOOL" "$SETSID_TOOL" \
     "$TIMEOUT_TOOL" "$AWK_TOOL" "$CAT_TOOL" "$DD_TOOL" "$HEAD_TOOL" \
-    "$LN_TOOL" "$MV_TOOL" "$ENV_TOOL" "$SHA256SUM_TOOL"; do
+    "$LN_TOOL" "$MV_TOOL" "$ENV_TOOL" "$SHA256SUM_TOOL" "$STTY_TOOL"; do
     [[ -x "$tool" ]] || {
         printf 'missing required executable\n' >&2
         exit 1
@@ -128,6 +129,9 @@ SERVER_EXE=
 SERVER_PGRP=
 SERVER_ROLE=
 SSH_ALIAS=everlink-slice5a-alias
+readonly PTY_TERM_VALUE=everlink-m3s5-pty
+readonly PTY_INPUT_LINE=everlink-pty-canonical-input-v1
+readonly PTY_MARKER=EVERLINK-PTY-SESSION-OK
 SSH_SHIM_DIR=
 SSH_SHIM=
 SSH_QUERY_ARGV=
@@ -626,13 +630,16 @@ prepare_isolated_sshd() {
         'X11Forwarding no' \
         'AllowAgentForwarding no' \
         'PermitTunnel no' \
-        'PermitTTY no' \
         'AllowTcpForwarding local' \
         'PermitOpen 127.0.0.1:*' \
         'GatewayPorts no' \
         'UseDNS no' \
         'PermitUserEnvironment no' \
-        'PermitUserRC no' > "$SSHD_CONFIG"
+        'PermitUserRC no' \
+        'Match LocalAddress 127.0.0.1' \
+        '    PermitTTY yes' \
+        'Match all' \
+        '    PermitTTY no' > "$SSHD_CONFIG"
     "$CHMOD_TOOL" 600 -- "$SSHD_CONFIG" || return 1
     run_bounded "$SSHD_EXE" -t -f "$SSHD_CONFIG" >/dev/null 2>"$SSHD_LOG" || return 1
 }
@@ -1213,6 +1220,69 @@ run_binary_production_session() {
         && listener_exact 127.0.0.1 "$ISOLATED_PORT"
 }
 
+run_pty_production_session() {
+    local session_number=$1
+    local input="$TMP_ROOT/pty-$session_number.input"
+    local expected="$TMP_ROOT/pty-$session_number.expected"
+    local output="$TMP_ROOT/pty-$session_number.stdout"
+    local error="$TMP_ROOT/pty-$session_number.stderr"
+    local remote_command status input_size expected_size output_size
+    local input_mode expected_mode output_mode error_mode
+
+    [[ $PTY_TERM_VALUE =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || return 1
+    [[ $PTY_INPUT_LINE =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || return 1
+    [[ $PTY_MARKER =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || return 1
+    clear_server_tuple
+    write_ssh_configs_and_shim "$session_number" || return 1
+    umask 077
+    "$PRINTF_TOOL" '%s\n' "$PTY_INPUT_LINE" > "$input" || return 1
+    "$PRINTF_TOOL" '%s\r\n%s\r\n' "$PTY_INPUT_LINE" "$PTY_MARKER" > "$expected" || return 1
+    : > "$output"
+    : > "$error"
+    "$CHMOD_TOOL" 600 -- "$input" "$expected" "$output" "$error" || return 1
+
+    input_size=$($STAT_TOOL -c '%s' -- "$input") || return 1
+    expected_size=$($STAT_TOOL -c '%s' -- "$expected") || return 1
+    input_mode=$($STAT_TOOL -c '%a' -- "$input") || return 1
+    expected_mode=$($STAT_TOOL -c '%a' -- "$expected") || return 1
+    [[ $input_size == $(( ${#PTY_INPUT_LINE} + 1 )) && \
+        $expected_size == $(( ${#PTY_INPUT_LINE} + ${#PTY_MARKER} + 4 )) && \
+        $input_mode == 600 && $expected_mode == 600 ]] || return 1
+
+    remote_command="$STTY_TOOL icanon echo opost onlcr && test -t 0 && test -t 1 && test -t 2 && [ \"\$TERM\" = '$PTY_TERM_VALUE' ] && IFS= read -r line && [ \"\$line\" = '$PTY_INPUT_LINE' ] && printf '%s\\n' '$PTY_MARKER'"
+    set +e
+    "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
+        "${SSH_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
+        "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
+        "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
+        "TERM=$PTY_TERM_VALUE" \
+        "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" -tt -- "$SSH_ALIAS" \
+        "$remote_command" < "$input" > "$output" 2> "$error"
+    status=$?
+    set -e
+    (( status == 0 )) || return 1
+    [[ ! -s $error ]] || return 1
+
+    input_size=$($STAT_TOOL -c '%s' -- "$input") || return 1
+    expected_size=$($STAT_TOOL -c '%s' -- "$expected") || return 1
+    output_size=$($STAT_TOOL -c '%s' -- "$output") || return 1
+    input_mode=$($STAT_TOOL -c '%a' -- "$input") || return 1
+    expected_mode=$($STAT_TOOL -c '%a' -- "$expected") || return 1
+    output_mode=$($STAT_TOOL -c '%a' -- "$output") || return 1
+    error_mode=$($STAT_TOOL -c '%a' -- "$error") || return 1
+    [[ $input_size == $(( ${#PTY_INPUT_LINE} + 1 )) && \
+        $expected_size == $(( ${#PTY_INPUT_LINE} + ${#PTY_MARKER} + 4 )) && \
+        $output_size == "$expected_size" && $input_mode == 600 && \
+        $expected_mode == 600 && $output_mode == 600 && $error_mode == 600 ]] || return 1
+    "$CMP_TOOL" -s -- "$expected" "$output" || return 1
+
+    verify_proxy_evidence || return 1
+    poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" "$SERVER_PGRP" \
+        "$SERVER_ROLE" || return 1
+    listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" \
+        && listener_exact 127.0.0.1 "$ISOLATED_PORT"
+}
+
 cleanup_detached_server() {
     local pid=$1 start=$2 exe=$3 pgrp=$4 role=$5
     local result rc=0 term_sent=0
@@ -1429,6 +1499,14 @@ run_binary_production_session 3 || {
 }
 run_direct_ssh 4 || {
     printf 'fourth direct ssh health check failed\n' >&2
+    exit 1
+}
+run_pty_production_session 4 || {
+    printf 'fourth production forced-PTY ProxyCommand session failed\n' >&2
+    exit 1
+}
+run_direct_ssh 5 || {
+    printf 'fifth direct ssh health check failed\n' >&2
     exit 1
 }
 clear_server_tuple
