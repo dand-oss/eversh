@@ -1,8 +1,9 @@
 #!/usr/bin/bash
 set -Eeuo pipefail
 
-# Slice 5A exercises one production OpenSSH ProxyCommand session while keeping
-# every process, key, and diagnostic artifact owned by this bounded harness.
+# Slice 5A exercises two production OpenSSH ProxyCommand sessions (status 0,
+# then status 42) while keeping every process, key, and diagnostic artifact
+# owned by this bounded harness.
 
 readonly BASH_TOOL=/usr/bin/bash
 readonly CHMOD_TOOL=/usr/bin/chmod
@@ -31,7 +32,9 @@ readonly HEAD_TOOL=/usr/bin/head
 readonly LN_TOOL=/usr/bin/ln
 readonly MV_TOOL=/usr/bin/mv
 readonly ENV_TOOL=/usr/bin/env
-readonly WATCHDOG_SECONDS=90
+# 2*15s SSH sessions + 2*35s server polls + startup/health checks and
+# bounded failure cleanup, with finite headroom for the two-session run.
+readonly WATCHDOG_SECONDS=150
 readonly POLL_SECONDS=5
 readonly SERVER_POLL_SECONDS=35
 readonly READINESS_POLL_ATTEMPTS=60
@@ -553,6 +556,14 @@ clear_owned() {
     OWN_ROLE=
 }
 
+clear_server_tuple() {
+    SERVER_PID=
+    SERVER_START=
+    SERVER_EXE=
+    SERVER_PGRP=
+    SERVER_ROLE=
+}
+
 prepare_isolated_sshd() {
     local host_blob derived_blob
     (( EUID != 0 )) || return 1
@@ -757,7 +768,8 @@ make_known_hosts() {
 }
 
 write_ssh_configs_and_shim() {
-    SSH_SHIM_DIR="$TMP_ROOT/ssh-shim"
+    local session_number=$1
+    SSH_SHIM_DIR="$TMP_ROOT/ssh-shim-$session_number"
     SSH_SHIM="$SSH_SHIM_DIR/ssh"
     SSH_QUERY_ARGV="$SSH_SHIM_DIR/query.argv"
     SSH_BOOTSTRAP_ARGV="$SSH_SHIM_DIR/bootstrap.argv"
@@ -1084,20 +1096,24 @@ verify_proxy_evidence() {
 }
 
 run_outer_ssh() {
-    local expected="EverLink isolated production connection" status
-    local output="$TMP_ROOT/outer.stdout" error="$TMP_ROOT/outer.stderr"
+    local session_number=$1 expected_status=$2 expected=$3 status remote_command
+    local output="$TMP_ROOT/outer-$session_number.stdout" error="$TMP_ROOT/outer-$session_number.stderr"
     printf '%s\n' "$expected" > "$SSHD_EXPECTED_OUTPUT"
     "$CHMOD_TOOL" 600 -- "$SSHD_EXPECTED_OUTPUT" || return 1
+    remote_command="$PRINTF_TOOL '%s\\n' '$expected'"
+    if [[ $expected_status == 42 ]]; then
+        remote_command+='; exit 42'
+    fi
     set +e
     "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
         "${SSH_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
         "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
         "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
         "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" -n -T -- "$SSH_ALIAS" \
-        "$PRINTF_TOOL '%s\\n' '$expected'" > "$output" 2> "$error"
+        "$remote_command" > "$output" 2> "$error"
     status=$?
     set -e
-    (( status == 0 )) || return 1
+    (( status == expected_status )) || return 1
     "$CMP_TOOL" -s -- "$SSHD_EXPECTED_OUTPUT" "$output" || return 1
     [[ ! -s $error ]]
 }
@@ -1126,6 +1142,18 @@ run_direct_ssh() {
     (( status == 0 )) || return 1
     "$CMP_TOOL" -s -- "$SSHD_EXPECTED_OUTPUT" "$output" || return 1
     [[ ! -s $error ]]
+}
+
+run_production_session() {
+    local session_number=$1 expected_status=$2 expected=$3
+    clear_server_tuple
+    write_ssh_configs_and_shim "$session_number" || return 1
+    run_outer_ssh "$session_number" "$expected_status" "$expected" || return 1
+    verify_proxy_evidence || return 1
+    poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" "$SERVER_PGRP" \
+        "$SERVER_ROLE" || return 1
+    listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" \
+        && listener_exact 127.0.0.1 "$ISOLATED_PORT"
 }
 
 cleanup_detached_server() {
@@ -1322,30 +1350,21 @@ run_direct_ssh 1 || {
     printf 'first direct ssh health check failed\n' >&2
     exit 1
 }
-write_ssh_configs_and_shim || {
-    printf 'production OpenSSH harness preparation failed\n' >&2
-    exit 1
-}
-run_outer_ssh || {
-    printf 'production ProxyCommand session failed\n' >&2
-    exit 1
-}
-verify_proxy_evidence || {
-    printf 'production ProxyCommand evidence validation failed\n' >&2
-    exit 1
-}
-poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" "$SERVER_PGRP" \
-    "$SERVER_ROLE" || {
-    printf 'detached EverLink server did not reach terminal state\n' >&2
-    exit 1
-}
-listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" \
-    && listener_exact 127.0.0.1 "$ISOLATED_PORT" || {
-    printf 'isolated sshd did not remain listening\n' >&2
+run_production_session 1 0 'EverLink isolated production connection' || {
+    printf 'first production ProxyCommand session failed\n' >&2
     exit 1
 }
 run_direct_ssh 2 || {
     printf 'second direct ssh health check failed\n' >&2
     exit 1
 }
+run_production_session 2 42 'EverLink isolated production connection 2' || {
+    printf 'second production ProxyCommand session failed\n' >&2
+    exit 1
+}
+run_direct_ssh 3 || {
+    printf 'third direct ssh health check failed\n' >&2
+    exit 1
+}
+clear_server_tuple
 exit 0
