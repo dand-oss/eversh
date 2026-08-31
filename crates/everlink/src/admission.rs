@@ -257,6 +257,15 @@ pub struct ConnectedTarget {
     finalize_timeout: Duration,
 }
 
+pub(crate) struct ConnectedTargetParts {
+    pub(crate) endpoint: Endpoint,
+    pub(crate) connection: Connection,
+    pub(crate) send: SendStream,
+    pub(crate) recv: RecvStream,
+    pub(crate) stream: TcpStream,
+    pub(crate) target_address: SocketAddr,
+}
+
 impl ConnectedTarget {
     pub fn target_address(&self) -> SocketAddr {
         self.target_address
@@ -272,6 +281,26 @@ impl ConnectedTarget {
 
     pub fn quic_recv_mut(&mut self) -> &mut RecvStream {
         &mut self.recv
+    }
+
+    pub(crate) fn into_parts(self) -> ConnectedTargetParts {
+        let Self {
+            endpoint,
+            connection,
+            send,
+            recv,
+            stream,
+            target_address,
+            ..
+        } = self;
+        ConnectedTargetParts {
+            endpoint,
+            connection,
+            send,
+            recv,
+            stream,
+            target_address,
+        }
     }
 
     pub async fn close(self) -> Result<(), Error> {

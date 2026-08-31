@@ -8,6 +8,18 @@ fn error_is_static_send_sync() {
 }
 
 #[test]
+fn slice2_public_types_have_owned_thread_safe_boundaries() {
+    fn assert_send<T: Send>() {}
+    fn assert_send_sync<T: Send + Sync>() {}
+    fn assert_copy<T: Copy>() {}
+
+    assert_send::<everlink::TargetBridge>();
+    assert_send_sync::<everlink::Shutdown>();
+    assert_copy::<everlink::BridgeCompletion>();
+    assert_copy::<everlink::TerminalCause>();
+}
+
+#[test]
 fn runtime_limits_are_provisional() {
     let l = everlink::Limits::default();
     let named: [(&str, u64); 14] = [

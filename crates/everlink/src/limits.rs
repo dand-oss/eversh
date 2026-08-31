@@ -141,6 +141,14 @@ impl Limits {
         Duration::from_millis(self.idle_timeout_ms)
     }
 
+    pub fn stall_timeout(&self) -> Duration {
+        Duration::from_millis(self.stall_timeout_ms)
+    }
+
+    pub fn drain_timeout(&self) -> Duration {
+        Duration::from_millis(self.drain_timeout_ms)
+    }
+
     pub fn finalize_timeout(&self) -> Duration {
         Duration::from_millis(self.finalize_timeout_ms)
     }

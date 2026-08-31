@@ -79,6 +79,8 @@ pub enum Error {
     StreamOpen,
     StreamRead,
     StreamWrite,
+    BridgeAllocation,
+    BridgeAdmissionClosed,
     DeadlineExpired(DeadlinePhase),
     TokenStateUnavailable,
     TargetConnect(std::io::Error),
@@ -189,6 +191,8 @@ impl std::fmt::Display for Error {
             Self::StreamOpen => f.write_str("required QUIC bidirectional stream unavailable"),
             Self::StreamRead => f.write_str("QUIC authentication stream read failed"),
             Self::StreamWrite => f.write_str("QUIC authentication stream write failed"),
+            Self::BridgeAllocation => f.write_str("fixed bridge buffer allocation failed"),
+            Self::BridgeAdmissionClosed => f.write_str("bridge admission is no longer running"),
             Self::DeadlineExpired(phase) => write!(f, "absolute {phase} deadline expired"),
             Self::TokenStateUnavailable => f.write_str("one-use token state unavailable"),
             Self::TargetConnect(source) => {
