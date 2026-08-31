@@ -8,6 +8,7 @@ use crate::error::{DeadlinePhase, EndpointViolation, Error, LimitViolation, UdpP
 use crate::identity::EphemeralIdentity;
 use crate::limits::Limits;
 use crate::pinning::{PinMismatchMarker, PinMismatchState, SpkiPinVerifier};
+use crate::shutdown::{Shutdown, TerminalCause};
 use noq::crypto::rustls::{QuicClientConfig, QuicServerConfig};
 use noq::rustls::client::Resumption;
 use noq::rustls::crypto::CryptoProvider;
@@ -19,7 +20,10 @@ use noq::{
     NoneTokenStore, RecvStream, SendStream, ServerConfig, TokioRuntime, TransportConfig, VarInt,
 };
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6, UdpSocket};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::Duration;
+use tokio::sync::{mpsc, watch};
+use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 const CLOSE_CODE: VarInt = VarInt::from_u32(0x4556);
@@ -32,15 +36,69 @@ pub enum UdpBindPolicy {
     Explicit(SocketAddr),
 }
 
+/// One kernel route lookup to the immutable authenticated server endpoint.
+/// The source port is always zero because port ownership is a separate bind
+/// decision; Linux interface identity is the route's output interface index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RouteIdentity {
+    source: SocketAddr,
+    interface_index: u32,
+}
+
+impl RouteIdentity {
+    pub fn source(&self) -> SocketAddr {
+        self.source
+    }
+
+    pub fn interface_index(&self) -> u32 {
+        self.interface_index
+    }
+}
+
+/// Why the production supervisor recomputed its one fixed route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RouteTrigger {
+    Notification,
+    FallbackPoll,
+    ProcessWake,
+    PathFailure,
+}
+
+/// Diagnostics-safe API evidence for the single transport-owned supervisor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RouteSupervisorSnapshot {
+    pub stable_id: usize,
+    pub local_address: SocketAddr,
+    pub current_route: RouteIdentity,
+    pub observations: u64,
+    pub notification_observations: u64,
+    pub fallback_observations: u64,
+    pub wake_observations: u64,
+    pub path_failure_observations: u64,
+    pub rebinds: u64,
+    pub same_route_replacements: u64,
+    pub task_finished: bool,
+}
+
 /// Successfully bound socket plus the exact endpoint verified from the kernel.
 pub struct BoundUdp {
     socket: UdpSocket,
     local_address: SocketAddr,
+    route: Option<RouteIdentity>,
 }
 
 impl BoundUdp {
     pub fn local_addr(&self) -> SocketAddr {
         self.local_address
+    }
+
+    pub fn route_identity(&self) -> Option<RouteIdentity> {
+        self.route
+    }
+
+    fn with_route(mut self, route: RouteIdentity) -> Self {
+        self.route = Some(route);
+        self
     }
 
     fn into_socket(self) -> UdpSocket {
@@ -103,7 +161,7 @@ pub fn bind_udp(
                     UdpPolicyViolation::PeerLoopbackRequiresExplicit,
                 ));
             }
-            let selected = kernel_selected_source(peer)?;
+            let selected = kernel_selected_route(peer, limits.route_observation_timeout())?;
             bind_route_selected(selected, None, limits)
         }
         UdpBindPolicy::RouteSelectedPortRange { start, end } => {
@@ -113,7 +171,7 @@ pub fn bind_udp(
                 ));
             }
             validate_range(start, end, limits)?;
-            let selected = kernel_selected_source(peer)?;
+            let selected = kernel_selected_route(peer, limits.route_observation_timeout())?;
             bind_route_selected(selected, Some((start, end)), limits)
         }
     }
@@ -187,7 +245,13 @@ fn validate_range(start: u16, end: u16, limits: &Limits) -> Result<(), Error> {
     Ok(())
 }
 
+#[cfg(test)]
 fn kernel_selected_source(peer: SocketAddr) -> Result<SocketAddr, Error> {
+    kernel_selected_route(peer, Limits::default().route_observation_timeout())
+        .map(|route| route.source)
+}
+
+fn kernel_selected_route(peer: SocketAddr, timeout: Duration) -> Result<RouteIdentity, Error> {
     let wildcard = match peer {
         SocketAddr::V4(_) => SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0),
         SocketAddr::V6(_) => SocketAddr::new(IpAddr::V6(Ipv6Addr::UNSPECIFIED), 0),
@@ -203,15 +267,21 @@ fn kernel_selected_source(peer: SocketAddr) -> Result<SocketAddr, Error> {
             UdpPolicyViolation::SelectedAddressUnusable,
         ));
     }
-    Ok(selected)
+    let source = with_port(selected, 0);
+    let interface_index = route_interface_index(peer, timeout)?;
+    Ok(RouteIdentity {
+        source,
+        interface_index,
+    })
 }
 
 fn bind_route_selected(
-    selected: SocketAddr,
+    selected: RouteIdentity,
     range: Option<(u16, u16)>,
     limits: &Limits,
 ) -> Result<BoundUdp, Error> {
-    bind_route_selected_with(selected, range, limits, bind_exact)
+    bind_route_selected_with(selected.source, range, limits, bind_exact)
+        .map(|bound| bound.with_route(selected))
 }
 
 fn bind_route_selected_with<F>(
@@ -287,7 +357,383 @@ fn bind_exact(requested: SocketAddr, ephemeral: bool) -> Result<BoundUdp, BindFa
     Ok(BoundUdp {
         socket,
         local_address: actual,
+        route: None,
     })
+}
+
+#[cfg(target_os = "linux")]
+fn route_interface_index(peer: SocketAddr, timeout: Duration) -> Result<u32, Error> {
+    linux_route::interface_index(peer, timeout).map_err(Error::RouteSelection)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn route_interface_index(_peer: SocketAddr, _timeout: Duration) -> Result<u32, Error> {
+    Ok(0)
+}
+
+#[cfg(target_os = "linux")]
+mod linux_route {
+    use super::*;
+    use std::ffi::c_void;
+    use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+    use std::os::raw::{c_int, c_long};
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    const AF_NETLINK: c_int = 16;
+    const SOCK_RAW: c_int = 3;
+    const SOCK_NONBLOCK: c_int = 0x800;
+    const SOCK_CLOEXEC: c_int = 0x80000;
+    const NETLINK_ROUTE: c_int = 0;
+    const SOL_SOCKET: c_int = 1;
+    const SO_RCVTIMEO: c_int = 20;
+    const MSG_DONTWAIT: c_int = 0x40;
+
+    const NLM_F_REQUEST: u16 = 1;
+    const NLMSG_ERROR: u16 = 2;
+    const NLMSG_DONE: u16 = 3;
+    const RTM_NEWROUTE: u16 = 24;
+    const RTM_GETROUTE: u16 = 26;
+    const RTA_DST: u16 = 1;
+    const RTA_OIF: u16 = 4;
+
+    const RTMGRP_LINK: u32 = 0x1;
+    const RTMGRP_IPV4_IFADDR: u32 = 0x10;
+    const RTMGRP_IPV4_ROUTE: u32 = 0x40;
+    const RTMGRP_IPV6_IFADDR: u32 = 0x100;
+    const RTMGRP_IPV6_ROUTE: u32 = 0x400;
+
+    static NEXT_SEQUENCE: AtomicU32 = AtomicU32::new(1);
+
+    #[repr(C)]
+    struct SockAddrNetlink {
+        family: u16,
+        padding: u16,
+        pid: u32,
+        groups: u32,
+    }
+
+    #[repr(C)]
+    struct TimeVal {
+        seconds: c_long,
+        microseconds: c_long,
+    }
+
+    extern "C" {
+        fn socket(domain: c_int, kind: c_int, protocol: c_int) -> c_int;
+        fn bind(descriptor: c_int, address: *const c_void, length: u32) -> c_int;
+        fn setsockopt(
+            descriptor: c_int,
+            level: c_int,
+            option: c_int,
+            value: *const c_void,
+            length: u32,
+        ) -> c_int;
+        fn sendto(
+            descriptor: c_int,
+            bytes: *const c_void,
+            length: usize,
+            flags: c_int,
+            address: *const c_void,
+            address_length: u32,
+        ) -> isize;
+        fn recv(descriptor: c_int, bytes: *mut c_void, length: usize, flags: c_int) -> isize;
+    }
+
+    fn open(groups: u32, nonblocking: bool) -> std::io::Result<OwnedFd> {
+        let mut kind = SOCK_RAW | SOCK_CLOEXEC;
+        if nonblocking {
+            kind |= SOCK_NONBLOCK;
+        }
+        // SAFETY: Linux socket(2) returns a new descriptor on success.
+        let raw = unsafe { socket(AF_NETLINK, kind, NETLINK_ROUTE) };
+        if raw < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        // SAFETY: ownership of the newly returned descriptor is transferred once.
+        let descriptor = unsafe { OwnedFd::from_raw_fd(raw) };
+        let address = SockAddrNetlink {
+            family: AF_NETLINK as u16,
+            padding: 0,
+            pid: 0,
+            groups,
+        };
+        // SAFETY: address points to a correctly sized Linux sockaddr_nl.
+        let result = unsafe {
+            bind(
+                descriptor.as_raw_fd(),
+                (&address as *const SockAddrNetlink).cast::<c_void>(),
+                std::mem::size_of::<SockAddrNetlink>() as u32,
+            )
+        };
+        if result < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        Ok(descriptor)
+    }
+
+    fn set_receive_timeout(descriptor: &OwnedFd, timeout: Duration) -> std::io::Result<()> {
+        let micros = timeout.as_micros().max(1);
+        let value = TimeVal {
+            seconds: (micros / 1_000_000).min(c_long::MAX as u128) as c_long,
+            microseconds: (micros % 1_000_000) as c_long,
+        };
+        // SAFETY: value is a valid timeval for Linux SO_RCVTIMEO.
+        let result = unsafe {
+            setsockopt(
+                descriptor.as_raw_fd(),
+                SOL_SOCKET,
+                SO_RCVTIMEO,
+                (&value as *const TimeVal).cast::<c_void>(),
+                std::mem::size_of::<TimeVal>() as u32,
+            )
+        };
+        if result < 0 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn append_u16(bytes: &mut Vec<u8>, value: u16) {
+        bytes.extend_from_slice(&value.to_ne_bytes());
+    }
+
+    fn append_u32(bytes: &mut Vec<u8>, value: u32) {
+        bytes.extend_from_slice(&value.to_ne_bytes());
+    }
+
+    fn aligned(length: usize) -> usize {
+        (length + 3) & !3
+    }
+
+    fn request(peer: SocketAddr, sequence: u32) -> Vec<u8> {
+        let destination = match peer.ip() {
+            IpAddr::V4(address) => address.octets().to_vec(),
+            IpAddr::V6(address) => address.octets().to_vec(),
+        };
+        let mut bytes = Vec::with_capacity(64);
+        append_u32(&mut bytes, 0);
+        append_u16(&mut bytes, RTM_GETROUTE);
+        append_u16(&mut bytes, NLM_F_REQUEST);
+        append_u32(&mut bytes, sequence);
+        append_u32(&mut bytes, 0);
+        bytes.push(if peer.is_ipv4() { 2 } else { 10 });
+        bytes.push(if peer.is_ipv4() { 32 } else { 128 });
+        bytes.extend_from_slice(&[0, 0, 0, 0, 0, 0]);
+        append_u32(&mut bytes, 0);
+        append_u16(&mut bytes, (4 + destination.len()) as u16);
+        append_u16(&mut bytes, RTA_DST);
+        bytes.extend_from_slice(&destination);
+        while bytes.len() % 4 != 0 {
+            bytes.push(0);
+        }
+        let length = bytes.len() as u32;
+        bytes[..4].copy_from_slice(&length.to_ne_bytes());
+        bytes
+    }
+
+    pub(super) fn interface_index(peer: SocketAddr, timeout: Duration) -> std::io::Result<u32> {
+        let descriptor = open(0, false)?;
+        set_receive_timeout(&descriptor, timeout)?;
+        let sequence = NEXT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let request = request(peer, sequence);
+        let kernel = SockAddrNetlink {
+            family: AF_NETLINK as u16,
+            padding: 0,
+            pid: 0,
+            groups: 0,
+        };
+        // SAFETY: all pointers remain valid for the duration of sendto(2).
+        let sent = unsafe {
+            sendto(
+                descriptor.as_raw_fd(),
+                request.as_ptr().cast::<c_void>(),
+                request.len(),
+                0,
+                (&kernel as *const SockAddrNetlink).cast::<c_void>(),
+                std::mem::size_of::<SockAddrNetlink>() as u32,
+            )
+        };
+        if sent < 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        if sent as usize != request.len() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::WriteZero,
+                "short kernel route request",
+            ));
+        }
+
+        let mut response = [0u8; 8192];
+        loop {
+            // SAFETY: response is writable for its complete length.
+            let count = unsafe {
+                recv(
+                    descriptor.as_raw_fd(),
+                    response.as_mut_ptr().cast::<c_void>(),
+                    response.len(),
+                    0,
+                )
+            };
+            if count < 0 {
+                let error = std::io::Error::last_os_error();
+                if error.kind() == std::io::ErrorKind::Interrupted {
+                    continue;
+                }
+                return Err(error);
+            }
+            let mut offset = 0usize;
+            let count = count as usize;
+            while offset + 16 <= count {
+                let length =
+                    u32::from_ne_bytes(response[offset..offset + 4].try_into().map_err(|_| {
+                        std::io::Error::new(std::io::ErrorKind::InvalidData, "route header")
+                    })?) as usize;
+                if length < 16 || offset + length > count {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "malformed kernel route response",
+                    ));
+                }
+                let kind =
+                    u16::from_ne_bytes(response[offset + 4..offset + 6].try_into().map_err(
+                        |_| std::io::Error::new(std::io::ErrorKind::InvalidData, "route type"),
+                    )?);
+                let reply_sequence =
+                    u32::from_ne_bytes(response[offset + 8..offset + 12].try_into().map_err(
+                        |_| std::io::Error::new(std::io::ErrorKind::InvalidData, "route sequence"),
+                    )?);
+                if reply_sequence == sequence {
+                    if kind == NLMSG_ERROR {
+                        if length < 20 {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "short kernel route error",
+                            ));
+                        }
+                        let code = i32::from_ne_bytes(
+                            response[offset + 16..offset + 20].try_into().map_err(|_| {
+                                std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    "route error code",
+                                )
+                            })?,
+                        );
+                        if code != 0 {
+                            return Err(std::io::Error::from_raw_os_error(-code));
+                        }
+                    } else if kind == NLMSG_DONE {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::NotFound,
+                            "kernel route has no output interface",
+                        ));
+                    } else if kind == RTM_NEWROUTE {
+                        if length < 28 {
+                            return Err(std::io::Error::new(
+                                std::io::ErrorKind::InvalidData,
+                                "short kernel route",
+                            ));
+                        }
+                        let mut attribute = offset + 28;
+                        while attribute + 4 <= offset + length {
+                            let attribute_length = u16::from_ne_bytes(
+                                response[attribute..attribute + 2].try_into().map_err(|_| {
+                                    std::io::Error::new(
+                                        std::io::ErrorKind::InvalidData,
+                                        "route attribute length",
+                                    )
+                                })?,
+                            ) as usize;
+                            let attribute_kind = u16::from_ne_bytes(
+                                response[attribute + 2..attribute + 4].try_into().map_err(
+                                    |_| {
+                                        std::io::Error::new(
+                                            std::io::ErrorKind::InvalidData,
+                                            "route attribute type",
+                                        )
+                                    },
+                                )?,
+                            );
+                            if attribute_length < 4
+                                || attribute + attribute_length > offset + length
+                            {
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    "malformed kernel route attribute",
+                                ));
+                            }
+                            if attribute_kind == RTA_OIF && attribute_length >= 8 {
+                                let index = u32::from_ne_bytes(
+                                    response[attribute + 4..attribute + 8].try_into().map_err(
+                                        |_| {
+                                            std::io::Error::new(
+                                                std::io::ErrorKind::InvalidData,
+                                                "route interface index",
+                                            )
+                                        },
+                                    )?,
+                                );
+                                if index != 0 {
+                                    return Ok(index);
+                                }
+                            }
+                            attribute += aligned(attribute_length);
+                        }
+                    }
+                }
+                offset += aligned(length);
+            }
+        }
+    }
+
+    pub(super) struct Notifications {
+        descriptor: tokio::io::unix::AsyncFd<OwnedFd>,
+    }
+
+    impl Notifications {
+        pub(super) fn open() -> std::io::Result<Self> {
+            let groups = RTMGRP_LINK
+                | RTMGRP_IPV4_IFADDR
+                | RTMGRP_IPV4_ROUTE
+                | RTMGRP_IPV6_IFADDR
+                | RTMGRP_IPV6_ROUTE;
+            Ok(Self {
+                descriptor: tokio::io::unix::AsyncFd::new(open(groups, true)?)?,
+            })
+        }
+
+        pub(super) async fn changed(&self) -> std::io::Result<()> {
+            let mut bytes = [0u8; 8192];
+            loop {
+                let mut readiness = self.descriptor.readable().await?;
+                let result = readiness.try_io(|descriptor| {
+                    // SAFETY: bytes is writable and the descriptor remains live.
+                    let count = unsafe {
+                        recv(
+                            descriptor.get_ref().as_raw_fd(),
+                            bytes.as_mut_ptr().cast::<c_void>(),
+                            bytes.len(),
+                            MSG_DONTWAIT,
+                        )
+                    };
+                    if count < 0 {
+                        Err(std::io::Error::last_os_error())
+                    } else if count == 0 {
+                        Err(std::io::Error::new(
+                            std::io::ErrorKind::UnexpectedEof,
+                            "kernel route notification socket closed",
+                        ))
+                    } else {
+                        Ok(())
+                    }
+                });
+                match result {
+                    Ok(result) => return result,
+                    Err(_would_block) => continue,
+                }
+            }
+        }
+    }
 }
 
 /// Server endpoint frozen at readiness. Constructing it never opens target TCP.
@@ -510,10 +956,517 @@ impl std::fmt::Debug for RoleAdmission {
     }
 }
 
+#[derive(Debug)]
+struct SupervisorSinkState {
+    shutdown: Option<Shutdown>,
+    pending: Option<TerminalCause>,
+}
+
+#[derive(Debug)]
+struct SupervisorSink {
+    state: Mutex<SupervisorSinkState>,
+    drain_timeout: Duration,
+}
+
+impl SupervisorSink {
+    fn new(drain_timeout: Duration) -> Self {
+        Self {
+            state: Mutex::new(SupervisorSinkState {
+                shutdown: None,
+                pending: None,
+            }),
+            drain_timeout,
+        }
+    }
+
+    fn attach(&self, shutdown: Shutdown) {
+        let pending = {
+            let mut state = lock_unpoisoned(&self.state);
+            state.shutdown = Some(shutdown.clone());
+            state.pending.take()
+        };
+        if let Some(cause) = pending {
+            shutdown.request_fatal(cause, self.drain_timeout);
+        }
+    }
+
+    fn report(&self, cause: TerminalCause) {
+        let shutdown = {
+            let mut state = lock_unpoisoned(&self.state);
+            match state.shutdown.clone() {
+                Some(shutdown) => Some(shutdown),
+                None => {
+                    if state.pending.is_none() {
+                        state.pending = Some(cause);
+                    }
+                    None
+                }
+            }
+        };
+        if let Some(shutdown) = shutdown {
+            shutdown.request_fatal(cause, self.drain_timeout);
+        }
+    }
+}
+
+fn lock_unpoisoned<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    match mutex.lock() {
+        Ok(value) => value,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PathFailureTrigger {
+    sender: mpsc::Sender<RouteTrigger>,
+}
+
+impl PathFailureTrigger {
+    pub(crate) fn notify(&self) {
+        let _ = self.sender.try_send(RouteTrigger::PathFailure);
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct RouteSupervisorOwner {
+    cancel: watch::Sender<bool>,
+    triggers: mpsc::Sender<RouteTrigger>,
+    handle: Option<JoinHandle<()>>,
+    snapshot: Arc<Mutex<RouteSupervisorSnapshot>>,
+    sink: Arc<SupervisorSink>,
+}
+
+impl RouteSupervisorOwner {
+    fn spawn(
+        endpoint: Endpoint,
+        connection: Connection,
+        peer: SocketAddr,
+        policy: UdpBindPolicy,
+        current_route: RouteIdentity,
+        limits: Limits,
+    ) -> Self {
+        let local_address = endpoint.local_addr().unwrap_or(current_route.source);
+        let snapshot = Arc::new(Mutex::new(RouteSupervisorSnapshot {
+            stable_id: connection.stable_id(),
+            local_address,
+            current_route,
+            observations: 0,
+            notification_observations: 0,
+            fallback_observations: 0,
+            wake_observations: 0,
+            path_failure_observations: 0,
+            rebinds: 0,
+            same_route_replacements: 0,
+            task_finished: false,
+        }));
+        let sink = Arc::new(SupervisorSink::new(limits.drain_timeout()));
+        let (cancel, cancel_receiver) = watch::channel(false);
+        let (triggers, trigger_receiver) = mpsc::channel(1);
+        let task_snapshot = snapshot.clone();
+        let task_sink = sink.clone();
+        let handle = tokio::spawn(async move {
+            let _finished = SupervisorFinished(task_snapshot.clone());
+            run_route_supervisor(RouteSupervisorRun {
+                endpoint,
+                connection,
+                peer,
+                policy,
+                limits,
+                current_route,
+                cancel: cancel_receiver,
+                triggers: trigger_receiver,
+                snapshot: task_snapshot,
+                sink: task_sink,
+            })
+            .await;
+        });
+        Self {
+            cancel,
+            triggers,
+            handle: Some(handle),
+            snapshot,
+            sink,
+        }
+    }
+
+    pub(crate) fn attach(&self, shutdown: Shutdown) {
+        self.sink.attach(shutdown);
+    }
+
+    pub(crate) fn path_failure_trigger(&self) -> PathFailureTrigger {
+        PathFailureTrigger {
+            sender: self.triggers.clone(),
+        }
+    }
+
+    fn request(&self, trigger: RouteTrigger) -> bool {
+        self.triggers.try_send(trigger).is_ok()
+    }
+
+    pub(crate) fn stop(&self) {
+        let _ = self.cancel.send(true);
+    }
+
+    pub(crate) async fn join(mut self, deadline: Instant) -> bool {
+        self.stop();
+        let Some(mut handle) = self.handle.take() else {
+            return true;
+        };
+        if Instant::now() >= deadline {
+            handle.abort();
+            let _ = handle.await;
+            return false;
+        }
+        let sleep = tokio::time::sleep_until(deadline);
+        tokio::pin!(sleep);
+        tokio::select! {
+            biased;
+            result = &mut handle => result.is_ok() && Instant::now() < deadline,
+            _ = &mut sleep => {
+                handle.abort();
+                let _ = handle.await;
+                false
+            }
+        }
+    }
+
+    fn snapshot(&self) -> RouteSupervisorSnapshot {
+        *lock_unpoisoned(&self.snapshot)
+    }
+}
+
+impl Drop for RouteSupervisorOwner {
+    fn drop(&mut self) {
+        let _ = self.cancel.send(true);
+        if let Some(handle) = self.handle.as_ref() {
+            handle.abort();
+        }
+    }
+}
+
+struct SupervisorFinished(Arc<Mutex<RouteSupervisorSnapshot>>);
+
+impl Drop for SupervisorFinished {
+    fn drop(&mut self) {
+        lock_unpoisoned(&self.0).task_finished = true;
+    }
+}
+
+struct RouteSupervisorRun {
+    endpoint: Endpoint,
+    connection: Connection,
+    peer: SocketAddr,
+    policy: UdpBindPolicy,
+    limits: Limits,
+    current_route: RouteIdentity,
+    cancel: watch::Receiver<bool>,
+    triggers: mpsc::Receiver<RouteTrigger>,
+    snapshot: Arc<Mutex<RouteSupervisorSnapshot>>,
+    sink: Arc<SupervisorSink>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RouteAction {
+    Noop,
+    RebindChanged(RouteIdentity),
+    ReplaceFailed(RouteIdentity),
+    Shutdown,
+}
+
+#[derive(Debug)]
+struct RouteState {
+    current: RouteIdentity,
+    same_route_replacements: usize,
+    max_same_route_replacements: usize,
+}
+
+impl RouteState {
+    fn new(current: RouteIdentity, max_same_route_replacements: usize) -> Self {
+        Self {
+            current,
+            same_route_replacements: 0,
+            max_same_route_replacements,
+        }
+    }
+
+    fn observe(&mut self, trigger: RouteTrigger, selected: RouteIdentity) -> RouteAction {
+        if selected != self.current {
+            return RouteAction::RebindChanged(selected);
+        }
+        if trigger != RouteTrigger::PathFailure {
+            return RouteAction::Noop;
+        }
+        if self.same_route_replacements < self.max_same_route_replacements {
+            self.same_route_replacements += 1;
+            RouteAction::ReplaceFailed(selected)
+        } else {
+            RouteAction::Shutdown
+        }
+    }
+
+    fn rebound(&mut self, selected: RouteIdentity, changed: bool) {
+        self.current = selected;
+        if changed {
+            self.same_route_replacements = 0;
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+type PlatformNotifications = linux_route::Notifications;
+
+#[cfg(target_os = "linux")]
+fn open_notifications() -> Option<PlatformNotifications> {
+    PlatformNotifications::open().ok()
+}
+
+#[cfg(not(target_os = "linux"))]
+struct PlatformNotifications;
+
+#[cfg(not(target_os = "linux"))]
+fn open_notifications() -> Option<PlatformNotifications> {
+    None
+}
+
+#[cfg(target_os = "linux")]
+async fn wait_for_notification(
+    notifications: &Option<PlatformNotifications>,
+) -> std::io::Result<()> {
+    match notifications {
+        Some(notifications) => notifications.changed().await,
+        None => std::future::pending().await,
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn wait_for_notification(
+    _notifications: &Option<PlatformNotifications>,
+) -> std::io::Result<()> {
+    std::future::pending().await
+}
+
+#[derive(Debug)]
+enum SupervisorEvent {
+    Cancelled,
+    Requested(RouteTrigger),
+    Notification(std::io::Result<()>),
+    Timer,
+}
+
+async fn run_route_supervisor(mut run: RouteSupervisorRun) {
+    let mut state = RouteState::new(run.current_route, run.limits.max_same_route_replacements);
+    let mut notifications = open_notifications();
+    let poll = run.limits.route_poll();
+    let now = Instant::now();
+    let mut expected_poll = now.checked_add(poll).unwrap_or(now);
+    let mut black_holes = run
+        .connection
+        .path_stats(noq::PathId::ZERO)
+        .map_or(0, |stats| stats.black_holes_detected);
+
+    loop {
+        if *run.cancel.borrow() {
+            break;
+        }
+        let timer = tokio::time::sleep_until(expected_poll);
+        tokio::pin!(timer);
+        let event = tokio::select! {
+            biased;
+            changed = run.cancel.changed() => {
+                if changed.is_err() || *run.cancel.borrow() {
+                    SupervisorEvent::Cancelled
+                } else {
+                    continue;
+                }
+            }
+            _ = &mut timer => SupervisorEvent::Timer,
+            requested = run.triggers.recv() => match requested {
+                Some(trigger) => SupervisorEvent::Requested(trigger),
+                None => SupervisorEvent::Cancelled,
+            },
+            result = wait_for_notification(&notifications) => SupervisorEvent::Notification(result),
+        };
+
+        let mut trigger = match event {
+            SupervisorEvent::Cancelled => break,
+            SupervisorEvent::Requested(trigger) => trigger,
+            SupervisorEvent::Notification(Ok(())) => RouteTrigger::Notification,
+            SupervisorEvent::Notification(Err(_)) => {
+                // A lost/overflowed notification socket must not permanently
+                // degrade Linux to polling. Re-open opportunistically while
+                // the mandatory finite timer remains authoritative.
+                notifications = open_notifications();
+                continue;
+            }
+            SupervisorEvent::Timer => {
+                let now = Instant::now();
+                let trigger = classify_timer_trigger(now, expected_poll, poll);
+                expected_poll = now.checked_add(poll).unwrap_or(now);
+                if notifications.is_none() {
+                    notifications = open_notifications();
+                }
+                trigger
+            }
+        };
+
+        let observed_black_holes = run
+            .connection
+            .path_stats(noq::PathId::ZERO)
+            .map_or(black_holes, |stats| stats.black_holes_detected);
+        if observed_black_holes > black_holes {
+            black_holes = observed_black_holes;
+            trigger = RouteTrigger::PathFailure;
+        }
+        if run
+            .connection
+            .close_reason()
+            .as_ref()
+            .is_some_and(connection_error_is_path_failure)
+        {
+            trigger = RouteTrigger::PathFailure;
+        }
+
+        record_observation(&run.snapshot, trigger);
+        let selected = match kernel_selected_route(run.peer, run.limits.route_observation_timeout())
+        {
+            Ok(selected) => selected,
+            Err(_) if trigger != RouteTrigger::PathFailure => continue,
+            Err(_) => {
+                fail_route_supervisor(&run, TerminalCause::PathFailed);
+                break;
+            }
+        };
+        let action = state.observe(trigger, selected);
+        let (selected, same_route, changed) = match action {
+            RouteAction::Noop => continue,
+            RouteAction::Shutdown => {
+                fail_route_supervisor(&run, TerminalCause::PathFailed);
+                break;
+            }
+            RouteAction::RebindChanged(selected) => (selected, false, true),
+            RouteAction::ReplaceFailed(selected) => (selected, true, false),
+        };
+
+        let bound = match bind_observed_route(selected, run.policy, &run.limits) {
+            Ok(bound) => bound,
+            Err(_) => {
+                fail_route_supervisor(
+                    &run,
+                    if same_route {
+                        TerminalCause::PathFailed
+                    } else {
+                        TerminalCause::RouteSupervisorFailed
+                    },
+                );
+                break;
+            }
+        };
+        let local_address = bound.local_addr();
+        let socket = bound.into_socket();
+        if socket.set_nonblocking(true).is_err() || run.endpoint.rebind(socket).is_err() {
+            fail_route_supervisor(
+                &run,
+                if same_route {
+                    TerminalCause::PathFailed
+                } else {
+                    TerminalCause::RouteSupervisorFailed
+                },
+            );
+            break;
+        }
+        state.rebound(selected, changed);
+        {
+            let mut snapshot = lock_unpoisoned(&run.snapshot);
+            snapshot.current_route = selected;
+            snapshot.local_address = local_address;
+            snapshot.rebinds = snapshot.rebinds.saturating_add(1);
+            if same_route {
+                snapshot.same_route_replacements =
+                    snapshot.same_route_replacements.saturating_add(1);
+            }
+        }
+        if same_route
+            && run
+                .connection
+                .close_reason()
+                .as_ref()
+                .is_some_and(connection_error_is_path_failure)
+        {
+            fail_route_supervisor(&run, TerminalCause::PathFailed);
+            break;
+        }
+    }
+}
+
+fn fail_route_supervisor(run: &RouteSupervisorRun, cause: TerminalCause) {
+    run.sink.report(cause);
+    run.connection
+        .close(CLOSE_CODE, b"route supervisor failure");
+}
+
+fn classify_timer_trigger(now: Instant, expected: Instant, poll: Duration) -> RouteTrigger {
+    let wake_threshold = expected.checked_add(poll).unwrap_or(expected);
+    if now > wake_threshold {
+        RouteTrigger::ProcessWake
+    } else {
+        RouteTrigger::FallbackPoll
+    }
+}
+
+fn connection_error_is_path_failure(error: &ConnectionError) -> bool {
+    matches!(
+        error,
+        ConnectionError::VersionMismatch
+            | ConnectionError::TransportError(_)
+            | ConnectionError::Reset
+            | ConnectionError::TimedOut
+            | ConnectionError::CidsExhausted
+    )
+}
+
+fn record_observation(snapshot: &Mutex<RouteSupervisorSnapshot>, trigger: RouteTrigger) {
+    let mut snapshot = lock_unpoisoned(snapshot);
+    snapshot.observations = snapshot.observations.saturating_add(1);
+    match trigger {
+        RouteTrigger::Notification => {
+            snapshot.notification_observations =
+                snapshot.notification_observations.saturating_add(1);
+        }
+        RouteTrigger::FallbackPoll => {
+            snapshot.fallback_observations = snapshot.fallback_observations.saturating_add(1);
+        }
+        RouteTrigger::ProcessWake => {
+            snapshot.wake_observations = snapshot.wake_observations.saturating_add(1);
+        }
+        RouteTrigger::PathFailure => {
+            snapshot.path_failure_observations =
+                snapshot.path_failure_observations.saturating_add(1);
+        }
+    }
+}
+
+fn bind_observed_route(
+    selected: RouteIdentity,
+    policy: UdpBindPolicy,
+    limits: &Limits,
+) -> Result<BoundUdp, Error> {
+    match policy {
+        UdpBindPolicy::RouteSelected => bind_route_selected(selected, None, limits),
+        UdpBindPolicy::RouteSelectedPortRange { start, end } => {
+            bind_route_selected(selected, Some((start, end)), limits)
+        }
+        UdpBindPolicy::Explicit(_) => Err(Error::InvalidUdpPolicy(
+            UdpPolicyViolation::SelectedAddressUnusable,
+        )),
+    }
+}
+
 /// Pinned client endpoint bound through the same exact literal policy.
 pub struct ClientEndpoint {
     endpoint: Endpoint,
     server_address: SocketAddr,
+    policy: UdpBindPolicy,
+    initial_route: Option<RouteIdentity>,
     limits: Limits,
     profile: LockedTransportProfile,
     pin_mismatch: PinMismatchState,
@@ -530,6 +1483,7 @@ impl ClientEndpoint {
         limits.validate()?;
         validate_remote(server_address)?;
         let bound = bind_udp(server_address, policy, &limits)?;
+        let initial_route = bound.route_identity();
         let provider = ring_provider();
         let (rustls, pin_mismatch) = locked_client_tls(spki_sha256, provider)?;
         let (client_config, profile) = locked_client_config(rustls, &limits)?;
@@ -538,6 +1492,8 @@ impl ClientEndpoint {
         Ok(Self {
             endpoint,
             server_address,
+            policy,
+            initial_route,
             limits,
             profile,
             pin_mismatch,
@@ -620,6 +1576,10 @@ impl ClientEndpoint {
             send,
             recv,
             deadline,
+            server_address: self.server_address,
+            policy: self.policy,
+            initial_route: self.initial_route,
+            limits: self.limits,
         })
     }
 }
@@ -639,15 +1599,31 @@ struct ClientTransport {
     send: SendStream,
     recv: RecvStream,
     deadline: Instant,
+    server_address: SocketAddr,
+    policy: UdpBindPolicy,
+    initial_route: Option<RouteIdentity>,
+    limits: Limits,
 }
 
 impl ClientTransport {
     fn into_session(self) -> ClientSession {
+        let supervisor = self.initial_route.map(|current_route| {
+            RouteSupervisorOwner::spawn(
+                self.endpoint.clone(),
+                self.connection.clone(),
+                self.server_address,
+                self.policy,
+                current_route,
+                self.limits,
+            )
+        });
         ClientSession {
             endpoint: self.endpoint,
             connection: self.connection,
             send: self.send,
             recv: self.recv,
+            supervisor,
+            finalize_timeout: self.limits.finalize_timeout(),
         }
     }
 }
@@ -659,6 +1635,8 @@ pub struct ClientSession {
     connection: Connection,
     send: SendStream,
     recv: RecvStream,
+    supervisor: Option<RouteSupervisorOwner>,
+    finalize_timeout: Duration,
 }
 
 pub(crate) struct ClientSessionParts {
@@ -666,6 +1644,7 @@ pub(crate) struct ClientSessionParts {
     pub(crate) connection: Connection,
     pub(crate) send: SendStream,
     pub(crate) recv: RecvStream,
+    pub(crate) supervisor: Option<RouteSupervisorOwner>,
 }
 
 impl ClientSession {
@@ -677,18 +1656,49 @@ impl ClientSession {
         &mut self.recv
     }
 
+    pub fn stable_id(&self) -> usize {
+        self.connection.stable_id()
+    }
+
+    pub fn local_addr(&self) -> Result<SocketAddr, Error> {
+        self.endpoint.local_addr().map_err(Error::UdpBind)
+    }
+
+    pub fn route_supervisor_snapshot(&self) -> Option<RouteSupervisorSnapshot> {
+        self.supervisor.as_ref().map(RouteSupervisorOwner::snapshot)
+    }
+
+    /// Production path-failure trigger shared with bridge-observed QUIC I/O
+    /// failure. It never opens a connection or stream.
+    pub fn notify_path_failure(&self) -> bool {
+        self.supervisor
+            .as_ref()
+            .is_some_and(|supervisor| supervisor.request(RouteTrigger::PathFailure))
+    }
+
+    /// Ask the production supervisor to recompute its immutable peer route.
+    /// Linux notifications and the fallback timer call the same state machine.
+    pub fn refresh_route(&self) -> bool {
+        self.supervisor
+            .as_ref()
+            .is_some_and(|supervisor| supervisor.request(RouteTrigger::Notification))
+    }
+
     pub(crate) fn into_parts(self) -> ClientSessionParts {
         let Self {
             endpoint,
             connection,
             send,
             recv,
+            supervisor,
+            finalize_timeout: _,
         } = self;
         ClientSessionParts {
             endpoint,
             connection,
             send,
             recv,
+            supervisor,
         }
     }
 
@@ -698,13 +1708,23 @@ impl ClientSession {
             connection,
             send,
             recv,
+            supervisor,
+            finalize_timeout,
         } = self;
-        connection.close(CLOSE_CODE, b"slice1 client complete");
+        let deadline = Instant::now()
+            .checked_add(finalize_timeout)
+            .unwrap_or_else(Instant::now);
+        if let Some(supervisor) = supervisor {
+            let _ = supervisor.join(deadline).await;
+        }
+        connection.close(CLOSE_CODE, b"slice4 client complete");
         drop(send);
         drop(recv);
         drop(connection);
-        endpoint.close(CLOSE_CODE, b"slice1 client complete");
-        endpoint.wait_idle().await;
+        endpoint.close(CLOSE_CODE, b"slice4 client complete");
+        if Instant::now() < deadline {
+            let _ = tokio::time::timeout_at(deadline, endpoint.wait_idle()).await;
+        }
     }
 }
 
@@ -1113,6 +2133,75 @@ mod tests {
     }
 
     #[test]
+    fn serialized_route_state_is_noop_changed_once_and_same_failure_once() {
+        let first = RouteIdentity {
+            source: SocketAddr::from(([192, 0, 2, 10], 0)),
+            interface_index: 7,
+        };
+        let second = RouteIdentity {
+            source: SocketAddr::from(([198, 51, 100, 10], 0)),
+            interface_index: 9,
+        };
+        let same_address_new_interface = RouteIdentity {
+            source: first.source,
+            interface_index: 11,
+        };
+        let mut state = RouteState::new(first, 1);
+
+        for trigger in [
+            RouteTrigger::Notification,
+            RouteTrigger::FallbackPoll,
+            RouteTrigger::ProcessWake,
+        ] {
+            assert_eq!(state.observe(trigger, first), RouteAction::Noop);
+        }
+        assert_eq!(
+            state.observe(RouteTrigger::Notification, second),
+            RouteAction::RebindChanged(second)
+        );
+        state.rebound(second, true);
+        assert_eq!(
+            state.observe(RouteTrigger::Notification, second),
+            RouteAction::Noop
+        );
+        assert_eq!(
+            state.observe(RouteTrigger::PathFailure, second),
+            RouteAction::ReplaceFailed(second)
+        );
+        state.rebound(second, false);
+        assert_eq!(
+            state.observe(RouteTrigger::PathFailure, second),
+            RouteAction::Shutdown
+        );
+
+        assert_eq!(
+            state.observe(RouteTrigger::Notification, same_address_new_interface),
+            RouteAction::RebindChanged(same_address_new_interface)
+        );
+        state.rebound(same_address_new_interface, true);
+        assert_eq!(
+            state.observe(RouteTrigger::PathFailure, same_address_new_interface),
+            RouteAction::ReplaceFailed(same_address_new_interface)
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn fallback_timer_distinguishes_normal_tick_from_process_wake() {
+        let poll = Duration::from_millis(100);
+        let start = Instant::now();
+        let expected = start + poll;
+        assert_eq!(
+            classify_timer_trigger(expected, expected, poll),
+            RouteTrigger::FallbackPoll
+        );
+        tokio::time::advance(Duration::from_millis(301)).await;
+        assert_eq!(
+            classify_timer_trigger(Instant::now(), expected, poll),
+            RouteTrigger::ProcessWake
+        );
+    }
+
+    #[test]
     fn invalid_caps_fail_before_transport_allocation() {
         let limits = Limits {
             incoming_buffer_size: u64::MAX,
@@ -1147,10 +2236,13 @@ mod tests {
             ))
         ));
 
-        let v4 = kernel_selected_source(SocketAddr::from((Ipv4Addr::LOCALHOST, 9)))
+        let v4_peer = SocketAddr::from((Ipv4Addr::LOCALHOST, 9));
+        let v4 = kernel_selected_source(v4_peer)
             .unwrap_or_else(|error| panic!("IPv4 kernel route probe failed: {error}"));
+        let v4_route = kernel_selected_route(v4_peer, Duration::from_millis(200)).unwrap();
         assert!(v4.is_ipv4());
         assert_eq!(v4.ip(), IpAddr::V4(Ipv4Addr::LOCALHOST));
+        assert_ne!(v4_route.interface_index(), 0);
 
         let explicit_address = free_udp_v4();
         let bound = bind_udp(
@@ -1162,10 +2254,13 @@ mod tests {
         assert_eq!(bound.local_addr(), explicit_address);
         drop(bound);
 
-        let v6 = kernel_selected_source(SocketAddr::from((Ipv6Addr::LOCALHOST, 9)))
+        let v6_peer = SocketAddr::from((Ipv6Addr::LOCALHOST, 9));
+        let v6 = kernel_selected_source(v6_peer)
             .unwrap_or_else(|error| panic!("IPv6 kernel route probe failed: {error}"));
+        let v6_route = kernel_selected_route(v6_peer, Duration::from_millis(200)).unwrap();
         assert!(v6.is_ipv6());
         assert_eq!(v6.ip(), IpAddr::V6(Ipv6Addr::LOCALHOST));
+        assert_ne!(v6_route.interface_index(), 0);
 
         let explicit_v6 = UdpSocket::bind((Ipv6Addr::LOCALHOST, 0)).unwrap();
         let explicit_v6_address = explicit_v6.local_addr().unwrap();
@@ -1343,7 +2438,10 @@ mod tests {
             ),
             Err(Error::UdpBind(_))
         ));
-        let selected = SocketAddr::from((Ipv4Addr::LOCALHOST, 1));
+        let selected = RouteIdentity {
+            source: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
+            interface_index: 1,
+        };
         assert!(matches!(
             bind_route_selected(selected, Some((port, port)), &limits),
             Err(Error::PortRangeExhausted)

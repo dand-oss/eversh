@@ -23,7 +23,7 @@ fn slice2_public_types_have_owned_thread_safe_boundaries() {
 #[test]
 fn runtime_limits_are_provisional() {
     let l = everlink::Limits::default();
-    let named: [(&str, u64); 14] = [
+    let named: [(&str, u64); 17] = [
         ("copy_buf", l.copy_buf as u64),
         ("send_window", l.send_window),
         ("receive_window", l.receive_window),
@@ -38,6 +38,15 @@ fn runtime_limits_are_provisional() {
         ("incoming_buffer_size", l.incoming_buffer_size),
         ("max_retry_attempts", l.max_retry_attempts as u64),
         ("max_udp_port_span", l.max_udp_port_span as u64),
+        ("route_poll_ms", l.route_poll_ms),
+        (
+            "route_observation_timeout_ms",
+            l.route_observation_timeout_ms,
+        ),
+        (
+            "max_same_route_replacements",
+            l.max_same_route_replacements as u64,
+        ),
     ];
     for (name, v) in named {
         assert!(v > 0, "{name} must be finite and named");

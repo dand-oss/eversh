@@ -5,7 +5,9 @@ use crate::admission::{ConnectedTarget, ConnectedTargetParts};
 use crate::error::{Error, LimitViolation};
 use crate::limits::Limits;
 use crate::shutdown::{CopyDirection, CopyOperation, DeadlineKind, Shutdown, TerminalCause};
-use crate::transport::{ClientSession, ClientSessionParts};
+use crate::transport::{
+    ClientSession, ClientSessionParts, PathFailureTrigger, RouteSupervisorOwner,
+};
 use noq::{Connection, Endpoint, RecvStream, SendStream, VarInt};
 use std::future::Future;
 use std::io;
@@ -165,7 +167,7 @@ impl TargetBridge {
             runtime,
             shutdown,
             limits,
-            owner: BridgeOwner::new(endpoint, connection),
+            owner: BridgeOwner::new(endpoint, connection, None),
             quic_send: send,
             quic_recv: recv,
             tcp_read,
@@ -298,12 +300,16 @@ impl StdioBridge {
             connection,
             send,
             recv,
+            supervisor,
         } = session.into_parts();
+        if let Some(supervisor) = supervisor.as_ref() {
+            supervisor.attach(shutdown.clone());
+        }
         Ok(Self {
             runtime,
             shutdown,
             limits,
-            owner: BridgeOwner::new(endpoint, connection),
+            owner: BridgeOwner::new(endpoint, connection, supervisor),
             quic_send: send,
             quic_recv: recv,
             stdin: Box::new(stdin),
@@ -386,21 +392,26 @@ where
         quic_to_peer_buffer,
         peer_to_quic_buffer,
     } = run;
-    let quic_to_peer = copy_direction(
+    let path_failure = owner.path_failure_trigger();
+    let quic_to_peer = copy_direction_with_path_failure(
         quic_recv,
         ImmediateWriter(peer_write),
         quic_to_peer_buffer,
         CopyDirection::QuicToPeer,
         limits,
         shutdown.clone(),
+        path_failure.clone(),
+        QuicBoundary::Reader,
     );
-    let peer_to_quic = copy_direction(
+    let peer_to_quic = copy_direction_with_path_failure(
         peer_read,
         quic_send,
         peer_to_quic_buffer,
         CopyDirection::PeerToQuic,
         limits,
         shutdown.clone(),
+        path_failure,
+        QuicBoundary::Writer,
     );
     let launched = shutdown.with_running_admission(move || {
         (
@@ -522,22 +533,32 @@ fn deadlines_representable(limits: &Limits) -> bool {
 struct BridgeOwner {
     endpoint: Option<Endpoint>,
     connection: Option<Connection>,
+    supervisor: Option<RouteSupervisorOwner>,
 }
 
 impl BridgeOwner {
-    fn new(endpoint: Endpoint, connection: Connection) -> Self {
+    fn new(
+        endpoint: Endpoint,
+        connection: Connection,
+        supervisor: Option<RouteSupervisorOwner>,
+    ) -> Self {
         Self {
             endpoint: Some(endpoint),
             connection: Some(connection),
+            supervisor,
         }
     }
 
     async fn close(mut self, deadline: Instant) -> bool {
+        let supervisor_terminal = match self.supervisor.take() {
+            Some(supervisor) => supervisor.join(deadline).await,
+            None => Instant::now() < deadline,
+        };
         self.start_close();
         drop(self.connection.take());
 
         let Some(endpoint) = self.endpoint.take() else {
-            return Instant::now() < deadline;
+            return supervisor_terminal && Instant::now() < deadline;
         };
         if Instant::now() >= deadline {
             drop(endpoint);
@@ -546,7 +567,13 @@ impl BridgeOwner {
         let idle = tokio::time::timeout_at(deadline, endpoint.wait_idle()).await;
         let completed = idle.is_ok() && Instant::now() < deadline;
         drop(endpoint);
-        completed
+        supervisor_terminal && completed
+    }
+
+    fn path_failure_trigger(&self) -> Option<PathFailureTrigger> {
+        self.supervisor
+            .as_ref()
+            .map(RouteSupervisorOwner::path_failure_trigger)
     }
 
     fn start_close(&self) {
@@ -562,6 +589,8 @@ impl BridgeOwner {
 
 impl Drop for BridgeOwner {
     fn drop(&mut self) {
+        // Dropping the supervisor aborts rather than detaches its Tokio task.
+        drop(self.supervisor.take());
         self.start_close();
     }
 }
@@ -795,13 +824,48 @@ enum OperationExit {
     DeadlineOverflow,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum QuicBoundary {
+    Reader,
+    Writer,
+}
+
+#[cfg(test)]
 async fn copy_direction<R, W>(
+    reader: R,
+    writer: W,
+    buffer: Vec<u8>,
+    direction: CopyDirection,
+    limits: Limits,
+    shutdown: Shutdown,
+) -> DirectionOutcome
+where
+    R: AsyncRead + Send + Unpin + 'static,
+    W: DeliveryWriter,
+{
+    copy_direction_with_path_failure(
+        reader,
+        writer,
+        buffer,
+        direction,
+        limits,
+        shutdown,
+        None,
+        QuicBoundary::Reader,
+    )
+    .await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn copy_direction_with_path_failure<R, W>(
     mut reader: R,
     mut writer: W,
     mut buffer: Vec<u8>,
     direction: CopyDirection,
     limits: Limits,
     shutdown: Shutdown,
+    path_failure: Option<PathFailureTrigger>,
+    quic_boundary: QuicBoundary,
 ) -> DirectionOutcome
 where
     R: AsyncRead + Send + Unpin + 'static,
@@ -831,10 +895,25 @@ where
         let count = match read {
             Ok(0) => {
                 shutdown.request_clean(TerminalCause::SourceEof(direction), limits.drain_timeout());
-                return finish_writer(writer, direction, limits, shutdown, signal).await;
+                return finish_writer(
+                    writer,
+                    direction,
+                    limits,
+                    shutdown,
+                    signal,
+                    path_failure,
+                    quic_boundary,
+                )
+                .await;
             }
             Ok(count) => count,
             Err(exit) => {
+                notify_path_failure(
+                    path_failure.as_ref(),
+                    quic_boundary,
+                    CopyOperation::Read,
+                    exit,
+                );
                 return terminate(exit, direction, CopyOperation::Read, &shutdown, &limits);
             }
         };
@@ -863,6 +942,12 @@ where
             {
                 Ok(written) if written != 0 && written <= count - offset => offset += written,
                 Ok(_) => {
+                    notify_path_failure(
+                        path_failure.as_ref(),
+                        quic_boundary,
+                        CopyOperation::Write,
+                        OperationExit::Failed,
+                    );
                     return terminate(
                         OperationExit::Failed,
                         direction,
@@ -872,6 +957,12 @@ where
                     );
                 }
                 Err(exit) => {
+                    notify_path_failure(
+                        path_failure.as_ref(),
+                        quic_boundary,
+                        CopyOperation::Write,
+                        exit,
+                    );
                     return terminate(exit, direction, CopyOperation::Write, &shutdown, &limits);
                 }
             }
@@ -885,6 +976,8 @@ async fn finish_writer<W>(
     limits: Limits,
     shutdown: Shutdown,
     mut signal: watch::Receiver<crate::shutdown::Signal>,
+    path_failure: Option<PathFailureTrigger>,
+    quic_boundary: QuicBoundary,
 ) -> DirectionOutcome
 where
     W: DeliveryWriter,
@@ -902,6 +995,12 @@ where
         }
     };
     if let Err(exit) = bounded_io(writer.flush(), flush_deadline, &shutdown, &mut signal).await {
+        notify_path_failure(
+            path_failure.as_ref(),
+            quic_boundary,
+            CopyOperation::Flush,
+            exit,
+        );
         return terminate(exit, direction, CopyOperation::Flush, &shutdown, &limits);
     }
 
@@ -920,6 +1019,12 @@ where
     if let Err(exit) =
         bounded_io(writer.shutdown(), shutdown_deadline, &shutdown, &mut signal).await
     {
+        notify_path_failure(
+            path_failure.as_ref(),
+            quic_boundary,
+            CopyOperation::Shutdown,
+            exit,
+        );
         return terminate(exit, direction, CopyOperation::Shutdown, &shutdown, &limits);
     }
 
@@ -944,10 +1049,40 @@ where
         };
         if let Err(exit) = bounded_io(confirmation, delivery_deadline, &shutdown, &mut signal).await
         {
+            notify_path_failure(
+                path_failure.as_ref(),
+                quic_boundary,
+                CopyOperation::Delivery,
+                exit,
+            );
             return terminate(exit, direction, CopyOperation::Delivery, &shutdown, &limits);
         }
     }
     DirectionOutcome::new(direction, DirectionEnd::SourceEof)
+}
+
+fn notify_path_failure(
+    trigger: Option<&PathFailureTrigger>,
+    boundary: QuicBoundary,
+    operation: CopyOperation,
+    exit: OperationExit,
+) {
+    let touches_quic = matches!(
+        (boundary, operation),
+        (QuicBoundary::Reader, CopyOperation::Read)
+            | (
+                QuicBoundary::Writer,
+                CopyOperation::Write
+                    | CopyOperation::Flush
+                    | CopyOperation::Shutdown
+                    | CopyOperation::Delivery
+            )
+    );
+    if touches_quic && matches!(exit, OperationExit::Failed | OperationExit::Stalled) {
+        if let Some(trigger) = trigger {
+            trigger.notify();
+        }
+    }
 }
 
 fn terminate(

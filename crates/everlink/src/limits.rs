@@ -46,6 +46,12 @@ pub struct Limits {
     pub max_retry_attempts: usize,
     /// Largest inclusive UDP port-range width accepted by policy.
     pub max_udp_port_span: u32,
+    /// Mandatory production route fallback-poll interval.
+    pub route_poll_ms: u64,
+    /// Bound for one kernel route observation.
+    pub route_observation_timeout_ms: u64,
+    /// Maximum replacement attempts for an observably failed unchanged route.
+    pub max_same_route_replacements: usize,
 }
 
 impl Default for Limits {
@@ -69,6 +75,9 @@ impl Default for Limits {
             incoming_buffer_size: 64 * 1024,
             max_retry_attempts: 8,
             max_udp_port_span: 1024,
+            route_poll_ms: 250,
+            route_observation_timeout_ms: 200,
+            max_same_route_replacements: 1,
         }
     }
 }
@@ -99,6 +108,9 @@ impl Limits {
             self.incoming_buffer_size,
             self.max_retry_attempts as u64,
             self.max_udp_port_span as u64,
+            self.route_poll_ms,
+            self.route_observation_timeout_ms,
+            self.max_same_route_replacements as u64,
         ];
         if nonzero_values.contains(&0) {
             return Err(Error::InvalidLimits(LimitViolation::ZeroValue));
@@ -116,6 +128,16 @@ impl Limits {
         }
         if self.max_udp_port_span > u32::from(u16::MAX) {
             return Err(Error::InvalidLimits(LimitViolation::PortSpanTooLarge));
+        }
+        if self.max_same_route_replacements > 1 {
+            return Err(Error::InvalidLimits(
+                LimitViolation::SameRouteReplacementBudget,
+            ));
+        }
+        if self.route_observation_timeout_ms > self.route_poll_ms {
+            return Err(Error::InvalidLimits(
+                LimitViolation::RouteObservationExceedsPoll,
+            ));
         }
         self.incoming_buffer_total()?;
         Ok(())
@@ -151,5 +173,13 @@ impl Limits {
 
     pub fn finalize_timeout(&self) -> Duration {
         Duration::from_millis(self.finalize_timeout_ms)
+    }
+
+    pub fn route_poll(&self) -> Duration {
+        Duration::from_millis(self.route_poll_ms)
+    }
+
+    pub fn route_observation_timeout(&self) -> Duration {
+        Duration::from_millis(self.route_observation_timeout_ms)
     }
 }

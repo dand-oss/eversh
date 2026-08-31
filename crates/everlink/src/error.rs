@@ -33,6 +33,8 @@ pub enum LimitViolation {
     IncomingTotalOverflow,
     RetryBudgetTooSmall,
     PortSpanTooLarge,
+    SameRouteReplacementBudget,
+    RouteObservationExceedsPoll,
     DeadlineOverflow,
 }
 
@@ -136,6 +138,10 @@ impl std::fmt::Display for LimitViolation {
             Self::IncomingTotalOverflow => "the aggregate incoming buffer cap overflows",
             Self::RetryBudgetTooSmall => "the Retry attempt budget cannot complete validation",
             Self::PortSpanTooLarge => "the UDP port-range span is invalid",
+            Self::SameRouteReplacementBudget => "same-route replacement budget must be exactly one",
+            Self::RouteObservationExceedsPoll => {
+                "route observation bound exceeds the fallback-poll interval"
+            }
             Self::DeadlineOverflow => "an absolute deadline cannot be represented",
         };
         f.write_str(message)

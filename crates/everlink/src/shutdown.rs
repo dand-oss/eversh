@@ -45,6 +45,8 @@ pub enum TerminalCause {
     },
     Cancelled,
     TaskFailed(CopyDirection),
+    PathFailed,
+    RouteSupervisorFailed,
     ConstructionFailed,
     DeadlineOverflow(DeadlineKind),
     FinalizeTimeout,
