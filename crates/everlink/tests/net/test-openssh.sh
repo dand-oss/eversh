@@ -1,9 +1,9 @@
 #!/usr/bin/bash
 set -Eeuo pipefail
 
-# Slice 5A exercises two production OpenSSH ProxyCommand sessions (status 0,
-# then status 42) while keeping every process, key, and diagnostic artifact
-# owned by this bounded harness.
+# Slice 5A exercises three production OpenSSH ProxyCommand sessions (status 0,
+# status 42, and one 1 MiB binary session) while keeping every process, key,
+# and diagnostic artifact owned by this bounded harness.
 
 readonly BASH_TOOL=/usr/bin/bash
 readonly CHMOD_TOOL=/usr/bin/chmod
@@ -32,21 +32,25 @@ readonly HEAD_TOOL=/usr/bin/head
 readonly LN_TOOL=/usr/bin/ln
 readonly MV_TOOL=/usr/bin/mv
 readonly ENV_TOOL=/usr/bin/env
-# 2*15s SSH sessions + 2*35s server polls + startup/health checks and
-# bounded failure cleanup, with finite headroom for the two-session run.
-readonly WATCHDOG_SECONDS=150
+readonly SHA256SUM_TOOL=/usr/bin/sha256sum
+# 3 SSH sessions (2*15s + one dedicated binary timeout) + 3*35s server
+# polls + startup/health checks and bounded failure cleanup, with finite
+# headroom for the three-session run.
+readonly WATCHDOG_SECONDS=300
 readonly POLL_SECONDS=5
 readonly SERVER_POLL_SECONDS=35
 readonly READINESS_POLL_ATTEMPTS=60
 readonly OPERATION_TIMEOUT_SECONDS=4
 readonly SSH_SESSION_TIMEOUT_SECONDS=15
+readonly SSH_BINARY_SESSION_TIMEOUT_SECONDS=30
+readonly BINARY_BYTES=1048576
 
 for tool in "$BASH_TOOL" "$CHMOD_TOOL" "$CMP_TOOL" "$ID_TOOL" "$IP_TOOL" \
     "$MKDIR_TOOL" "$MKtemp_TOOL" "$PRINTF_TOOL" "$READLINK_TOOL" "$RM_TOOL" \
     "$SLEEP_TOOL" "$SORT_TOOL" "$SS_TOOL" "$SSH_TOOL" "$SSHD_EXE" \
     "$SSHKEYGEN_TOOL" "$SSHKEYSCAN_TOOL" "$STAT_TOOL" "$SETSID_TOOL" \
     "$TIMEOUT_TOOL" "$AWK_TOOL" "$CAT_TOOL" "$DD_TOOL" "$HEAD_TOOL" \
-    "$LN_TOOL" "$MV_TOOL" "$ENV_TOOL"; do
+    "$LN_TOOL" "$MV_TOOL" "$ENV_TOOL" "$SHA256SUM_TOOL"; do
     [[ -x "$tool" ]] || {
         printf 'missing required executable\n' >&2
         exit 1
@@ -1156,6 +1160,59 @@ run_production_session() {
         && listener_exact 127.0.0.1 "$ISOLATED_PORT"
 }
 
+run_binary_production_session() {
+    local session_number=$1 input="$TMP_ROOT/binary-$1.input"
+    local output="$TMP_ROOT/binary-$1.stdout" error="$TMP_ROOT/binary-$1.stderr"
+    local status input_size output_size input_mode output_mode
+    local input_digest output_digest
+
+    clear_server_tuple
+    write_ssh_configs_and_shim "$session_number" || return 1
+    umask 077
+    run_bounded "$DD_TOOL" if=/dev/urandom of="$input" \
+        bs="$BINARY_BYTES" count=1 status=none || return 1
+    "$CHMOD_TOOL" 600 -- "$input" || return 1
+    input_size=$("$STAT_TOOL" -c '%s' -- "$input") || return 1
+    input_mode=$("$STAT_TOOL" -c '%a' -- "$input") || return 1
+    [[ $input_size == "$BINARY_BYTES" && $input_mode == 600 ]] || return 1
+
+    : > "$output"
+    : > "$error"
+    "$CHMOD_TOOL" 600 -- "$output" "$error" || return 1
+    set +e
+    "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
+        "${SSH_BINARY_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
+        "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
+        "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
+        "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" -T -- "$SSH_ALIAS" \
+        /usr/bin/cat < "$input" > "$output" 2> "$error"
+    status=$?
+    set -e
+    (( status == 0 )) || return 1
+    [[ ! -s $error ]] || return 1
+
+    input_size=$("$STAT_TOOL" -c '%s' -- "$input") || return 1
+    output_size=$("$STAT_TOOL" -c '%s' -- "$output") || return 1
+    input_mode=$("$STAT_TOOL" -c '%a' -- "$input") || return 1
+    output_mode=$("$STAT_TOOL" -c '%a' -- "$output") || return 1
+    [[ $input_size == "$BINARY_BYTES" && $input_mode == 600 ]] || return 1
+    [[ $output_size == "$BINARY_BYTES" && $output_mode == 600 ]] || return 1
+
+    input_digest=$("$SHA256SUM_TOOL" -- "$input") || return 1
+    output_digest=$("$SHA256SUM_TOOL" -- "$output") || return 1
+    input_digest=${input_digest%% *}
+    output_digest=${output_digest%% *}
+    [[ $input_digest =~ ^[0-9a-f]{64}$ ]] || return 1
+    [[ $output_digest =~ ^[0-9a-f]{64}$ ]] || return 1
+    [[ $input_digest == "$output_digest" ]] || return 1
+    "$CMP_TOOL" -s -- "$input" "$output" || return 1
+    verify_proxy_evidence || return 1
+    poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" "$SERVER_PGRP" \
+        "$SERVER_ROLE" || return 1
+    listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" \
+        && listener_exact 127.0.0.1 "$ISOLATED_PORT"
+}
+
 cleanup_detached_server() {
     local pid=$1 start=$2 exe=$3 pgrp=$4 role=$5
     local result rc=0 term_sent=0
@@ -1364,6 +1421,14 @@ run_production_session 2 42 'EverLink isolated production connection 2' || {
 }
 run_direct_ssh 3 || {
     printf 'third direct ssh health check failed\n' >&2
+    exit 1
+}
+run_binary_production_session 3 || {
+    printf 'third production binary ProxyCommand session failed\n' >&2
+    exit 1
+}
+run_direct_ssh 4 || {
+    printf 'fourth direct ssh health check failed\n' >&2
     exit 1
 }
 clear_server_tuple
