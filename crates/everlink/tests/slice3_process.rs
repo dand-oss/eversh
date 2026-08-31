@@ -107,6 +107,60 @@ fn assert_udp_released(address: SocketAddr) {
     }
 }
 
+fn bind_client_endpoint_retrying_ephemeral_addr_in_use(
+    server: SocketAddr,
+    pin: [u8; 32],
+    limits: Limits,
+) -> (ClientEndpoint, SocketAddr) {
+    const MAX_ATTEMPTS: usize = 16;
+
+    for attempt in 1..=MAX_ATTEMPTS {
+        let reservation = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap_or_else(|error| {
+            panic!(
+                "failed to reserve client UDP address on attempt {attempt}/{MAX_ATTEMPTS}: {error}"
+            )
+        });
+        let address = reservation.local_addr().unwrap_or_else(|error| {
+            panic!(
+                "failed to inspect reserved client UDP address on attempt {attempt}/{MAX_ATTEMPTS}: {error}"
+            )
+        });
+        drop(reservation);
+
+        match ClientEndpoint::bind(server, UdpBindPolicy::Explicit(address), pin, limits) {
+            Ok(endpoint) => {
+                let actual = endpoint.local_addr().unwrap_or_else(|error| {
+                    panic!(
+                        "client endpoint local address failed on attempt {attempt}/{MAX_ATTEMPTS} for {address}: {error:?}"
+                    )
+                });
+                assert_eq!(
+                    actual, address,
+                    "client endpoint changed its explicit address on attempt {attempt}/{MAX_ATTEMPTS}"
+                );
+                return (endpoint, address);
+            }
+            Err(everlink::Error::UdpBind(source))
+                if source.kind() == ErrorKind::AddrInUse && attempt < MAX_ATTEMPTS =>
+            {
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(everlink::Error::UdpBind(source)) if source.kind() == ErrorKind::AddrInUse => {
+                panic!(
+                    "client UDP bind remained in use after {MAX_ATTEMPTS} attempts; last reserved address {address}: {source}"
+                )
+            }
+            Err(error) => {
+                panic!(
+                    "client UDP bind failed without retry on attempt {attempt}/{MAX_ATTEMPTS} for reserved address {address}: {error:?}"
+                )
+            }
+        }
+    }
+
+    unreachable!("client UDP bind retry loop exhausted without a result")
+}
+
 fn spawn_explicit_server(
     target_address: SocketAddr,
 ) -> (Child, ChildStdin, BootstrapRecord, SocketAddr) {
@@ -475,25 +529,21 @@ fn production_server_target_failure_closes_quic_and_udp() {
     input.flush().unwrap();
     drop(input);
 
-    let client_socket = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
-    let client_address = client_socket.local_addr().unwrap();
-    drop(client_socket);
     let limits = Limits::default();
     let runtime = everlink::runtime::build().unwrap();
-    runtime.block_on(async {
-        let client = ClientEndpoint::bind(
+    let client_address = runtime.block_on(async {
+        let (client, client_address) = bind_client_endpoint_retrying_ephemeral_addr_in_use(
             SocketAddr::new(record.udp_endpoint, record.udp_port),
-            UdpBindPolicy::Explicit(client_address),
             record.spki_sha256,
             limits,
-        )
-        .unwrap();
+        );
         if let Ok(session) = client
             .connect_and_authenticate(record.token(), target_address.port())
             .await
         {
             session.close().await;
         }
+        client_address
     });
 
     let status = wait_child(child, Duration::from_secs(5));
@@ -520,21 +570,16 @@ fn production_server_rejects_wrong_pin_token_and_selector_before_target() {
         input.flush().unwrap();
         drop(input);
 
-        let reservation = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
-        let client_address = reservation.local_addr().unwrap();
-        drop(reservation);
-        runtime.block_on(async {
+        let client_address = runtime.block_on(async {
             let mut pin = record.spki_sha256;
             if matches!(case, Case::Pin) {
                 pin[0] ^= 0xff;
             }
-            let client = ClientEndpoint::bind(
+            let (client, client_address) = bind_client_endpoint_retrying_ephemeral_addr_in_use(
                 SocketAddr::new(record.udp_endpoint, record.udp_port),
-                UdpBindPolicy::Explicit(client_address),
                 pin,
                 Limits::default(),
-            )
-            .unwrap();
+            );
             let wrong = SecretToken::from_bytes([0x5a; 32]);
             let token = if matches!(case, Case::Token) {
                 &wrong
@@ -553,6 +598,7 @@ fn production_server_rejects_wrong_pin_token_and_selector_before_target() {
             if let Ok(session) = client.connect_and_authenticate(token, selector).await {
                 session.close().await;
             }
+            client_address
         });
 
         let status = wait_child(child, Duration::from_secs(18));
