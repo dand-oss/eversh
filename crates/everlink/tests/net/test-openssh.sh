@@ -1,9 +1,8 @@
 #!/usr/bin/bash
 set -Eeuo pipefail
 
-# Slice 5A is deliberately only the ownership foundation and isolated direct
-# sshd health.  Later production EverLink cases will be added below this
-# self-test boundary.
+# Slice 5A exercises one production OpenSSH ProxyCommand session while keeping
+# every process, key, and diagnostic artifact owned by this bounded harness.
 
 readonly BASH_TOOL=/usr/bin/bash
 readonly CHMOD_TOOL=/usr/bin/chmod
@@ -26,16 +25,25 @@ readonly STAT_TOOL=/usr/bin/stat
 readonly SETSID_TOOL=/usr/bin/setsid
 readonly TIMEOUT_TOOL=/usr/bin/timeout
 readonly AWK_TOOL=/usr/bin/awk
-readonly WATCHDOG_SECONDS=45
+readonly CAT_TOOL=/usr/bin/cat
+readonly DD_TOOL=/usr/bin/dd
+readonly HEAD_TOOL=/usr/bin/head
+readonly LN_TOOL=/usr/bin/ln
+readonly MV_TOOL=/usr/bin/mv
+readonly ENV_TOOL=/usr/bin/env
+readonly WATCHDOG_SECONDS=90
 readonly POLL_SECONDS=5
+readonly SERVER_POLL_SECONDS=35
 readonly READINESS_POLL_ATTEMPTS=60
 readonly OPERATION_TIMEOUT_SECONDS=4
+readonly SSH_SESSION_TIMEOUT_SECONDS=15
 
 for tool in "$BASH_TOOL" "$CHMOD_TOOL" "$CMP_TOOL" "$ID_TOOL" "$IP_TOOL" \
     "$MKDIR_TOOL" "$MKtemp_TOOL" "$PRINTF_TOOL" "$READLINK_TOOL" "$RM_TOOL" \
     "$SLEEP_TOOL" "$SORT_TOOL" "$SS_TOOL" "$SSH_TOOL" "$SSHD_EXE" \
     "$SSHKEYGEN_TOOL" "$SSHKEYSCAN_TOOL" "$STAT_TOOL" "$SETSID_TOOL" \
-    "$TIMEOUT_TOOL" "$AWK_TOOL"; do
+    "$TIMEOUT_TOOL" "$AWK_TOOL" "$CAT_TOOL" "$DD_TOOL" "$HEAD_TOOL" \
+    "$LN_TOOL" "$MV_TOOL" "$ENV_TOOL"; do
     [[ -x "$tool" ]] || {
         printf 'missing required executable\n' >&2
         exit 1
@@ -102,10 +110,25 @@ SSHD_CLIENT_KEY=
 SSHD_AUTHORIZED_KEYS=
 SSHD_KNOWN_HOSTS=
 SSHD_EXPECTED_OUTPUT=
+SSHD_REMOTE_BIN=
 CURRENT_USER=
 WORKSPACE_ROOT=
 EVERLINK_EXE=
 SSHD_HOST_BLOB=
+SERVER_PID=
+SERVER_START=
+SERVER_EXE=
+SERVER_PGRP=
+SERVER_ROLE=
+SSH_ALIAS=everlink-slice5a-alias
+SSH_SHIM_DIR=
+SSH_SHIM=
+SSH_QUERY_ARGV=
+SSH_BOOTSTRAP_ARGV=
+SSH_QUERY_OUTPUT=
+SSH_INNER_CONFIG=
+SSH_OUTER_CONFIG=
+SSH_SERVER_IDENTITY=
 BASELINE_STARTS=()
 BASELINE_EXES=()
 BASELINE_PGRPS=()
@@ -325,6 +348,22 @@ poll_owned_gone() {
     return 1
 }
 
+poll_server_gone() {
+    local pid=$1 start=$2 exe=$3 pgrp=$4 role=$5
+    local deadline=$((SECONDS + SERVER_POLL_SECONDS)) result
+    while (( SECONDS < deadline )); do
+        if validate_owned "$pid" "$start" "$exe" "$pgrp" "$role"; then
+            "$SLEEP_TOOL" 0.05
+            continue
+        else
+            result=$?
+        fi
+        [[ $result -eq 2 ]] && return 0
+        return 1
+    done
+    return 1
+}
+
 poll_group_empty() {
     local pgrp=$1 deadline=$((SECONDS + POLL_SECONDS))
     while (( SECONDS < deadline )); do
@@ -527,7 +566,10 @@ prepare_isolated_sshd() {
     SSHD_AUTHORIZED_KEYS="$TMP_ROOT/sshd/authorized_keys"
     SSHD_KNOWN_HOSTS="$TMP_ROOT/sshd/known_hosts"
     SSHD_EXPECTED_OUTPUT="$TMP_ROOT/sshd/expected-output"
-    "$MKDIR_TOOL" -m 700 -- "$TMP_ROOT/sshd" || return 1
+    SSHD_REMOTE_BIN="$TMP_ROOT/remote-bin"
+    "$MKDIR_TOOL" -m 700 -- "$TMP_ROOT/sshd" "$SSHD_REMOTE_BIN" || return 1
+    "$LN_TOOL" -s -- "$EVERLINK_EXE" "$SSHD_REMOTE_BIN/everlink" || return 1
+    [[ "$($READLINK_TOOL -e -- "$SSHD_REMOTE_BIN/everlink")" == "$EVERLINK_EXE" ]] || return 1
     : > "$SSHD_LOG"
     "$CHMOD_TOOL" 600 -- "$SSHD_LOG" || return 1
     run_bounded "$SSHKEYGEN_TOOL" -q -t ed25519 -N '' -f "$SSHD_HOST_KEY" >/dev/null 2>&1 || return 1
@@ -556,6 +598,7 @@ prepare_isolated_sshd() {
         "PidFile $SSHD_PID_FILE" \
         "AuthorizedKeysFile $SSHD_AUTHORIZED_KEYS" \
         "AllowUsers $CURRENT_USER" \
+        "SetEnv PATH=$SSHD_REMOTE_BIN:/usr/bin:/bin" \
         'AuthenticationMethods publickey' \
         'PubkeyAuthentication yes' \
         'PasswordAuthentication no' \
@@ -688,22 +731,375 @@ wait_for_listeners() {
 }
 
 make_known_hosts() {
-    local output keyscan_status keyscan_blob
+    local output keyscan_status keyscan_blob expected count address
     KEYSCAN_ERR="$TMP_ROOT/sshd/keyscan.stderr"
     : > "$KEYSCAN_ERR"
     "$CHMOD_TOOL" 600 -- "$KEYSCAN_ERR" || return 1
     set +e
     output=$(run_bounded "$SSHKEYSCAN_TOOL" -4 -T 2 -p "$ISOLATED_PORT" \
-        -t ed25519 127.0.0.1 2>"$KEYSCAN_ERR")
+        -t ed25519 127.0.0.1 "$ISOLATED_ADDR" 2>"$KEYSCAN_ERR")
     keyscan_status=$?
     set -e
     (( keyscan_status == 0 )) || return 1
     [[ -n $output && ! -s $KEYSCAN_ERR ]] || return 1
     printf '%s\n' "$output" > "$SSHD_KNOWN_HOSTS"
     "$CHMOD_TOOL" 600 -- "$SSHD_KNOWN_HOSTS" || return 1
-    keyscan_blob=$(printf '%s\n' "$output" \
-        | "$AWK_TOOL" '$2 == "ssh-ed25519" { print $3 }') || return 1
-    [[ -n $keyscan_blob && $keyscan_blob == "$SSHD_HOST_BLOB" ]] || return 1
+    count=$(printf '%s\n' "$output" \
+        | "$AWK_TOOL" '$2 == "ssh-ed25519" { count++ } END { print count + 0 }') || return 1
+    [[ $count == 2 ]] || return 1
+    for address in 127.0.0.1 "$ISOLATED_ADDR"; do
+        expected="[$address]:$ISOLATED_PORT"
+        keyscan_blob=$(printf '%s\n' "$output" \
+            | "$AWK_TOOL" -v expected="$expected" \
+                '$1 == expected && $2 == "ssh-ed25519" { print $3; exit }') || return 1
+        [[ -n $keyscan_blob && $keyscan_blob == "$SSHD_HOST_BLOB" ]] || return 1
+    done
+}
+
+write_ssh_configs_and_shim() {
+    SSH_SHIM_DIR="$TMP_ROOT/ssh-shim"
+    SSH_SHIM="$SSH_SHIM_DIR/ssh"
+    SSH_QUERY_ARGV="$SSH_SHIM_DIR/query.argv"
+    SSH_BOOTSTRAP_ARGV="$SSH_SHIM_DIR/bootstrap.argv"
+    SSH_QUERY_OUTPUT="$SSH_SHIM_DIR/query.stdout"
+    SSH_INNER_CONFIG="$SSH_SHIM_DIR/inner_config"
+    SSH_OUTER_CONFIG="$SSH_SHIM_DIR/outer_config"
+    SSH_SERVER_IDENTITY="$SSH_SHIM_DIR/server.identity"
+    "$MKDIR_TOOL" -m 700 -- "$SSH_SHIM_DIR" || return 1
+
+    {
+        printf '%s\n' '#!/usr/bin/bash' "readonly SHIM_DIR=$SSH_SHIM_DIR"
+        "$CAT_TOOL" <<'SHIM'
+set -Eeuo pipefail
+
+readonly REAL_SSH=/usr/bin/ssh
+readonly CAT_TOOL=/usr/bin/cat
+readonly CHMOD_TOOL=/usr/bin/chmod
+readonly DD_TOOL=/usr/bin/dd
+readonly HEAD_TOOL=/usr/bin/head
+readonly MV_TOOL=/usr/bin/mv
+readonly READLINK_TOOL=/usr/bin/readlink
+readonly RM_TOOL=/usr/bin/rm
+readonly STAT_TOOL=/usr/bin/stat
+readonly QUERY_ARGV="$SHIM_DIR/query.argv"
+readonly BOOTSTRAP_ARGV="$SHIM_DIR/bootstrap.argv"
+readonly QUERY_OUTPUT="$SHIM_DIR/query.stdout"
+readonly SERVER_IDENTITY="$SHIM_DIR/server.identity"
+readonly BOOTSTRAP_COMMAND='everlink __bootstrap-parent-v1'
+
+write_argv() {
+    local path=$1 tmp
+    shift
+    tmp="${path}.tmp.$$"
+    [[ ! -e $path && ! -e $tmp ]] || exit 1
+    umask 077
+    printf '%s\0' "$@" > "$tmp" || exit 1
+    "$CHMOD_TOOL" 600 -- "$tmp" || exit 1
+    "$MV_TOOL" -f -- "$tmp" "$path" || exit 1
+}
+
+capture_server_identity() {
+    local pid=$1 line suffix state ppid pgrp session tty_nr tpgid flags minflt
+    local cminflt majflt cmajflt utime stime cutime cstime priority nice
+    local num_threads itrealvalue starttime remainder exe tmp
+    [[ $pid =~ ^[1-9][0-9]*$ && -r "/proc/$pid/stat" ]] || exit 1
+    IFS= read -r line < "/proc/$pid/stat" || exit 1
+    suffix=${line##*) }
+    [[ $suffix != "$line" ]] || exit 1
+    read -r state ppid pgrp session tty_nr tpgid flags minflt cminflt \
+        majflt cmajflt utime stime cutime cstime priority nice num_threads \
+        itrealvalue starttime remainder <<< "$suffix" || exit 1
+    [[ $state != Z && $pgrp =~ ^[1-9][0-9]*$ && $starttime =~ ^[1-9][0-9]*$ ]] || exit 1
+    exe=$("$READLINK_TOOL" -e -- "/proc/$pid/exe") || exit 1
+    [[ -n $exe ]] || exit 1
+    tmp="${SERVER_IDENTITY}.tmp.$$"
+    printf '%s\n%s\n%s\n%s\ndetached-everlink-server\n' \
+        "$pid" "$starttime" "$exe" "$pgrp" > "$tmp" || exit 1
+    "$CHMOD_TOOL" 600 -- "$tmp" || exit 1
+    "$MV_TOOL" -f -- "$tmp" "$SERVER_IDENTITY" || exit 1
+}
+
+g_count=0
+bootstrap_count=0
+for argument in "$@"; do
+    [[ $argument == -G ]] && ((g_count += 1))
+    [[ $argument == "$BOOTSTRAP_COMMAND" ]] && ((bootstrap_count += 1))
+done
+if (( g_count == 1 )); then
+    (( bootstrap_count == 0 )) || exit 1
+    write_argv "$QUERY_ARGV" "$@"
+    output_tmp="${QUERY_OUTPUT}.tmp.$$"
+    [[ ! -e $QUERY_OUTPUT && ! -e $output_tmp ]] || exit 1
+    umask 077
+    : > "$output_tmp"
+    "$CHMOD_TOOL" 600 -- "$output_tmp" || exit 1
+    set +e
+    "$REAL_SSH" "$@" | "$DD_TOOL" bs=1 count=65537 status=none > "$output_tmp"
+    pipeline_status=$?
+    set -e
+    output_size=$("$STAT_TOOL" -c '%s' -- "$output_tmp") || exit 1
+    (( pipeline_status == 0 && output_size <= 65536 )) || {
+        "$RM_TOOL" -f -- "$output_tmp"
+        exit 1
+    }
+    "$MV_TOOL" -f -- "$output_tmp" "$QUERY_OUTPUT" || exit 1
+    "$CHMOD_TOOL" 600 -- "$QUERY_OUTPUT" || exit 1
+    exec "$CAT_TOOL" "$QUERY_OUTPUT"
+fi
+
+(( g_count == 0 && bootstrap_count == 1 )) || exit 1
+[[ ${!#} == "$BOOTSTRAP_COMMAND" ]] || exit 1
+write_argv "$BOOTSTRAP_ARGV" "$@"
+set +e
+bootstrap_capture=$(
+    "$REAL_SSH" "$@" | "$HEAD_TOOL" -c 201
+    printf '%s\n' "${PIPESTATUS[0]}"
+)
+capture_status=$?
+set -e
+(( capture_status == 0 )) || exit 1
+bootstrap_lines=()
+mapfile -t bootstrap_lines <<< "$bootstrap_capture"
+[[ ${#bootstrap_lines[@]} -eq 2 && ${bootstrap_lines[1]} == 0 ]] || exit 1
+pattern='^everlink v1 [^[:space:]]+ [0-9]+ [0-9a-f]{64} [0-9a-f]{64} [1-9][0-9]*$'
+[[ ${bootstrap_lines[0]} =~ $pattern ]] || exit 1
+server_pid=${bootstrap_lines[0]##* }
+capture_server_identity "$server_pid"
+printf '%s\n' "${bootstrap_lines[0]}"
+SHIM
+    } > "$SSH_SHIM" || return 1
+    "$CHMOD_TOOL" 700 -- "$SSH_SHIM" || return 1
+
+    printf '%s\n' \
+        "Host $SSH_ALIAS" \
+        "    HostName $ISOLATED_ADDR" \
+        "    Port $ISOLATED_PORT" \
+        "    User $CURRENT_USER" \
+        "    IdentityFile $SSHD_CLIENT_KEY" \
+        '    IdentitiesOnly yes' \
+        '    IdentityAgent none' \
+        "    UserKnownHostsFile $SSHD_KNOWN_HOSTS" \
+        '    GlobalKnownHostsFile /dev/null' \
+        '    StrictHostKeyChecking yes' \
+        '    HostKeyAlgorithms ssh-ed25519' \
+        '    ProxyCommand none' \
+        '    ProxyJump none' \
+        '    PubkeyAuthentication yes' \
+        '    PasswordAuthentication no' \
+        '    KbdInteractiveAuthentication no' \
+        '    ChallengeResponseAuthentication no' \
+        '    PreferredAuthentications publickey' \
+        '    NumberOfPasswordPrompts 0' \
+        '    ConnectTimeout 2' \
+        '    ConnectionAttempts 1' \
+        '    RequestTTY no' \
+        '    UpdateHostKeys no' \
+        '    ControlMaster no' \
+        '    ControlPath none' \
+        '    ControlPersist no' \
+        '    ForkAfterAuthentication no' \
+        '    PermitLocalCommand no' \
+        '    LocalCommand none' \
+        '    RemoteCommand none' \
+        '    SessionType default' \
+        '    ClearAllForwardings yes' \
+        '    ForwardAgent no' \
+        '    ForwardX11 no' \
+        '    ForwardX11Trusted no' \
+        '    Tunnel no' \
+        '    StdinNull yes' > "$SSH_INNER_CONFIG" || return 1
+    "$CHMOD_TOOL" 600 -- "$SSH_INNER_CONFIG" || return 1
+
+    printf '%s\n' \
+        "Host $SSH_ALIAS" \
+        '    HostName 127.0.0.1' \
+        "    Port $ISOLATED_PORT" \
+        "    User $CURRENT_USER" \
+        "    IdentityFile $SSHD_CLIENT_KEY" \
+        '    IdentitiesOnly yes' \
+        '    IdentityAgent none' \
+        "    UserKnownHostsFile $SSHD_KNOWN_HOSTS" \
+        '    GlobalKnownHostsFile /dev/null' \
+        '    StrictHostKeyChecking yes' \
+        '    HostKeyAlgorithms ssh-ed25519' \
+        "    ProxyCommand $ENV_TOOL PATH=$SSH_SHIM_DIR:/usr/bin:/bin EVERLINK_SHIM_DIR=$SSH_SHIM_DIR $EVERLINK_EXE ssh-proxy %n %p --ssh-option=-F$SSH_INNER_CONFIG" \
+        '    BatchMode yes' \
+        '    PubkeyAuthentication yes' \
+        '    PasswordAuthentication no' \
+        '    KbdInteractiveAuthentication no' \
+        '    ChallengeResponseAuthentication no' \
+        '    PreferredAuthentications publickey' \
+        '    NumberOfPasswordPrompts 0' \
+        '    ConnectTimeout 2' \
+        '    ConnectionAttempts 1' \
+        '    RequestTTY no' \
+        '    UpdateHostKeys no' \
+        '    ControlMaster no' \
+        '    ControlPath none' \
+        '    ControlPersist no' \
+        '    ClearAllForwardings yes' \
+        '    ForwardAgent no' \
+        '    ForwardX11 no' \
+        '    ForwardX11Trusted no' \
+        '    Tunnel no' \
+        '    LogLevel QUIET' > "$SSH_OUTER_CONFIG" || return 1
+    "$CHMOD_TOOL" 600 -- "$SSH_OUTER_CONFIG" || return 1
+}
+
+read_nul_argv() {
+    local path=$1 name=$2 value
+    local -n result=$name
+    result=()
+    [[ -f $path && $("$STAT_TOOL" -c '%a' -- "$path") == 600 ]] || return 1
+    while IFS= read -r -d '' value; do
+        result+=("$value")
+    done < "$path"
+    ((${#result[@]} > 0))
+}
+
+assert_no_batch_mode() {
+    local path=$1 value
+    local -a actual=()
+    read_nul_argv "$path" actual || return 1
+    for value in "${actual[@]}"; do
+        [[ $value != *BatchMode* ]] || return 1
+        [[ $value != *'BEGIN OPENSSH PRIVATE KEY'* ]] || return 1
+    done
+}
+
+assert_effective_config() {
+    local output=$1 name=$2 value=$3
+    "$AWK_TOOL" -v wanted_name="$name" -v wanted_value="$value" \
+        '$1 == wanted_name && $2 == wanted_value { found=1 } END { exit !found }' "$output"
+}
+
+assert_no_effective_value() {
+    local output=$1 name=$2 value=$3
+    "$AWK_TOOL" -v wanted_name="$name" -v wanted_value="$value" \
+        '$1 == wanted_name && $2 == wanted_value { found=1 } END { exit found }' "$output"
+}
+
+assert_effective_none() {
+    local output=$1 name=$2 config_name=$3
+    "$AWK_TOOL" -v wanted_name="$name" \
+        '$1 == wanted_name && tolower($2) != "none" { found=1 } END { exit found }' "$output" || return 1
+    "$AWK_TOOL" -v wanted_name="$config_name" \
+        '$1 == wanted_name && tolower($2) == "none" { found=1 } END { exit !found }' "$SSH_INNER_CONFIG"
+}
+
+assert_no_private_key_lines() {
+    local output=$1
+    "$AWK_TOOL" 'NR == FNR { secret[$0] = 1; next } $0 in secret { found=1 } END { exit found }' \
+        "$SSHD_CLIENT_KEY" "$output"
+}
+
+load_server_identity() {
+    local -a server_lines=()
+    local line server_pid server_start server_exe server_pgrp server_role
+    SERVER_PID=
+    SERVER_START=
+    SERVER_EXE=
+    SERVER_PGRP=
+    SERVER_ROLE=
+    [[ -f $SSH_SERVER_IDENTITY && $("$STAT_TOOL" -c '%a' -- "$SSH_SERVER_IDENTITY") == 600 ]] || return 1
+    while IFS= read -r line; do
+        server_lines+=("$line")
+    done < "$SSH_SERVER_IDENTITY"
+    [[ ${#server_lines[@]} -eq 5 ]] || return 1
+    server_pid=${server_lines[0]}
+    server_start=${server_lines[1]}
+    server_exe=${server_lines[2]}
+    server_pgrp=${server_lines[3]}
+    server_role=${server_lines[4]}
+    [[ $server_pid =~ ^[1-9][0-9]*$ && $server_start =~ ^[1-9][0-9]*$ ]] || return 1
+    [[ $server_pgrp =~ ^[1-9][0-9]*$ && $server_exe == "$EVERLINK_EXE" ]] || return 1
+    [[ $server_role == detached-everlink-server ]] || return 1
+    SERVER_PID=$server_pid
+    SERVER_START=$server_start
+    SERVER_EXE=$server_exe
+    SERVER_PGRP=$server_pgrp
+    SERVER_ROLE=$server_role
+}
+
+verify_proxy_evidence() {
+    local -a query_expected=(
+        -G
+        -o ControlMaster=no -o ControlPath=none -o ControlPersist=no
+        -o ForkAfterAuthentication=no -o PermitLocalCommand=no
+        -o LocalCommand=none -o RemoteCommand=none -o SessionType=default
+        -o RequestTTY=no -o ClearAllForwardings=yes -o ForwardAgent=no
+        -o ForwardX11=no -o ForwardX11Trusted=no -o Tunnel=no -o StdinNull=yes
+        -p "$ISOLATED_PORT" "-F$SSH_INNER_CONFIG" -- "$SSH_ALIAS"
+    )
+    local -a bootstrap_expected=(
+        -o ProxyCommand=none -o ControlMaster=no -o ControlPath=none
+        -o ControlPersist=no -o ForkAfterAuthentication=no
+        -o PermitLocalCommand=no -o LocalCommand=none -o RemoteCommand=none
+        -o SessionType=default -o RequestTTY=no -o ClearAllForwardings=yes
+        -o ForwardAgent=no -o ForwardX11=no -o ForwardX11Trusted=no
+        -o Tunnel=no -o StdinNull=yes -p "$ISOLATED_PORT"
+        "-F$SSH_INNER_CONFIG" -- "$SSH_ALIAS" 'everlink __bootstrap-parent-v1'
+    )
+    local -a actual=()
+    local query_size
+    read_nul_argv "$SSH_QUERY_ARGV" actual || return 1
+    [[ ${#actual[@]} -eq ${#query_expected[@]} ]] || return 1
+    for ((query_size = 0; query_size < ${#actual[@]}; query_size++)); do
+        [[ ${actual[query_size]} == "${query_expected[query_size]}" ]] || return 1
+    done
+    read_nul_argv "$SSH_BOOTSTRAP_ARGV" actual || return 1
+    [[ ${#actual[@]} -eq ${#bootstrap_expected[@]} ]] || return 1
+    for ((query_size = 0; query_size < ${#actual[@]}; query_size++)); do
+        [[ ${actual[query_size]} == "${bootstrap_expected[query_size]}" ]] || return 1
+    done
+    assert_no_batch_mode "$SSH_QUERY_ARGV" || return 1
+    assert_no_batch_mode "$SSH_BOOTSTRAP_ARGV" || return 1
+    [[ -f $SSH_QUERY_OUTPUT && $("$STAT_TOOL" -c '%a' -- "$SSH_QUERY_OUTPUT") == 600 ]] || return 1
+    query_size=$("$STAT_TOOL" -c '%s' -- "$SSH_QUERY_OUTPUT") || return 1
+    (( query_size > 0 && query_size <= 65536 )) || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" hostname "$ISOLATED_ADDR" || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" port "$ISOLATED_PORT" || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" user "$CURRENT_USER" || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" identityfile "$SSHD_CLIENT_KEY" || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" userknownhostsfile "$SSHD_KNOWN_HOSTS" || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" globalknownhostsfile /dev/null || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" stricthostkeychecking true || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" identitiesonly yes || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" identityagent none || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" pubkeyauthentication true || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" passwordauthentication no || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" kbdinteractiveauthentication no || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" preferredauthentications publickey || return 1
+    assert_effective_none "$SSH_QUERY_OUTPUT" proxycommand ProxyCommand || return 1
+    assert_effective_none "$SSH_QUERY_OUTPUT" proxyjump ProxyJump || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" requesttty false || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" clearallforwardings yes || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" forwardagent no || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" forwardx11 no || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" tunnel false || return 1
+    assert_no_effective_value "$SSH_QUERY_OUTPUT" remotecommand 'everlink __bootstrap-parent-v1' || return 1
+    assert_no_effective_value "$SSH_QUERY_OUTPUT" 'everlink' 'v1' || return 1
+    assert_no_private_key_lines "$SSH_QUERY_OUTPUT" || return 1
+    load_server_identity || return 1
+}
+
+run_outer_ssh() {
+    local expected="EverLink isolated production connection" status
+    local output="$TMP_ROOT/outer.stdout" error="$TMP_ROOT/outer.stderr"
+    printf '%s\n' "$expected" > "$SSHD_EXPECTED_OUTPUT"
+    "$CHMOD_TOOL" 600 -- "$SSHD_EXPECTED_OUTPUT" || return 1
+    set +e
+    "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
+        "${SSH_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
+        "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
+        "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
+        "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" -n -T -- "$SSH_ALIAS" \
+        "$PRINTF_TOOL '%s\\n' '$expected'" > "$output" 2> "$error"
+    status=$?
+    set -e
+    (( status == 0 )) || return 1
+    "$CMP_TOOL" -s -- "$SSHD_EXPECTED_OUTPUT" "$output" || return 1
+    [[ ! -s $error ]]
 }
 
 run_direct_ssh() {
@@ -732,6 +1128,49 @@ run_direct_ssh() {
     [[ ! -s $error ]]
 }
 
+cleanup_detached_server() {
+    local pid=$1 start=$2 exe=$3 pgrp=$4 role=$5
+    local result rc=0 term_sent=0
+    [[ -n $pid && -n $start && -n $exe && -n $pgrp && -n $role ]] || return 1
+
+    if validate_owned "$pid" "$start" "$exe" "$pgrp" "$role"; then
+        if builtin kill -TERM "$pid" 2>/dev/null; then
+            term_sent=1
+        elif validate_owned "$pid" "$start" "$exe" "$pgrp" "$role"; then
+            rc=1
+        else
+            result=$?
+            [[ $result -eq 2 ]] || rc=1
+        fi
+    else
+        result=$?
+        [[ $result -eq 2 ]] || rc=1
+    fi
+
+    if (( term_sent )); then
+        if ! poll_owned_gone "$pid" "$start" "$exe" "$pgrp" "$role"; then
+            if validate_owned "$pid" "$start" "$exe" "$pgrp" "$role"; then
+                if builtin kill -KILL "$pid" 2>/dev/null; then
+                    poll_owned_gone "$pid" "$start" "$exe" "$pgrp" "$role" || rc=1
+                elif validate_owned "$pid" "$start" "$exe" "$pgrp" "$role"; then
+                    rc=1
+                else
+                    result=$?
+                    [[ $result -eq 2 ]] || rc=1
+                fi
+            else
+                result=$?
+                [[ $result -eq 2 ]] || rc=1
+            fi
+        fi
+    fi
+
+    # The server is deliberately detached from this shell.  Its PID tuple is
+    # checked, but it is never group-signalled and never reaped here.
+    poll_owned_gone "$pid" "$start" "$exe" "$pgrp" "$role" || rc=1
+    return "$rc"
+}
+
 run_signal_child() {
     local i
     TMP_ROOT=$("$MKtemp_TOOL" -d -- /tmp/everlink-slice5a.XXXXXX)
@@ -749,7 +1188,7 @@ run_signal_child() {
 }
 
 cleanup() {
-    local original_status=$? rc=0 result
+    local original_status=$? rc=0 result identity_loaded=0
     if (( CLEANUP_DONE )); then
         exit "$original_status"
     fi
@@ -763,6 +1202,19 @@ cleanup() {
         fi
         remove_temp_root "$TMP_ROOT" || rc=1
     else
+        if [[ -z $SERVER_PID && -f $SSH_SERVER_IDENTITY ]]; then
+            if load_server_identity; then
+                identity_loaded=1
+            else
+                rc=1
+            fi
+        elif [[ -n $SERVER_PID ]]; then
+            identity_loaded=1
+        fi
+        if (( identity_loaded )); then
+            cleanup_detached_server "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" \
+                "$SERVER_PGRP" "$SERVER_ROLE" || rc=1
+        fi
         if [[ -n $OWN_PID ]]; then
             cleanup_owned "$OWN_PID" "$OWN_START" "$OWN_EXE" "$OWN_PGRP" "$OWN_ROLE" || rc=1
         fi
@@ -793,7 +1245,7 @@ cleanup() {
         exit 1
     fi
     if [[ $MODE == parent ]]; then
-        printf 'EverLink Slice 5A isolated sshd foundation: PASS\n'
+        printf 'EverLink Slice 5A production OpenSSH path: PASS\n'
     fi
     exit 0
 }
@@ -868,6 +1320,23 @@ make_known_hosts || {
 }
 run_direct_ssh 1 || {
     printf 'first direct ssh health check failed\n' >&2
+    exit 1
+}
+write_ssh_configs_and_shim || {
+    printf 'production OpenSSH harness preparation failed\n' >&2
+    exit 1
+}
+run_outer_ssh || {
+    printf 'production ProxyCommand session failed\n' >&2
+    exit 1
+}
+verify_proxy_evidence || {
+    printf 'production ProxyCommand evidence validation failed\n' >&2
+    exit 1
+}
+poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" "$SERVER_PGRP" \
+    "$SERVER_ROLE" || {
+    printf 'detached EverLink server did not reach terminal state\n' >&2
     exit 1
 }
 listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" \
