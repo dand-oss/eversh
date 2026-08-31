@@ -1,6 +1,8 @@
 //! Deterministic UDP policy and locked noq/rustls transport.
 
-use crate::admission::{self, AdmittedStream, AuthenticatedConnection, OneUseToken};
+use crate::admission::{
+    self, AdmittedStream, AuthenticatedConnection, ConnectedTarget, OneUseToken,
+};
 use crate::bootstrap::{try_encode_auth_frame, SecretToken, ALPN};
 use crate::error::{DeadlinePhase, EndpointViolation, Error, LimitViolation, UdpPolicyViolation};
 use crate::identity::EphemeralIdentity;
@@ -310,15 +312,15 @@ impl ServerEndpoint {
         require_tokio_runtime()?;
         limits.validate()?;
         let bound = bind_udp(authenticated.peer(), policy, &limits)?;
+        let lease_deadline = Instant::now()
+            .checked_add(limits.server_lease())
+            .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
         let local_address = bound.local_addr();
         let provider = ring_provider();
         let rustls = locked_server_tls(identity, provider)?;
         let (server_config, profile) = locked_server_config(rustls, &limits)?;
         let accept_config = Arc::new(server_config.clone());
         let endpoint = endpoint_from_socket(bound, Some(server_config))?;
-        let lease_deadline = Instant::now()
-            .checked_add(limits.server_lease())
-            .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
         Ok(Self {
             endpoint,
             local_address,
@@ -339,7 +341,53 @@ impl ServerEndpoint {
         &self.profile
     }
 
+    /// The immutable one-shot lease anchored when the endpoint was bound.
+    pub fn lease_deadline(&self) -> Instant {
+        self.lease_deadline
+    }
+
+    /// Close a bound endpoint that was never released for admission.
+    pub async fn close(self) -> Result<(), Error> {
+        close_endpoint(
+            self.endpoint,
+            self.limits.finalize_timeout(),
+            b"server startup cancelled",
+        )
+        .await
+    }
+
     pub async fn accept(self) -> Result<AdmittedStream, Error> {
+        let cleanup = self.endpoint.clone();
+        let finalize_timeout = self.limits.finalize_timeout();
+        match self.accept_inner().await {
+            Ok(admitted) => {
+                drop(cleanup);
+                Ok(admitted)
+            }
+            Err(first) => {
+                let _ = close_endpoint(cleanup, finalize_timeout, b"server admission failed").await;
+                Err(first)
+            }
+        }
+    }
+
+    pub(crate) async fn accept_for_role(self) -> Result<RoleAdmission, Error> {
+        let cleanup = self.endpoint.clone();
+        let finalize_timeout = self.limits.finalize_timeout();
+        match self.accept_inner().await {
+            Ok(admitted) => Ok(RoleAdmission {
+                admitted,
+                cleanup,
+                finalize_timeout,
+            }),
+            Err(first) => {
+                let _ = close_endpoint(cleanup, finalize_timeout, b"server admission failed").await;
+                Err(first)
+            }
+        }
+    }
+
+    async fn accept_inner(self) -> Result<AdmittedStream, Error> {
         let Self {
             endpoint,
             authenticated,
@@ -430,6 +478,38 @@ impl std::fmt::Debug for ServerEndpoint {
     }
 }
 
+pub(crate) struct RoleAdmission {
+    admitted: AdmittedStream,
+    cleanup: Endpoint,
+    finalize_timeout: std::time::Duration,
+}
+
+impl RoleAdmission {
+    pub(crate) async fn connect_target(self) -> Result<ConnectedTarget, Error> {
+        let Self {
+            admitted,
+            cleanup,
+            finalize_timeout,
+        } = self;
+        match admitted.connect_target().await {
+            Ok(target) => {
+                drop(cleanup);
+                Ok(target)
+            }
+            Err(first) => {
+                let _ = close_endpoint(cleanup, finalize_timeout, b"target connect failed").await;
+                Err(first)
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for RoleAdmission {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("RoleAdmission { .. }")
+    }
+}
+
 /// Pinned client endpoint bound through the same exact literal policy.
 pub struct ClientEndpoint {
     endpoint: Endpoint,
@@ -473,6 +553,28 @@ impl ClientEndpoint {
     }
 
     pub async fn connect_and_authenticate(
+        self,
+        token: &SecretToken,
+        target_port: u16,
+    ) -> Result<ClientSession, Error> {
+        let cleanup = self.endpoint.clone();
+        let finalize_timeout = self.limits.finalize_timeout();
+        match self
+            .connect_and_authenticate_inner(token, target_port)
+            .await
+        {
+            Ok(session) => {
+                drop(cleanup);
+                Ok(session)
+            }
+            Err(first) => {
+                let _ = close_endpoint(cleanup, finalize_timeout, b"client connect failed").await;
+                Err(first)
+            }
+        }
+    }
+
+    async fn connect_and_authenticate_inner(
         self,
         token: &SecretToken,
         target_port: u16,
@@ -559,6 +661,13 @@ pub struct ClientSession {
     recv: RecvStream,
 }
 
+pub(crate) struct ClientSessionParts {
+    pub(crate) endpoint: Endpoint,
+    pub(crate) connection: Connection,
+    pub(crate) send: SendStream,
+    pub(crate) recv: RecvStream,
+}
+
 impl ClientSession {
     pub fn quic_send_mut(&mut self) -> &mut SendStream {
         &mut self.send
@@ -566,6 +675,21 @@ impl ClientSession {
 
     pub fn quic_recv_mut(&mut self) -> &mut RecvStream {
         &mut self.recv
+    }
+
+    pub(crate) fn into_parts(self) -> ClientSessionParts {
+        let Self {
+            endpoint,
+            connection,
+            send,
+            recv,
+        } = self;
+        ClientSessionParts {
+            endpoint,
+            connection,
+            send,
+            recv,
+        }
     }
 
     pub async fn close(self) {
@@ -588,6 +712,22 @@ impl std::fmt::Debug for ClientSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str("ClientSession { .. }")
     }
+}
+
+async fn close_endpoint(
+    endpoint: Endpoint,
+    timeout: std::time::Duration,
+    reason: &'static [u8],
+) -> Result<(), Error> {
+    let deadline = Instant::now()
+        .checked_add(timeout)
+        .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
+    endpoint.set_server_config(None);
+    endpoint.close(CLOSE_CODE, reason);
+    tokio::time::timeout_at(deadline, endpoint.wait_idle())
+        .await
+        .map_err(|_| Error::DeadlineExpired(DeadlinePhase::Finalize))?;
+    Ok(())
 }
 
 fn require_tokio_runtime() -> Result<(), Error> {
@@ -1467,6 +1607,38 @@ mod tests {
             "unexpected wrong-pin client result: {client_result:?}"
         );
         assert_listener_idle(&listener).await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn bind_anchored_lease_expiry_closes_endpoint_without_target_access() {
+        let _socket_guard = SOCKET_TEST_LOCK.lock().await;
+        let listener = loopback_listener().await;
+        let target_address = listener.local_addr().unwrap();
+        let authenticated = AuthenticatedConnection::new(
+            SocketAddr::from((Ipv4Addr::LOCALHOST, 2222)),
+            target_address,
+        )
+        .unwrap();
+        let identity = EphemeralIdentity::generate().unwrap();
+        let limits = Limits {
+            server_lease_ms: 50,
+            handshake_timeout_ms: 40,
+            finalize_timeout_ms: 500,
+            ..Limits::default()
+        };
+        let server_address = free_udp_v4();
+        let server = ServerEndpoint::bind(
+            authenticated,
+            UdpBindPolicy::Explicit(server_address),
+            &identity,
+            limits,
+        )
+        .unwrap();
+        let started = Instant::now();
+        assert!(matches!(server.accept().await, Err(Error::LeaseExpired)));
+        assert!(started.elapsed() < Duration::from_secs(1));
+        assert_listener_idle(&listener).await;
+        assert_udp_released(server_address).await;
     }
 
     #[tokio::test(flavor = "current_thread")]

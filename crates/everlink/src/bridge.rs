@@ -5,6 +5,7 @@ use crate::admission::{ConnectedTarget, ConnectedTargetParts};
 use crate::error::{Error, LimitViolation};
 use crate::limits::Limits;
 use crate::shutdown::{CopyDirection, CopyOperation, DeadlineKind, Shutdown, TerminalCause};
+use crate::transport::{ClientSession, ClientSessionParts};
 use noq::{Connection, Endpoint, RecvStream, SendStream, VarInt};
 use std::future::Future;
 use std::io;
@@ -201,41 +202,19 @@ impl TargetBridge {
             ..
         } = self;
 
-        let quic_to_peer = copy_direction(
-            quic_recv,
-            ImmediateWriter(tcp_write),
-            quic_to_peer_buffer,
-            CopyDirection::QuicToPeer,
+        run_bridge_pair(BridgeRun {
+            runtime,
+            shutdown,
             limits,
-            shutdown.clone(),
-        );
-        let peer_to_quic = copy_direction(
-            tcp_read,
+            owner,
             quic_send,
+            quic_recv,
+            peer_read: tcp_read,
+            peer_write: tcp_write,
+            quic_to_peer_buffer,
             peer_to_quic_buffer,
-            CopyDirection::PeerToQuic,
-            limits,
-            shutdown.clone(),
-        );
-
-        let launched = shutdown.with_running_admission(move || {
-            (
-                OwnedTask::new(CopyDirection::QuicToPeer, runtime.spawn(quic_to_peer)),
-                OwnedTask::new(CopyDirection::PeerToQuic, runtime.spawn(peer_to_quic)),
-            )
-        });
-
-        let (quic_task, peer_task) = match launched {
-            Some(tasks) => tasks,
-            None => {
-                shutdown.request_fatal(TerminalCause::ConstructionFailed, limits.drain_timeout());
-                return finalize_bridge(owner, shutdown, limits, None, DrainStatus::Incomplete)
-                    .await;
-            }
-        };
-
-        let (remaining, drain) = drain_tasks(shutdown.clone(), limits, quic_task, peer_task).await;
-        finalize_bridge(owner, shutdown, limits, remaining, drain).await
+        })
+        .await
     }
 
     pub fn shutdown(&self) -> &Shutdown {
@@ -250,6 +229,194 @@ impl std::fmt::Debug for TargetBridge {
             .field("shutdown", &self.shutdown)
             .finish_non_exhaustive()
     }
+}
+
+/// Staged owner of the public ProxyCommand stdin/stdout and authenticated
+/// client endpoint. It uses the same copy and lifecycle implementation as the
+/// target bridge.
+pub struct StdioBridge {
+    runtime: Handle,
+    shutdown: Shutdown,
+    limits: Limits,
+    owner: BridgeOwner,
+    quic_send: SendStream,
+    quic_recv: RecvStream,
+    stdin: Box<dyn AsyncRead + Send + Unpin>,
+    stdout: Box<dyn AsyncWrite + Send + Unpin>,
+    quic_to_peer_buffer: Vec<u8>,
+    peer_to_quic_buffer: Vec<u8>,
+}
+
+impl StdioBridge {
+    pub async fn try_new<R, W>(
+        session: ClientSession,
+        stdin: R,
+        stdout: W,
+        limits: Limits,
+        shutdown: Shutdown,
+    ) -> Result<Self, Error>
+    where
+        R: AsyncRead + Send + Unpin + 'static,
+        W: AsyncWrite + Send + Unpin + 'static,
+    {
+        let runtime = match Handle::try_current() {
+            Ok(runtime) => runtime,
+            Err(_) => {
+                drop(session);
+                shutdown.request_fatal(TerminalCause::ConstructionFailed, limits.drain_timeout());
+                shutdown.begin_finalize(limits.finalize_timeout()).ok();
+                return Err(Error::RuntimeUnavailable);
+            }
+        };
+        if let Err(error) = limits.validate() {
+            return Err(reject_client(session, &shutdown, &limits, error).await);
+        }
+        if !deadlines_representable(&limits) {
+            return Err(reject_client(
+                session,
+                &shutdown,
+                &limits,
+                Error::InvalidLimits(LimitViolation::DeadlineOverflow),
+            )
+            .await);
+        }
+        let quic_to_peer_buffer = match fixed_buffer(limits.copy_buf) {
+            Ok(buffer) => buffer,
+            Err(error) => return Err(reject_client(session, &shutdown, &limits, error).await),
+        };
+        let peer_to_quic_buffer = match fixed_buffer(limits.copy_buf) {
+            Ok(buffer) => buffer,
+            Err(error) => return Err(reject_client(session, &shutdown, &limits, error).await),
+        };
+        if !shutdown.accepting_work() {
+            return Err(
+                reject_client(session, &shutdown, &limits, Error::BridgeAdmissionClosed).await,
+            );
+        }
+        let ClientSessionParts {
+            endpoint,
+            connection,
+            send,
+            recv,
+        } = session.into_parts();
+        Ok(Self {
+            runtime,
+            shutdown,
+            limits,
+            owner: BridgeOwner::new(endpoint, connection),
+            quic_send: send,
+            quic_recv: recv,
+            stdin: Box::new(stdin),
+            stdout: Box::new(stdout),
+            quic_to_peer_buffer,
+            peer_to_quic_buffer,
+        })
+    }
+
+    pub fn run(self) -> impl Future<Output = BridgeCompletion> + Send {
+        let mut guard = RunGuard::new(self.shutdown.clone(), self.limits.drain_timeout());
+        async move {
+            let Self {
+                runtime,
+                shutdown,
+                limits,
+                owner,
+                quic_send,
+                quic_recv,
+                stdin,
+                stdout,
+                quic_to_peer_buffer,
+                peer_to_quic_buffer,
+            } = self;
+            let completion = run_bridge_pair(BridgeRun {
+                runtime,
+                shutdown,
+                limits,
+                owner,
+                quic_send,
+                quic_recv,
+                peer_read: stdin,
+                peer_write: stdout,
+                quic_to_peer_buffer,
+                peer_to_quic_buffer,
+            })
+            .await;
+            guard.disarm();
+            completion
+        }
+    }
+}
+
+impl std::fmt::Debug for StdioBridge {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("StdioBridge")
+            .field("shutdown", &self.shutdown)
+            .finish_non_exhaustive()
+    }
+}
+
+struct BridgeRun<R, W> {
+    runtime: Handle,
+    shutdown: Shutdown,
+    limits: Limits,
+    owner: BridgeOwner,
+    quic_send: SendStream,
+    quic_recv: RecvStream,
+    peer_read: R,
+    peer_write: W,
+    quic_to_peer_buffer: Vec<u8>,
+    peer_to_quic_buffer: Vec<u8>,
+}
+
+async fn run_bridge_pair<R, W>(run: BridgeRun<R, W>) -> BridgeCompletion
+where
+    R: AsyncRead + Send + Unpin + 'static,
+    W: AsyncWrite + Send + Unpin + 'static,
+{
+    let BridgeRun {
+        runtime,
+        shutdown,
+        limits,
+        owner,
+        quic_send,
+        quic_recv,
+        peer_read,
+        peer_write,
+        quic_to_peer_buffer,
+        peer_to_quic_buffer,
+    } = run;
+    let quic_to_peer = copy_direction(
+        quic_recv,
+        ImmediateWriter(peer_write),
+        quic_to_peer_buffer,
+        CopyDirection::QuicToPeer,
+        limits,
+        shutdown.clone(),
+    );
+    let peer_to_quic = copy_direction(
+        peer_read,
+        quic_send,
+        peer_to_quic_buffer,
+        CopyDirection::PeerToQuic,
+        limits,
+        shutdown.clone(),
+    );
+    let launched = shutdown.with_running_admission(move || {
+        (
+            OwnedTask::new(CopyDirection::QuicToPeer, runtime.spawn(quic_to_peer)),
+            OwnedTask::new(CopyDirection::PeerToQuic, runtime.spawn(peer_to_quic)),
+        )
+    });
+    let (quic_task, peer_task) = match launched {
+        Some(tasks) => tasks,
+        None => {
+            shutdown.request_fatal(TerminalCause::ConstructionFailed, limits.drain_timeout());
+            return finalize_bridge(owner, shutdown, limits, None, DrainStatus::Incomplete).await;
+        }
+    };
+    let (remaining, drain) = drain_tasks(shutdown.clone(), limits, quic_task, peer_task).await;
+    finalize_bridge(owner, shutdown, limits, remaining, drain).await
 }
 
 struct RunGuard {
@@ -279,6 +446,31 @@ impl Drop for RunGuard {
                 .request_fatal(TerminalCause::Cancelled, self.drain_timeout);
         }
     }
+}
+
+async fn reject_client(
+    session: ClientSession,
+    shutdown: &Shutdown,
+    limits: &Limits,
+    error: Error,
+) -> Error {
+    shutdown.request_fatal(TerminalCause::ConstructionFailed, limits.drain_timeout());
+    let complete = match shutdown.begin_finalize(limits.finalize_timeout()) {
+        Ok(deadline) if Instant::now() < deadline => {
+            tokio::time::timeout_at(deadline, session.close())
+                .await
+                .is_ok()
+                && Instant::now() < deadline
+        }
+        Ok(_) | Err(_) => {
+            drop(session);
+            false
+        }
+    };
+    if complete {
+        shutdown.complete_finalize();
+    }
+    error
 }
 
 async fn reject_target(

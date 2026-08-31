@@ -14,6 +14,7 @@ fn slice2_public_types_have_owned_thread_safe_boundaries() {
     fn assert_copy<T: Copy>() {}
 
     assert_send::<everlink::TargetBridge>();
+    assert_send::<everlink::StdioBridge>();
     assert_send_sync::<everlink::Shutdown>();
     assert_copy::<everlink::BridgeCompletion>();
     assert_copy::<everlink::TerminalCause>();

@@ -50,6 +50,14 @@ pub enum DeadlinePhase {
 #[derive(Debug)]
 pub enum Error {
     BootstrapMalformed,
+    SshConnectionMalformed,
+    ServerStartMalformed,
+    ReleaseRejected,
+    InvalidSshArgument,
+    SshPolicyRejected,
+    SshProcessFailed,
+    BootstrapTimedOut,
+    BridgeIncomplete,
     AuthRejected,
     PinMismatch,
     VersionUnsupported,
@@ -152,6 +160,16 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::BootstrapMalformed => f.write_str("malformed bootstrap record"),
+            Self::SshConnectionMalformed => f.write_str("malformed SSH_CONNECTION"),
+            Self::ServerStartMalformed => f.write_str("malformed private server-start record"),
+            Self::ReleaseRejected => f.write_str("private server release was not authorized"),
+            Self::InvalidSshArgument => f.write_str("SSH argument rejected by bootstrap policy"),
+            Self::SshPolicyRejected => {
+                f.write_str("effective SSH proxy configuration is not permitted")
+            }
+            Self::SshProcessFailed => f.write_str("owned OpenSSH bootstrap process failed"),
+            Self::BootstrapTimedOut => f.write_str("absolute bootstrap deadline expired"),
+            Self::BridgeIncomplete => f.write_str("byte bridge did not drain and finalize cleanly"),
             Self::AuthRejected => f.write_str("authentication rejected"),
             Self::PinMismatch => {
                 f.write_str("server SPKI does not match the authenticated bootstrap pin")
