@@ -47,6 +47,8 @@ RECEIPT_PATH=
 CURRENT_STAGE=startup
 CURRENT_LOG=
 ACTIVE_PID=0
+ACTIVE_PRIVILEGED=0
+ACTIVE_TEMP_DIR=
 HEAD_SHA=
 TREE_SHA=
 STABLE_VERSION=
@@ -103,9 +105,11 @@ require_fixed_tools() {
     local tool
     for tool in \
         /usr/bin/awk /usr/bin/chmod /usr/bin/curl /usr/bin/date /usr/bin/env \
-        /usr/bin/find /usr/bin/flock /usr/bin/git /usr/bin/grep /usr/bin/jq \
+        /usr/bin/find /usr/bin/flock /usr/bin/git /usr/bin/grep /usr/bin/id \
+        /usr/bin/jq /usr/bin/kill \
         /usr/bin/mkdir /usr/bin/mktemp /usr/bin/mv /usr/bin/rm /usr/bin/rmdir \
-        /usr/bin/sed /usr/bin/setsid /usr/bin/sha256sum /usr/bin/tail \
+        /usr/bin/ps /usr/bin/readlink /usr/bin/sed /usr/bin/setsid \
+        /usr/bin/sha256sum /usr/bin/sleep /usr/bin/sort /usr/bin/tail \
         /usr/bin/timeout /usr/bin/uname; do
         [[ -x $tool ]] || {
             printf 'EverLink qualification: missing local prerequisite\n' >&2
@@ -163,14 +167,53 @@ handle_unexpected_error() {
     exit "$status"
 }
 
+active_group_exists() {
+    ((ACTIVE_PID > 1)) || return 1
+    /usr/bin/ps -e -o pgid= \
+        | /usr/bin/awk -v group="$ACTIVE_PID" '$1 == group { found=1 } END { exit !found }'
+}
+
+signal_active_group() {
+    local signal_name=$1
+    ((ACTIVE_PID > 1)) || return 0
+    if ((ACTIVE_PRIVILEGED)); then
+        /usr/bin/sudo -n -- /usr/bin/kill "-$signal_name" -- "-$ACTIVE_PID"
+    else
+        /usr/bin/kill "-$signal_name" -- "-$ACTIVE_PID"
+    fi
+}
+
+terminate_active_group() {
+    local deadline
+    ((ACTIVE_PID > 1)) || return 0
+    signal_active_group TERM 2>/dev/null || true
+    deadline=$((SECONDS + 15))
+    while active_group_exists && ((SECONDS < deadline)); do
+        /usr/bin/sleep 0.05
+    done
+    if active_group_exists; then
+        signal_active_group KILL 2>/dev/null || true
+    fi
+    wait "$ACTIVE_PID" 2>/dev/null || true
+    ACTIVE_PID=0
+    ACTIVE_PRIVILEGED=0
+}
+
+remove_active_temp() {
+    [[ -n $ACTIVE_TEMP_DIR ]] || return 0
+    if [[ $ACTIVE_TEMP_DIR == "$QUAL_ROOT"/.setup.* \
+        && $ACTIVE_TEMP_DIR != "$QUAL_ROOT" \
+        && -d $ACTIVE_TEMP_DIR ]]; then
+        /usr/bin/rm -rf -- "$ACTIVE_TEMP_DIR"
+    fi
+    ACTIVE_TEMP_DIR=
+}
+
 handle_signal() {
     local signal_name=$1 status=$2
     trap - INT TERM HUP ERR
-    if ((ACTIVE_PID > 0)); then
-        kill -TERM -- "-$ACTIVE_PID" 2>/dev/null || true
-        wait "$ACTIVE_PID" 2>/dev/null || true
-        ACTIVE_PID=0
-    fi
+    terminate_active_group
+    remove_active_temp
     CURRENT_STAGE="signal-$signal_name"
     write_failure_receipt "$CURRENT_STAGE" "$status" "$CURRENT_LOG"
     emit_receipt FAIL "$RECEIPT_PATH"
@@ -262,16 +305,20 @@ run_setup() {
 
     CURRENT_STAGE=setup
     CURRENT_LOG=$setup_log
-    if (
-        trap - ERR
-        set -Eeuo pipefail
-        setup_impl "$setup_temp"
-    ) >"$setup_log" 2>&1; then
+    ACTIVE_TEMP_DIR=$setup_temp
+    /usr/bin/setsid --wait /usr/bin/bash "$SCRIPT_DIR/qualify-m3.sh" \
+        __setup-worker "$setup_temp" >"$setup_log" 2>&1 &
+    ACTIVE_PID=$!
+    ACTIVE_PRIVILEGED=0
+    if wait "$ACTIVE_PID"; then
         status=0
     else
         status=$?
     fi
+    ACTIVE_PID=0
+    ACTIVE_PRIVILEGED=0
     /usr/bin/rm -rf -- "$setup_temp"
+    ACTIVE_TEMP_DIR=
     ((status == 0)) || fail setup "$status" "$setup_log"
 
     validate_tools || fail validate-tools 1 "$setup_log"
@@ -283,6 +330,7 @@ run_setup() {
         --arg cargo_fuzz "$FUZZ_VERSION" \
         --arg cargo_deny "$DENY_VERSION" \
         --arg cross_target "$CROSS_TARGET" \
+        --arg cargo_target_dir "$CARGO_TARGET_DIR" \
         --arg tool_root "$TOOL_ROOT" \
         --arg raw_log "$setup_log" \
         '{
@@ -309,16 +357,28 @@ run_logged() {
     shift 3
     CURRENT_STAGE=$stage
     CURRENT_LOG=$log_path
-    if (
-        trap - ERR
-        cd -- "$directory"
-        "$@"
-    ) >"$log_path" 2>&1; then
+    ACTIVE_PRIVILEGED=0
+    [[ ${1-} != /usr/bin/sudo ]] || ACTIVE_PRIVILEGED=1
+    /usr/bin/setsid --wait /usr/bin/env -C "$directory" "$@" \
+        >"$log_path" 2>&1 &
+    ACTIVE_PID=$!
+    if wait "$ACTIVE_PID"; then
         local status=0
     else
         local status=$?
     fi
+    ACTIVE_PID=0
+    ACTIVE_PRIVILEGED=0
     ((status == 0)) || fail "$stage" "$status" "$log_path"
+}
+
+verify_final_identity() {
+    local stage=$1 log_path=$2 current_head current_tree dirty
+    current_head=$(/usr/bin/git -C "$ROOT" rev-parse HEAD)
+    current_tree=$(/usr/bin/git -C "$ROOT" rev-parse 'HEAD^{tree}')
+    dirty=$(/usr/bin/git -C "$ROOT" status --porcelain=v1 --untracked-files=all)
+    [[ $current_head == "$HEAD_SHA" && $current_tree == "$TREE_SHA" && -z $dirty ]] \
+        || fail "$stage" 1 "$log_path"
 }
 
 extract_stat() {
@@ -369,6 +429,7 @@ run_campaign() {
         status=$?
     fi
     ACTIVE_PID=0
+    ACTIVE_PRIVILEGED=0
     end=$(/usr/bin/date +%s)
     elapsed=$((end - start))
 
@@ -449,6 +510,7 @@ run_qualification() {
     export RUSTUP_HOME CARGO_HOME
     export PATH="$CARGO_BIN:/usr/bin:/bin"
     export CARGO_NET_OFFLINE=true
+    export CARGO_TARGET_DIR="$ROOT/target"
 
     run_logged git-diff-check "$gate_dir/git-diff-check.log" "$ROOT" \
         /usr/bin/git diff --check
@@ -513,6 +575,7 @@ run_qualification() {
     campaigns_json="$RUN_ROOT/campaigns.json"
     /usr/bin/jq -s '.' "$campaign_dir"/records/*.json >"$campaigns_json.tmp"
     /usr/bin/mv -f -- "$campaigns_json.tmp" "$campaigns_json"
+    verify_final_identity final-identity "$gate_dir/git-diff-check.log"
     completed=$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)
     temporary="$RECEIPT_PATH.tmp"
     /usr/bin/jq -n \
@@ -536,6 +599,7 @@ run_qualification() {
             head_sha: $head_sha,
             tree_sha: $tree_sha,
             clean_tree: true,
+            final_identity_rechecked: true,
             started_utc: $started_utc,
             completed_utc: $completed_utc,
             tools: {
@@ -544,7 +608,8 @@ run_qualification() {
                 nightly: $nightly,
                 cargo_fuzz: $cargo_fuzz,
                 cargo_deny: $cargo_deny,
-                cross_target: $cross_target
+                cross_target: $cross_target,
+                cargo_target_dir: $cargo_target_dir
             },
             deterministic_gates: [
                 "git-diff-check", "root-fmt", "root-check", "root-clippy",
@@ -573,7 +638,7 @@ run_qualification() {
 
 run_network_qualification() {
     local dirty run_id gate_dir started completed temporary openssh_log migration_log
-    local openssh_script migration_script
+    local openssh_script migration_script binary_hash_before binary_hash_after
     validate_tools || {
         /usr/bin/mkdir -p -- "$QUAL_ROOT/network"
         RECEIPT_PATH="$QUAL_ROOT/network/missing-tools.json"
@@ -613,9 +678,14 @@ run_network_qualification() {
     export RUSTUP_HOME CARGO_HOME
     export PATH="$CARGO_BIN:/usr/bin:/bin"
     export CARGO_NET_OFFLINE=true
+    export CARGO_TARGET_DIR="$ROOT/target"
 
     run_logged network-build "$gate_dir/network-build.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --all-features --locked --no-run
+    binary_hash_before=$(/usr/bin/sha256sum "$ROOT/target/debug/everlink")
+    binary_hash_before=${binary_hash_before%% *}
+    [[ $binary_hash_before =~ ^[0-9a-f]{64}$ ]] \
+        || fail network-binary-identity 1 "$gate_dir/network-build.log"
     run_logged production-openssh "$openssh_log" "$ROOT" \
         /usr/bin/bash "$openssh_script"
     /usr/bin/grep -Fqx 'EverLink Slice 5A production OpenSSH path: PASS' "$openssh_log" \
@@ -625,6 +695,11 @@ run_network_qualification() {
         "$migration_script"
     /usr/bin/grep -Fqx 'everlink Slice 4 production netns/veth gate: PASS' "$migration_log" \
         || fail production-migration-receipt 1 "$migration_log"
+    binary_hash_after=$(/usr/bin/sha256sum "$ROOT/target/debug/everlink")
+    binary_hash_after=${binary_hash_after%% *}
+    [[ $binary_hash_after == "$binary_hash_before" ]] \
+        || fail network-binary-identity 1 "$gate_dir/network-build.log"
+    verify_final_identity final-network-identity "$gate_dir/network-build.log"
 
     completed=$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)
     temporary="$RECEIPT_PATH.tmp"
@@ -634,6 +709,8 @@ run_network_qualification() {
         --arg started_utc "$started" \
         --arg completed_utc "$completed" \
         --arg stable "$STABLE_VERSION" \
+        --arg cargo_target_dir "$CARGO_TARGET_DIR" \
+        --arg everlink_binary_sha256 "$binary_hash_before" \
         --arg run_root "$RUN_ROOT" \
         --arg openssh_log "$openssh_log" \
         --arg migration_log "$migration_log" \
@@ -644,9 +721,12 @@ run_network_qualification() {
             head_sha: $head_sha,
             tree_sha: $tree_sha,
             clean_tree: true,
+            final_identity_rechecked: true,
             started_utc: $started_utc,
             completed_utc: $completed_utc,
             toolchain: $stable,
+            cargo_target_dir: $cargo_target_dir,
+            everlink_binary_sha256: $everlink_binary_sha256,
             gates: [
                 {
                     name: "production-openssh",
@@ -678,6 +758,12 @@ run_network_qualification() {
 }
 
 main() {
+    if [[ ${1-} == __setup-worker ]]; then
+        [[ $# -eq 2 && $2 == "$QUAL_ROOT"/.setup.* && -d $2 ]] || exit 2
+        [[ $(/usr/bin/readlink -e -- "$2") == "$2" ]] || exit 2
+        setup_impl "$2"
+        exit 0
+    fi
     parse_arguments "$@"
     require_fixed_tools
     /usr/bin/mkdir -p -- "$QUAL_ROOT"
