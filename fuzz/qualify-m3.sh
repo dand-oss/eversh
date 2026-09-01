@@ -22,9 +22,13 @@ readonly CARGO_BIN="$CARGO_HOME/bin"
 readonly RUSTUP="$CARGO_BIN/rustup"
 readonly CARGO="$CARGO_BIN/cargo"
 readonly CARGO_FUZZ="$CARGO_BIN/cargo-fuzz"
+readonly CARGO_DENY="$CARGO_BIN/cargo-deny"
 readonly STABLE_TOOLCHAIN=1.95.0
+readonly MSRV_TOOLCHAIN=1.88.0
 readonly NIGHTLY_TOOLCHAIN=nightly-2026-08-20
+readonly CROSS_TARGET=aarch64-unknown-linux-gnu
 readonly CARGO_FUZZ_VERSION=0.13.2
+readonly CARGO_DENY_VERSION=0.20.2
 readonly CAMPAIGN_SECONDS=61
 readonly MINIMUM_CAMPAIGN_SECONDS=60
 readonly CAMPAIGN_WATCHDOG_SECONDS=180
@@ -46,15 +50,17 @@ ACTIVE_PID=0
 HEAD_SHA=
 TREE_SHA=
 STABLE_VERSION=
+MSRV_VERSION=
 NIGHTLY_VERSION=
 FUZZ_VERSION=
+DENY_VERSION=
 
 usage() {
     cat <<'EOF'
 Usage: fuzz/qualify-m3.sh [setup|run] [--json]
 
-  setup   Install the exact isolated Rust and cargo-fuzz tools and fetch locks.
-  run     Require a clean commit, run deterministic gates, then four campaigns.
+  setup   Install exact isolated Rust, cargo-deny, and cargo-fuzz tools.
+  run     Require a clean commit, run full local gates, then four campaigns.
   --json  Print the sanitized JSON receipt instead of the one-line summary.
 
 No raw compiler or campaign output is written to stdout or stderr. Logs, corpora,
@@ -201,6 +207,8 @@ setup_impl() {
 
     "$RUSTUP" toolchain install "$STABLE_TOOLCHAIN" --profile minimal
     "$RUSTUP" component add rustfmt clippy --toolchain "$STABLE_TOOLCHAIN"
+    "$RUSTUP" target add "$CROSS_TARGET" --toolchain "$STABLE_TOOLCHAIN"
+    "$RUSTUP" toolchain install "$MSRV_TOOLCHAIN" --profile minimal
     "$RUSTUP" toolchain install "$NIGHTLY_TOOLCHAIN" --profile minimal
     "$RUSTUP" component add rust-src --toolchain "$NIGHTLY_TOOLCHAIN"
 
@@ -210,24 +218,37 @@ setup_impl() {
             --version "$CARGO_FUZZ_VERSION" --locked --force
     fi
 
+    current=$($CARGO_DENY --version 2>/dev/null || true)
+    if [[ $current != "cargo-deny $CARGO_DENY_VERSION" ]]; then
+        "$CARGO" "+$STABLE_TOOLCHAIN" install cargo-deny \
+            --version "$CARGO_DENY_VERSION" --locked --force
+    fi
+
     "$CARGO" "+$STABLE_TOOLCHAIN" fetch --manifest-path "$ROOT/Cargo.toml" --locked
     "$CARGO" "+$STABLE_TOOLCHAIN" fetch --manifest-path "$FUZZ_DIR/Cargo.toml" --locked
+    "$CARGO_DENY" fetch all
 }
 
 validate_tools() {
-    [[ -x $RUSTUP && -x $CARGO && -x $CARGO_FUZZ ]] || return 1
+    [[ -x $RUSTUP && -x $CARGO && -x $CARGO_FUZZ && -x $CARGO_DENY ]] || return 1
     STABLE_VERSION=$($RUSTUP run "$STABLE_TOOLCHAIN" rustc --version)
+    MSRV_VERSION=$($RUSTUP run "$MSRV_TOOLCHAIN" rustc --version)
     NIGHTLY_VERSION=$($RUSTUP run "$NIGHTLY_TOOLCHAIN" rustc --version)
     FUZZ_VERSION=$($CARGO_FUZZ --version)
+    DENY_VERSION=$($CARGO_DENY --version)
     [[ $STABLE_VERSION == "rustc 1.95.0 "* ]]
+    [[ $MSRV_VERSION == "rustc 1.88.0 (6b00bc388 2025-06-23)" ]]
     [[ $NIGHTLY_VERSION == "rustc 1.100.0-nightly (f7d782a3b 2026-08-19)" ]]
     [[ $FUZZ_VERSION == "cargo-fuzz $CARGO_FUZZ_VERSION" ]]
+    [[ $DENY_VERSION == "cargo-deny $CARGO_DENY_VERSION" ]]
     "$RUSTUP" component list --toolchain "$STABLE_TOOLCHAIN" \
         | /usr/bin/grep -Eq '^rustfmt-.* \(installed\)$'
     "$RUSTUP" component list --toolchain "$STABLE_TOOLCHAIN" \
         | /usr/bin/grep -Eq '^clippy-.* \(installed\)$'
     "$RUSTUP" component list --toolchain "$NIGHTLY_TOOLCHAIN" \
         | /usr/bin/grep -Eq '^rust-src \(installed\)$'
+    "$RUSTUP" target list --toolchain "$STABLE_TOOLCHAIN" \
+        | /usr/bin/grep -Eq "^$CROSS_TARGET \(installed\)$"
 }
 
 run_setup() {
@@ -256,8 +277,11 @@ run_setup() {
     temporary="$RECEIPT_PATH.tmp"
     /usr/bin/jq -n \
         --arg stable "$STABLE_VERSION" \
+        --arg msrv "$MSRV_VERSION" \
         --arg nightly "$NIGHTLY_VERSION" \
         --arg cargo_fuzz "$FUZZ_VERSION" \
+        --arg cargo_deny "$DENY_VERSION" \
+        --arg cross_target "$CROSS_TARGET" \
         --arg tool_root "$TOOL_ROOT" \
         --arg raw_log "$setup_log" \
         '{
@@ -266,8 +290,11 @@ run_setup() {
             command: "setup",
             tools: {
                 stable: $stable,
+                msrv: $msrv,
                 nightly: $nightly,
                 cargo_fuzz: $cargo_fuzz,
+                cargo_deny: $cargo_deny,
+                cross_target: $cross_target,
                 root: $tool_root
             },
             raw_log: $raw_log
@@ -392,7 +419,7 @@ run_campaign() {
 
 run_qualification() {
     local dirty run_id host build_target campaign_dir gate_dir log target index
-    local campaigns_json temporary started completed
+    local campaigns_json temporary started completed resource_metrics
     validate_tools || {
         /usr/bin/mkdir -p -- "$QUAL_ROOT/runs"
         RECEIPT_PATH="$QUAL_ROOT/runs/missing-tools.json"
@@ -422,20 +449,45 @@ run_qualification() {
     export PATH="$CARGO_BIN:/usr/bin:/bin"
     export CARGO_NET_OFFLINE=true
 
+    run_logged git-diff-check "$gate_dir/git-diff-check.log" "$ROOT" \
+        /usr/bin/git diff --check
     run_logged root-fmt "$gate_dir/root-fmt.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" fmt --all -- --check
     run_logged root-check "$gate_dir/root-check.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" check --workspace --all-targets --all-features --locked
     run_logged root-clippy "$gate_dir/root-clippy.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" clippy --workspace --all-targets --all-features --locked -- -D warnings
-    run_logged everlink-test "$gate_dir/everlink-test.log" "$ROOT" \
-        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --all-targets --all-features --locked
+    run_logged root-test "$gate_dir/root-test.log" "$ROOT" \
+        "$CARGO" "+$STABLE_TOOLCHAIN" test --workspace --all-features --locked
+    run_logged everlink-resource-bounds "$gate_dir/everlink-resource-bounds.log" "$ROOT" \
+        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink \
+        --test everlink-resource-bounds --locked -- --nocapture --test-threads=1
+    resource_metrics=$(/usr/bin/grep -o 'everlink-resource-bounds: PASS.*' \
+        "$gate_dir/everlink-resource-bounds.log" | /usr/bin/tail -n 1) \
+        || fail everlink-resource-receipt 1 "$gate_dir/everlink-resource-bounds.log"
+    [[ $resource_metrics == 'everlink-resource-bounds: PASS '* ]] \
+        || fail everlink-resource-receipt 1 "$gate_dir/everlink-resource-bounds.log"
+    run_logged root-no-default-libs "$gate_dir/root-no-default-libs.log" "$ROOT" \
+        "$CARGO" "+$STABLE_TOOLCHAIN" check --workspace --no-default-features --lib --locked
+    run_logged dependency-boundaries "$gate_dir/dependency-boundaries.log" "$ROOT" \
+        "$CARGO" "+$STABLE_TOOLCHAIN" test -p eversh --test boundaries --locked
+    run_logged msrv-check "$gate_dir/msrv-check.log" "$ROOT" \
+        "$CARGO" "+$MSRV_TOOLCHAIN" check --workspace --all-targets --all-features --locked
+    run_logged aarch64-check "$gate_dir/aarch64-check.log" "$ROOT" \
+        "$CARGO" "+$STABLE_TOOLCHAIN" check --workspace --target "$CROSS_TARGET" --locked
+    run_logged cargo-deny-root "$gate_dir/cargo-deny-root.log" "$ROOT" \
+        "$CARGO_DENY" --offline --all-features --locked check
+    run_logged cargo-deny-fuzz "$gate_dir/cargo-deny-fuzz.log" "$ROOT" \
+        "$CARGO_DENY" --offline --manifest-path "$FUZZ_DIR/Cargo.toml" \
+        --all-features --locked check
     run_logged fuzz-fmt "$gate_dir/fuzz-fmt.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" fmt --manifest-path "$FUZZ_DIR/Cargo.toml" --all -- --check
     run_logged fuzz-check "$gate_dir/fuzz-check.log" "$ROOT" \
-        "$CARGO" "+$STABLE_TOOLCHAIN" check --manifest-path "$FUZZ_DIR/Cargo.toml" --bins --locked
+        "$CARGO" "+$STABLE_TOOLCHAIN" check --manifest-path "$FUZZ_DIR/Cargo.toml" \
+        --all-targets --locked
     run_logged fuzz-clippy "$gate_dir/fuzz-clippy.log" "$ROOT" \
-        "$CARGO" "+$STABLE_TOOLCHAIN" clippy --manifest-path "$FUZZ_DIR/Cargo.toml" --bins --locked -- -D warnings
+        "$CARGO" "+$STABLE_TOOLCHAIN" clippy --manifest-path "$FUZZ_DIR/Cargo.toml" \
+        --all-targets --locked -- -D warnings
 
     for target in "${FUZZ_TARGETS[@]}"; do
         log="$gate_dir/build-$target.log"
@@ -463,8 +515,12 @@ run_qualification() {
         --arg started_utc "$started" \
         --arg completed_utc "$completed" \
         --arg stable "$STABLE_VERSION" \
+        --arg msrv "$MSRV_VERSION" \
         --arg nightly "$NIGHTLY_VERSION" \
         --arg cargo_fuzz "$FUZZ_VERSION" \
+        --arg cargo_deny "$DENY_VERSION" \
+        --arg cross_target "$CROSS_TARGET" \
+        --arg resource_metrics "$resource_metrics" \
         --arg run_root "$RUN_ROOT" \
         --slurpfile campaigns "$campaigns_json" \
         '{
@@ -478,13 +534,20 @@ run_qualification() {
             completed_utc: $completed_utc,
             tools: {
                 stable: $stable,
+                msrv: $msrv,
                 nightly: $nightly,
-                cargo_fuzz: $cargo_fuzz
+                cargo_fuzz: $cargo_fuzz,
+                cargo_deny: $cargo_deny,
+                cross_target: $cross_target
             },
             deterministic_gates: [
-                "root-fmt", "root-check", "root-clippy", "everlink-test",
-                "fuzz-fmt", "fuzz-check", "fuzz-clippy", "four-fuzz-builds"
+                "git-diff-check", "root-fmt", "root-check", "root-clippy",
+                "root-test", "everlink-resource-bounds", "root-no-default-libs",
+                "dependency-boundaries", "msrv-check", "aarch64-check",
+                "cargo-deny-root", "cargo-deny-fuzz", "fuzz-fmt", "fuzz-check",
+                "fuzz-clippy", "four-fuzz-builds"
             ],
+            resource_metrics: $resource_metrics,
             campaigns: $campaigns[0],
             run_root: $run_root
         }' >"$temporary"
