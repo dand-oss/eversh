@@ -8,8 +8,10 @@ description = "Multi-role supervisor binary for eversh (skeleton in M1)"
 
 [features]
 default = []
-# CLI support at the binary edge only; the library builds without it.
-cli = ["dep:clap"]
+# CLI support at the binary edge only; the library builds without it. The
+# combined binary dispatches to the shared everlink role edge, so the CLI
+# feature enables everlink's as well.
+cli = ["dep:clap", "everlink/cli"]
 
 [dependencies]
 everpty = { path = "../everpty" }

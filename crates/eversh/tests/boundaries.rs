@@ -206,6 +206,30 @@ fn everlink_surface_has_no_terminal_replay_or_persistence_layer() {
 }
 
 #[test]
+fn eversh_surface_is_exactly_the_composition_set() {
+    // The supervisor composes the two role libraries plus the optional CLI
+    // edge — nothing else. No async runtime of its own, no relay, no JSON
+    // or serialization layer, no direct crypto.
+    let m = metadata();
+    let package = m
+        .packages
+        .iter()
+        .find(|package| package.name == "eversh")
+        .expect("eversh package");
+    let direct: BTreeSet<_> = package
+        .dependencies
+        .iter()
+        .filter(|dependency| dependency.kind == cargo_metadata::DependencyKind::Normal)
+        .map(|dependency| dependency.name.as_str())
+        .collect();
+    let approved: BTreeSet<_> = ["clap", "everlink", "everpty"].into_iter().collect();
+    assert_eq!(
+        direct, approved,
+        "eversh's direct dependency surface must stay everpty + everlink + optional clap"
+    );
+}
+
+#[test]
 fn libraries_build_without_clap() {
     // The optional `cli` feature is off by default; the metadata proves clap
     // is an optional dependency of each crate, so `--no-default-features
