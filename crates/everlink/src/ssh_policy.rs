@@ -4,6 +4,9 @@ use crate::error::Error;
 
 pub const SSH_PROGRAM: &str = "ssh";
 pub const REMOTE_BOOTSTRAP_COMMAND: &str = "everlink __bootstrap-parent-v1";
+/// The combined binary's everlink role marker. Defined here so the shared
+/// edge and the combined dispatcher agree on one spelling.
+pub const COMBINED_EVERLINK_ROLE: &str = "__everlink";
 const REMOTE_BOOTSTRAP_ROLE: &str = "__bootstrap-parent-v1";
 
 const SSH_ARGUMENT_MAX: usize = 4096;
@@ -110,6 +113,31 @@ impl SshPlan {
         Ok(self)
     }
 
+    /// Select a multi-word remote invocation (a combined binary plus its role
+    /// marker) that everlink completes with its own bootstrap role word. The
+    /// first word is a bare conservative command word or a canonical absolute
+    /// path; later words are conservative role words. Every word remains a
+    /// single injection-safe remote shell word.
+    pub fn with_remote_invocation(mut self, words: Vec<String>) -> Result<Self, Error> {
+        let first = words.first().ok_or(Error::InvalidSshArgument)?;
+        if first.starts_with('/') {
+            validate_remote_binary(first)?;
+        } else {
+            validate_remote_word(first)?;
+        }
+        for word in &words[1..] {
+            validate_remote_word(word)?;
+        }
+        let mut command = words.join(" ");
+        command.push(' ');
+        command.push_str(REMOTE_BOOTSTRAP_ROLE);
+        if command.len() > SSH_ARGUMENT_MAX {
+            return Err(Error::InvalidSshArgument);
+        }
+        self.remote_bootstrap_command = command;
+        Ok(self)
+    }
+
     pub fn destination(&self) -> &str {
         &self.destination
     }
@@ -198,6 +226,27 @@ fn validate_remote_binary(value: &str) -> Result<(), Error> {
         return Err(Error::InvalidSshArgument);
     }
     Ok(())
+}
+
+fn validate_remote_word(value: &str) -> Result<(), Error> {
+    if value.is_empty()
+        || value.len() > SSH_ARGUMENT_MAX
+        || value.starts_with('-')
+        || value.starts_with('.')
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        return Err(Error::InvalidSshArgument);
+    }
+    Ok(())
+}
+
+/// Audit one command-line SSH option against the applicable allowlist
+/// (design 6.4). eversh uses this to vet options before passing them to both
+/// its outer SSH invocation and the everlink bootstrap.
+pub fn audit_ssh_option(option: &str) -> Result<(), Error> {
+    validate_option(option)
 }
 
 fn validate_option(option: &str) -> Result<(), Error> {
@@ -360,6 +409,60 @@ mod tests {
                     .is_err(),
                 "accepted remote binary {rejected:?}"
             );
+        }
+    }
+
+    #[test]
+    fn remote_invocation_words_stay_single_shell_words() {
+        let plan = SshPlan::new("host".into(), "22".into(), vec![])
+            .unwrap()
+            .with_remote_invocation(vec!["eversh".into(), COMBINED_EVERLINK_ROLE.into()])
+            .unwrap();
+        assert_eq!(
+            plan.bootstrap_args().last().unwrap(),
+            "eversh __everlink __bootstrap-parent-v1"
+        );
+
+        let plan = SshPlan::new("host".into(), "22".into(), vec![])
+            .unwrap()
+            .with_remote_invocation(vec![
+                "/opt/bin/eversh".into(),
+                COMBINED_EVERLINK_ROLE.into(),
+            ])
+            .unwrap();
+        assert_eq!(
+            plan.bootstrap_args().last().unwrap(),
+            "/opt/bin/eversh __everlink __bootstrap-parent-v1"
+        );
+
+        for rejected in [
+            vec![],
+            vec!["".to_owned()],
+            vec!["-eversh".to_owned()],
+            vec![".eversh".to_owned()],
+            vec!["ever sh".to_owned()],
+            vec!["eversh;false".to_owned()],
+            vec!["eversh".to_owned(), "role$word".to_owned()],
+            vec!["eversh".to_owned(), "-role".to_owned()],
+            vec!["$HOME/eversh".to_owned()],
+        ] {
+            assert!(
+                SshPlan::new("host".into(), "22".into(), vec![])
+                    .unwrap()
+                    .with_remote_invocation(rejected.clone())
+                    .is_err(),
+                "accepted remote invocation {rejected:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn public_option_audit_matches_the_internal_policy() {
+        assert!(audit_ssh_option("-oConnectTimeout=7").is_ok());
+        assert!(audit_ssh_option("-4").is_ok());
+        assert!(audit_ssh_option("-i/tmp/key").is_ok());
+        for rejected in ["-oProxyCommand=none", "-oBatchMode=yes", "-Jjump", "-p22"] {
+            assert!(audit_ssh_option(rejected).is_err(), "accepted {rejected}");
         }
     }
 

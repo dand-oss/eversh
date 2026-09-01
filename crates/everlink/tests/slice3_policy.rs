@@ -414,6 +414,7 @@ fn option_table_accepts_only_attached_audited_elements_and_is_bounded() {
 #[test]
 fn production_surface_has_one_runtime_and_no_shell_or_alternate_process_path() {
     let main = include_str!("../src/main.rs");
+    let edge = include_str!("../src/edge.rs");
     let roles = include_str!("../src/roles.rs")
         .split("#[cfg(all(test")
         .next()
@@ -422,7 +423,7 @@ fn production_surface_has_one_runtime_and_no_shell_or_alternate_process_path() {
         .split("#[cfg(test)]")
         .next()
         .unwrap();
-    for source in [main, roles, bootstrap] {
+    for source in [main, edge, roles, bootstrap] {
         for forbidden in [
             "Command::new(\"sh\")",
             "Command::new(\"bash\")",
@@ -437,9 +438,12 @@ fn production_surface_has_one_runtime_and_no_shell_or_alternate_process_path() {
             );
         }
     }
-    assert_eq!(main.matches("runtime::build()").count(), 1);
-    assert!(!main.contains("tokio::io::stdin()"));
-    assert!(!main.contains("tokio::io::stdout()"));
+    // The shared edge owns the single runtime-construction site; the thin
+    // standalone main has none of its own.
+    assert_eq!(edge.matches("runtime::build()").count(), 1);
+    assert_eq!(main.matches("runtime::build()").count(), 0);
+    assert!(!main.contains("tokio::io::stdin()") && !edge.contains("tokio::io::stdin()"));
+    assert!(!main.contains("tokio::io::stdout()") && !edge.contains("tokio::io::stdout()"));
     assert_eq!(roles.matches("Command::new(self_exe)").count(), 1);
     assert_eq!(bootstrap.matches("Command::new(SSH_PROGRAM)").count(), 1);
 }

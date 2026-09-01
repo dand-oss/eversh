@@ -9,6 +9,8 @@
 pub mod admission;
 pub mod bootstrap;
 pub mod bridge;
+#[cfg(feature = "cli")]
+pub mod edge;
 pub mod error;
 pub mod identity;
 pub mod limits;

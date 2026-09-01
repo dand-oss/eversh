@@ -22,10 +22,14 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::process::{ChildStdin, Command};
 use tokio::time::Instant;
 
-/// Run the SSH-launched parent. Its only global inputs are supplied by main.
+/// Run the SSH-launched parent. Its only global inputs are supplied by the
+/// process edge. `server_role_args` is the argv prefix required to reach the
+/// everlink role when re-invoking `self_exe` (empty for the standalone
+/// binary; the combined binary's role marker otherwise).
 pub async fn run_bootstrap_parent<W>(
     authenticated: crate::admission::AuthenticatedConnection,
     self_exe: PathBuf,
+    server_role_args: &[&str],
     mut output: W,
     limits: Limits,
 ) -> Result<(), Error>
@@ -42,6 +46,7 @@ where
         ServerStartRecord::try_new(authenticated, StartUdpPolicy::RouteSelected, &limits)?.encode();
     let mut command = Command::new(self_exe);
     command
+        .args(server_role_args)
         .arg("__server-v1")
         .env_clear()
         .stdin(Stdio::piped())
@@ -321,9 +326,15 @@ mod tests {
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
     use tokio::io::AsyncReadExt;
 
+    /// Serializes script creation and spawning across test threads: a script
+    /// file open for writing in one thread can be inherited across another
+    /// thread's fork window and make exec fail with ETXTBSY.
+    static SCRIPT_GATE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     struct Script {
         executable: PathBuf,
         pid_file: PathBuf,
+        argv_file: PathBuf,
     }
 
     impl Script {
@@ -339,6 +350,7 @@ mod tests {
             fs::create_dir(&root).unwrap();
             let executable = root.join("server");
             let pid_file = root.join("pid");
+            let argv_file = root.join("argv");
             let line = format!(
                 "everlink v1 192.0.2.2 4444 {} {} 123\\n",
                 "00".repeat(32),
@@ -357,14 +369,16 @@ mod tests {
                 _ => unreachable!(),
             };
             let body = format!(
-                "#!/bin/sh\nprintf '%s' \"$$\" > '{}'\nIFS= read -r start || exit 30\n{behavior}\n",
-                pid_file.display()
+                "#!/bin/sh\nprintf '%s' \"$$\" > '{}'\nprintf '%s' \"$*\" > '{}'\nIFS= read -r start || exit 30\n{behavior}\n",
+                pid_file.display(),
+                argv_file.display()
             );
             fs::write(&executable, body).unwrap();
             fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
             Self {
                 executable,
                 pid_file,
+                argv_file,
             }
         }
 
@@ -396,13 +410,18 @@ mod tests {
         }
     }
 
+    #[allow(clippy::await_holding_lock)]
     async fn run_mode(mode: &str) -> (Result<(), Error>, Vec<u8>, u32) {
+        let gate = SCRIPT_GATE
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
         let script = Script::new(mode);
         let (writer, mut reader) = tokio::io::duplex(1024);
         let authenticated = parse_ssh_connection("192.0.2.1 50000 192.0.2.2 22").unwrap();
         let future = run_bootstrap_parent(
             authenticated,
             script.executable.clone(),
+            &[],
             writer,
             test_limits(),
         );
@@ -412,6 +431,7 @@ mod tests {
             bytes
         };
         let (result, bytes) = tokio::join!(future, capture);
+        drop(gate);
         let pid = script.pid().await;
         let deadline = Instant::now() + Duration::from_secs(2);
         while std::path::Path::new(&format!("/proc/{pid}")).exists() && Instant::now() < deadline {
@@ -435,6 +455,37 @@ mod tests {
             assert!(result.is_err(), "{mode} unexpectedly transferred");
             assert!(output.is_empty() || output.iter().filter(|byte| **byte == b'\n').count() == 1);
         }
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn combined_role_prefix_precedes_the_server_role_word() {
+        let gate = SCRIPT_GATE
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let script = Script::new("success");
+        let (writer, mut reader) = tokio::io::duplex(1024);
+        let authenticated = parse_ssh_connection("192.0.2.1 50000 192.0.2.2 22").unwrap();
+        let future = run_bootstrap_parent(
+            authenticated,
+            script.executable.clone(),
+            &["__everlink"],
+            writer,
+            test_limits(),
+        );
+        let capture = async {
+            let mut bytes = Vec::new();
+            reader.read_to_end(&mut bytes).await.unwrap();
+            bytes
+        };
+        let (result, _bytes) = tokio::join!(future, capture);
+        drop(gate);
+        assert!(result.is_ok());
+        assert_eq!(
+            fs::read_to_string(&script.argv_file).unwrap(),
+            "__everlink __server-v1",
+            "combined dispatch must re-invoke through the everlink role marker"
+        );
     }
 
     struct FailingRelay;
@@ -467,7 +518,11 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn relay_failure_kills_child_before_release() {
+        let gate = SCRIPT_GATE
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
         let script = Script::new("success");
         let authenticated = parse_ssh_connection("192.0.2.1 50000 192.0.2.2 22").unwrap();
         // The full suite launches several real processes concurrently. Give
@@ -481,10 +536,12 @@ mod tests {
         let result = run_bootstrap_parent(
             authenticated,
             script.executable.clone(),
+            &[],
             FailingRelay,
             limits,
         )
         .await;
+        drop(gate);
         assert!(
             matches!(
                 &result,
