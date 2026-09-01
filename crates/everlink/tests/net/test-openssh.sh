@@ -1,9 +1,10 @@
 #!/usr/bin/bash
 set -Eeuo pipefail
 
-# Slice 5A exercises four production OpenSSH ProxyCommand sessions (status 0,
-# status 42, one 1 MiB binary session, and one forced-PTY session) while keeping
-# every process, key, and diagnostic artifact owned by this bounded harness.
+# Slice 5A exercises five production OpenSSH ProxyCommand sessions (status 0,
+# status 42, one 1 MiB binary session, one forced-PTY session, and one SFTP
+# batch session) while keeping every process, key, and diagnostic artifact
+# owned by this bounded harness.
 
 readonly BASH_TOOL=/usr/bin/bash
 readonly CHMOD_TOOL=/usr/bin/chmod
@@ -34,9 +35,11 @@ readonly MV_TOOL=/usr/bin/mv
 readonly ENV_TOOL=/usr/bin/env
 readonly SHA256SUM_TOOL=/usr/bin/sha256sum
 readonly STTY_TOOL=/usr/bin/stty
-# 4 SSH sessions (15+15+15+30s) + 4*35s server polls + bounded startup
-# (~50s), five 4s health checks, and bounded failure cleanup (~30s) total
-# about 315s; 420s leaves finite headroom without weakening nested timeouts.
+readonly SFTP_TOOL=/usr/bin/sftp
+# 5 production sessions (15+15+30+15+30s) + 5*35s server polls
+# (~175s) + bounded startup (~50s) + six 4s health checks (~24s) +
+# bounded failure cleanup (~30s) total about 384s; 420s leaves finite
+# headroom without weakening nested timeouts.
 readonly WATCHDOG_SECONDS=420
 readonly POLL_SECONDS=5
 readonly SERVER_POLL_SECONDS=35
@@ -44,6 +47,7 @@ readonly READINESS_POLL_ATTEMPTS=60
 readonly OPERATION_TIMEOUT_SECONDS=4
 readonly SSH_SESSION_TIMEOUT_SECONDS=15
 readonly SSH_BINARY_SESSION_TIMEOUT_SECONDS=30
+readonly SFTP_SESSION_TIMEOUT_SECONDS=30
 readonly BINARY_BYTES=1048576
 
 for tool in "$BASH_TOOL" "$CHMOD_TOOL" "$CMP_TOOL" "$ID_TOOL" "$IP_TOOL" \
@@ -51,7 +55,8 @@ for tool in "$BASH_TOOL" "$CHMOD_TOOL" "$CMP_TOOL" "$ID_TOOL" "$IP_TOOL" \
     "$SLEEP_TOOL" "$SORT_TOOL" "$SS_TOOL" "$SSH_TOOL" "$SSHD_EXE" \
     "$SSHKEYGEN_TOOL" "$SSHKEYSCAN_TOOL" "$STAT_TOOL" "$SETSID_TOOL" \
     "$TIMEOUT_TOOL" "$AWK_TOOL" "$CAT_TOOL" "$DD_TOOL" "$HEAD_TOOL" \
-    "$LN_TOOL" "$MV_TOOL" "$ENV_TOOL" "$SHA256SUM_TOOL" "$STTY_TOOL"; do
+    "$LN_TOOL" "$MV_TOOL" "$ENV_TOOL" "$SHA256SUM_TOOL" "$STTY_TOOL" \
+    "$SFTP_TOOL"; do
     [[ -x "$tool" ]] || {
         printf 'missing required executable\n' >&2
         exit 1
@@ -634,6 +639,7 @@ prepare_isolated_sshd() {
         'PermitOpen 127.0.0.1:*' \
         'GatewayPorts no' \
         'UseDNS no' \
+        'Subsystem sftp internal-sftp' \
         'PermitUserEnvironment no' \
         'PermitUserRC no' \
         'Match LocalAddress 127.0.0.1' \
@@ -1220,13 +1226,48 @@ run_binary_production_session() {
         && listener_exact 127.0.0.1 "$ISOLATED_PORT"
 }
 
+validate_sftp_path() {
+    local path=$1 relative
+    validate_temp_target "$TMP_ROOT" || return 1
+    [[ $path == /* && $path == "$TMP_ROOT/"* ]] || return 1
+    relative=${path#"$TMP_ROOT/"}
+    [[ -n $relative && $relative != */* ]] || return 1
+    [[ $relative != . && $relative != .. ]] || return 1
+    [[ $relative =~ ^[A-Za-z0-9._-]+$ ]] || return 1
+    [[ $path == "$TMP_ROOT/$relative" ]]
+}
+
+report_session_failure() {
+    local session_number=$1 stage=$2 detail=${3-}
+    [[ $session_number =~ ^[45]$ ]] || return 1
+    [[ $stage =~ ^[a-z][a-z0-9-]{0,31}$ ]] || return 1
+    if [[ -n $detail ]]; then
+        [[ $detail =~ ^[0-9]{1,12}$ ]] || return 1
+        printf 'everlink-slice5a session=%s stage=%s detail=%s\n' \
+            "$session_number" "$stage" "$detail" >&2
+    else
+        printf 'everlink-slice5a session=%s stage=%s\n' \
+            "$session_number" "$stage" >&2
+    fi
+}
+
+sftp_report_failure() {
+    local session_number=$1 remote=$2 stage=$3 detail=${4-}
+    if [[ -e $remote || -L $remote ]]; then
+        "$RM_TOOL" -f -- "$remote" 2>/dev/null || :
+    fi
+    [[ ! -e $remote && ! -L $remote ]] || return 1
+    report_session_failure "$session_number" "$stage" "$detail"
+    return 1
+}
+
 run_pty_production_session() {
     local session_number=$1
     local input="$TMP_ROOT/pty-$session_number.input"
     local expected="$TMP_ROOT/pty-$session_number.expected"
     local output="$TMP_ROOT/pty-$session_number.stdout"
     local error="$TMP_ROOT/pty-$session_number.stderr"
-    local remote_command status input_size expected_size output_size
+    local remote_command status input_size expected_size output_size error_size cmp_status
     local input_mode expected_mode output_mode error_mode
 
     [[ $PTY_TERM_VALUE =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || return 1
@@ -1260,8 +1301,15 @@ run_pty_production_session() {
         "$remote_command" < "$input" > "$output" 2> "$error"
     status=$?
     set -e
-    (( status == 0 )) || return 1
-    [[ ! -s $error ]] || return 1
+    if (( status != 0 )); then
+        report_session_failure "$session_number" pty-command "$status"
+        return 1
+    fi
+    if [[ -s $error ]]; then
+        error_size=$($STAT_TOOL -c '%s' -- "$error") || return 1
+        report_session_failure "$session_number" stderr-size "$error_size"
+        return 1
+    fi
 
     input_size=$($STAT_TOOL -c '%s' -- "$input") || return 1
     expected_size=$($STAT_TOOL -c '%s' -- "$expected") || return 1
@@ -1270,17 +1318,193 @@ run_pty_production_session() {
     expected_mode=$($STAT_TOOL -c '%a' -- "$expected") || return 1
     output_mode=$($STAT_TOOL -c '%a' -- "$output") || return 1
     error_mode=$($STAT_TOOL -c '%a' -- "$error") || return 1
-    [[ $input_size == $(( ${#PTY_INPUT_LINE} + 1 )) && \
-        $expected_size == $(( ${#PTY_INPUT_LINE} + ${#PTY_MARKER} + 4 )) && \
-        $output_size == "$expected_size" && $input_mode == 600 && \
-        $expected_mode == 600 && $output_mode == 600 && $error_mode == 600 ]] || return 1
-    "$CMP_TOOL" -s -- "$expected" "$output" || return 1
+    if [[ $input_size != $(( ${#PTY_INPUT_LINE} + 1 )) || \
+        $expected_size != $(( ${#PTY_INPUT_LINE} + ${#PTY_MARKER} + 4 )) || \
+        $output_size != "$expected_size" || $input_mode != 600 || \
+        $expected_mode != 600 || $output_mode != 600 || $error_mode != 600 ]]; then
+        report_session_failure "$session_number" artifact-mismatch "$output_size"
+        return 1
+    fi
+    cmp_status=0
+    "$CMP_TOOL" -s -- "$expected" "$output" || cmp_status=$?
+    if (( cmp_status != 0 )); then
+        report_session_failure "$session_number" transcript-mismatch "$cmp_status"
+        return 1
+    fi
 
-    verify_proxy_evidence || return 1
-    poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" "$SERVER_PGRP" \
-        "$SERVER_ROLE" || return 1
-    listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" \
-        && listener_exact 127.0.0.1 "$ISOLATED_PORT"
+    if ! verify_proxy_evidence; then
+        report_session_failure "$session_number" proxy-evidence
+        return 1
+    fi
+    if ! poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" "$SERVER_PGRP" \
+        "$SERVER_ROLE"; then
+        report_session_failure "$session_number" server-exit
+        return 1
+    fi
+    if listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" \
+        && listener_exact 127.0.0.1 "$ISOLATED_PORT"; then
+        :
+    else
+        report_session_failure "$session_number" listeners
+        return 1
+    fi
+}
+
+run_sftp_production_session() {
+    local session_number=$1
+    local input="$TMP_ROOT/sftp-$session_number.input"
+    local batch="$TMP_ROOT/sftp-$session_number.batch"
+    local remote="$TMP_ROOT/sftp-$session_number.remote.$RANDOM"
+    local download="$TMP_ROOT/sftp-$session_number.download"
+    local output="$TMP_ROOT/sftp-$session_number.stdout"
+    local error="$TMP_ROOT/sftp-$session_number.stderr"
+    local path status input_size download_size input_mode download_mode
+    local batch_mode output_mode error_mode input_digest download_digest
+    local error_size cmp_status
+
+    [[ $session_number == 5 ]] || return 1
+    clear_server_tuple
+    write_ssh_configs_and_shim "$session_number" || return 1
+    for path in "$input" "$batch" "$remote" "$download" "$output" "$error"; do
+        validate_sftp_path "$path" || return 1
+        [[ ! -e $path && ! -L $path ]] || return 1
+    done
+
+    umask 077
+    run_bounded "$DD_TOOL" if=/dev/urandom of="$input" \
+        bs="$BINARY_BYTES" count=1 status=none || return 1
+    : > "$download" || return 1
+    : > "$output" || return 1
+    : > "$error" || return 1
+    "$PRINTF_TOOL" '%s\n' \
+        "put \"$input\" \"$remote\"" \
+        "get \"$remote\" \"$download\"" \
+        "rm \"$remote\"" > "$batch" || return 1
+    "$CHMOD_TOOL" 600 -- "$input" "$batch" "$download" "$output" "$error" || return 1
+
+    input_size=$($STAT_TOOL -c '%s' -- "$input") || return 1
+    input_mode=$($STAT_TOOL -c '%a' -- "$input") || return 1
+    batch_mode=$($STAT_TOOL -c '%a' -- "$batch") || return 1
+    download_mode=$($STAT_TOOL -c '%a' -- "$download") || return 1
+    output_mode=$($STAT_TOOL -c '%a' -- "$output") || return 1
+    error_mode=$($STAT_TOOL -c '%a' -- "$error") || return 1
+    [[ $input_size == "$BINARY_BYTES" && $input_mode == 600 && \
+        $batch_mode == 600 && $download_mode == 600 && \
+        $output_mode == 600 && $error_mode == 600 ]] || return 1
+
+    set +e
+    "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
+        "${SFTP_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
+        "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
+        "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
+        "$SFTP_TOOL" -q -4 -F "$SSH_OUTER_CONFIG" -S "$SSH_TOOL" \
+        -b "$batch" "$SSH_ALIAS" < /dev/null > "$output" 2> "$error"
+    status=$?
+    set -e
+    if (( status != 0 )); then
+        sftp_report_failure "$session_number" "$remote" sftp-command "$status"
+        return 1
+    fi
+
+    cmp_status=0
+    "$CMP_TOOL" -s -- \
+        <("$PRINTF_TOOL" '%s\n' \
+            "sftp> put \"$input\" \"$remote\"" \
+            "sftp> get \"$remote\" \"$download\"" \
+            "sftp> rm \"$remote\"") "$output" || cmp_status=$?
+    if (( cmp_status != 0 )); then
+        output_size=$($STAT_TOOL -c '%s' -- "$output") || {
+            sftp_report_failure "$session_number" "$remote" output-size
+            return 1
+        }
+        sftp_report_failure "$session_number" "$remote" transcript-mismatch "$output_size"
+        return 1
+    fi
+    if [[ -s $error ]]; then
+        error_size=$($STAT_TOOL -c '%s' -- "$error") || {
+            sftp_report_failure "$session_number" "$remote" stderr-size
+            return 1
+        }
+        sftp_report_failure "$session_number" "$remote" stderr-size "$error_size"
+        return 1
+    fi
+
+    input_size=$($STAT_TOOL -c '%s' -- "$input") || {
+        sftp_report_failure "$session_number" "$remote" input-size
+        return 1
+    }
+    download_size=$($STAT_TOOL -c '%s' -- "$download") || {
+        sftp_report_failure "$session_number" "$remote" download-size
+        return 1
+    }
+    input_mode=$($STAT_TOOL -c '%a' -- "$input") || {
+        sftp_report_failure "$session_number" "$remote" input-mode
+        return 1
+    }
+    download_mode=$($STAT_TOOL -c '%a' -- "$download") || {
+        sftp_report_failure "$session_number" "$remote" download-mode
+        return 1
+    }
+    batch_mode=$($STAT_TOOL -c '%a' -- "$batch") || {
+        sftp_report_failure "$session_number" "$remote" batch-mode
+        return 1
+    }
+    output_mode=$($STAT_TOOL -c '%a' -- "$output") || {
+        sftp_report_failure "$session_number" "$remote" output-mode
+        return 1
+    }
+    error_mode=$($STAT_TOOL -c '%a' -- "$error") || {
+        sftp_report_failure "$session_number" "$remote" stderr-mode
+        return 1
+    }
+    if [[ $input_size != "$BINARY_BYTES" || $download_size != "$BINARY_BYTES" || \
+        $input_mode != 600 || $download_mode != 600 || $batch_mode != 600 || \
+        $output_mode != 600 || $error_mode != 600 ]]; then
+        sftp_report_failure "$session_number" "$remote" artifact-mismatch "$download_size"
+        return 1
+    fi
+
+    input_digest=$($SHA256SUM_TOOL -- "$input") || {
+        sftp_report_failure "$session_number" "$remote" input-digest
+        return 1
+    }
+    download_digest=$($SHA256SUM_TOOL -- "$download") || {
+        sftp_report_failure "$session_number" "$remote" download-digest
+        return 1
+    }
+    input_digest=${input_digest%% *}
+    download_digest=${download_digest%% *}
+    if [[ ! $input_digest =~ ^[0-9a-f]{64}$ || \
+        ! $download_digest =~ ^[0-9a-f]{64}$ || \
+        $input_digest != "$download_digest" ]]; then
+        sftp_report_failure "$session_number" "$remote" digest-mismatch 1
+        return 1
+    fi
+    cmp_status=0
+    "$CMP_TOOL" -s -- "$input" "$download" || cmp_status=$?
+    if (( cmp_status != 0 )); then
+        sftp_report_failure "$session_number" "$remote" bytes-mismatch "$cmp_status"
+        return 1
+    fi
+    if [[ -e $remote || -L $remote ]]; then
+        sftp_report_failure "$session_number" "$remote" artifact-mismatch 1
+        return 1
+    fi
+
+    if ! verify_proxy_evidence; then
+        sftp_report_failure "$session_number" "$remote" proxy-evidence
+        return 1
+    fi
+    if ! poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" \
+        "$SERVER_PGRP" "$SERVER_ROLE"; then
+        sftp_report_failure "$session_number" "$remote" server-exit
+        return 1
+    fi
+    if listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" \
+        && listener_exact 127.0.0.1 "$ISOLATED_PORT"; then
+        return 0
+    fi
+    sftp_report_failure "$session_number" "$remote" listeners
 }
 
 cleanup_detached_server() {
@@ -1507,6 +1731,14 @@ run_pty_production_session 4 || {
 }
 run_direct_ssh 5 || {
     printf 'fifth direct ssh health check failed\n' >&2
+    exit 1
+}
+run_sftp_production_session 5 || {
+    printf 'fifth production SFTP batch ProxyCommand session failed\n' >&2
+    exit 1
+}
+run_direct_ssh 6 || {
+    printf 'sixth direct ssh health check failed\n' >&2
     exit 1
 }
 clear_server_tuple
