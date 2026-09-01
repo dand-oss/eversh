@@ -245,24 +245,55 @@ pub fn outer_ssh_args(
     Ok(args)
 }
 
+/// Split raw-mode trailing tokens (`eversh ssh HOST [-- TOKENS...]`) at the
+/// first literal `--`: tokens before it are outer SSH options (placed before
+/// the destination); tokens after it are a remote command (placed after the
+/// destination, design 7). With no inner `--`, every token is an option —
+/// identical to the pre-M4-finding-4 behavior, so existing raw invocations
+/// keep working unchanged.
+pub fn split_raw_tokens(tokens: &[String]) -> (&[String], &[String]) {
+    match tokens.iter().position(|token| token == "--") {
+        Some(index) => (&tokens[..index], &tokens[index + 1..]),
+        None => (tokens, &[]),
+    }
+}
+
+/// Filter SSH options down to the subset that passes the audited allowlist
+/// (design 6.4). Raw mode's outer `ssh` invocation stays fully unaudited
+/// (the escape hatch), but only the audited subset is safe to mirror into
+/// the everlink bootstrap's ProxyCommand; a token that fails audit simply
+/// stays outer-ssh-only and is never an error in raw mode.
+pub fn audited_subset(options: &[String]) -> Vec<String> {
+    options
+        .iter()
+        .filter(|option| audit_ssh_option(option).is_ok())
+        .cloned()
+        .collect()
+}
+
 /// Build the raw `eversh ssh` argument vector: our ProxyCommand first (its
-/// value wins under OpenSSH first-value semantics), then the user's options
-/// verbatim, then the destination. Raw mode is the unaudited escape hatch;
-/// it is never retried.
+/// value wins under OpenSSH first-value semantics), then the user's PRE
+/// options verbatim, then the destination, then a POST remote command (both
+/// halves produced by [`split_raw_tokens`]). Raw mode is the unaudited
+/// escape hatch for the outer `ssh` invocation; it is never retried.
 pub fn raw_ssh_args(
     proxy_command: &str,
-    ssh_options: &[String],
+    pre_options: &[String],
     host: &str,
+    post_command: &[String],
 ) -> Result<Vec<OsString>, Error> {
     validate_host(host)?;
-    let mut args: Vec<OsString> = Vec::with_capacity(4 + ssh_options.len());
+    let mut args: Vec<OsString> = Vec::with_capacity(4 + pre_options.len() + post_command.len());
     args.push("-o".into());
     args.push(format!("ProxyCommand={proxy_command}").into());
-    for option in ssh_options {
+    for option in pre_options {
         args.push(option.into());
     }
     args.push("--".into());
     args.push(host.into());
+    for word in post_command {
+        args.push(word.into());
+    }
     Ok(args)
 }
 

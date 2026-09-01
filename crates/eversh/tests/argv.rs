@@ -179,10 +179,12 @@ fn list_words_carry_the_filter_as_the_single_token() {
 #[test]
 fn raw_ssh_argv_injects_only_the_proxy() {
     let proxy = proxy_command(SELF, "eversh", &[]).unwrap();
+    // No inner `--`: every token is an option (legacy behavior preserved).
     let args = raw_ssh_args(
         &proxy,
         &["-L".to_owned(), "8080:localhost:80".to_owned()],
         "host",
+        &[],
     )
     .unwrap();
     assert_eq!(
@@ -196,6 +198,56 @@ fn raw_ssh_argv_injects_only_the_proxy() {
             "host",
         ])
     );
+}
+
+#[test]
+fn raw_ssh_argv_splits_pre_and_post_on_inner_separator() {
+    let proxy = proxy_command(SELF, "eversh", &[]).unwrap();
+
+    // With an inner `--`: options before it precede the destination; the
+    // remote command after it follows the destination (finding 4).
+    let tokens = ["-4", "--", "/bin/sh", "-c", "exit 0"].map(str::to_owned);
+    let (pre, post) = split_raw_tokens(&tokens);
+    assert_eq!(pre, ["-4".to_owned()]);
+    assert_eq!(post, ["/bin/sh", "-c", "exit 0"].map(str::to_owned));
+    let args = raw_ssh_args(&proxy, pre, "host", post).unwrap();
+    assert_eq!(
+        args,
+        os(&[
+            "-o",
+            &format!("ProxyCommand={proxy}"),
+            "-4",
+            "--",
+            "host",
+            "/bin/sh",
+            "-c",
+            "exit 0",
+        ])
+    );
+
+    // No inner `--`: every token stays a pre-destination option, and the
+    // remote command half is empty.
+    let tokens = ["-L", "8080:localhost:80"].map(str::to_owned);
+    let (pre, post) = split_raw_tokens(&tokens);
+    assert_eq!(pre, tokens);
+    assert!(post.is_empty());
+}
+
+#[test]
+fn raw_mode_audited_subset_mirrors_into_the_proxy_command() {
+    // A passing option is forwarded into the everlink bootstrap; an
+    // unaudited token stays outer-ssh-only and never errors (finding 4).
+    let tokens = ["-4", "-L", "8080:localhost:80"].map(str::to_owned);
+    let audited = audited_subset(&tokens);
+    assert_eq!(audited, vec!["-4".to_owned()]);
+
+    let proxy = proxy_command(SELF, "eversh", &audited).unwrap();
+    assert!(proxy.contains("--ssh-option '-4'"), "{proxy}");
+    assert!(!proxy.contains("-L"), "{proxy}");
+
+    // Building the raw argv itself never errors on the unaudited token.
+    let args = raw_ssh_args(&proxy, &tokens, "host", &[]).unwrap();
+    assert!(args.iter().any(|arg| arg == "-L"));
 }
 
 #[test]

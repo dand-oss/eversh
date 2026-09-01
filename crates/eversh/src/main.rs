@@ -11,7 +11,7 @@ use eversh::role::{
 };
 use eversh::supervisor::{
     self, Config, Event, ExitKind, Notifier, ResumeFailure, SessionEnd, TransportFailure,
-    PROBE_NOT_LIVE_EXIT,
+    PROBE_NOT_LIVE_EXIT, REMOTE_BUSY_EXIT,
 };
 use eversh::{Error, Limits};
 use std::ffi::OsString;
@@ -101,13 +101,43 @@ fn run_everpty_role(args: &[OsString]) -> ! {
             std::process::exit(i32::from(ROLE_PROTOCOL_EXIT));
         }
     };
+    // Status channel (design 3, 7): the three session-carrying operations
+    // report `established` on stderr before the blocking everpty::run call
+    // below, so the local supervisor can distinguish a pre-establishment SSH
+    // failure from a genuine transport death. Batch operations stay silent.
+    let status_channel = parsed.uses_status_channel();
+    if status_channel {
+        write_status_established();
+    }
     if let Err(error) = everpty::sys::ignore_sigpipe() {
-        everpty_role_error(everpty::Error::Io(error));
+        everpty_role_error(everpty::Error::Io(error), status_channel);
     }
     match execute_everpty_role(parsed) {
-        Ok(outcome) => everpty_role_outcome(outcome),
-        Err(error) => everpty_role_error(error),
+        Ok(outcome) => everpty_role_outcome(outcome, status_channel),
+        Err(error) => everpty_role_error(error, status_channel),
     }
+}
+
+/// The versioned remote status-channel line prefix (design 3, 7). Read and
+/// parsed by `eversh::supervisor`'s stderr relay; keep both sides in sync.
+const STATUS_CHANNEL_PREFIX: &str = "eversh-status-v1";
+
+fn write_status_line(body: &str) {
+    let mut stderr = std::io::stderr();
+    let _ = writeln!(stderr, "{STATUS_CHANNEL_PREFIX} {body}");
+    let _ = stderr.flush();
+}
+
+fn write_status_established() {
+    write_status_line("established");
+}
+
+fn write_status_exit_code(code: u8) {
+    write_status_line(&format!("exit code {code}"));
+}
+
+fn write_status_exit_signal(signal: i32) {
+    write_status_line(&format!("exit signal {signal}"));
 }
 
 fn everpty_context() -> everpty::run::Context {
@@ -222,28 +252,53 @@ fn write_stdout(stdout: &std::io::Stdout, bytes: &[u8]) -> Result<(), everpty::E
 }
 
 /// Exact everpty exit mapping (kept byte-compatible with the standalone
-/// everpty binary edge).
-fn everpty_role_outcome(outcome: everpty::run::Outcome) -> ! {
+/// everpty binary edge). `status_channel` gates the design-3 status lines:
+/// every exit path for the three interactive operations writes and flushes
+/// its exit record BEFORE exiting (before the reraise, for a signal), so the
+/// local supervisor always learns the true outcome even when the transport
+/// dies moments later; batch operations never emit one.
+fn everpty_role_outcome(outcome: everpty::run::Outcome, status_channel: bool) -> ! {
     use everpty::run::Outcome;
     match outcome {
-        Outcome::Success | Outcome::Detached => std::process::exit(0),
-        Outcome::ChildExited(code) => std::process::exit(i32::from(code)),
+        Outcome::Success | Outcome::Detached => {
+            if status_channel {
+                write_status_exit_code(0);
+            }
+            std::process::exit(0)
+        }
+        Outcome::ChildExited(code) => {
+            if status_channel {
+                write_status_exit_code(code);
+            }
+            std::process::exit(i32::from(code))
+        }
         Outcome::ChildSignaled(signal) | Outcome::LocalSignaled(signal) => {
+            if status_channel {
+                write_status_exit_signal(signal);
+            }
             let _ = everpty::sys::reraise_default(signal);
             std::process::exit(128 + signal);
         }
-        Outcome::Broker(exit) => std::process::exit(i32::from(exit.suggested_exit_code)),
+        Outcome::Broker(exit) => {
+            if status_channel {
+                write_status_exit_code(exit.suggested_exit_code);
+            }
+            std::process::exit(i32::from(exit.suggested_exit_code))
+        }
     }
 }
 
-fn everpty_role_error(error: everpty::Error) -> ! {
-    let code = if matches!(error, everpty::Error::Busy { .. }) {
-        3
+fn everpty_role_error(error: everpty::Error, status_channel: bool) -> ! {
+    let code: u8 = if matches!(error, everpty::Error::Busy { .. }) {
+        REMOTE_BUSY_EXIT
     } else {
         1
     };
     eprintln!("eversh: {error}");
-    std::process::exit(code);
+    if status_channel {
+        write_status_exit_code(code);
+    }
+    std::process::exit(i32::from(code));
 }
 
 // The list renderers are kept byte-identical with the standalone everpty
@@ -435,11 +490,19 @@ enum Cmd {
         ssh_option: Vec<String>,
     },
     /// Raw OpenSSH over everlink (never restarted automatically).
+    ///
+    /// Tokens after `--` may contain one further literal `--`: tokens before
+    /// it are outer SSH options (placed before the destination, verbatim,
+    /// unaudited); tokens after it are a remote command (placed after the
+    /// destination). With no inner `--`, every token is an SSH option
+    /// (`eversh ssh HOST -- -4` behaves as before). Options that pass the
+    /// audited allowlist (design 6.4) are also mirrored into the everlink
+    /// bootstrap; options that fail the audit stay outer-ssh-only and are
+    /// not an error in raw mode.
     Ssh {
         host: String,
-        /// SSH options after `--`, passed to the ssh client verbatim.
-        #[arg(last = true, value_name = "SSH_OPTIONS")]
-        options: Vec<String>,
+        #[arg(last = true, value_name = "TOKENS")]
+        tokens: Vec<String>,
     },
 }
 
@@ -513,6 +576,15 @@ impl Notifier for StderrNotifier {
             Event::ResumeSkipped { name } => {
                 eprintln!("eversh: session '{name}' skipped (resume cap reached)");
             }
+            Event::SshFailed => {
+                eprintln!("eversh: ssh failed before the session was established");
+            }
+            Event::ReattachBusy { name, attempt } => {
+                eprintln!(
+                    "eversh: session '{name}' reported busy on reattach (attempt {attempt}); \
+                     retrying without take-over"
+                );
+            }
         }
     }
 }
@@ -520,9 +592,17 @@ impl Notifier for StderrNotifier {
 fn exit_session_end(end: SessionEnd) -> ! {
     match end {
         SessionEnd::Remote(code) => std::process::exit(i32::from(code)),
+        SessionEnd::RemoteSignaled(signal) => {
+            eprintln!("eversh: remote child terminated by signal {signal}");
+            std::process::exit(128 + signal);
+        }
         SessionEnd::SshSignaled(signal) => {
             eprintln!("eversh: ssh terminated by signal {signal}");
             std::process::exit(128 + signal);
+        }
+        SessionEnd::SshFailed => {
+            eprintln!("eversh: ssh failed; not retried (never established)");
+            std::process::exit(255);
         }
         SessionEnd::TransportFailed(reason) => {
             match reason {
@@ -542,6 +622,10 @@ fn exit_session_end(end: SessionEnd) -> ! {
                 TransportFailure::ProbeSignaled(signal) => {
                     eprintln!("eversh: transport failed; probe terminated by signal {signal}")
                 }
+                TransportFailure::Busy => eprintln!(
+                    "eversh: transport failed; the session stayed busy (writer already \
+                     attached) and was never retried with take-over"
+                ),
             }
             std::process::exit(255);
         }
@@ -639,7 +723,9 @@ fn run_supervisor() -> ! {
                     if hold_on_error {
                         let code = match end {
                             SessionEnd::Remote(code) => i32::from(code),
+                            SessionEnd::RemoteSignaled(signal) => 128 + signal,
                             SessionEnd::SshSignaled(signal) => 128 + signal,
+                            SessionEnd::SshFailed => 255,
                             SessionEnd::TransportFailed(_) => 255,
                         };
                         hold_for_acknowledgement(code);
@@ -743,9 +829,12 @@ fn run_supervisor() -> ! {
             Ok(kind) => exit_kind(kind),
             Err(error) => exit_error(error),
         },
-        Cmd::Ssh { host, options } => match supervisor::raw_ssh(&config, &host, &options) {
-            Ok(end) => exit_session_end(end),
-            Err(error) => exit_error(error),
-        },
+        Cmd::Ssh { host, tokens } => {
+            let (pre, post) = eversh::command::split_raw_tokens(&tokens);
+            match supervisor::raw_ssh(&config, &host, pre, post) {
+                Ok(end) => exit_session_end(end),
+                Err(error) => exit_error(error),
+            }
+        }
     }
 }

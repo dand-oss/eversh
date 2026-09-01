@@ -7,11 +7,14 @@
 #![allow(clippy::unwrap_used)]
 
 use everpty::sys;
-use eversh::remote::{origin_label, sanitize_host_label};
+use eversh::remote::{base64url_decode, origin_label, sanitize_host_label, ControlRequest};
+use eversh::supervisor::{
+    Config as SupervisorConfig, SessionEnd, SilentNotifier, TransportFailure,
+};
 use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::Read;
-use std::os::fd::AsFd;
+use std::os::fd::{AsFd, AsRawFd, OwnedFd};
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
@@ -34,11 +37,17 @@ fn binary() -> &'static OsStr {
     OsStr::new(env!("CARGO_BIN_EXE_eversh"))
 }
 
-/// The fake ssh script: captures argv NUL-separated plus its pid, honors a
-/// mode file (`run` executes the remote command locally as a child with the
-/// inherited terminal descriptors; `fail255` exits like an unreachable
-/// transport), and turns SIGUSR1 into a hard transport failure — the remote
-/// side is killed and the "ssh client" exits 255, while the broker survives.
+/// The fake ssh script: captures argv NUL-separated plus its pid and
+/// environment, honors a mode file (`run` executes the remote command
+/// locally as a child with the inherited terminal descriptors; `fail255`
+/// exits like an unreachable transport; `hang` sleeps well past any test
+/// deadline, simulating a wedged transport), turns SIGUSR1 into a hard
+/// transport failure — the remote side is killed and the "ssh client" exits
+/// 255, while the broker survives — and simulates a raced writer-revoke on
+/// reattach: `busyonce` answers the FIRST non-probe (reattach) invocation
+/// with the real Busy exit code once, then behaves like `run`; `busypersist`
+/// always answers Busy for non-probe invocations. Both answer any probe
+/// invocation `Live` (exit 0) without touching the real broker.
 const FAKE_SSH: &str = r#"#!/bin/sh
 set -u
 stamp=$(date +%s%N)-$$
@@ -47,9 +56,25 @@ cap="$FAKE_CAPTURE_DIR/ssh-$stamp"
 for arg in "$@"; do printf '%s\0' "$arg" >> "$cap.argv.part"; done
 mv "$cap.argv.part" "$cap.argv"
 printf '%s' "$$" > "$cap.pid"
+env -0 > "$cap.env" 2>/dev/null || true
 mode=run
 [ -f "${FAKE_SSH_MODE_FILE:-/nonexistent}" ] && mode=$(cat "$FAKE_SSH_MODE_FILE")
 if [ "$mode" = fail255 ]; then exit 255; fi
+if [ "$mode" = hang ]; then exec sleep 600; fi
+if [ "$mode" = busyonce ] || [ "$mode" = busypersist ]; then
+  is_probe=0
+  for arg in "$@"; do
+    if [ "$arg" = probe ]; then is_probe=1; fi
+  done
+  if [ "$is_probe" -eq 1 ]; then exit 0; fi
+  if [ "$mode" = busypersist ]; then exit 3; fi
+  marker="$FAKE_CAPTURE_DIR/.busyonce-used"
+  if [ ! -f "$marker" ]; then
+    : > "$marker"
+    exit 3
+  fi
+  # marker already consumed: fall through to a real reattach exec below.
+fi
 while [ "$#" -gt 0 ] && [ "$1" != -- ]; do shift; done
 [ "$#" -gt 0 ] && shift
 [ "$#" -gt 0 ] && shift
@@ -63,7 +88,8 @@ wait "$child"
 exit $?
 "#;
 
-/// The fake Kitty launcher: captures argv; fails when told to for one name.
+/// The fake Kitty launcher: captures argv and environment; fails when told
+/// to for one name.
 const FAKE_KITTY: &str = r#"#!/bin/sh
 set -u
 stamp=$(date +%s%N)-$$
@@ -71,6 +97,7 @@ cap="$FAKE_CAPTURE_DIR/kitty-$stamp"
 : > "$cap.argv.part"
 for arg in "$@"; do printf '%s\0' "$arg" >> "$cap.argv.part"; done
 mv "$cap.argv.part" "$cap.argv"
+env -0 > "$cap.env" 2>/dev/null || true
 if [ -n "${FAKE_KITTY_FAIL:-}" ]; then
   for arg in "$@"; do
     if [ "$arg" = "$FAKE_KITTY_FAIL" ]; then exit 1; fi
@@ -162,13 +189,18 @@ impl Fixture {
             .collect()
     }
 
-    fn newest_ssh_pid(&self) -> i32 {
+    fn ssh_pid_files(&self) -> Vec<String> {
         let mut entries: Vec<String> = fs::read_dir(&self.capture)
             .unwrap()
             .map(|entry| entry.unwrap().file_name().into_string().unwrap())
             .filter(|name| name.starts_with("ssh-") && name.ends_with(".pid"))
             .collect();
         entries.sort();
+        entries
+    }
+
+    fn newest_ssh_pid(&self) -> i32 {
+        let entries = self.ssh_pid_files();
         let newest = entries.last().expect("at least one fake ssh ran");
         fs::read_to_string(self.capture.join(newest))
             .unwrap()
@@ -176,6 +208,60 @@ impl Fixture {
             .parse()
             .unwrap()
     }
+
+    /// Every captured `kind-*.env` file's NUL-separated `KEY=VALUE` entries
+    /// (kind = "ssh" or "kitty"), oldest first.
+    fn captured_env(&self, kind: &str) -> Vec<Vec<u8>> {
+        let mut entries: Vec<String> = fs::read_dir(&self.capture)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .filter(|name| name.starts_with(&format!("{kind}-")) && name.ends_with(".env"))
+            .collect();
+        entries.sort();
+        entries
+            .into_iter()
+            .flat_map(|name| {
+                let bytes = fs::read(self.capture.join(&name)).unwrap();
+                bytes
+                    .split(|byte| *byte == 0)
+                    .filter(|part| !part.is_empty())
+                    .map(<[u8]>::to_vec)
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+}
+
+/// A minor finding repair: no captured supervisor-invoked process
+/// environment may carry a bootstrap token (a 64-hex-character run) or a raw
+/// bootstrap record line (`everlink v1 ...`) — the supervisor never places
+/// secrets in argv or environment (design 3, 4, 10).
+fn assert_no_secret_env(fixture: &Fixture, kind: &str) {
+    let entries = fixture.captured_env(kind);
+    assert!(
+        !entries.is_empty(),
+        "no captured {kind} environments to check"
+    );
+    for entry in entries {
+        let text = String::from_utf8_lossy(&entry);
+        let value = text.split_once('=').map_or("", |(_, value)| value);
+        assert!(
+            !contains_hex64(value),
+            "captured {kind} environment leaked a 64-hex token: {text}"
+        );
+        assert!(
+            !value.starts_with("everlink v1 "),
+            "captured {kind} environment leaked a bootstrap record: {text}"
+        );
+    }
+}
+
+fn contains_hex64(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    if bytes.len() < 64 {
+        return false;
+    }
+    (0..=bytes.len() - 64).any(|start| bytes[start..start + 64].iter().all(u8::is_ascii_hexdigit))
 }
 
 impl Drop for Fixture {
@@ -425,6 +511,16 @@ fn transport_failure_reattaches_same_session_without_replay() {
     let stderr = fs::read_to_string(&session.stderr_path).unwrap();
     assert!(stderr.contains("probing session 'work'"), "{stderr}");
     assert!(stderr.contains("reattaching session 'work'"), "{stderr}");
+    // No-swallow fidelity: the versioned status-channel protocol is parsed
+    // and swallowed entirely — it must never leak into eversh's own stderr.
+    assert!(
+        !stderr.contains("eversh-status-v1"),
+        "status channel line leaked into stderr: {stderr}"
+    );
+
+    // Minor finding repair: no captured fake-ssh environment carries a
+    // secret (a bootstrap token or a raw bootstrap record).
+    assert_no_secret_env(&fixture, "ssh");
 
     // Kill the session; the child's TERM trap exit code must reach the SAME
     // local process unchanged (child/session exit distinction).
@@ -467,6 +563,106 @@ fn child_exit_returns_status_without_any_retry() {
         captures.len(),
         1,
         "child exit must not probe or retry: {captures:?}"
+    );
+}
+
+#[test]
+fn auth_failure_before_establishment_is_not_retried() {
+    // Finding 1: a first-attempt 255 with the session never established
+    // (an OpenSSH auth failure, for instance) must be reported immediately
+    // as an ordinary SSH failure — no probe, no retry.
+    let fixture = Fixture::new();
+    fixture.set_mode("fail255");
+    let mut session = spawn_interactive(
+        &fixture,
+        "authfail",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "authf1",
+            "--",
+            "/bin/sh",
+            "-c",
+            "exit 0",
+        ],
+    );
+    let status = wait_bounded(&mut session.child, "auth failure connect");
+    assert_eq!(status.code(), Some(255));
+    let captures = fixture.captures("ssh");
+    assert_eq!(
+        captures.len(),
+        1,
+        "pre-establishment failure must not probe or retry: {captures:?}"
+    );
+    let stderr = fs::read_to_string(&session.stderr_path).unwrap();
+    assert!(!stderr.contains("probing"), "{stderr}");
+}
+
+#[test]
+fn remote_child_exit_255_passes_through_without_retry() {
+    // Finding 2: a remote child that itself exits 255 must be reported as
+    // that exit code via the status-channel exit record, not misread as
+    // transport failure.
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let mut session = spawn_interactive(
+        &fixture,
+        "child255",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "c255",
+            "--",
+            "/bin/sh",
+            "-c",
+            "exit 255",
+        ],
+    );
+    let status = wait_bounded(&mut session.child, "child 255 connect");
+    assert_eq!(status.code(), Some(255));
+    let captures = fixture.captures("ssh");
+    assert_eq!(
+        captures.len(),
+        1,
+        "child exit 255 must not probe or retry: {captures:?}"
+    );
+    let stderr = fs::read_to_string(&session.stderr_path).unwrap();
+    assert!(
+        !stderr.contains("probing") && !stderr.contains("reconnect"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn remote_child_signal_maps_to_128_plus_signal() {
+    // Finding 2: a remote child killed by a signal (no trap) is reported via
+    // its status-channel exit record and maps to 128+signal, never an
+    // ambiguous ssh-255.
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let mut session = spawn_interactive(
+        &fixture,
+        "childsig",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "csig",
+            "--",
+            "/bin/sh",
+            "-c",
+            "kill -TERM $$",
+        ],
+    );
+    let status = wait_bounded(&mut session.child, "child signal connect");
+    assert_eq!(status.code(), Some(128 + 15));
+    let captures = fixture.captures("ssh");
+    assert_eq!(
+        captures.len(),
+        1,
+        "signaled child must not probe or retry: {captures:?}"
     );
 }
 
@@ -621,6 +817,198 @@ fn unreachable_transport_exhausts_bounded_attempts() {
     assert_eq!(killed.status.code(), Some(0));
 }
 
+/// Every "attach" (never "attach-or-create") invocation's control-request
+/// token, decoded — used to check `take_over` never escalates during a
+/// busy-gated reconnect.
+fn attach_requests(captures: &[(String, Vec<String>)]) -> Vec<ControlRequest> {
+    let limits = eversh::Limits::default();
+    captures
+        .iter()
+        .filter(|(_, argv)| {
+            argv.contains(&"attach".to_owned()) && !argv.contains(&"attach-or-create".to_owned())
+        })
+        .map(|(_, argv)| {
+            let token = argv.last().expect("attach argv carries a trailing token");
+            let bytes = base64url_decode(token, limits.remote_control_max).unwrap();
+            ControlRequest::decode(&bytes, &limits).unwrap()
+        })
+        .collect()
+}
+
+#[test]
+fn reattach_busy_once_is_retried_within_the_episode() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let mut session = spawn_interactive(
+        &fixture,
+        "busyonce",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "bz1",
+            "--",
+            "/bin/sh",
+            "-c",
+            TICK_SCRIPT,
+        ],
+    );
+    let mut pre = Vec::new();
+    read_until(
+        &mut session.master,
+        &mut pre,
+        b"T:4\r",
+        "busyonce pre-failure ticks",
+    );
+    let before = fixture.captures("ssh").len();
+
+    let ssh_pid = fixture.newest_ssh_pid();
+    send_signal(ssh_pid, "-USR1");
+    let gone_deadline = Instant::now() + Duration::from_secs(5);
+    while std::path::Path::new(&format!("/proc/{ssh_pid}")).exists() {
+        assert!(Instant::now() < gone_deadline, "fake ssh survived SIGUSR1");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    // Every subsequent reattach gets the real Busy exit code exactly once.
+    fixture.set_mode("busyonce");
+
+    // The SAME session still reattaches: fresh ticks resume once the
+    // one-time Busy response is absorbed and retried.
+    let mut post = Vec::new();
+    let reattach_deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        read_available(&mut session.master, &mut post);
+        if !ticks(&post).is_empty() {
+            break;
+        }
+        assert!(
+            session.child.try_wait().unwrap().is_none(),
+            "eversh exited instead of retrying busy: {}",
+            fs::read_to_string(&session.stderr_path).unwrap()
+        );
+        assert!(
+            Instant::now() < reattach_deadline,
+            "no post-busy-retry output"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    // Exactly one extra attempt was consumed by the Busy response: probe,
+    // busy attach, probe, successful attach.
+    let mut all = fixture.captures("ssh");
+    let after = all.split_off(before);
+    let attach_count = after
+        .iter()
+        .filter(|(_, argv)| {
+            argv.contains(&"attach".to_owned()) && !argv.contains(&"attach-or-create".to_owned())
+        })
+        .count();
+    assert_eq!(
+        attach_count, 2,
+        "expected one busy attach plus one successful reattach: {after:?}"
+    );
+    let probe_count = after
+        .iter()
+        .filter(|(_, argv)| argv.contains(&"probe".to_owned()))
+        .count();
+    assert_eq!(probe_count, 2, "{after:?}");
+    for request in attach_requests(&after) {
+        assert!(
+            !request.take_over,
+            "busy retry must never escalate to take_over"
+        );
+    }
+
+    let stderr = fs::read_to_string(&session.stderr_path).unwrap();
+    assert!(stderr.contains("busy"), "{stderr}");
+
+    let killed = fixture
+        .command()
+        .args(["kill", "testhost", "bz1"])
+        .output()
+        .unwrap();
+    assert_eq!(killed.status.code(), Some(0));
+    let status = wait_bounded(&mut session.child, "busyonce exit");
+    assert_eq!(
+        status.code(),
+        Some(41),
+        "child exit status must pass through"
+    );
+}
+
+#[test]
+fn reattach_busy_persisting_exhausts_and_never_escalates() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let mut session = spawn_interactive(
+        &fixture,
+        "busypersist",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "bzp1",
+            "--",
+            "/bin/sh",
+            "-c",
+            TICK_SCRIPT,
+        ],
+    );
+    let mut seen = Vec::new();
+    read_until(
+        &mut session.master,
+        &mut seen,
+        b"T:1\r",
+        "busypersist ready",
+    );
+    let before = fixture.captures("ssh").len();
+
+    let ssh_pid = fixture.newest_ssh_pid();
+    send_signal(ssh_pid, "-USR1");
+    let gone_deadline = Instant::now() + Duration::from_secs(5);
+    while std::path::Path::new(&format!("/proc/{ssh_pid}")).exists() {
+        assert!(Instant::now() < gone_deadline, "fake ssh survived SIGUSR1");
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    // Every reattach persistently reports Busy; probes stay Live.
+    fixture.set_mode("busypersist");
+
+    let status = wait_bounded(&mut session.child, "busypersist exhaustion");
+    assert_eq!(status.code(), Some(255));
+    let stderr = fs::read_to_string(&session.stderr_path).unwrap();
+    assert!(
+        stderr.contains("busy"),
+        "exhaustion must report the busy diagnostic: {stderr}"
+    );
+
+    // Never escalated to take_over on any attach retry.
+    let mut all = fixture.captures("ssh");
+    let after = all.split_off(before);
+    assert!(
+        after
+            .iter()
+            .any(|(_, argv)| argv.contains(&"attach".to_owned())
+                && !argv.contains(&"attach-or-create".to_owned())),
+        "expected at least one busy-retried attach: {after:?}"
+    );
+    for request in attach_requests(&after) {
+        assert!(
+            !request.take_over,
+            "persistent busy must never escalate to take_over"
+        );
+    }
+
+    // Cleanup: the broker (and its writer, still holding the session)
+    // persist; kill it directly.
+    fixture.set_mode("run");
+    let killed = fixture
+        .command()
+        .args(["__everpty", "v1", "kill", "bzp1"])
+        .output()
+        .unwrap();
+    assert_eq!(killed.status.code(), Some(0));
+}
+
 #[test]
 fn raw_ssh_passes_through_and_never_retries() {
     let fixture = Fixture::new();
@@ -637,9 +1025,44 @@ fn raw_ssh_passes_through_and_never_retries() {
     assert_eq!(argv[0], "-o");
     assert!(argv[1].starts_with("ProxyCommand='"));
     assert!(argv[1].contains("__everlink ssh-proxy '%n' '%p' --remote-eversh 'eversh'"));
+    // `-L` fails the audited allowlist: it must never be mirrored into the
+    // everlink bootstrap, but raw mode must not error over it either
+    // (finding 4).
+    assert!(
+        !argv[1].contains("--ssh-option"),
+        "unaudited option must not reach the bootstrap: {}",
+        argv[1]
+    );
     assert_eq!(
         argv[2..],
         ["-L", "8080:localhost:80", "--", "testhost"].map(str::to_owned)
+    );
+}
+
+#[test]
+fn raw_ssh_forwards_a_remote_command_after_inner_separator() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    // An inner `--` splits outer SSH options (before it) from a remote
+    // command (after it, placed after the destination): finding 4.
+    let output = fixture
+        .command()
+        .args([
+            "ssh", "testhost", "--", "-4", "--", "/bin/sh", "-c", "exit 37",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(37));
+    let captures = fixture.captures("ssh");
+    assert_eq!(captures.len(), 1, "raw ssh must never probe or retry");
+    let argv = &captures[0].1;
+    assert_eq!(argv[0], "-o");
+    assert!(argv[1].starts_with("ProxyCommand='"));
+    // `-4` passes the audit and is mirrored into the bootstrap.
+    assert!(argv[1].contains("--ssh-option '-4'"), "{}", argv[1]);
+    assert_eq!(
+        argv[2..],
+        ["-4", "--", "testhost", "/bin/sh", "-c", "exit 37"].map(str::to_owned)
     );
 }
 
@@ -850,4 +1273,219 @@ fn unnamed_connect_generates_and_announces_a_session_name() {
         stderr.contains("eversh: session name s"),
         "generated name must be announced: {stderr}"
     );
+}
+
+/// A `Config` built for library-level calls (no PATH lookup needed: every
+/// program reference is absolute).
+fn library_config(fixture: &Fixture, limits: eversh::Limits) -> SupervisorConfig {
+    SupervisorConfig {
+        ssh_program: fixture.bin.join("ssh").into_os_string(),
+        kitty_program: fixture.bin.join("kitty").into_os_string(),
+        self_exe: fs::canonicalize(binary()).unwrap(),
+        remote_eversh: fixture.bin.join("eversh").to_str().unwrap().to_owned(),
+        kitty_listen_on: None,
+        local_host: "testlocal".to_owned(),
+        limits,
+    }
+}
+
+/// Gives this whole test PROCESS a blocking (never-EOF) fd 0 for its
+/// lifetime, restoring the original on drop. Only needed when driving
+/// `eversh::supervisor` directly as a library call rather than through a
+/// real PTY-backed subprocess (as `spawn_interactive` provides): without
+/// this, the writer's attach loop reads the test harness's own already-EOF
+/// stdin and ends the attachment immediately as an ordinary "local terminal
+/// closed" detach, never reaching the transport-failure path this test
+/// means to exercise. Safe here because no other test or spawned command in
+/// this file relies on the process's OWN inherited fd 0 (every `Command`
+/// either sets `.stdin(...)` explicitly or, like `kill`, never reads it).
+struct BlockingStdin {
+    saved_original: OwnedFd,
+    _keep_open: OwnedFd,
+}
+
+impl BlockingStdin {
+    fn install() -> Self {
+        // Save a duplicate of the current fd 0 at a fresh, kernel-assigned
+        // descriptor number; dup2's target-close is atomic, so there is no
+        // TOCTOU window to race another thread's own fd use.
+        let (saved_slot, spare) = sys::pipe_cloexec().unwrap();
+        unsafe { sys::child_dup2(0, saved_slot.as_raw_fd()).unwrap() };
+        drop(spare);
+        let (stdin_read, stdin_write) = sys::pipe_cloexec().unwrap();
+        unsafe { sys::child_dup2(stdin_read.as_raw_fd(), 0).unwrap() };
+        Self {
+            saved_original: saved_slot,
+            _keep_open: stdin_write,
+        }
+    }
+}
+
+impl Drop for BlockingStdin {
+    fn drop(&mut self) {
+        // SAFETY: restoring this process's own fd 0 from the saved
+        // duplicate; best-effort on drop.
+        unsafe {
+            let _ = sys::child_dup2(self.saved_original.as_raw_fd(), 0);
+        }
+    }
+}
+
+/// Env var marker: when set, this process IS the isolated worker below
+/// (rather than the outer `#[test]` that spawns it).
+const DEADLINE_TEST_WORKER_ENV: &str = "EVERSH_DEADLINE_TEST_WORKER";
+
+#[test]
+fn reconnect_deadline_bounds_a_hung_probe() {
+    if std::env::var_os(DEADLINE_TEST_WORKER_ENV).is_some() {
+        reconnect_deadline_bounds_a_hung_probe_worker();
+        return;
+    }
+    // `BlockingStdin` below swaps THIS PROCESS's fd 0 for its duration —
+    // safe only when this process runs no other test concurrently. cargo
+    // test runs tests as threads within ONE process, so re-exec the test
+    // binary filtered to just this test, in its OWN process, and propagate
+    // its result; the worker (recognized via the env marker) does the real
+    // work in that isolated child.
+    let exe = std::env::current_exe().unwrap();
+    let output = Command::new(exe)
+        .args([
+            "--exact",
+            "reconnect_deadline_bounds_a_hung_probe",
+            "--test-threads=1",
+        ])
+        .env(DEADLINE_TEST_WORKER_ENV, "1")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "isolated deadline test failed:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+fn reconnect_deadline_bounds_a_hung_probe_worker() {
+    // Finding 3: retry_deadline_ms must bound the WHOLE reconnect episode.
+    // A hung probe is killed at the remaining deadline. The CLI always uses
+    // the default 60s deadline, so this drives the supervisor LIBRARY
+    // directly with a small one to keep the test fast.
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    // The library call below spawns the fake ssh directly (not through
+    // Fixture::command's env_clear), so it inherits this process's own
+    // environment: point it at the same state root and fake-ssh controls
+    // phase 1 used.
+    std::env::set_var("EVERSH_STATE_DIR", &fixture.state);
+    std::env::set_var("FAKE_CAPTURE_DIR", &fixture.capture);
+    std::env::set_var("FAKE_SSH_MODE_FILE", &fixture.mode_file);
+    // The library-driven attach() below inherits this process's stdin; give
+    // it a blocking one so the writer loop doesn't see immediate local EOF.
+    let _stdin_guard = BlockingStdin::install();
+
+    // Establish a real broker+child through an ordinary interactive
+    // connect, then cleanly detach (the broker and child persist) so the
+    // session is idle and ready for our own library-level attach() below.
+    let mut setup = spawn_interactive(
+        &fixture,
+        "hang-setup",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "hang1",
+            "--",
+            "/bin/sh",
+            "-c",
+            TICK_SCRIPT,
+        ],
+    );
+    let mut seen = Vec::new();
+    read_until(&mut setup.master, &mut seen, b"READY", "hang setup ready");
+    let detached = fixture
+        .command()
+        .args(["detach", "testhost", "hang1"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        detached.status.code(),
+        Some(0),
+        "setup detach failed: {}",
+        String::from_utf8_lossy(&detached.stderr)
+    );
+    // The writer's own connection observes a plain socket EOF after being
+    // detached (everpty's existing NotLive-on-EOF behavior, unrelated to
+    // this repair): exit 1, not 0. The broker and child persist regardless.
+    let status = wait_bounded(&mut setup.child, "setup connect after detach");
+    assert_eq!(
+        status.code(),
+        Some(1),
+        "setup stderr: {}",
+        fs::read_to_string(&setup.stderr_path).unwrap()
+    );
+
+    let limits = eversh::Limits {
+        retry_deadline_ms: 2_500,
+        retry_backoff_base_ms: 50,
+        retry_backoff_cap_ms: 100,
+        retry_attempts_max: 10,
+        ..eversh::Limits::default()
+    };
+    let config = library_config(&fixture, limits);
+    let before = fixture.ssh_pid_files().len();
+
+    let handle = std::thread::spawn(move || {
+        let mut notifier = SilentNotifier;
+        eversh::supervisor::attach(&config, "testhost", "hang1", false, &[], &mut notifier)
+    });
+
+    // Wait for this call's own first ssh invocation's pid file to actually
+    // exist (not just its argv capture, written slightly earlier), then let
+    // it establish for real (mode is still "run"), then kill ITS transport
+    // and make every later invocation hang.
+    let seen_deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if fixture.ssh_pid_files().len() > before {
+            break;
+        }
+        assert!(Instant::now() < seen_deadline, "attach() never invoked ssh");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    let ssh_pid = fixture.newest_ssh_pid();
+    assert!(
+        std::path::Path::new(&format!("/proc/{ssh_pid}")).exists(),
+        "the established attach() ssh process (pid {ssh_pid}) already exited; captures: {:?}",
+        fixture.captures("ssh")
+    );
+    send_signal(ssh_pid, "-USR1");
+    fixture.set_mode("hang");
+
+    let start = Instant::now();
+    let result = handle.join().unwrap();
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "deadline not enforced promptly: {elapsed:?}"
+    );
+    assert_eq!(
+        result.unwrap(),
+        SessionEnd::TransportFailed(TransportFailure::DeadlineExceeded)
+    );
+
+    // No fake-ssh process remains: the hung probe was killed and reaped.
+    let hung_pid = fixture.newest_ssh_pid();
+    assert!(
+        !std::path::Path::new(&format!("/proc/{hung_pid}")).exists(),
+        "hung fake ssh (pid {hung_pid}) was not reaped"
+    );
+
+    // Cleanup: the broker is still alive.
+    fixture.set_mode("run");
+    let killed = fixture
+        .command()
+        .args(["__everpty", "v1", "kill", "hang1"])
+        .output()
+        .unwrap();
+    assert_eq!(killed.status.code(), Some(0));
 }
