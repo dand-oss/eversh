@@ -1,9 +1,10 @@
 #!/usr/bin/bash
 set -Eeuo pipefail
 
-# Slice 5A exercises seven production OpenSSH ProxyCommand sessions (status 0,
-# status 42, one 1 MiB binary session, one forced-PTY session, one SFTP batch
-# session, one modern SCP download, and one Unix-socket local/remote forward)
+# Slice 5A exercises eight production OpenSSH ProxyCommand sessions (status 0,
+# status 42, one 1 MiB binary session, one forced-PTY session, one SFTP batch,
+# one modern SCP download, one Unix-socket local/remote forward, and one
+# isolated-agent user-certificate session)
 # while keeping every process, key, and diagnostic artifact owned by this bounded harness.
 
 readonly BASH_TOOL=/usr/bin/bash
@@ -20,6 +21,8 @@ readonly SLEEP_TOOL=/usr/bin/sleep
 readonly SORT_TOOL=/usr/bin/sort
 readonly SS_TOOL=/usr/bin/ss
 readonly SSH_TOOL=/usr/bin/ssh
+readonly SSHAGENT_TOOL=/usr/bin/ssh-agent
+readonly SSHADD_TOOL=/usr/bin/ssh-add
 readonly SSHD_EXE=/usr/sbin/sshd
 readonly SSHKEYGEN_TOOL=/usr/bin/ssh-keygen
 readonly SSHKEYSCAN_TOOL=/usr/bin/ssh-keyscan
@@ -56,8 +59,9 @@ readonly BINARY_BYTES=1048576
 
 for tool in "$BASH_TOOL" "$CHMOD_TOOL" "$CMP_TOOL" "$ID_TOOL" "$IP_TOOL" \
     "$MKDIR_TOOL" "$MKtemp_TOOL" "$PRINTF_TOOL" "$READLINK_TOOL" "$RM_TOOL" \
-    "$SLEEP_TOOL" "$SORT_TOOL" "$SS_TOOL" "$SSH_TOOL" "$SSHD_EXE" \
-    "$SSHKEYGEN_TOOL" "$SSHKEYSCAN_TOOL" "$STAT_TOOL" "$SETSID_TOOL" \
+    "$SLEEP_TOOL" "$SORT_TOOL" "$SS_TOOL" "$SSH_TOOL" "$SSHAGENT_TOOL" \
+    "$SSHADD_TOOL" "$SSHD_EXE" "$SSHKEYGEN_TOOL" "$SSHKEYSCAN_TOOL" \
+    "$STAT_TOOL" "$SETSID_TOOL" \
     "$TIMEOUT_TOOL" "$AWK_TOOL" "$CAT_TOOL" "$DD_TOOL" "$HEAD_TOOL" \
     "$LN_TOOL" "$MV_TOOL" "$ENV_TOOL" "$SHA256SUM_TOOL" "$STTY_TOOL" \
     "$SFTP_TOOL" "$SCP_TOOL" "$NC_TOOL"; do
@@ -123,6 +127,8 @@ FORWARD_ROLE=
 FORWARD_SOCK=
 FORWARD_REMOTE_SOCK=
 FORWARD_RELEASE=
+AGENT_PID= AGENT_START= AGENT_EXE= AGENT_PGRP= AGENT_ROLE=
+SSH_AGENT_SOCK= SSH_AGENT_KEY_DIR= SSH_AGENT_CERT_DIR= SSH_AGENT_OUTPUT_DIR= SSH_AGENT_PRIVATE= SSH_AGENT_PUBLIC= SSH_AGENT_CERT=
 BASELINE_PIDS=()
 ISOLATED_ADDR=
 ISOLATED_PORT=
@@ -132,6 +138,7 @@ SSHD_LOG=
 SSHD_PID_FILE=
 SSHD_HOST_KEY=
 SSHD_CLIENT_KEY=
+SSHD_CA_KEY= SSHD_CA_PUBLIC=
 SSHD_AUTHORIZED_KEYS=
 SSHD_KNOWN_HOSTS=
 SSHD_EXPECTED_OUTPUT=
@@ -162,9 +169,9 @@ BASELINE_EXES=()
 BASELINE_PGRPS=()
 
 capture_identity() {
-    local pid=$1 line suffix state ppid pgrp session tty_nr tpgid flags minflt
+    local pid=$1 role=${2-} line suffix state ppid pgrp session tty_nr tpgid flags minflt
     local cminflt majflt cmajflt utime stime cutime cstime priority nice
-    local num_threads itrealvalue starttime remainder
+    local num_threads itrealvalue starttime remainder proc_uid comm argument; local -a argv=()
 
     CAP_STATE=
     CAP_START=
@@ -185,15 +192,24 @@ capture_identity() {
     CAP_STATE=$state
     CAP_START=$starttime
     CAP_PGRP=$pgrp
-    CAP_EXE=$("$READLINK_TOOL" -e -- "/proc/$pid/exe" 2>/dev/null) || return 1
-    [[ -n $CAP_EXE ]] || return 1
+    if CAP_EXE=$("$READLINK_TOOL" -e -- "/proc/$pid/exe" 2>/dev/null); then
+        [[ -n $CAP_EXE ]] || return 1
+    elif [[ $role == isolated-ssh-agent* ]]; then
+        proc_uid=$("$STAT_TOOL" -c '%u' -- "/proc/$pid" 2>/dev/null) || return 1; IFS= read -r comm 2>/dev/null < "/proc/$pid/comm" || return 1
+        while IFS= read -r -d '' argument; do argv+=("$argument"); done 2>/dev/null < "/proc/$pid/cmdline"
+        [[ $proc_uid == "$EUID" && $ppid == "$BASHPID" && $comm == ssh-agent && ${#argv[@]} -eq 4 ]] || return 1
+        [[ ${argv[0]} == "$SSHAGENT_TOOL" && ${argv[1]} == -D && ${argv[2]} == -a && ${argv[3]} == "$SSH_AGENT_SOCK" ]] || return 1
+        CAP_EXE=$SSHAGENT_TOOL
+    else
+        return 1
+    fi
 }
 
 # Return 0 for an exact owned tuple, 2 for disappearance, and 1 for mismatch.
 validate_owned() {
     local pid=$1 expected_start=$2 expected_exe=$3 expected_pgrp=$4
     local expected_role=$5
-    if ! capture_identity "$pid"; then
+    if ! capture_identity "$pid" "$expected_role"; then
         if [[ ! -e "/proc/$pid/stat" || ${CAP_STATE:-} == Z ]]; then
             return 2
         fi
@@ -607,19 +623,26 @@ prepare_isolated_sshd() {
     SSHD_PID_FILE="$TMP_ROOT/sshd/sshd.pid"
     SSHD_HOST_KEY="$TMP_ROOT/sshd/host_ed25519"
     SSHD_CLIENT_KEY="$TMP_ROOT/sshd/client_ed25519"
+    SSHD_CA_KEY="$TMP_ROOT/ca/user_ca_ed25519"
+    SSHD_CA_PUBLIC="$SSHD_CA_KEY.pub"
     SSHD_AUTHORIZED_KEYS="$TMP_ROOT/sshd/authorized_keys"
     SSHD_KNOWN_HOSTS="$TMP_ROOT/sshd/known_hosts"
     SSHD_EXPECTED_OUTPUT="$TMP_ROOT/sshd/expected-output"
     SSHD_REMOTE_BIN="$TMP_ROOT/remote-bin"
-    "$MKDIR_TOOL" -m 700 -- "$TMP_ROOT/sshd" "$SSHD_REMOTE_BIN" || return 1
+    "$MKDIR_TOOL" -m 700 -- "$TMP_ROOT/sshd" "$TMP_ROOT/ca" \
+        "$SSHD_REMOTE_BIN" || return 1
     "$LN_TOOL" -s -- "$EVERLINK_EXE" "$SSHD_REMOTE_BIN/everlink" || return 1
     [[ "$($READLINK_TOOL -e -- "$SSHD_REMOTE_BIN/everlink")" == "$EVERLINK_EXE" ]] || return 1
     : > "$SSHD_LOG"
     "$CHMOD_TOOL" 600 -- "$SSHD_LOG" || return 1
     run_bounded "$SSHKEYGEN_TOOL" -q -t ed25519 -N '' -f "$SSHD_HOST_KEY" >/dev/null 2>&1 || return 1
     run_bounded "$SSHKEYGEN_TOOL" -q -t ed25519 -N '' -f "$SSHD_CLIENT_KEY" >/dev/null 2>&1 || return 1
+    ( umask 077
+      run_bounded "$SSHKEYGEN_TOOL" -q -t ed25519 -N '' -f "$SSHD_CA_KEY" \
+        >"$TMP_ROOT/ca/keygen.stdout" 2>"$TMP_ROOT/ca/keygen.stderr" ) || return 1
     "$CHMOD_TOOL" 600 -- "$SSHD_HOST_KEY" "$SSHD_CLIENT_KEY" \
-        "$SSHD_HOST_KEY.pub" "$SSHD_CLIENT_KEY.pub" || return 1
+        "$SSHD_HOST_KEY.pub" "$SSHD_CLIENT_KEY.pub" "$SSHD_CA_KEY" \
+        "$SSHD_CA_PUBLIC" || return 1
     "$CHMOD_TOOL" 600 -- "$SSHD_CLIENT_KEY.pub" || return 1
     "$RM_TOOL" -f -- "$SSHD_AUTHORIZED_KEYS" || return 1
     "$BASH_TOOL" -c 'printf "%s\\n" "$(<"$1")" > "$2"' -- \
@@ -641,6 +664,7 @@ prepare_isolated_sshd() {
         "HostKey $SSHD_HOST_KEY" \
         "PidFile $SSHD_PID_FILE" \
         "AuthorizedKeysFile $SSHD_AUTHORIZED_KEYS" \
+        "TrustedUserCAKeys $SSHD_CA_PUBLIC" \
         "AllowUsers $CURRENT_USER" \
         "SetEnv PATH=$SSHD_REMOTE_BIN:/usr/bin:/bin" \
         'AuthenticationMethods publickey' \
@@ -816,18 +840,7 @@ make_known_hosts() {
     done
 }
 
-write_ssh_configs_and_shim() {
-    local session_number=$1
-    SSH_SHIM_DIR="$TMP_ROOT/ssh-shim-$session_number"
-    SSH_SHIM="$SSH_SHIM_DIR/ssh"
-    SSH_QUERY_ARGV="$SSH_SHIM_DIR/query.argv"
-    SSH_BOOTSTRAP_ARGV="$SSH_SHIM_DIR/bootstrap.argv"
-    SSH_QUERY_OUTPUT="$SSH_SHIM_DIR/query.stdout"
-    SSH_INNER_CONFIG="$SSH_SHIM_DIR/inner_config"
-    SSH_OUTER_CONFIG="$SSH_SHIM_DIR/outer_config"
-    SSH_SERVER_IDENTITY="$SSH_SHIM_DIR/server.identity"
-    "$MKDIR_TOOL" -m 700 -- "$SSH_SHIM_DIR" || return 1
-
+write_ssh_shim() {
     {
         printf '%s\n' '#!/usr/bin/bash' "readonly SHIM_DIR=$SSH_SHIM_DIR"
         "$CAT_TOOL" <<'SHIM'
@@ -930,15 +943,35 @@ printf '%s\n' "${bootstrap_lines[0]}"
 SHIM
     } > "$SSH_SHIM" || return 1
     "$CHMOD_TOOL" 700 -- "$SSH_SHIM" || return 1
+}
+
+prepare_ssh_shim_dir() {
+    local session_number=$1
+    SSH_SHIM_DIR="$TMP_ROOT/ssh-shim-$session_number"
+    SSH_SHIM="$SSH_SHIM_DIR/ssh"
+    SSH_QUERY_ARGV="$SSH_SHIM_DIR/query.argv"
+    SSH_BOOTSTRAP_ARGV="$SSH_SHIM_DIR/bootstrap.argv"
+    SSH_QUERY_OUTPUT="$SSH_SHIM_DIR/query.stdout"
+    SSH_INNER_CONFIG="$SSH_SHIM_DIR/inner_config"
+    SSH_OUTER_CONFIG="$SSH_SHIM_DIR/outer_config"
+    SSH_SERVER_IDENTITY="$SSH_SHIM_DIR/server.identity"
+    "$MKDIR_TOOL" -m 700 -- "$SSH_SHIM_DIR"
+}
+
+write_ssh_configs() {
+    local identity_file=$1 identity_agent=$2 certificate_file=${3-}
+    local -a certificate_line=()
+    [[ -z $certificate_file ]] || certificate_line=("    CertificateFile $certificate_file")
 
     printf '%s\n' \
         "Host $SSH_ALIAS" \
         "    HostName $ISOLATED_ADDR" \
         "    Port $ISOLATED_PORT" \
         "    User $CURRENT_USER" \
-        "    IdentityFile $SSHD_CLIENT_KEY" \
+        "    IdentityFile $identity_file" \
+        "${certificate_line[@]}" \
         '    IdentitiesOnly yes' \
-        '    IdentityAgent none' \
+        "    IdentityAgent $identity_agent" \
         "    UserKnownHostsFile $SSHD_KNOWN_HOSTS" \
         '    GlobalKnownHostsFile /dev/null' \
         '    StrictHostKeyChecking yes' \
@@ -976,9 +1009,10 @@ SHIM
         '    HostName 127.0.0.1' \
         "    Port $ISOLATED_PORT" \
         "    User $CURRENT_USER" \
-        "    IdentityFile $SSHD_CLIENT_KEY" \
+        "    IdentityFile $identity_file" \
+        "${certificate_line[@]}" \
         '    IdentitiesOnly yes' \
-        '    IdentityAgent none' \
+        "    IdentityAgent $identity_agent" \
         "    UserKnownHostsFile $SSHD_KNOWN_HOSTS" \
         '    GlobalKnownHostsFile /dev/null' \
         '    StrictHostKeyChecking yes' \
@@ -1005,6 +1039,19 @@ SHIM
         '    Tunnel no' \
         '    LogLevel QUIET' > "$SSH_OUTER_CONFIG" || return 1
     "$CHMOD_TOOL" 600 -- "$SSH_OUTER_CONFIG" || return 1
+}
+
+write_ssh_configs_and_shim() {
+    prepare_ssh_shim_dir "$1" || return 1
+    write_ssh_shim || return 1
+    write_ssh_configs "$SSHD_CLIENT_KEY" none
+}
+
+write_agent_configs_and_shim() {
+    [[ $1 == 8 ]] || return 1
+    prepare_ssh_shim_dir "$1" || return 1
+    write_ssh_shim || return 1
+    write_ssh_configs "$SSH_AGENT_PUBLIC" "$SSH_AGENT_SOCK" "$SSH_AGENT_CERT"
 }
 
 read_nul_argv() {
@@ -1049,9 +1096,9 @@ assert_effective_none() {
 }
 
 assert_no_private_key_lines() {
-    local output=$1
+    local output=$1 private_key=${2:-$SSHD_CLIENT_KEY}
     "$AWK_TOOL" 'NR == FNR { secret[$0] = 1; next } $0 in secret { found=1 } END { exit found }' \
-        "$SSHD_CLIENT_KEY" "$output"
+        "$private_key" "$output"
 }
 
 load_server_identity() {
@@ -1082,7 +1129,7 @@ load_server_identity() {
     SERVER_ROLE=$server_role
 }
 
-verify_proxy_evidence() {
+assert_shim_argv_evidence() {
     local -a query_expected=(
         -G
         -o ControlMaster=no -o ControlPath=none -o ControlPersist=no
@@ -1117,16 +1164,17 @@ verify_proxy_evidence() {
     assert_no_batch_mode "$SSH_BOOTSTRAP_ARGV" || return 1
     [[ -f $SSH_QUERY_OUTPUT && $("$STAT_TOOL" -c '%a' -- "$SSH_QUERY_OUTPUT") == 600 ]] || return 1
     query_size=$("$STAT_TOOL" -c '%s' -- "$SSH_QUERY_OUTPUT") || return 1
-    (( query_size > 0 && query_size <= 65536 )) || return 1
+    (( query_size > 0 && query_size <= 65536 ))
+}
+
+assert_common_proxy_effective() {
     assert_effective_config "$SSH_QUERY_OUTPUT" hostname "$ISOLATED_ADDR" || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" port "$ISOLATED_PORT" || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" user "$CURRENT_USER" || return 1
-    assert_effective_config "$SSH_QUERY_OUTPUT" identityfile "$SSHD_CLIENT_KEY" || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" userknownhostsfile "$SSHD_KNOWN_HOSTS" || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" globalknownhostsfile /dev/null || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" stricthostkeychecking true || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" identitiesonly yes || return 1
-    assert_effective_config "$SSH_QUERY_OUTPUT" identityagent none || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" pubkeyauthentication true || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" passwordauthentication no || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" kbdinteractiveauthentication no || return 1
@@ -1138,15 +1186,154 @@ verify_proxy_evidence() {
     assert_effective_config "$SSH_QUERY_OUTPUT" forwardagent no || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" forwardx11 no || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" tunnel false || return 1
-    assert_no_effective_value "$SSH_QUERY_OUTPUT" remotecommand 'everlink __bootstrap-parent-v1' || return 1
-    assert_no_effective_value "$SSH_QUERY_OUTPUT" 'everlink' 'v1' || return 1
+    assert_no_effective_value "$SSH_QUERY_OUTPUT" remotecommand \
+        'everlink __bootstrap-parent-v1' || return 1
+    assert_no_effective_value "$SSH_QUERY_OUTPUT" 'everlink' 'v1'
+}
+
+verify_proxy_evidence() {
+    assert_shim_argv_evidence || return 1
+    assert_common_proxy_effective || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" identityfile "$SSHD_CLIENT_KEY" || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" identityagent none || return 1
     assert_no_private_key_lines "$SSH_QUERY_OUTPUT" || return 1
+    load_server_identity
+}
+
+verify_agent_proxy_evidence() {
+    local path value
+    local -a actual=()
+    assert_shim_argv_evidence || return 1
+    assert_common_proxy_effective || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" identityfile "$SSH_AGENT_PUBLIC" || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" certificatefile "$SSH_AGENT_CERT" || return 1
+    assert_effective_config "$SSH_QUERY_OUTPUT" identityagent "$SSH_AGENT_SOCK" || return 1
+    assert_no_effective_value "$SSH_QUERY_OUTPUT" identityfile "$SSH_AGENT_PRIVATE" || return 1
+    assert_no_private_key_lines "$SSH_QUERY_OUTPUT" "$SSH_AGENT_PRIVATE" || return 1
+    for path in "$SSH_QUERY_ARGV" "$SSH_BOOTSTRAP_ARGV"; do
+        read_nul_argv "$path" actual || return 1
+        for value in "${actual[@]}"; do
+            [[ $value != *"$SSH_AGENT_PRIVATE"* ]] || return 1
+        done
+    done
     load_server_identity || return 1
+    validate_owned "$AGENT_PID" "$AGENT_START" "$AGENT_EXE" \
+        "$AGENT_PGRP" "$AGENT_ROLE" || return 1
+    [[ $SERVER_PID != "$AGENT_PID" && $SERVER_PGRP != "$AGENT_PGRP" && \
+        $SERVER_ROLE != "$AGENT_ROLE" ]]
+}
+
+clear_agent_tuple() {
+    AGENT_PID= AGENT_START= AGENT_EXE= AGENT_PGRP= AGENT_ROLE=
+}
+
+agent_artifact_cleanup() {
+    local path rc=0
+    validate_temp_target "$TMP_ROOT" || return 1
+    for path in "$SSH_AGENT_SOCK" "$SSH_AGENT_KEY_DIR" "$SSH_AGENT_CERT_DIR" "$SSH_AGENT_OUTPUT_DIR"; do
+        [[ -n $path ]] || continue
+        case $path in
+            "$TMP_ROOT/agent.sock"|"$TMP_ROOT/agent-key"|"$TMP_ROOT/agent-cert"|"$TMP_ROOT/agent-output") ;;
+            *) rc=1; continue ;;
+        esac
+        "$RM_TOOL" -rf -- "$path" || rc=1
+        [[ ! -e $path && ! -L $path ]] || rc=1
+    done
+    return "$rc"
+}
+
+stop_isolated_agent() {
+    local rc=0
+    if [[ -n $AGENT_PID ]]; then
+        if [[ -z $AGENT_START || -z $AGENT_EXE || -z $AGENT_PGRP ]]; then
+            if capture_identity "$AGENT_PID" "$AGENT_ROLE"; then
+                AGENT_START=$CAP_START AGENT_EXE=$CAP_EXE AGENT_PGRP=$CAP_PGRP
+            elif reap_terminal_child "$AGENT_PID"; then
+                clear_agent_tuple
+            else
+                rc=1
+            fi
+        fi
+        if [[ -n $AGENT_PID ]]; then
+            if cleanup_owned "$AGENT_PID" "$AGENT_START" "$AGENT_EXE" \
+                "$AGENT_PGRP" "$AGENT_ROLE"; then
+                clear_agent_tuple
+            else
+                rc=1
+            fi
+        fi
+    fi
+    if (( rc == 0 )); then
+        agent_artifact_cleanup || rc=1
+    fi
+    return "$rc"
+}
+
+start_isolated_agent() {
+    local i mode stdout="$SSH_AGENT_OUTPUT_DIR/agent.stdout" stderr="$SSH_AGENT_OUTPUT_DIR/agent.stderr"
+    umask 077
+    : > "$stdout"; : > "$stderr"
+    "$CHMOD_TOOL" 600 -- "$stdout" "$stderr" || return 1
+    [[ $SSH_AGENT_SOCK == "$TMP_ROOT/agent.sock" && ! -e $SSH_AGENT_SOCK ]] || return 1
+    "$SETSID_TOOL" "$ENV_TOOL" -u SSH_AUTH_SOCK "$SSHAGENT_TOOL" -D -a "$SSH_AGENT_SOCK" \
+        </dev/null >"$stdout" 2>"$stderr" &
+    AGENT_PID=$! AGENT_ROLE=isolated-ssh-agent-startup
+    for ((i = 0; i < READINESS_POLL_ATTEMPTS; i++)); do
+        if capture_identity "$AGENT_PID" "$AGENT_ROLE"; then
+            AGENT_START=$CAP_START AGENT_EXE=$CAP_EXE AGENT_PGRP=$CAP_PGRP
+            mode=$($STAT_TOOL -c '%a' -- "$SSH_AGENT_SOCK" 2>/dev/null) || mode=
+            if [[ $CAP_STATE != Z && $AGENT_EXE == "$SSHAGENT_TOOL" && \
+                $AGENT_PGRP == "$AGENT_PID" && -S $SSH_AGENT_SOCK && \
+                ! -L $SSH_AGENT_SOCK && $mode == 600 ]]; then
+                AGENT_ROLE=isolated-ssh-agent
+                [[ $AGENT_PID != "$OWN_PID" && $AGENT_PGRP != "$OWN_PGRP" ]] || break
+                [[ $AGENT_PID != "$SERVER_PID" && $AGENT_PGRP != "$SERVER_PGRP" ]] || break
+                [[ $AGENT_PID != "$FORWARD_PID" && $AGENT_PGRP != "$FORWARD_PGRP" ]] || break
+                return 0
+            fi
+        elif reap_terminal_child "$AGENT_PID"; then
+            clear_agent_tuple
+            break
+        fi
+        "$TIMEOUT_TOOL" 1s "$SLEEP_TOOL" 0.05
+    done
+    stop_isolated_agent || :
+    return 1
+}
+
+run_isolated_ssh_add() {
+    run_bounded "$ENV_TOOL" -u SSH_AUTH_SOCK "SSH_AUTH_SOCK=$SSH_AGENT_SOCK" "$SSHADD_TOOL" "$@"
+}
+
+load_isolated_agent_key() {
+    local path status prefix="$SSH_AGENT_OUTPUT_DIR/ssh-add"
+    validate_owned "$AGENT_PID" "$AGENT_START" "$AGENT_EXE" \
+        "$AGENT_PGRP" "$AGENT_ROLE" || return 1
+    [[ ! -e "${SSH_AGENT_PRIVATE}-cert.pub" ]] || return 1
+    set +e
+    run_isolated_ssh_add -l >"$prefix.empty.stdout" 2>"$prefix.empty.stderr"
+    status=$?
+    set -e
+    (( status == 1 )) || return 1
+    run_isolated_ssh_add "$SSH_AGENT_PRIVATE" \
+        >"$prefix.load.stdout" 2>"$prefix.load.stderr" || return 1
+    run_bounded "$SSHKEYGEN_TOOL" -lf "$SSH_AGENT_PUBLIC" \
+        >"$prefix.expected" 2>"$prefix.expected.stderr" || return 1
+    run_isolated_ssh_add -l >"$prefix.actual" 2>"$prefix.actual.stderr" || return 1
+    "$CMP_TOOL" -s -- "$prefix.expected" "$prefix.actual" || return 1
+    run_isolated_ssh_add -L >"$prefix.public" 2>"$prefix.public.stderr" || return 1
+    "$CMP_TOOL" -s -- "$SSH_AGENT_PUBLIC" "$prefix.public" || return 1
+    for path in "$SSH_AGENT_OUTPUT_DIR"/*; do
+        [[ -f $path && $($STAT_TOOL -c '%a' -- "$path") == 600 ]] || return 1
+    done
+    validate_owned "$AGENT_PID" "$AGENT_START" "$AGENT_EXE" "$AGENT_PGRP" "$AGENT_ROLE"
 }
 
 run_outer_ssh() {
-    local session_number=$1 expected_status=$2 expected=$3 status remote_command
+    local session_number=$1 expected_status=$2 expected=$3 status remote_command agent_mode=${4-}
     local output="$TMP_ROOT/outer-$session_number.stdout" error="$TMP_ROOT/outer-$session_number.stderr"
+    local -a env_options=()
+    [[ -z $agent_mode ]] || { [[ $agent_mode == isolated-agent ]] || return 1; env_options=(-u SSH_AUTH_SOCK); }
     printf '%s\n' "$expected" > "$SSHD_EXPECTED_OUTPUT"
     "$CHMOD_TOOL" 600 -- "$SSHD_EXPECTED_OUTPUT" || return 1
     remote_command="$PRINTF_TOOL '%s\\n' '$expected'"
@@ -1155,7 +1342,7 @@ run_outer_ssh() {
     fi
     set +e
     "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
-        "${SSH_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
+        "${SSH_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" "${env_options[@]}" \
         "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
         "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
         "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" -n -T -- "$SSH_ALIAS" \
@@ -1203,6 +1390,65 @@ run_production_session() {
         "$SERVER_ROLE" || return 1
     listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" \
         && listener_exact 127.0.0.1 "$ISOLATED_PORT"
+}
+
+run_agent_certificate_production_session() {
+    local session_number=$1 cert_source agent_blob client_blob ca_blob ca_fingerprint
+    [[ $session_number == 8 ]] || return 1
+    SSH_AGENT_KEY_DIR="$TMP_ROOT/agent-key" SSH_AGENT_CERT_DIR="$TMP_ROOT/agent-cert" SSH_AGENT_OUTPUT_DIR="$TMP_ROOT/agent-output" SSH_AGENT_SOCK="$TMP_ROOT/agent.sock"
+    SSH_AGENT_PRIVATE="$SSH_AGENT_KEY_DIR/id_ed25519"
+    SSH_AGENT_PUBLIC="$SSH_AGENT_PRIVATE.pub"
+    cert_source="$SSH_AGENT_CERT_DIR/id_ed25519.pub" SSH_AGENT_CERT="$SSH_AGENT_CERT_DIR/id_ed25519-cert.pub"
+    umask 077
+    if ! { "$MKDIR_TOOL" -m 700 -- "$SSH_AGENT_KEY_DIR" "$SSH_AGENT_CERT_DIR" \
+        "$SSH_AGENT_OUTPUT_DIR" && run_bounded "$SSHKEYGEN_TOOL" -q -t ed25519 \
+        -N '' -f "$SSH_AGENT_PRIVATE" >"$SSH_AGENT_OUTPUT_DIR/keygen.stdout" \
+        2>"$SSH_AGENT_OUTPUT_DIR/keygen.stderr" && "$CHMOD_TOOL" 600 -- \
+        "$SSH_AGENT_PRIVATE" "$SSH_AGENT_PUBLIC" && "$CAT_TOOL" \
+        "$SSH_AGENT_PUBLIC" > "$cert_source" && "$CHMOD_TOOL" 600 -- "$cert_source" && \
+        run_bounded "$SSHKEYGEN_TOOL" -q -s "$SSHD_CA_KEY" \
+        -I everlink-slice5a-cert -n "$CURRENT_USER" -V +10m "$cert_source" \
+        >"$SSH_AGENT_OUTPUT_DIR/sign.stdout" 2>"$SSH_AGENT_OUTPUT_DIR/sign.stderr" && \
+        "$CHMOD_TOOL" 600 -- "$SSH_AGENT_CERT" && run_bounded "$SSHKEYGEN_TOOL" \
+        -Lf "$SSH_AGENT_CERT" >"$SSH_AGENT_OUTPUT_DIR/cert.info" \
+        2>"$SSH_AGENT_OUTPUT_DIR/cert.stderr" && run_bounded "$SSHKEYGEN_TOOL" \
+        -lf "$SSHD_CA_PUBLIC" >"$SSH_AGENT_OUTPUT_DIR/ca.fingerprint" \
+        2>"$SSH_AGENT_OUTPUT_DIR/ca.stderr"; }; then
+        report_session_failure 8 agent-setup; return 1
+    fi
+    ca_fingerprint=$($AWK_TOOL 'NR == 1 { print $2 }' "$SSH_AGENT_OUTPUT_DIR/ca.fingerprint") || { report_session_failure 8 cert-fingerprint; return 1; }
+    if ! "$AWK_TOOL" -v principal="$CURRENT_USER" -v ca="$ca_fingerprint" '
+        $1 == "Key" && $2 == "ID:" && $3 == "\"everlink-slice5a-cert\"" { id=1 }; $1 == "Signing" && $2 == "CA:" && $4 == ca { signer=1 }; $1 == "Valid:" && $2 == "from" && $4 == "to" { valid=1 }; $1 == "Principals:" { in_principals=1; next }; in_principals && $1 == principal && NF == 1 { named=1 }; $1 == "Critical" { in_principals=0 }
+        END { exit !(id && signer && valid && named) }' \
+        "$SSH_AGENT_OUTPUT_DIR/cert.info"; then
+        report_session_failure 8 cert-evidence; return 1
+    fi
+    agent_blob=$($AWK_TOOL 'NF >= 2 { print $2; exit }' "$SSH_AGENT_PUBLIC") || { report_session_failure 8 agent-key-blob; return 1; }
+    client_blob=$($AWK_TOOL 'NF >= 2 { print $2; exit }' "$SSHD_CLIENT_KEY.pub") || { report_session_failure 8 client-key-blob; return 1; }
+    ca_blob=$($AWK_TOOL 'NF >= 2 { print $2; exit }' "$SSHD_CA_PUBLIC") || { report_session_failure 8 ca-key-blob; return 1; }
+    if [[ -z $agent_blob || -z $client_blob || -z $ca_blob || \
+        $agent_blob == "$client_blob" || $agent_blob == "$ca_blob" ]] || \
+        ! "$AWK_TOOL" -v direct="$client_blob" -v agent="$agent_blob" \
+        'NF { lines++; direct_count += ($2 == direct); agent_count += ($2 == agent) }
+         END { exit !(lines == 1 && direct_count == 1 && agent_count == 0) }' \
+        "$SSHD_AUTHORIZED_KEYS" || ! "$RM_TOOL" -f -- "$SSHD_CA_KEY" || \
+        [[ -e $SSHD_CA_KEY || -L $SSHD_CA_KEY ]]; then
+        report_session_failure 8 authorization-evidence; return 1
+    fi
+    start_isolated_agent || { report_session_failure 8 agent-start; return 1; }
+    load_isolated_agent_key || { report_session_failure 8 agent-load; return 1; }
+    clear_server_tuple
+    write_agent_configs_and_shim 8 || { report_session_failure 8 config; return 1; }
+    : > "$TMP_ROOT/outer-8.stdout"; : > "$TMP_ROOT/outer-8.stderr"
+    "$CHMOD_TOOL" 600 -- "$TMP_ROOT/outer-8.stdout" "$TMP_ROOT/outer-8.stderr" || return 1
+    run_outer_ssh 8 0 'EverLink isolated production connection 8' isolated-agent || \
+        { report_session_failure 8 command; return 1; }
+    verify_agent_proxy_evidence || { report_session_failure 8 proxy-evidence; return 1; }
+    poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" "$SERVER_PGRP" \
+        "$SERVER_ROLE" || { report_session_failure 8 server-exit; return 1; }
+    stop_isolated_agent || { report_session_failure 8 agent-stop; return 1; }
+    listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" && listener_exact \
+        127.0.0.1 "$ISOLATED_PORT" || { report_session_failure 8 listeners; return 1; }
 }
 
 run_binary_production_session() {
@@ -1271,7 +1517,7 @@ validate_sftp_path() {
 
 report_session_failure() {
     local session_number=$1 stage=$2 detail=${3-}
-    [[ $session_number =~ ^[4-7]$ ]] || return 1
+    [[ $session_number =~ ^[4-8]$ ]] || return 1
     [[ $stage =~ ^[a-z][a-z0-9-]{0,31}$ ]] || return 1
     if [[ -n $detail ]]; then
         [[ $detail =~ ^[0-9]{1,12}$ ]] || return 1
@@ -2050,6 +2296,9 @@ cleanup() {
                 rc=1
             fi
         fi
+        if [[ -n $AGENT_PID || -n $SSH_AGENT_SOCK || -n $SSH_AGENT_KEY_DIR ]]; then
+            stop_isolated_agent || rc=1
+        fi
         if [[ -n $FORWARD_SOCK || -n $FORWARD_REMOTE_SOCK || -n $FORWARD_RELEASE ]]; then
             forward_artifact_cleanup || rc=1
         fi
@@ -2070,7 +2319,7 @@ cleanup() {
             fi
         fi
         verify_baseline || rc=1
-        remove_temp_root "$TMP_ROOT" || rc=1
+        if [[ -z $AGENT_PID ]]; then remove_temp_root "$TMP_ROOT" || rc=1; else rc=1; fi
     fi
 
     if (( original_status != 0 )); then
@@ -2211,6 +2460,14 @@ run_forward_production_session 7 || {
 }
 run_direct_ssh 8 || {
     printf 'eighth direct ssh health check failed\n' >&2
+    exit 1
+}
+run_agent_certificate_production_session 8 || {
+    printf 'eighth production agent-certificate ProxyCommand session failed\n' >&2
+    exit 1
+}
+run_direct_ssh 9 || {
+    printf 'ninth direct ssh health check failed\n' >&2
     exit 1
 }
 clear_server_tuple
