@@ -3,8 +3,8 @@ set -Eeuo pipefail
 
 # Slice 5A exercises seven production OpenSSH ProxyCommand sessions (status 0,
 # status 42, one 1 MiB binary session, one forced-PTY session, one SFTP batch
-# session, one modern SCP download, and one Unix-socket local forward) while
-# keeping every process, key, and diagnostic artifact owned by this bounded harness.
+# session, one modern SCP download, and one Unix-socket local/remote forward)
+# while keeping every process, key, and diagnostic artifact owned by this bounded harness.
 
 readonly BASH_TOOL=/usr/bin/bash
 readonly CHMOD_TOOL=/usr/bin/chmod
@@ -121,6 +121,7 @@ FORWARD_EXE=
 FORWARD_PGRP=
 FORWARD_ROLE=
 FORWARD_SOCK=
+FORWARD_REMOTE_SOCK=
 FORWARD_RELEASE=
 BASELINE_PIDS=()
 ISOLATED_ADDR=
@@ -654,9 +655,12 @@ prepare_isolated_sshd() {
         'X11Forwarding no' \
         'AllowAgentForwarding no' \
         'PermitTunnel no' \
-        'AllowTcpForwarding local' \
+        'AllowTcpForwarding yes' \
         'PermitOpen 127.0.0.1:*' \
         'GatewayPorts no' \
+        'AllowStreamLocalForwarding remote' \
+        'StreamLocalBindMask 0177' \
+        'StreamLocalBindUnlink no' \
         'UseDNS no' \
         'Subsystem sftp internal-sftp' \
         'PermitUserEnvironment no' \
@@ -1690,19 +1694,19 @@ run_scp_production_session() {
 
 forward_artifact_cleanup() {
     local path rc=0
-    for path in "$FORWARD_SOCK" "$FORWARD_RELEASE"; do
+    for path in "$FORWARD_SOCK" "$FORWARD_REMOTE_SOCK" "$FORWARD_RELEASE"; do
         [[ -n $path ]] || continue
         "$RM_TOOL" -f -- "$path" 2>/dev/null || rc=1
         [[ ! -e $path && ! -L $path ]] || rc=1
     done
-    (( rc == 0 )) && { FORWARD_SOCK=; FORWARD_RELEASE=; }
+    (( rc == 0 )) && { FORWARD_SOCK=; FORWARD_REMOTE_SOCK=; FORWARD_RELEASE=; }
     return "$rc"
 }
 
 forward_report_failure() {
     local stage=$1 detail=${2-}
     case $stage in
-        identity|start|listener|client|release|exit-status|output-clean|\
+        identity|start|listener|remote-listener|client|remote-client|release|exit-status|output-clean|\
         group-empty|artifact-remove|proxy-evidence|server-exit|listeners) ;;
         *) return 1 ;;
     esac
@@ -1728,24 +1732,64 @@ forward_fail() {
     return 1
 }
 
+run_forward_nested_client() {
+    local socket=$1 expected=$2 expected_file=$3 output=$4 error=$5
+    local status mode cmp_status size path
+    set +e
+    "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
+        "${FORWARD_CLIENT_TIMEOUT_SECONDS}s" "$SSH_TOOL" -4 -F /dev/null -n -T \
+        -i "$SSHD_CLIENT_KEY" -p "$ISOLATED_PORT" \
+        -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityAgent=none \
+        -o UserKnownHostsFile="$SSHD_KNOWN_HOSTS" -o GlobalKnownHostsFile=/dev/null \
+        -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
+        -o ProxyCommand="$NC_TOOL -U $socket" -o ProxyJump=none \
+        -o ControlMaster=no -o ControlPath=none -o ControlPersist=no \
+        -o ForwardAgent=no -o ForwardX11=no -o ForwardX11Trusted=no -o Tunnel=no \
+        -o ClearAllForwardings=yes -o PubkeyAuthentication=yes \
+        -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
+        -o PreferredAuthentications=publickey -o ConnectTimeout=2 \
+        -o ConnectionAttempts=1 -o RequestTTY=no -o UpdateHostKeys=no \
+        -- "$CURRENT_USER@127.0.0.1" "$PRINTF_TOOL '%s\\n' '$expected'" \
+        > "$output" 2> "$error"
+    status=$?
+    set -e
+    (( status == 0 )) || return "$status"
+    for path in "$output" "$error"; do
+        mode=$("$STAT_TOOL" -c '%a' -- "$path") || return 1
+        [[ $mode == 600 ]] || return 1
+    done
+    cmp_status=0
+    "$CMP_TOOL" -s -- "$expected_file" "$output" || cmp_status=$?
+    (( cmp_status == 0 )) || return "$cmp_status"
+    size=$("$STAT_TOOL" -c '%s' -- "$error") || return 1
+    (( size == 0 ))
+}
+
 run_forward_production_session() {
     local session_number=$1
     local primary_output="$TMP_ROOT/forward-7.stdout"
     local primary_error="$TMP_ROOT/forward-7.stderr"
     local client_output="$TMP_ROOT/forward-7.client.stdout"
     local client_error="$TMP_ROOT/forward-7.client.stderr"
+    local remote_client_output="$TMP_ROOT/forward-7.remote-client.stdout"
+    local remote_client_error="$TMP_ROOT/forward-7.remote-client.stderr"
     local expected_output="$TMP_ROOT/forward-7.expected"
+    local remote_expected_output="$TMP_ROOT/forward-7.remote.expected"
     local expected='EverLink isolated forwarded connection 7'
+    local remote_expected='EverLink isolated remote-forwarded connection 7'
     local remote_command path status result i deadline cmp_status size mode pid
 
     [[ $session_number == 7 ]] || return 1
     clear_forward
     clear_server_tuple
     FORWARD_SOCK="$TMP_ROOT/forward-7.sock"
+    FORWARD_REMOTE_SOCK="$TMP_ROOT/forward-7.remote.sock"
     FORWARD_RELEASE="$TMP_ROOT/forward-7.release"
     write_ssh_configs_and_shim 7 || { forward_fail identity; return 1; }
-    for path in "$FORWARD_SOCK" "$FORWARD_RELEASE" "$primary_output" \
-        "$primary_error" "$client_output" "$client_error" "$expected_output"; do
+    for path in "$FORWARD_SOCK" "$FORWARD_REMOTE_SOCK" "$FORWARD_RELEASE" \
+        "$primary_output" "$primary_error" "$client_output" "$client_error" \
+        "$expected_output" "$remote_client_output" "$remote_client_error" \
+        "$remote_expected_output"; do
         validate_sftp_path "$path" || { forward_fail identity; return 1; }
         [[ ! -e $path && ! -L $path ]] || { forward_fail identity; return 1; }
     done
@@ -1753,12 +1797,16 @@ run_forward_production_session() {
     umask 077
     if ! { : > "$primary_output" && : > "$primary_error" && \
         : > "$client_output" && : > "$client_error" && \
-        "$PRINTF_TOOL" '%s\n' "$expected" > "$expected_output"; }; then
+        : > "$remote_client_output" && : > "$remote_client_error" && \
+        "$PRINTF_TOOL" '%s\n' "$expected" > "$expected_output" && \
+        "$PRINTF_TOOL" '%s\n' "$remote_expected" > "$remote_expected_output"; }; then
         forward_fail identity
         return 1
     fi
     "$CHMOD_TOOL" 600 -- "$primary_output" "$primary_error" \
-        "$client_output" "$client_error" "$expected_output" || {
+        "$client_output" "$client_error" "$expected_output" \
+        "$remote_client_output" "$remote_client_error" \
+        "$remote_expected_output" || {
         forward_fail identity
         return 1
     }
@@ -1766,7 +1814,9 @@ run_forward_production_session() {
     "$SETSID_TOOL" "$ENV_TOOL" PATH="$SSH_SHIM_DIR:/usr/bin:/bin" \
         EVERLINK_SHIM_DIR="$SSH_SHIM_DIR" "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" \
         -n -T -o ClearAllForwardings=no -o ExitOnForwardFailure=yes \
-        -L "$FORWARD_SOCK:127.0.0.1:$ISOLATED_PORT" -- "$SSH_ALIAS" \
+        -o StreamLocalBindMask=0077 \
+        -L "$FORWARD_SOCK:127.0.0.1:$ISOLATED_PORT" \
+        -R "$FORWARD_REMOTE_SOCK:127.0.0.1:$ISOLATED_PORT" -- "$SSH_ALIAS" \
         "$remote_command" > "$primary_output" 2> "$primary_error" &
     pid=$!
     for ((i = 0; i < READINESS_POLL_ATTEMPTS; i++)); do
@@ -1807,48 +1857,56 @@ run_forward_production_session() {
     while (( SECONDS < deadline )); do
         if validate_owned "$FORWARD_PID" "$FORWARD_START" "$FORWARD_EXE" "$FORWARD_PGRP" "$FORWARD_ROLE"; then
             if [[ -S $FORWARD_SOCK && ! -L $FORWARD_SOCK ]]; then
-                break
+                mode=$("$STAT_TOOL" -c '%a' -- "$FORWARD_SOCK") || mode=
+                [[ $mode == 700 ]] && break
             fi
         else
-            result=$?
-            forward_fail listener "$result"
+            status=0
+            builtin wait "$FORWARD_PID" 2>/dev/null || status=$?
+            forward_fail listener "$status"
             return 1
         fi
         "$TIMEOUT_TOOL" 1s "$SLEEP_TOOL" 0.05
     done
-    [[ -S $FORWARD_SOCK && ! -L $FORWARD_SOCK ]] || {
+    mode=$("$STAT_TOOL" -c '%a' -- "$FORWARD_SOCK") 2>/dev/null || mode=
+    [[ -S $FORWARD_SOCK && ! -L $FORWARD_SOCK && $mode == 700 ]] || {
         forward_fail listener
         return 1
     }
 
-    set +e
-    "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
-        "${FORWARD_CLIENT_TIMEOUT_SECONDS}s" "$SSH_TOOL" -4 -F /dev/null -n -T \
-        -i "$SSHD_CLIENT_KEY" -p "$ISOLATED_PORT" \
-        -o BatchMode=yes -o IdentitiesOnly=yes -o IdentityAgent=none \
-        -o UserKnownHostsFile="$SSHD_KNOWN_HOSTS" -o GlobalKnownHostsFile=/dev/null \
-        -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 \
-        -o ProxyCommand="$NC_TOOL -U $FORWARD_SOCK" -o ProxyJump=none \
-        -o ControlMaster=no -o ControlPath=none -o ControlPersist=no \
-        -o ForwardAgent=no -o ForwardX11=no -o ForwardX11Trusted=no -o Tunnel=no \
-        -o ClearAllForwardings=yes -o PubkeyAuthentication=yes \
-        -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
-        -o PreferredAuthentications=publickey -o ConnectTimeout=2 \
-        -o ConnectionAttempts=1 -o RequestTTY=no -o UpdateHostKeys=no \
-        -- "$CURRENT_USER@127.0.0.1" "$PRINTF_TOOL '%s\\n' '$expected'" \
-        > "$client_output" 2> "$client_error"
-    status=$?
-    set -e
-    (( status == 0 )) || { forward_fail client "$status"; return 1; }
-    for path in "$client_output" "$client_error"; do
-        mode=$("$STAT_TOOL" -c '%a' -- "$path") || { forward_fail client 1; return 1; }
-        [[ $mode == 600 ]] || { forward_fail client 1; return 1; }
+    deadline=$((SECONDS + FORWARD_READY_SECONDS))
+    while (( SECONDS < deadline )); do
+        if validate_owned "$FORWARD_PID" "$FORWARD_START" "$FORWARD_EXE" "$FORWARD_PGRP" "$FORWARD_ROLE"; then
+            if [[ -S $FORWARD_REMOTE_SOCK && ! -L $FORWARD_REMOTE_SOCK ]]; then
+                mode=$("$STAT_TOOL" -c '%a' -- "$FORWARD_REMOTE_SOCK") || mode=
+                [[ $mode == 600 ]] && break
+            fi
+        else
+            status=0
+            builtin wait "$FORWARD_PID" 2>/dev/null || status=$?
+            forward_fail remote-listener "$status"
+            return 1
+        fi
+        "$TIMEOUT_TOOL" 1s "$SLEEP_TOOL" 0.05
     done
-    cmp_status=0
-    "$CMP_TOOL" -s -- "$expected_output" "$client_output" || cmp_status=$?
-    (( cmp_status == 0 )) || { forward_fail client "$cmp_status"; return 1; }
-    size=$("$STAT_TOOL" -c '%s' -- "$client_error") || { forward_fail client 1; return 1; }
-    (( size == 0 )) || { forward_fail client "$size"; return 1; }
+    mode=$("$STAT_TOOL" -c '%a' -- "$FORWARD_REMOTE_SOCK") 2>/dev/null || mode=
+    [[ -S $FORWARD_REMOTE_SOCK && ! -L $FORWARD_REMOTE_SOCK && $mode == 600 ]] || {
+        forward_fail remote-listener
+        return 1
+    }
+
+    run_forward_nested_client "$FORWARD_SOCK" "$expected" "$expected_output" \
+        "$client_output" "$client_error" || {
+        status=$?
+        forward_fail client "$status"
+        return 1
+    }
+    run_forward_nested_client "$FORWARD_REMOTE_SOCK" "$remote_expected" \
+        "$remote_expected_output" "$remote_client_output" "$remote_client_error" || {
+        status=$?
+        forward_fail remote-client "$status"
+        return 1
+    }
 
     "$PRINTF_TOOL" 'release\n' > "$FORWARD_RELEASE" || {
         forward_fail release 1
@@ -1992,7 +2050,7 @@ cleanup() {
                 rc=1
             fi
         fi
-        if [[ -n $FORWARD_SOCK || -n $FORWARD_RELEASE ]]; then
+        if [[ -n $FORWARD_SOCK || -n $FORWARD_REMOTE_SOCK || -n $FORWARD_RELEASE ]]; then
             forward_artifact_cleanup || rc=1
         fi
         if (( ISOLATED_SERVER )); then
@@ -2148,7 +2206,7 @@ run_direct_ssh 7 || {
     exit 1
 }
 run_forward_production_session 7 || {
-    printf 'seventh production local-forward ProxyCommand session failed\n' >&2
+    printf 'seventh production local/remote-forward ProxyCommand session failed\n' >&2
     exit 1
 }
 run_direct_ssh 8 || {
