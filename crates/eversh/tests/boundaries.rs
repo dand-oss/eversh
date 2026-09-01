@@ -5,7 +5,7 @@
 #![allow(clippy::unwrap_used)]
 
 use cargo_metadata::MetadataCommand;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
 
 fn metadata() -> cargo_metadata::Metadata {
@@ -159,6 +159,50 @@ fn everlink_closure_has_no_ssh_or_second_runtime() {
         closure.contains("rcgen"),
         "everlink owns certificate generation (M3)"
     );
+}
+
+#[test]
+fn everlink_surface_has_no_terminal_replay_or_persistence_layer() {
+    let m = metadata();
+    let package = m
+        .packages
+        .iter()
+        .find(|package| package.name == "everlink")
+        .expect("everlink package");
+    let direct_dependencies: BTreeSet<_> = package
+        .dependencies
+        .iter()
+        .map(|dependency| dependency.name.as_str())
+        .collect();
+    let approved_dependencies: BTreeSet<_> =
+        ["clap", "noq", "rcgen", "ring", "subtle", "tokio", "zeroize"]
+            .into_iter()
+            .collect();
+    assert_eq!(
+        direct_dependencies, approved_dependencies,
+        "everlink's direct dependency surface must remain the reviewed transport, runtime, crypto, secret, and optional CLI set"
+    );
+
+    let closure = resolve_closure(&m, "everlink");
+    for banned in [
+        "alacritty_terminal",
+        "heed",
+        "lmdb",
+        "portable-pty",
+        "redb",
+        "rocksdb",
+        "rusqlite",
+        "sled",
+        "termwiz",
+        "vte",
+        "vt100",
+        "wezterm-term",
+    ] {
+        assert!(
+            !closure.contains(banned),
+            "everlink closure must not contain terminal, replay, or persistence package {banned}"
+        );
+    }
 }
 
 #[test]

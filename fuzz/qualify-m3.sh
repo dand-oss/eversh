@@ -57,10 +57,11 @@ DENY_VERSION=
 
 usage() {
     cat <<'EOF'
-Usage: fuzz/qualify-m3.sh [setup|run] [--json]
+Usage: fuzz/qualify-m3.sh [setup|run|network] [--json]
 
   setup   Install exact isolated Rust, cargo-deny, and cargo-fuzz tools.
   run     Require a clean commit, run full local gates, then four campaigns.
+  network Require a clean commit, then run production OpenSSH and migration gates.
   --json  Print the sanitized JSON receipt instead of the one-line summary.
 
 No raw compiler or campaign output is written to stdout or stderr. Logs, corpora,
@@ -89,7 +90,7 @@ parse_arguments() {
         shift
     done
     case $COMMAND in
-        setup|run) ;;
+        setup|run|network) ;;
         *)
             printf 'EverLink qualification: invalid command\n' >&2
             usage >&2
@@ -471,6 +472,11 @@ run_qualification() {
         "$CARGO" "+$STABLE_TOOLCHAIN" check --workspace --no-default-features --lib --locked
     run_logged dependency-boundaries "$gate_dir/dependency-boundaries.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" test -p eversh --test boundaries --locked
+    run_logged security-secret-redaction "$gate_dir/security-secret-redaction.log" "$ROOT" \
+        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --test slice1_core --locked
+    run_logged security-process-secrets "$gate_dir/security-process-secrets.log" "$ROOT" \
+        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --test slice3_process \
+        server_requires_release_and_exposes_no_token_in_process_state --locked -- --exact
     run_logged msrv-check "$gate_dir/msrv-check.log" "$ROOT" \
         "$CARGO" "+$MSRV_TOOLCHAIN" check --workspace --all-targets --all-features --locked
     run_logged aarch64-check "$gate_dir/aarch64-check.log" "$ROOT" \
@@ -543,7 +549,8 @@ run_qualification() {
             deterministic_gates: [
                 "git-diff-check", "root-fmt", "root-check", "root-clippy",
                 "root-test", "everlink-resource-bounds", "root-no-default-libs",
-                "dependency-boundaries", "msrv-check", "aarch64-check",
+                "dependency-boundaries", "security-secret-redaction",
+                "security-process-secrets", "msrv-check", "aarch64-check",
                 "cargo-deny-root", "cargo-deny-fuzz", "fuzz-fmt", "fuzz-check",
                 "fuzz-clippy", "four-fuzz-builds"
             ],
@@ -561,6 +568,112 @@ run_qualification() {
     done
     /usr/bin/rmdir -- "$FUZZ_DIR/artifacts" 2>/dev/null || true
 
+    emit_receipt PASS "$RECEIPT_PATH"
+}
+
+run_network_qualification() {
+    local dirty run_id gate_dir started completed temporary openssh_log migration_log
+    local openssh_script migration_script
+    validate_tools || {
+        /usr/bin/mkdir -p -- "$QUAL_ROOT/network"
+        RECEIPT_PATH="$QUAL_ROOT/network/missing-tools.json"
+        fail validate-tools 1 "$QUAL_ROOT/setup/raw.log"
+    }
+    [[ -x /usr/bin/id && -x /usr/bin/sudo ]] || {
+        /usr/bin/mkdir -p -- "$QUAL_ROOT/network"
+        RECEIPT_PATH="$QUAL_ROOT/network/missing-network-tools.json"
+        fail network-prerequisites 1 ''
+    }
+    [[ $(/usr/bin/id -u) -ne 0 ]] || {
+        /usr/bin/mkdir -p -- "$QUAL_ROOT/network"
+        RECEIPT_PATH="$QUAL_ROOT/network/root-caller.json"
+        fail non-root-openssh-caller 1 ''
+    }
+
+    HEAD_SHA=$(/usr/bin/git -C "$ROOT" rev-parse HEAD)
+    TREE_SHA=$(/usr/bin/git -C "$ROOT" rev-parse 'HEAD^{tree}')
+    dirty=$(/usr/bin/git -C "$ROOT" status --porcelain=v1 --untracked-files=all)
+    [[ -z $dirty ]] || {
+        /usr/bin/mkdir -p -- "$QUAL_ROOT/network"
+        RECEIPT_PATH="$QUAL_ROOT/network/dirty-tree.json"
+        fail clean-tree 1 ''
+    }
+
+    run_id="$(/usr/bin/date -u +%Y%m%dT%H%M%SZ)-${HEAD_SHA:0:12}"
+    RUN_ROOT="$QUAL_ROOT/network/$run_id"
+    RECEIPT_PATH="$RUN_ROOT/receipt.json"
+    gate_dir="$RUN_ROOT/gates"
+    /usr/bin/mkdir -p -- "$gate_dir"
+    started=$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)
+    openssh_script="$ROOT/crates/everlink/tests/net/test-openssh.sh"
+    migration_script="$ROOT/crates/everlink/tests/net/test-migration.sh"
+    openssh_log="$gate_dir/production-openssh.log"
+    migration_log="$gate_dir/production-migration.log"
+
+    export RUSTUP_HOME CARGO_HOME
+    export PATH="$CARGO_BIN:/usr/bin:/bin"
+    export CARGO_NET_OFFLINE=true
+
+    run_logged network-build "$gate_dir/network-build.log" "$ROOT" \
+        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --all-features --locked --no-run
+    run_logged production-openssh "$openssh_log" "$ROOT" \
+        /usr/bin/bash "$openssh_script"
+    /usr/bin/grep -Fqx 'EverLink Slice 5A production OpenSSH path: PASS' "$openssh_log" \
+        || fail production-openssh-receipt 1 "$openssh_log"
+    run_logged production-migration "$migration_log" "$ROOT" \
+        /usr/bin/sudo -n -- /usr/bin/timeout --signal=TERM --kill-after=10s 600s \
+        "$migration_script"
+    /usr/bin/grep -Fqx 'everlink Slice 4 production netns/veth gate: PASS' "$migration_log" \
+        || fail production-migration-receipt 1 "$migration_log"
+
+    completed=$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)
+    temporary="$RECEIPT_PATH.tmp"
+    /usr/bin/jq -n \
+        --arg head_sha "$HEAD_SHA" \
+        --arg tree_sha "$TREE_SHA" \
+        --arg started_utc "$started" \
+        --arg completed_utc "$completed" \
+        --arg stable "$STABLE_VERSION" \
+        --arg run_root "$RUN_ROOT" \
+        --arg openssh_log "$openssh_log" \
+        --arg migration_log "$migration_log" \
+        '{
+            schema_version: 1,
+            verdict: "PASS",
+            command: "network",
+            head_sha: $head_sha,
+            tree_sha: $tree_sha,
+            clean_tree: true,
+            started_utc: $started_utc,
+            completed_utc: $completed_utc,
+            toolchain: $stable,
+            gates: [
+                {
+                    name: "production-openssh",
+                    verdict: "PASS",
+                    coverage: [
+                        "exit-status", "binary", "pty", "sftp", "scp",
+                        "local-forward", "remote-forward", "agent-certificate",
+                        "post-gate-sshd-health", "owned-process-cleanup"
+                    ],
+                    raw_log: $openssh_log
+                },
+                {
+                    name: "production-netns-veth-migration",
+                    verdict: "PASS",
+                    privileged: true,
+                    coverage: [
+                        "ipv4-api-migration", "ipv6-api-migration",
+                        "ipv4-process-migration", "ipv6-process-migration",
+                        "same-route-loss", "total-path-loss", "no-replay",
+                        "namespace-and-process-cleanup"
+                    ],
+                    raw_log: $migration_log
+                }
+            ],
+            run_root: $run_root
+        }' >"$temporary"
+    /usr/bin/mv -f -- "$temporary" "$RECEIPT_PATH"
     emit_receipt PASS "$RECEIPT_PATH"
 }
 
@@ -583,6 +696,7 @@ main() {
     case $COMMAND in
         setup) run_setup ;;
         run) run_qualification ;;
+        network) run_network_qualification ;;
     esac
 }
 
