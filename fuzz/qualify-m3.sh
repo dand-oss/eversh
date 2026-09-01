@@ -330,7 +330,6 @@ run_setup() {
         --arg cargo_fuzz "$FUZZ_VERSION" \
         --arg cargo_deny "$DENY_VERSION" \
         --arg cross_target "$CROSS_TARGET" \
-        --arg cargo_target_dir "$CARGO_TARGET_DIR" \
         --arg tool_root "$TOOL_ROOT" \
         --arg raw_log "$setup_log" \
         '{
@@ -589,6 +588,7 @@ run_qualification() {
         --arg cargo_fuzz "$FUZZ_VERSION" \
         --arg cargo_deny "$DENY_VERSION" \
         --arg cross_target "$CROSS_TARGET" \
+        --arg cargo_target_dir "$CARGO_TARGET_DIR" \
         --arg resource_metrics "$resource_metrics" \
         --arg run_root "$RUN_ROOT" \
         --slurpfile campaigns "$campaigns_json" \
