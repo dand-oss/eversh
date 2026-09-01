@@ -60,3 +60,17 @@ path = "fuzz_targets/fuzz_proc_stat.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_everlink_close_sequence"
+path = "fuzz_targets/fuzz_everlink_close_sequence.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_everlink_stream_boundary"
+path = "fuzz_targets/fuzz_everlink_stream_boundary.rs"
+test = false
+doc = false
+bench = false
