@@ -1,10 +1,10 @@
 #!/usr/bin/bash
 set -Eeuo pipefail
 
-# Slice 5A exercises five production OpenSSH ProxyCommand sessions (status 0,
-# status 42, one 1 MiB binary session, one forced-PTY session, and one SFTP
-# batch session) while keeping every process, key, and diagnostic artifact
-# owned by this bounded harness.
+# Slice 5A exercises six production OpenSSH ProxyCommand sessions (status 0,
+# status 42, one 1 MiB binary session, one forced-PTY session, one SFTP batch
+# session, and one modern SCP download) while keeping every process, key, and
+# diagnostic artifact owned by this bounded harness.
 
 readonly BASH_TOOL=/usr/bin/bash
 readonly CHMOD_TOOL=/usr/bin/chmod
@@ -36,11 +36,12 @@ readonly ENV_TOOL=/usr/bin/env
 readonly SHA256SUM_TOOL=/usr/bin/sha256sum
 readonly STTY_TOOL=/usr/bin/stty
 readonly SFTP_TOOL=/usr/bin/sftp
-# 5 production sessions (15+15+30+15+30s) + 5*35s server polls
-# (~175s) + bounded startup (~50s) + six 4s health checks (~24s) +
-# bounded failure cleanup (~30s) total about 384s; 420s leaves finite
-# headroom without weakening nested timeouts.
-readonly WATCHDOG_SECONDS=420
+readonly SCP_TOOL=/usr/bin/scp
+# 5 existing production sessions (105s) + one 30s SCP session + 6*35s
+# server polls (~210s) + bounded startup (~50s) + seven 4s health checks
+# (~28s) + bounded failure cleanup (~30s) total about 453s; 540s leaves
+# finite headroom without weakening nested timeouts.
+readonly WATCHDOG_SECONDS=540
 readonly POLL_SECONDS=5
 readonly SERVER_POLL_SECONDS=35
 readonly READINESS_POLL_ATTEMPTS=60
@@ -48,6 +49,7 @@ readonly OPERATION_TIMEOUT_SECONDS=4
 readonly SSH_SESSION_TIMEOUT_SECONDS=15
 readonly SSH_BINARY_SESSION_TIMEOUT_SECONDS=30
 readonly SFTP_SESSION_TIMEOUT_SECONDS=30
+readonly SCP_SESSION_TIMEOUT_SECONDS=30
 readonly BINARY_BYTES=1048576
 
 for tool in "$BASH_TOOL" "$CHMOD_TOOL" "$CMP_TOOL" "$ID_TOOL" "$IP_TOOL" \
@@ -56,7 +58,7 @@ for tool in "$BASH_TOOL" "$CHMOD_TOOL" "$CMP_TOOL" "$ID_TOOL" "$IP_TOOL" \
     "$SSHKEYGEN_TOOL" "$SSHKEYSCAN_TOOL" "$STAT_TOOL" "$SETSID_TOOL" \
     "$TIMEOUT_TOOL" "$AWK_TOOL" "$CAT_TOOL" "$DD_TOOL" "$HEAD_TOOL" \
     "$LN_TOOL" "$MV_TOOL" "$ENV_TOOL" "$SHA256SUM_TOOL" "$STTY_TOOL" \
-    "$SFTP_TOOL"; do
+    "$SFTP_TOOL" "$SCP_TOOL"; do
     [[ -x "$tool" ]] || {
         printf 'missing required executable\n' >&2
         exit 1
@@ -1239,7 +1241,7 @@ validate_sftp_path() {
 
 report_session_failure() {
     local session_number=$1 stage=$2 detail=${3-}
-    [[ $session_number =~ ^[45]$ ]] || return 1
+    [[ $session_number =~ ^[456]$ ]] || return 1
     [[ $stage =~ ^[a-z][a-z0-9-]{0,31}$ ]] || return 1
     if [[ -n $detail ]]; then
         [[ $detail =~ ^[0-9]{1,12}$ ]] || return 1
@@ -1507,6 +1509,159 @@ run_sftp_production_session() {
     sftp_report_failure "$session_number" "$remote" listeners
 }
 
+scp_report_failure() {
+    local session_number=$1 source=$2 stage=$3 detail=${4-}
+    if [[ -e $source || -L $source ]]; then
+        "$RM_TOOL" -f -- "$source" 2>/dev/null || :
+    fi
+    if [[ -e $source || -L $source ]]; then
+        report_session_failure "$session_number" source-remove 1
+    else
+        report_session_failure "$session_number" "$stage" "$detail"
+    fi
+    return 1
+}
+
+run_scp_production_session() {
+    local session_number=$1
+    local source="$TMP_ROOT/scp-$1.source"
+    local download="$TMP_ROOT/scp-$1.download"
+    local output="$TMP_ROOT/scp-$1.stdout"
+    local error="$TMP_ROOT/scp-$1.stderr"
+    local path status source_size download_size source_mode download_mode
+    local output_size error_size cmp_status
+    local source_digest download_digest
+
+    [[ $session_number == 6 ]] || return 1
+    clear_server_tuple
+    write_ssh_configs_and_shim "$session_number" || return 1
+    for path in "$source" "$download" "$output" "$error"; do
+        validate_sftp_path "$path" || return 1
+        [[ ! -e $path && ! -L $path ]] || return 1
+    done
+
+    umask 077
+    set +e
+    run_bounded "$DD_TOOL" if=/dev/urandom of="$source" \
+        bs="$BINARY_BYTES" count=1 status=none
+    status=$?
+    set -e
+    if (( status != 0 )); then
+        scp_report_failure "$session_number" "$source" scp-source "$status"
+        return 1
+    fi
+    if ! "$CHMOD_TOOL" 600 -- "$source"; then
+        scp_report_failure "$session_number" "$source" source-mode 1
+        return 1
+    fi
+    if ! { : > "$download" && : > "$output" && : > "$error"; }; then
+        scp_report_failure "$session_number" "$source" artifact-create 1
+        return 1
+    fi
+    if ! "$CHMOD_TOOL" 600 -- "$download" "$output" "$error"; then
+        scp_report_failure "$session_number" "$source" artifact-mode 1
+        return 1
+    fi
+
+    source_size=$($STAT_TOOL -c '%s' -- "$source") || {
+        scp_report_failure "$session_number" "$source" source-size
+        return 1
+    }
+    source_mode=$($STAT_TOOL -c '%a' -- "$source") || {
+        scp_report_failure "$session_number" "$source" source-mode
+        return 1
+    }
+    [[ $source_size == "$BINARY_BYTES" && $source_mode == 600 ]] || {
+        scp_report_failure "$session_number" "$source" source-artifact "$source_size"
+        return 1
+    }
+
+    set +e
+    "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
+        "${SCP_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
+        "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
+        "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
+        "$SCP_TOOL" -q -4 -F "$SSH_OUTER_CONFIG" -S "$SSH_TOOL" -- \
+        "$SSH_ALIAS:$source" "$download" < /dev/null > "$output" 2> "$error"
+    status=$?
+    set -e
+    if (( status != 0 )); then
+        scp_report_failure "$session_number" "$source" scp-command "$status"
+        return 1
+    fi
+
+    output_size=$($STAT_TOOL -c '%s' -- "$output") || { scp_report_failure "$session_number" "$source" stdout-size; return 1; }
+    (( output_size == 0 )) || { scp_report_failure "$session_number" "$source" stdout-size "$output_size"; return 1; }
+    error_size=$($STAT_TOOL -c '%s' -- "$error") || { scp_report_failure "$session_number" "$source" stderr-size; return 1; }
+    (( error_size == 0 )) || { scp_report_failure "$session_number" "$source" stderr-size "$error_size"; return 1; }
+
+    source_size=$($STAT_TOOL -c '%s' -- "$source") || {
+        scp_report_failure "$session_number" "$source" source-size
+        return 1
+    }
+    download_size=$($STAT_TOOL -c '%s' -- "$download") || {
+        scp_report_failure "$session_number" "$source" download-size
+        return 1
+    }
+    source_mode=$($STAT_TOOL -c '%a' -- "$source") || {
+        scp_report_failure "$session_number" "$source" source-mode
+        return 1
+    }
+    download_mode=$($STAT_TOOL -c '%a' -- "$download") || {
+        scp_report_failure "$session_number" "$source" download-mode
+        return 1
+    }
+    if [[ $source_size != "$BINARY_BYTES" || $download_size != "$BINARY_BYTES" || \
+        $source_mode != 600 || $download_mode != 600 ]]; then
+        scp_report_failure "$session_number" "$source" artifact-mismatch "$download_size"
+        return 1
+    fi
+
+    source_digest=$($SHA256SUM_TOOL -- "$source") || {
+        scp_report_failure "$session_number" "$source" source-digest
+        return 1
+    }
+    download_digest=$($SHA256SUM_TOOL -- "$download") || {
+        scp_report_failure "$session_number" "$source" download-digest
+        return 1
+    }
+    source_digest=${source_digest%% *}
+    download_digest=${download_digest%% *}
+    if [[ ! $source_digest =~ ^[0-9a-f]{64}$ || \
+        ! $download_digest =~ ^[0-9a-f]{64}$ || \
+        $source_digest != "$download_digest" ]]; then
+        scp_report_failure "$session_number" "$source" digest-mismatch 1
+        return 1
+    fi
+    cmp_status=0
+    "$CMP_TOOL" -s -- "$source" "$download" || cmp_status=$?
+    if (( cmp_status != 0 )); then
+        scp_report_failure "$session_number" "$source" bytes-mismatch "$cmp_status"
+        return 1
+    fi
+
+    "$RM_TOOL" -f -- "$source" 2>/dev/null || :
+    if [[ -e $source || -L $source ]]; then
+        report_session_failure "$session_number" source-remove 1
+        return 1
+    fi
+    if ! verify_proxy_evidence; then
+        report_session_failure "$session_number" proxy-evidence
+        return 1
+    fi
+    if ! poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" \
+        "$SERVER_PGRP" "$SERVER_ROLE"; then
+        report_session_failure "$session_number" server-exit
+        return 1
+    fi
+    if listener_exact "$ISOLATED_ADDR" "$ISOLATED_PORT" \
+        && listener_exact 127.0.0.1 "$ISOLATED_PORT"; then
+        return 0
+    fi
+    report_session_failure "$session_number" listeners
+    return 1
+}
+
 cleanup_detached_server() {
     local pid=$1 start=$2 exe=$3 pgrp=$4 role=$5
     local result rc=0 term_sent=0
@@ -1739,6 +1894,14 @@ run_sftp_production_session 5 || {
 }
 run_direct_ssh 6 || {
     printf 'sixth direct ssh health check failed\n' >&2
+    exit 1
+}
+run_scp_production_session 6 || {
+    printf 'sixth production scp ProxyCommand session failed\n' >&2
+    exit 1
+}
+run_direct_ssh 7 || {
+    printf 'seventh direct ssh health check failed\n' >&2
     exit 1
 }
 clear_server_tuple
