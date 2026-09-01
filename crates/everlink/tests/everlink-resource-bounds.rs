@@ -20,9 +20,12 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::io::ErrorKind;
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, UdpSocket as TokioUdpSocket};
+use tokio::sync::Barrier;
 
 const CHUNK_BYTES: usize = 16 * 1024;
 const SUSTAINED_WINDOW_MULTIPLE: u64 = 32;
@@ -75,6 +78,7 @@ struct GateCeilings {
     transport_envelope_bytes: u64,
     rss_growth_kib: u64,
     rss_plateau_kib: u64,
+    rss_return_kib: u64,
     stalled_accepted_bytes: u64,
     fd_growth: usize,
     thread_growth: usize,
@@ -93,12 +97,15 @@ impl GateCeilings {
             .saturating_add(copy_bytes.saturating_mul(8))
             .saturating_add(incoming);
         let kernel_tcp_send_cap = kernel_tcp_send_buffer_cap();
+        let rss_plateau_kib =
+            PLATEAU_HEADROOM_BYTES.saturating_add(transport_envelope_bytes) / 1024;
         Self {
             transport_envelope_bytes,
             rss_growth_kib: FIXED_RSS_HEADROOM_BYTES
                 .saturating_add(transport_envelope_bytes.saturating_mul(4))
                 / 1024,
-            rss_plateau_kib: PLATEAU_HEADROOM_BYTES.saturating_add(transport_envelope_bytes) / 1024,
+            rss_plateau_kib,
+            rss_return_kib: rss_plateau_kib,
             stalled_accepted_bytes: kernel_tcp_send_cap
                 .saturating_mul(2)
                 .saturating_add(transport_envelope_bytes)
@@ -285,13 +292,14 @@ async fn assert_udp_released(address: SocketAddr, limits: &Limits) {
     }
 }
 
-async fn wait_for_process_baseline(baseline: &ProcessSample) {
+async fn wait_for_process_baseline(baseline: &ProcessSample, ceilings: &GateCeilings) {
     let deadline = tokio::time::Instant::now() + RETURN_TIMEOUT;
     loop {
         let sample = process_sample();
         if sample.fds <= baseline.fds
             && sample.threads <= baseline.threads
             && sample.children == baseline.children
+            && sample.rss_kib <= baseline.rss_kib + ceilings.rss_return_kib
         {
             return;
         }
@@ -355,36 +363,68 @@ fn all_terminal_causes() -> Vec<TerminalCause> {
     causes
 }
 
-fn assert_terminal_catalog_is_bounded(limits: &Limits) -> usize {
+async fn complete_terminal_cause(limits: Limits, ceilings: &GateCeilings, cause: TerminalCause) {
+    let (connected, client, target, server_address) = connected_pair(limits).await;
+    let shutdown = Shutdown::new();
+    let bridge = TargetBridge::try_new(connected, limits, shutdown.clone())
+        .await
+        .unwrap();
+    assert_eq!(
+        shutdown.request(cause, limits.drain_timeout()),
+        RequestStatus::Recorded
+    );
+    assert_eq!(shutdown.cause(), Some(cause));
+    let frozen_drain = shutdown.drain_deadline();
+    assert_eq!(
+        shutdown.request(TerminalCause::Cancelled, Duration::from_secs(60)),
+        RequestStatus::Existing
+    );
+    assert_eq!(shutdown.cause(), Some(cause));
+    assert_eq!(shutdown.drain_deadline(), frozen_drain);
+    let completion = tokio::time::timeout(ceilings.shutdown, bridge.run())
+        .await
+        .expect("terminal-cause bridge cleanup exceeded its bounded deadline");
+    assert_eq!(completion.cause, cause);
+    assert_eq!(completion.finalize, FinalizeStatus::Completed);
+    assert_eq!(shutdown.phase(), Phase::Finalized);
+    drop(target);
+    close_client(client, &limits).await;
+    assert_udp_released(server_address, &limits).await;
+}
+
+async fn warm_resource_paths(limits: Limits, ceilings: &GateCeilings) {
+    for cause in [
+        TerminalCause::SourceEof(CopyDirection::QuicToPeer),
+        TerminalCause::OperationStalled {
+            direction: CopyDirection::PeerToQuic,
+            operation: CopyOperation::Write,
+        },
+        TerminalCause::Cancelled,
+        TerminalCause::PathFailed,
+    ] {
+        complete_terminal_cause(limits, ceilings, cause).await;
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+}
+
+async fn exercise_terminal_catalog_cleanup(
+    limits: Limits,
+    ceilings: &GateCeilings,
+    baseline: &ProcessSample,
+    peak: &mut PeakSample,
+) -> usize {
     let causes = all_terminal_causes();
-    let started = Instant::now();
     let mut families = BTreeSet::new();
     for cause in causes.iter().copied() {
         families.insert(terminal_cause_family(cause));
-        let shutdown = Shutdown::new();
-        assert_eq!(
-            shutdown.request(cause, limits.drain_timeout()),
-            RequestStatus::Recorded
-        );
-        assert!(shutdown.begin_drain());
-        assert_eq!(shutdown.cause(), Some(cause));
-        let frozen_drain = shutdown.drain_deadline();
-        assert_eq!(
-            shutdown.request(TerminalCause::Cancelled, Duration::from_secs(60)),
-            RequestStatus::Existing
-        );
-        assert_eq!(shutdown.cause(), Some(cause));
-        assert_eq!(shutdown.drain_deadline(), frozen_drain);
-        shutdown.begin_finalize(limits.finalize_timeout()).unwrap();
+        complete_terminal_cause(limits, ceilings, cause).await;
+        wait_for_process_baseline(baseline, ceilings).await;
+        peak.observe(baseline);
     }
     assert_eq!(
         families.len(),
         10,
         "every terminal-cause family is catalogued"
-    );
-    assert!(
-        started.elapsed() < limits.drain_timeout(),
-        "terminal-state transitions must not wait on a global deadline"
     );
     causes.len()
 }
@@ -734,7 +774,7 @@ async fn concurrent_unauthenticated_attempts(
     limits: Limits,
     baseline: &ProcessSample,
     peak: &mut PeakSample,
-) -> usize {
+) -> (usize, usize) {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let target_address = listener.local_addr().unwrap();
     let authenticated = AuthenticatedConnection::new(
@@ -774,16 +814,44 @@ async fn concurrent_unauthenticated_attempts(
         );
     }
     peak.observe(baseline);
-    let server_task = tokio::spawn(server.accept());
+    let start = Arc::new(Barrier::new(attempts + 1));
+    let active = Arc::new(AtomicUsize::new(0));
+    let peak_active = Arc::new(AtomicUsize::new(0));
     let mut client_tasks = Vec::with_capacity(attempts);
     for client in clients {
         let token = wrong.clone();
+        let start = start.clone();
+        let active = active.clone();
+        let peak_active = peak_active.clone();
         client_tasks.push(tokio::spawn(async move {
-            client
+            start.wait().await;
+            let concurrent = active.fetch_add(1, Ordering::SeqCst) + 1;
+            peak_active.fetch_max(concurrent, Ordering::SeqCst);
+            let result = client
                 .connect_and_authenticate(&token, target_address.port())
-                .await
+                .await;
+            active.fetch_sub(1, Ordering::SeqCst);
+            result
         }));
     }
+    start.wait().await;
+    let pressure_deadline = tokio::time::Instant::now() + Duration::from_millis(500);
+    while active.load(Ordering::SeqCst) < attempts
+        && tokio::time::Instant::now() < pressure_deadline
+    {
+        tokio::task::yield_now().await;
+    }
+    let pending_peak = peak_active.load(Ordering::SeqCst);
+    assert_eq!(
+        pending_peak, attempts,
+        "all clients must overlap while the server accept queue is deliberately held"
+    );
+    assert!(
+        pending_peak > limits.max_pending_handshakes,
+        "the gate must press beyond the configured pending-handshake budget"
+    );
+    peak.observe(baseline);
+    let server_task = tokio::spawn(server.accept());
     let server_result = tokio::time::timeout(
         limits.handshake_timeout() + Duration::from_secs(2),
         server_task,
@@ -813,7 +881,7 @@ async fn concurrent_unauthenticated_attempts(
     );
     assert_udp_released(server_address, &limits).await;
     peak.observe(baseline);
-    attempts
+    (attempts, pending_peak)
 }
 
 async fn malformed_datagram_amplification(
@@ -846,14 +914,26 @@ async fn malformed_datagram_amplification(
         sent += socket.send_to(&packet, server_address).await.unwrap() as u64;
         senders.push(socket);
     }
-    tokio::time::sleep(Duration::from_millis(100)).await;
     let mut received = 0u64;
-    let mut buffer = [0u8; 4096];
-    for socket in &senders {
-        if let Ok(Ok(count)) =
-            tokio::time::timeout(Duration::from_millis(20), socket.recv(&mut buffer)).await
-        {
-            received += count as u64;
+    let mut buffer = [0u8; u16::MAX as usize];
+    let observation_deadline =
+        tokio::time::Instant::now() + limits.handshake_timeout() + Duration::from_millis(250);
+    while tokio::time::Instant::now() < observation_deadline {
+        let mut observed = false;
+        for socket in &senders {
+            loop {
+                match socket.try_recv(&mut buffer) {
+                    Ok(count) => {
+                        received = received.saturating_add(count as u64);
+                        observed = true;
+                    }
+                    Err(error) if error.kind() == ErrorKind::WouldBlock => break,
+                    Err(error) => panic!("cannot drain malformed-datagram response: {error}"),
+                }
+            }
+        }
+        if !observed {
+            tokio::time::sleep(Duration::from_millis(2)).await;
         }
     }
     assert!(
@@ -872,41 +952,44 @@ async fn everlink_resource_bounds() {
     let limits = gate_limits();
     limits.validate().unwrap();
     let ceilings = GateCeilings::from_limits(&limits);
+    warm_resource_paths(limits, &ceilings).await;
     let baseline = process_sample();
     let mut peak = PeakSample::new(&baseline);
-    let cause_count = assert_terminal_catalog_is_bounded(&limits);
+    let cause_count =
+        exercise_terminal_catalog_cleanup(limits, &ceilings, &baseline, &mut peak).await;
 
     let (transferred, rss_plateau) =
         sustained_transfer(limits, &ceilings, &baseline, &mut peak).await;
-    wait_for_process_baseline(&baseline).await;
+    wait_for_process_baseline(&baseline, &ceilings).await;
     let stall = stall_limits();
     let stall_ceilings = GateCeilings::from_limits(&stall);
     let stalled_tcp = stalled_tcp_consumer(stall, &stall_ceilings, &baseline, &mut peak).await;
-    wait_for_process_baseline(&baseline).await;
+    wait_for_process_baseline(&baseline, &ceilings).await;
     let stalled_quic = stalled_quic_consumer(stall, &stall_ceilings, &baseline, &mut peak).await;
-    wait_for_process_baseline(&baseline).await;
+    wait_for_process_baseline(&baseline, &ceilings).await;
 
     let idle = idle_limits();
     let idle_ceilings = GateCeilings::from_limits(&idle);
     let (idle_cpu_ns, idle_cpu_ceiling_ns) =
         idle_connection(idle, &idle_ceilings, &baseline, &mut peak).await;
-    wait_for_process_baseline(&baseline).await;
+    wait_for_process_baseline(&baseline, &ceilings).await;
 
     for _ in 0..limits.max_pending_handshakes {
         wrong_token_round(limits, &baseline, &mut peak).await;
-        wait_for_process_baseline(&baseline).await;
+        wait_for_process_baseline(&baseline, &ceilings).await;
     }
-    let unauthenticated_attempts =
+    let (unauthenticated_attempts, pending_handshake_peak) =
         concurrent_unauthenticated_attempts(limits, &baseline, &mut peak).await;
-    wait_for_process_baseline(&baseline).await;
+    wait_for_process_baseline(&baseline, &ceilings).await;
     let (amplification_sent, amplification_received) =
         malformed_datagram_amplification(limits, &baseline, &mut peak).await;
-    wait_for_process_baseline(&baseline).await;
+    wait_for_process_baseline(&baseline, &ceilings).await;
 
     let final_sample = process_sample();
     assert_eq!(final_sample.children, baseline.children);
     assert!(final_sample.fds <= baseline.fds);
     assert!(final_sample.threads <= baseline.threads);
+    assert!(final_sample.rss_kib <= baseline.rss_kib + ceilings.rss_return_kib);
     assert!(
         peak.fds <= baseline.fds + ceilings.fd_growth,
         "fd ceiling exceeded: baseline={} peak={} growth_ceiling={}",
@@ -930,9 +1013,11 @@ async fn everlink_resource_bounds() {
     );
 
     println!(
-        "everlink-resource-bounds: PASS transfer_bytes={transferred} rss_baseline_kib={} rss_peak_kib={} rss_plateau_kib={rss_plateau}/{} fd_peak={}/{} thread_peak={}/{} transport_envelope_bytes={} stalled_tcp_bytes={stalled_tcp}/{} stalled_quic_bytes={stalled_quic}/{} idle_cpu_ns={idle_cpu_ns}/{idle_cpu_ceiling_ns} unauthenticated_attempts={unauthenticated_attempts} amplification_bytes={amplification_received}/{amplification_sent} terminal_causes={cause_count}",
+        "everlink-resource-bounds: PASS transfer_bytes={transferred} rss_baseline_kib={} rss_peak_kib={} rss_final_kib={}/{} rss_plateau_kib={rss_plateau}/{} fd_peak={}/{} thread_peak={}/{} transport_envelope_bytes={} stalled_tcp_bytes={stalled_tcp}/{} stalled_quic_bytes={stalled_quic}/{} idle_cpu_ns={idle_cpu_ns}/{idle_cpu_ceiling_ns} unauthenticated_attempts={unauthenticated_attempts} pending_handshake_peak={pending_handshake_peak}/{} amplification_bytes={amplification_received}/{amplification_sent} terminal_causes_finalized={cause_count}",
         baseline.rss_kib,
         peak.rss_kib,
+        final_sample.rss_kib,
+        baseline.rss_kib + ceilings.rss_return_kib,
         ceilings.rss_plateau_kib,
         peak.fds,
         baseline.fds + ceilings.fd_growth,
@@ -941,5 +1026,6 @@ async fn everlink_resource_bounds() {
         ceilings.transport_envelope_bytes,
         ceilings.stalled_accepted_bytes,
         ceilings.stalled_accepted_bytes,
+        limits.max_pending_handshakes,
     );
 }
