@@ -48,7 +48,11 @@ readonly FORWARD_READY_SECONDS=15
 readonly FORWARD_CLIENT_TIMEOUT_SECONDS=15
 readonly FORWARD_REMOTE_WAIT_ATTEMPTS=300
 readonly POLL_SECONDS=5
-readonly SERVER_POLL_SECONDS=35
+# Production permits 30s of QUIC idle followed by a 5s finalize deadline.
+# Give the external /proc observer five additional seconds to see the process
+# disappear after that internal bound; this does not extend either production
+# deadline.
+readonly SERVER_POLL_SECONDS=40
 readonly READINESS_POLL_ATTEMPTS=60
 readonly OPERATION_TIMEOUT_SECONDS=4
 readonly SSH_SESSION_TIMEOUT_SECONDS=15
