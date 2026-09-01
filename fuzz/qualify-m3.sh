@@ -371,6 +371,17 @@ run_logged() {
     ((status == 0)) || fail "$stage" "$status" "$log_path"
 }
 
+run_test_gate() {
+    local stage=$1 log_path=$2 directory=$3
+    shift 3
+    run_logged "$stage" "$log_path" "$directory" "$@"
+    CURRENT_STAGE="$stage-test-count"
+    CURRENT_LOG=$log_path
+    /usr/bin/grep -Eq \
+        '^[[:space:]]*test result: ok\. [1-9][0-9]* passed;' "$log_path" \
+        || fail "$CURRENT_STAGE" 1 "$log_path"
+}
+
 verify_final_identity() {
     local stage=$1 log_path=$2 current_head current_tree dirty
     current_head=$(/usr/bin/git -C "$ROOT" rev-parse HEAD)
@@ -519,9 +530,9 @@ run_qualification() {
         "$CARGO" "+$STABLE_TOOLCHAIN" check --workspace --all-targets --all-features --locked
     run_logged root-clippy "$gate_dir/root-clippy.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" clippy --workspace --all-targets --all-features --locked -- -D warnings
-    run_logged root-test "$gate_dir/root-test.log" "$ROOT" \
+    run_test_gate root-test "$gate_dir/root-test.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" test --workspace --all-features --locked
-    run_logged everlink-resource-bounds "$gate_dir/everlink-resource-bounds.log" "$ROOT" \
+    run_test_gate everlink-resource-bounds "$gate_dir/everlink-resource-bounds.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink \
         --test everlink-resource-bounds --locked -- --nocapture --test-threads=1
     resource_metrics=$(/usr/bin/grep -o 'everlink-resource-bounds: PASS.*' \
@@ -531,13 +542,14 @@ run_qualification() {
         || fail everlink-resource-receipt 1 "$gate_dir/everlink-resource-bounds.log"
     run_logged root-no-default-libs "$gate_dir/root-no-default-libs.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" check --workspace --no-default-features --lib --locked
-    run_logged dependency-boundaries "$gate_dir/dependency-boundaries.log" "$ROOT" \
+    run_test_gate dependency-boundaries "$gate_dir/dependency-boundaries.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" test -p eversh --test boundaries --locked
-    run_logged security-secret-redaction "$gate_dir/security-secret-redaction.log" "$ROOT" \
+    run_test_gate security-secret-redaction "$gate_dir/security-secret-redaction.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --test slice1_core --locked
-    run_logged security-process-secrets "$gate_dir/security-process-secrets.log" "$ROOT" \
-        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --test slice3_process \
-        server_requires_release_and_exposes_no_token_in_process_state --locked -- --exact
+    run_test_gate security-process-secrets "$gate_dir/security-process-secrets.log" "$ROOT" \
+        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --features cli \
+        --test slice3_process --locked \
+        server_requires_release_and_exposes_no_token_in_process_state -- --exact
     run_logged msrv-check "$gate_dir/msrv-check.log" "$ROOT" \
         "$CARGO" "+$MSRV_TOOLCHAIN" check --workspace --all-targets --all-features --locked
     run_logged aarch64-check "$gate_dir/aarch64-check.log" "$ROOT" \
