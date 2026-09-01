@@ -4,6 +4,7 @@ use crate::error::Error;
 
 pub const SSH_PROGRAM: &str = "ssh";
 pub const REMOTE_BOOTSTRAP_COMMAND: &str = "everlink __bootstrap-parent-v1";
+const REMOTE_BOOTSTRAP_ROLE: &str = "__bootstrap-parent-v1";
 
 const SSH_ARGUMENT_MAX: usize = 4096;
 const SSH_OPTION_COUNT_MAX: usize = 128;
@@ -68,6 +69,7 @@ pub struct SshPlan {
     destination: String,
     port: u16,
     options: Vec<String>,
+    remote_bootstrap_command: String,
 }
 
 impl std::fmt::Debug for SshPlan {
@@ -95,7 +97,17 @@ impl SshPlan {
             destination,
             port,
             options,
+            remote_bootstrap_command: REMOTE_BOOTSTRAP_COMMAND.to_owned(),
         })
+    }
+
+    /// Select a remote binary without relying on the remote login shell's
+    /// non-interactive `PATH`. Only canonical absolute paths are accepted so
+    /// the command remains a single, injection-safe remote shell word.
+    pub fn with_remote_binary(mut self, remote_binary: String) -> Result<Self, Error> {
+        validate_remote_binary(&remote_binary)?;
+        self.remote_bootstrap_command = format!("{remote_binary} {REMOTE_BOOTSTRAP_ROLE}");
+        Ok(self)
     }
 
     pub fn destination(&self) -> &str {
@@ -134,7 +146,7 @@ impl SshPlan {
         args.extend(self.options.iter().cloned());
         args.push("--".to_owned());
         args.push(self.destination.clone());
-        args.push(REMOTE_BOOTSTRAP_COMMAND.to_owned());
+        args.push(self.remote_bootstrap_command.clone());
         args
     }
 }
@@ -170,6 +182,22 @@ fn validate_port(value: &str) -> Result<u16, Error> {
         return Err(Error::InvalidSshArgument);
     }
     Ok(port)
+}
+
+fn validate_remote_binary(value: &str) -> Result<(), Error> {
+    let suffix_length = 1usize.saturating_add(REMOTE_BOOTSTRAP_ROLE.len());
+    if !value.starts_with('/')
+        || value.len() > SSH_ARGUMENT_MAX.saturating_sub(suffix_length)
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'_' | b'-'))
+        || value[1..]
+            .split('/')
+            .any(|component| component.is_empty() || matches!(component, "." | ".."))
+    {
+        return Err(Error::InvalidSshArgument);
+    }
+    Ok(())
 }
 
 fn validate_option(option: &str) -> Result<(), Error> {
@@ -301,6 +329,37 @@ mod tests {
             "--bad",
         ] {
             assert!(SshPlan::new("host".into(), "22".into(), vec![option.into()]).is_err());
+        }
+    }
+
+    #[test]
+    fn explicit_remote_binary_is_absolute_canonical_and_shell_safe() {
+        let plan = SshPlan::new("host".into(), "22".into(), vec![])
+            .unwrap()
+            .with_remote_binary("/home/appsmith/bin/everlink".into())
+            .unwrap();
+        assert_eq!(
+            plan.bootstrap_args().last().unwrap(),
+            "/home/appsmith/bin/everlink __bootstrap-parent-v1"
+        );
+
+        for rejected in [
+            "",
+            "everlink",
+            "~/bin/everlink",
+            "$HOME/bin/everlink",
+            "/home/app smith/bin/everlink",
+            "/home/appsmith/bin/../everlink",
+            "/home//appsmith/bin/everlink",
+            "/home/appsmith/bin/everlink;false",
+        ] {
+            assert!(
+                SshPlan::new("host".into(), "22".into(), vec![])
+                    .unwrap()
+                    .with_remote_binary(rejected.into())
+                    .is_err(),
+                "accepted remote binary {rejected:?}"
+            );
         }
     }
 

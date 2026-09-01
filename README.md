@@ -91,6 +91,16 @@ everlink ssh-proxy HOST PORT
 ssh -o 'ProxyCommand everlink ssh-proxy %n %p' server.ever
 ~~~
 
+When the remote user's non-interactive `PATH` does not include the install
+directory, select the compatible remote executable explicitly:
+
+~~~sh
+ssh -o 'ProxyCommand everlink ssh-proxy --remote-bin /home/alice/bin/everlink %n %p' server.ever
+~~~
+
+`--remote-bin` accepts a canonical absolute path only; it does not invoke a
+local shell or accept remote command fragments.
+
 Closing a connection detaches it; the child continues running. There is no special detach key because eversh does not intercept terminal input. A second writer receives `Busy` unless `--take-over` is explicit. A healthy writer is lossless; a writer that exceeds its finite stall deadline is detached rather than allowed to consume unbounded memory. Observers receive future output only, cannot resize or write, are disconnected if they lag, and remain eligible to receive output while the session has no writer.
 
 ## V1 scope

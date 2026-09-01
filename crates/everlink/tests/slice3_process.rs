@@ -294,6 +294,8 @@ exec "$EVERLINK_BIN" __bootstrap-parent-v1
             "ssh-proxy",
             "user@alias",
             &target_port.to_string(),
+            "--remote-bin",
+            "/home/appsmith/bin/everlink",
             "--ssh-option",
             "-oConnectTimeout=4",
         ])
@@ -324,7 +326,7 @@ exec "$EVERLINK_BIN" __bootstrap-parent-v1
     assert!(argv.contains("ControlMaster=no\n"));
     assert!(argv.contains("ForkAfterAuthentication=no\n"));
     assert!(argv.contains("StdinNull=yes\n"));
-    assert!(argv.contains("everlink __bootstrap-parent-v1\n"));
+    assert!(argv.contains("/home/appsmith/bin/everlink __bootstrap-parent-v1\n"));
     assert!(!argv.contains("BatchMode"));
 }
 

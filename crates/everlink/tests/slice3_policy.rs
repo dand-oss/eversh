@@ -106,6 +106,34 @@ fn argv_is_destination_safe_allowlisted_and_fixed() {
 }
 
 #[test]
+fn absolute_remote_binary_avoids_remote_path_lookup_without_command_injection() {
+    let plan = SshPlan::new("alice@work-alias".into(), "2222".into(), vec![])
+        .unwrap()
+        .with_remote_binary("/home/alice/bin/everlink".into())
+        .unwrap();
+    assert_eq!(
+        plan.bootstrap_args().last().unwrap(),
+        "/home/alice/bin/everlink __bootstrap-parent-v1"
+    );
+
+    for rejected in [
+        "everlink",
+        "$HOME/bin/everlink",
+        "/home/alice/bin/everlink --help",
+        "/home/alice/bin/everlink$(false)",
+        "/home/alice/bin/../everlink",
+    ] {
+        assert!(
+            SshPlan::new("alias".into(), "22".into(), vec![])
+                .unwrap()
+                .with_remote_binary(rejected.into())
+                .is_err(),
+            "accepted remote binary {rejected:?}"
+        );
+    }
+}
+
+#[test]
 fn every_bootstrap_owned_command_line_setting_is_rejected() {
     for option in [
         "-oProxyCommand=none",

@@ -32,6 +32,9 @@ enum Command {
         destination: String,
         /// Effective OpenSSH port, normally ProxyCommand `%p`.
         port: String,
+        /// Absolute path to the compatible everlink binary on the remote host.
+        #[arg(long = "remote-bin", value_name = "ABSOLUTE_PATH")]
+        remote_bin: Option<String>,
         /// One audited, self-contained OpenSSH option.
         #[arg(
             long = "ssh-option",
@@ -61,12 +64,16 @@ fn prepare(command: Command) -> Result<PreparedRole, Error> {
         Command::SshProxy {
             destination,
             port,
+            remote_bin,
             ssh_option,
-        } => Ok(PreparedRole::Proxy(SshPlan::new(
-            destination,
-            port,
-            ssh_option,
-        )?)),
+        } => {
+            let plan = SshPlan::new(destination, port, ssh_option)?;
+            let plan = match remote_bin {
+                Some(remote_bin) => plan.with_remote_binary(remote_bin)?,
+                None => plan,
+            };
+            Ok(PreparedRole::Proxy(plan))
+        }
         Command::BootstrapParentV1 => {
             let value = std::env::var_os("SSH_CONNECTION")
                 .and_then(|value| value.into_string().ok())
