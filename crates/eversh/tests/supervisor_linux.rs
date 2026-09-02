@@ -752,6 +752,257 @@ fn auth_failure_before_establishment_is_not_retried() {
     );
 }
 
+/// Round 4, G1/G2: a classification-carrying invocation must fail closed
+/// with the pinned local error BEFORE any ssh child exists — asserted via
+/// the argv-capturing fake seeing ZERO ssh spawns.
+#[test]
+fn percent_state_root_fails_closed_before_any_ssh_spawn() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    // A state root whose own path contains a percent token: OpenSSH
+    // expands `%h` inside the quoted --status-file ProxyCommand word
+    // before the local shell sees the quotes, so everlink would receive
+    // (and write) a DIFFERENT path than the supervisor allocated.
+    let hostile = fixture.base.join("st%hate");
+    fs::create_dir_all(&hostile).unwrap();
+    let output = fixture
+        .command()
+        .env("EVERSH_STATE_DIR", &hostile)
+        .args([
+            "connect",
+            "testhost",
+            "--session",
+            "pct1",
+            "--",
+            "/bin/sh",
+            "-c",
+            "exit 0",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "a percent state root must be a local error, not a spawn: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    // The pinned G1 diagnostic (exact, trailing newline aside).
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap().trim(),
+        format!(
+            "eversh: cannot allocate the private link-status channel under {}: \
+             state root path is not a safe ProxyCommand word (percent tokens rejected)",
+            hostile.display()
+        )
+    );
+    assert!(
+        fixture.captures("ssh").is_empty(),
+        "no ssh may spawn under a percent state root: {:?}",
+        fixture.captures("ssh")
+    );
+    // Rejection happens before anything is created on disk.
+    let entries: Vec<_> = fs::read_dir(&hostile).unwrap().flatten().collect();
+    assert!(entries.is_empty(), "hostile root was touched: {entries:?}");
+}
+
+/// Round 4, G1: an unallocatable state root (the private link-status
+/// directory cannot exist under it — here a regular file occupies the
+/// path) fails closed with the pinned local error before any ssh spawn,
+/// deterministically for every uid (the same fault branch an EACCES on an
+/// unwritable root takes).
+#[test]
+fn unallocatable_state_root_fails_closed_before_any_ssh_spawn() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let hostile = fixture.base.join("blocked-state");
+    fs::create_dir(&hostile).unwrap();
+    File::create(hostile.join("link-status")).unwrap();
+    let output = fixture
+        .command()
+        .env("EVERSH_STATE_DIR", &hostile)
+        .args([
+            "connect",
+            "testhost",
+            "--session",
+            "blk1",
+            "--",
+            "/bin/sh",
+            "-c",
+            "exit 0",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "an unallocatable state root must be a local error, not a spawn: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains(&format!(
+            "cannot allocate the private link-status channel under {}",
+            hostile.display()
+        )),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("cannot create the private link-status directory"),
+        "{stderr}"
+    );
+    assert!(
+        fixture.captures("ssh").is_empty(),
+        "no ssh may spawn under an unallocatable root: {:?}",
+        fixture.captures("ssh")
+    );
+    // Nothing was created or replaced under the root.
+    let entries: Vec<String> = fs::read_dir(&hostile)
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().into_string().unwrap())
+        .collect();
+    assert_eq!(entries, vec!["link-status".to_owned()]);
+}
+
+/// Round 4, G1: with NO state-root candidate at all (no env var, no
+/// HOME), a classification-carrying invocation fails closed with the
+/// pinned no-root diagnostic instead of spawning uninstrumented.
+#[test]
+fn missing_state_root_fails_closed_before_any_ssh_spawn() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let output = fixture
+        .command()
+        .env_remove("EVERSH_STATE_DIR")
+        .args([
+            "connect",
+            "testhost",
+            "--session",
+            "noroot",
+            "--",
+            "/bin/sh",
+            "-c",
+            "exit 0",
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "a missing state root must be a local error, not a spawn: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap().trim(),
+        "eversh: cannot allocate the private link-status channel: no state root resolved \
+         (set EVERSH_STATE_DIR, XDG_RUNTIME_DIR, XDG_STATE_HOME, or HOME)"
+    );
+    assert!(
+        fixture.captures("ssh").is_empty(),
+        "no ssh may spawn without a state root: {:?}",
+        fixture.captures("ssh")
+    );
+}
+
+/// Round 4, G4 regression pin at supervisor level: a NORMAL root plus a
+/// pre-bridge auth-style failure (clean-close 255, carried=0) reports the
+/// typed `SshFailed` after exactly ONE ssh spawn — no probe, no retry —
+/// and the allocated status file is gone afterwards (G3).
+#[test]
+fn normal_root_pre_bridge_auth_failure_is_ssh_failed_no_probe() {
+    if is_isolated_worker("normal_root_pre_bridge_auth_failure_is_ssh_failed_no_probe") {
+        normal_root_pre_bridge_auth_failure_is_ssh_failed_no_probe_worker();
+        return;
+    }
+    run_isolated("normal_root_pre_bridge_auth_failure_is_ssh_failed_no_probe");
+}
+
+fn normal_root_pre_bridge_auth_failure_is_ssh_failed_no_probe_worker() {
+    let fixture = Fixture::new();
+    fixture.set_mode("fail255");
+    // The library-driven attach() below spawns the fake ssh directly (not
+    // through Fixture::command's env_clear), so it inherits this process's
+    // own environment: point it at this fixture's capture/mode controls.
+    std::env::set_var("FAKE_CAPTURE_DIR", &fixture.capture);
+    std::env::set_var("FAKE_SSH_MODE_FILE", &fixture.mode_file);
+    let config = library_config(&fixture, eversh::Limits::default());
+    let mut notifier = SilentNotifier;
+    let result =
+        eversh::supervisor::attach(&config, "testhost", "authpin", false, &[], &mut notifier);
+    assert_eq!(
+        result.unwrap(),
+        SessionEnd::SshFailed,
+        "a pre-bridge auth failure must classify clean-close, never retry"
+    );
+    let captures = fixture.captures("ssh");
+    assert_eq!(captures.len(), 1, "no probe, no retry: {captures:?}");
+    assert!(
+        !captures
+            .iter()
+            .any(|(_, argv)| argv.contains(&"probe".to_owned())),
+        "{captures:?}"
+    );
+    // G3: the classified spawn's status file was removed.
+    let dir = fixture.state.join("link-status");
+    let left: Vec<String> = fs::read_dir(&dir)
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().into_string().unwrap())
+        .collect();
+    assert!(left.is_empty(), "status files leaked: {left:?}");
+}
+
+/// Round 4, G3: an error AFTER allocation but BEFORE the spawn (an SSH
+/// option rejected by the audited allowlist) must still leave no status
+/// file behind — the allocation-to-removal guard, not a scattered removal.
+#[test]
+fn guard_removes_the_status_file_on_a_pre_spawn_error() {
+    let fixture = Fixture::new();
+    let config = library_config(&fixture, eversh::Limits::default());
+    let mut notifier = SilentNotifier;
+    let result = eversh::supervisor::attach(
+        &config,
+        "testhost",
+        "guard1",
+        false,
+        &["-p22".to_owned()],
+        &mut notifier,
+    );
+    assert!(
+        matches!(result, Err(eversh::Error::SshOptionRejected)),
+        "expected the audited allowlist to reject -p22: {result:?}"
+    );
+    assert!(fixture.captures("ssh").is_empty());
+    let dir = fixture.state.join("link-status");
+    let left: Vec<String> = fs::read_dir(&dir)
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().into_string().unwrap())
+        .collect();
+    assert!(left.is_empty(), "status files leaked: {left:?}");
+}
+
+/// Round 4, G3: a spawn that itself fails (the ssh program cannot be
+/// executed) returns through the `?` on `spawn()` — previously a leak —
+/// and the guard still removes the allocated file.
+#[test]
+fn guard_removes_the_status_file_on_a_spawn_error() {
+    let fixture = Fixture::new();
+    let mut config = library_config(&fixture, eversh::Limits::default());
+    config.ssh_program = fixture.bin.join("ssh-does-not-exist").into_os_string();
+    let mut notifier = SilentNotifier;
+    let result =
+        eversh::supervisor::attach(&config, "testhost", "guard2", false, &[], &mut notifier);
+    assert!(result.is_err(), "a missing ssh binary must be an error");
+    let dir = fixture.state.join("link-status");
+    let left: Vec<String> = fs::read_dir(&dir)
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().into_string().unwrap())
+        .collect();
+    assert!(left.is_empty(), "status files leaked: {left:?}");
+}
+
 #[test]
 fn remote_child_exit_255_passes_through_without_retry() {
     // Finding 2: a remote child that itself exits 255 must be reported as

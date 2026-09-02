@@ -56,14 +56,19 @@ pub fn validate_remote_eversh(value: &str) -> Result<(), Error> {
 }
 
 /// Validate the local executable path for embedding in a single-quoted
-/// ProxyCommand word: absolute UTF-8 without quotes or control bytes.
+/// ProxyCommand word: absolute UTF-8 without quotes, control bytes, or
+/// percent. OpenSSH expands percent tokens (`%h` `%p` `%n` `%C` `%L` `%l`
+/// `%r` `%u` `%d` ...) inside quoted ProxyCommand words BEFORE the local
+/// shell sees the quotes, so a percent in the install path would corrupt
+/// the proxy launch word; it is rejected outright, never escaped (the
+/// same discipline as the status path).
 pub fn validate_self_exe(path: &std::path::Path) -> Result<&str, Error> {
     let text = path.to_str().ok_or(Error::SelfExeUnsafe)?;
     if !text.starts_with('/')
         || text.len() > WORD_MAX
         || text
             .chars()
-            .any(|character| character.is_control() || character == '\'')
+            .any(|character| character.is_control() || character == '\'' || character == '%')
     {
         return Err(Error::SelfExeUnsafe);
     }
@@ -105,8 +110,9 @@ pub fn audit_ssh_option(option: &str) -> Result<(), Error> {
 /// forwarding policy (`SendEnv`/`AcceptEnv`) can transmit remotely and no
 /// ambient environment value can imitate. It inherits the exact same
 /// single-quote rejection discipline as every other word: quotes, control
-/// bytes (NUL included), and non-UTF-8 are rejected outright, never
-/// escaped.
+/// bytes (NUL included), non-UTF-8, and percent (which OpenSSH would
+/// expand inside the quoted word before the shell sees the quotes) are
+/// rejected outright, never escaped.
 pub fn proxy_command(
     self_exe: &str,
     remote_eversh: &str,
@@ -126,26 +132,40 @@ pub fn proxy_command(
     }
     if let Some(path) = status_file {
         let word = path.to_str().ok_or(Error::StatusPathUnsafe)?;
+        if !safe_status_word(word) {
+            return Err(Error::StatusPathUnsafe);
+        }
         command.push_str(" --status-file ");
         command.push_str(&quote_single(word)?);
     }
     Ok(command)
 }
 
-/// Whether a local link-status file path can be embedded as the
+/// Whether the text of a link-status file path is embeddable as the
 /// single-quoted `--status-file` ProxyCommand word: UTF-8, no quotes, no
-/// control bytes (NUL included), and bounded length — the same rejection
-/// discipline as [`validate_self_exe`]. The supervisor's best-effort status
-/// allocation uses this so an unembeddable state root degrades to
-/// uninstrumented spawns (the safe exit-code-only default) instead of
-/// failing a session outright.
+/// control bytes (NUL included), no percent, and bounded length. OpenSSH
+/// expands percent tokens (`%h` `%p` `%n` `%C` ...) inside quoted
+/// ProxyCommand words before the local shell sees the quotes, so a state
+/// root carrying `%` would allocate one path while the local everlink
+/// edge receives another — the record would be lost. Percent is rejected
+/// outright, never escaped.
+fn safe_status_word(text: &str) -> bool {
+    text.len() <= WORD_MAX
+        && !text
+            .chars()
+            .any(|character| character.is_control() || character == '\'' || character == '%')
+}
+
+/// Whether a local link-status file path can be embedded as the
+/// single-quoted `--status-file` ProxyCommand word — the same rejection
+/// discipline as [`validate_self_exe`], sharing
+/// [`safe_status_word`] with the constructor so the two can never
+/// disagree. The supervisor's fail-closed status allocation uses this:
+/// an unembeddable state root (non-UTF-8, quotes, control bytes, or a
+/// percent OpenSSH would expand) is a hard local error for
+/// classification-carrying spawns, never a silent uninstrumented spawn.
 pub fn status_word_safe(path: &std::path::Path) -> bool {
-    path.to_str().is_some_and(|text| {
-        text.len() <= WORD_MAX
-            && !text
-                .chars()
-                .any(|character| character.is_control() || character == '\'')
-    })
+    path.to_str().is_some_and(safe_status_word)
 }
 
 /// One remote everpty-role operation (the private versioned remote grammar).

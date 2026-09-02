@@ -480,9 +480,11 @@ fn build_config(remote_eversh: Option<String>) -> Result<Config, Error> {
         // (design 5.4), resolved locally: the highest-precedence candidate
         // becomes the private root eversh creates its per-spawn everlink
         // link-status files under (design 3, 7). `None` only when no
-        // candidate resolves at all (no env var and no HOME); the
-        // supervisor then skips status-file instrumentation entirely and
-        // every 255 falls through to the safe unparseable/missing default.
+        // candidate resolves at all (no env var and no HOME);
+        // classification-carrying operations then fail closed with a clear
+        // local error before any ssh spawn — never an uninstrumented spawn
+        // whose missing record would misclassify an auth or policy failure
+        // as transport failure.
         link_status_root: state_candidates().into_iter().next(),
         limits: Limits::default(),
     })

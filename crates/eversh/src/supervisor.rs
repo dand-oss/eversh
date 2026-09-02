@@ -22,7 +22,17 @@
 //! the user's local shell, so the path arrives in everlink's own argv: no
 //! environment variable exists, no `SendEnv`/`AcceptEnv` policy can forward
 //! one remotely, and no ambient value can instrument a spawn that was not
-//! given the argument. Raw `eversh ssh` never passes it and stays fully
+//! given the argument. The channel is mandatory, never best-effort: if the
+//! file cannot be allocated — no state root resolved at all, an unwritable
+//! or unallocatable root, or a root whose path cannot travel as the
+//! argument (a percent token OpenSSH would expand inside the quoted word,
+//! a quote, a control byte, or non-UTF-8) — the operation fails with a
+//! clear local error BEFORE any ssh child exists, because an
+//! uninstrumented spawn's missing record would classify an ordinary 255
+//! (an auth or policy failure) as a transport failure and wrongly enter
+//! the reconnect path (design 7). Batch operations that never classify
+//! (`list`, `detach`/`kill`, raw `ssh`) pass no status file and are
+//! unaffected. Raw `eversh ssh` never passes it and stays fully
 //! inherited and uninstrumented (design 7: it is never retried, so there is
 //! nothing to classify).
 //!
@@ -105,7 +115,7 @@ use crate::command::{
     kitty_launch_args, outer_ssh_args, proxy_command, raw_ssh_args, remote_words, status_word_safe,
     validate_self_exe, RemoteOp,
 };
-use crate::error::Error;
+use crate::error::{Error, LinkStatusFault};
 use crate::limits::Limits;
 use crate::remote::{origin_label, validate_host, validate_name, ControlRequest};
 use everlink::link_status;
@@ -138,9 +148,11 @@ pub struct Config {
     pub local_host: String,
     /// The private local root eversh's own per-spawn everlink link-status
     /// files are created under (design 3, 7); `None` when no state-root
-    /// candidate resolves at all, in which case every structured/probe
-    /// spawn simply skips status-file instrumentation and every 255 falls
-    /// through to the safe missing/unparseable default.
+    /// candidate resolves at all, in which case every classification-
+    /// carrying spawn (structured interactive operations and probes) fails
+    /// closed with a clear local error before any ssh child exists —
+    /// never an uninstrumented spawn whose missing record would
+    /// misclassify an ordinary 255 as transport failure.
     pub link_status_root: Option<PathBuf>,
     pub limits: Limits,
 }
@@ -336,15 +348,14 @@ fn wait_bounded_child(child: &mut Child, deadline: Instant) -> Result<BoundedExi
     }
 }
 
-/// `status_path`, when set, is the probe's own link-status file (design 3,
-/// 7), already embedded in the ProxyCommand inside `args`; the file is
-/// removed before returning regardless of outcome. Probe classification
-/// itself is exit-code-only — see [`probe`] — the file exists here mainly
-/// for parity/diagnostic value with structured interactive spawns.
+/// One non-interactive child for the probe spawn, waited with a hard
+/// deadline (see [`probe`], which owns the probe's allocated status file
+/// and its removal guard). Probe classification is exit-code-only; the
+/// status file exists purely for parity/diagnostic value with structured
+/// interactive spawns.
 fn spawn_quiet_bounded(
     config: &Config,
     args: &[OsString],
-    status_path: Option<&Path>,
     deadline: Instant,
 ) -> Result<BoundedExit, Error> {
     let mut command = Command::new(&config.ssh_program);
@@ -354,9 +365,6 @@ fn spawn_quiet_bounded(
         .stdout(Stdio::null());
     let mut child = command.spawn()?;
     let outcome = wait_bounded_child(&mut child, deadline)?;
-    if let Some(path) = status_path {
-        let _ = std::fs::remove_file(path);
-    }
     Ok(outcome)
 }
 
@@ -413,13 +421,10 @@ fn parse_link_status(content: &str) -> Option<LinkOutcome> {
 }
 
 /// Read the final classification, retrying within [`LINK_STATUS_GRACE`]
-/// while the file exists but has no terminal record yet. `None` (no status
-/// file for this spawn) and any read failure both resolve immediately to
-/// the safe default.
-fn link_status_final(status_path: Option<&Path>) -> LinkOutcome {
-    let Some(path) = status_path else {
-        return LinkOutcome::TransportFailure { carried: false };
-    };
+/// while the file exists but has no terminal record yet. A missing or
+/// unreadable file, or an unparseable one, resolves to the safe default —
+/// the same defense in depth that covers a record lost after the spawn.
+fn link_status_final(path: &Path) -> LinkOutcome {
     let deadline = Instant::now() + LINK_STATUS_GRACE;
     loop {
         let Ok(content) = std::fs::read_to_string(path) else {
@@ -448,18 +453,60 @@ fn link_status_settled(path: &Path) -> bool {
         .any(|line| link_status::parse_line(line).is_some())
 }
 
+/// One allocated per-spawn link-status file, with its
+/// allocation-to-removal guard: the file is removed exactly once when the
+/// allocating scope exits, on EVERY return path — normal completion, an
+/// error before or after the spawn, or a deadline kill — so repeated
+/// failed invocations cannot accumulate private files under the state
+/// root. The `0700`/`0600`/exclusive-create lifecycle is unchanged; only
+/// removal became scoped (the guard, not scattered removals).
+struct AllocatedStatus {
+    path: PathBuf,
+}
+
+impl AllocatedStatus {
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for AllocatedStatus {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
 /// Allocate one fresh per-spawn link-status file (design 3, 7): a `0700`
 /// directory under [`Config::link_status_root`] and one `0600` file with a
 /// process-id/timestamp/counter name, created exclusively so a collision is
 /// a hard failure rather than a silently reused stale file. The path must
-/// also embed as the single-quoted `--status-file` ProxyCommand word, so an
-/// unembeddable state root (non-UTF-8, quotes, control bytes) skips
-/// instrumentation here. Best-effort: any failure (no root resolved,
-/// permissions, disk full, ...) simply yields `None`, and every caller
-/// already treats "no status file" as a safe fallback.
-fn allocate_status_file(config: &Config) -> Option<PathBuf> {
-    let root = config.link_status_root.as_ref()?;
+/// also embed as the single-quoted `--status-file` ProxyCommand word, so a
+/// state root that cannot (non-UTF-8, quotes, control bytes, or a percent
+/// token OpenSSH would expand inside the quoted word) is rejected before
+/// anything is created on disk.
+///
+/// Fail-closed (round 4): every failure — no root resolved at all, an
+/// unwritable or unallocatable root, or an unembeddable path — is a clear
+/// local error. A spawn that classifies through this file NEVER proceeds
+/// uninstrumented: a missing record would classify an ordinary 255 (an
+/// auth or policy failure) as transport failure and wrongly enter the
+/// reconnect path (design 7).
+fn allocate_status_file(config: &Config) -> Result<AllocatedStatus, Error> {
+    let root = config
+        .link_status_root
+        .as_deref()
+        .ok_or(Error::LinkStatusChannel {
+            root: None,
+            fault: LinkStatusFault::NoRoot,
+        })?;
     let dir = root.join("link-status");
+    let path = dir.join(unique_status_name());
+    if !status_word_safe(&path) {
+        return Err(Error::LinkStatusChannel {
+            root: Some(root.to_owned()),
+            fault: LinkStatusFault::UnsafePath,
+        });
+    }
     // `DirBuilder::mode` applies to EVERY directory this call creates, the
     // state root included if it does not exist yet — unlike
     // `create_dir_all` followed by a single `set_permissions` on the leaf,
@@ -468,18 +515,22 @@ fn allocate_status_file(config: &Config) -> Option<PathBuf> {
     // (design 5.4) for the remote role sharing that same root.
     let mut builder = std::fs::DirBuilder::new();
     builder.recursive(true).mode(0o700);
-    builder.create(&dir).ok()?;
-    let path = dir.join(unique_status_name());
-    if !status_word_safe(&path) {
-        return None;
-    }
+    builder
+        .create(&dir)
+        .map_err(|error| Error::LinkStatusChannel {
+            root: Some(root.to_owned()),
+            fault: LinkStatusFault::RootUnusable(error),
+        })?;
     std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .mode(0o600)
         .open(&path)
-        .ok()?;
-    Some(path)
+        .map_err(|error| Error::LinkStatusChannel {
+            root: Some(root.to_owned()),
+            fault: LinkStatusFault::FileCreate(error),
+        })?;
+    Ok(AllocatedStatus { path })
 }
 
 fn unique_status_name() -> String {
@@ -510,7 +561,9 @@ enum StatusSpawn {
 /// entirely from the local out-of-band link-status file (whose path is
 /// already embedded in the ProxyCommand argument inside `args`), never a
 /// piped descriptor, so a deadline-triggered kill of the direct child is
-/// always bounded regardless of any surviving descendant.
+/// always bounded regardless of any surviving descendant. The CALLER owns
+/// the status file's [`AllocatedStatus`] guard: removal happens on every
+/// return path from the allocating scope, including the error paths below.
 ///
 /// `deadline`, when set, bounds the wait ONLY until the status file shows
 /// `carrying` (or a terminal record has already arrived): a hung
@@ -524,7 +577,7 @@ enum StatusSpawn {
 fn spawn_link_tracked(
     config: &Config,
     args: &[OsString],
-    status_path: Option<&Path>,
+    status_path: &Path,
     deadline: Option<Instant>,
 ) -> Result<StatusSpawn, Error> {
     let termios = if deadline.is_some() {
@@ -540,15 +593,12 @@ fn spawn_link_tracked(
         loop {
             if let Some(status) = child.try_wait()? {
                 let outcome = link_status_final(status_path);
-                if let Some(path) = status_path {
-                    let _ = std::fs::remove_file(path);
-                }
                 return Ok(StatusSpawn::Exited {
                     exit: classify(status),
                     status: outcome,
                 });
             }
-            if status_path.is_some_and(link_status_settled) {
+            if link_status_settled(status_path) {
                 break;
             }
             if Instant::now() >= deadline {
@@ -560,9 +610,6 @@ fn spawn_link_tracked(
                 if let Some(termios) = &termios {
                     restore_termios(termios);
                 }
-                if let Some(path) = status_path {
-                    let _ = std::fs::remove_file(path);
-                }
                 return Ok(StatusSpawn::DeadlineExceeded);
             }
             std::thread::sleep(poll_interval(deadline));
@@ -570,9 +617,6 @@ fn spawn_link_tracked(
     }
     let status = child.wait()?;
     let outcome = link_status_final(status_path);
-    if let Some(path) = status_path {
-        let _ = std::fs::remove_file(path);
-    }
     Ok(StatusSpawn::Exited {
         exit: classify(status),
         status: outcome,
@@ -629,7 +673,10 @@ pub const REMOTE_BUSY_EXIT: u8 = 3;
 
 /// `deadline` bounds the probe's own execution: a hung probe is killed and
 /// reaped rather than left running past the reconnect episode's deadline
-/// (finding 3).
+/// (finding 3). The probe classifies through its own allocated status file
+/// like every structured spawn (design 3, 7): allocation is fail-closed —
+/// an unusable state root aborts the invocation with a local error rather
+/// than probing uninstrumented.
 fn probe(
     config: &Config,
     host: &str,
@@ -637,24 +684,22 @@ fn probe(
     ssh_options: &[String],
     deadline: Instant,
 ) -> Result<ProbeStatus, Error> {
-    let status_path = allocate_status_file(config);
-    let proxy = proxy_for(config, ssh_options, status_path.as_deref())?;
+    let status = allocate_status_file(config)?;
+    let proxy = proxy_for(config, ssh_options, Some(status.path()))?;
     let words = remote_words(
         &config.remote_eversh,
         &RemoteOp::Probe { name },
         &config.limits,
     )?;
     let args = outer_ssh_args(&proxy, ssh_options, host, &words, false)?;
-    Ok(
-        match spawn_quiet_bounded(config, &args, status_path.as_deref(), deadline)? {
-            BoundedExit::DeadlineExceeded => ProbeStatus::DeadlineExceeded,
-            BoundedExit::Exited(ExitKind::Code(0)) => ProbeStatus::Live,
-            BoundedExit::Exited(ExitKind::Code(PROBE_NOT_LIVE_EXIT)) => ProbeStatus::NotLive,
-            BoundedExit::Exited(ExitKind::Code(SSH_FAILURE)) => ProbeStatus::Unreachable,
-            BoundedExit::Exited(ExitKind::Code(code)) => ProbeStatus::Failed(code),
-            BoundedExit::Exited(ExitKind::Signaled(signal)) => ProbeStatus::Signaled(signal),
-        },
-    )
+    Ok(match spawn_quiet_bounded(config, &args, deadline)? {
+        BoundedExit::DeadlineExceeded => ProbeStatus::DeadlineExceeded,
+        BoundedExit::Exited(ExitKind::Code(0)) => ProbeStatus::Live,
+        BoundedExit::Exited(ExitKind::Code(PROBE_NOT_LIVE_EXIT)) => ProbeStatus::NotLive,
+        BoundedExit::Exited(ExitKind::Code(SSH_FAILURE)) => ProbeStatus::Unreachable,
+        BoundedExit::Exited(ExitKind::Code(code)) => ProbeStatus::Failed(code),
+        BoundedExit::Exited(ExitKind::Signaled(signal)) => ProbeStatus::Signaled(signal),
+    })
 }
 
 fn backoff_delay(attempt: u32, limits: &Limits) -> Duration {
@@ -715,22 +760,30 @@ fn run_with_reconnect(
 ) -> Result<SessionEnd, Error> {
     config.limits.validate()?;
     validate_host(run.host)?;
-    let status_path = allocate_status_file(config);
-    let proxy = proxy_for(config, run.ssh_options, status_path.as_deref())?;
-    let words = remote_words(&config.remote_eversh, &first_op, &config.limits)?;
-    let interactive = first_op.interactive();
-    let args = outer_ssh_args(&proxy, run.ssh_options, run.host, &words, interactive)?;
-    // The very first spawn of an invocation is never part of a bounded
-    // reconnect episode: it runs unbounded, exactly like an already-carrying
-    // session (design 7).
-    let (exit, status) = match spawn_link_tracked(config, &args, status_path.as_deref(), None)? {
-        StatusSpawn::Exited { exit, status } => (exit, status),
-        StatusSpawn::DeadlineExceeded => {
-            // Unreachable: an unbounded spawn never reports this. Fail safe
-            // rather than panic if that invariant is ever violated.
-            return Ok(SessionEnd::TransportFailed(
-                TransportFailure::DeadlineExceeded,
-            ));
+    // Fail-closed (round 4): the classification channel must exist before
+    // the ssh child does — an unusable state root is a local error, never
+    // an uninstrumented spawn. The guard's scope ends with the first
+    // spawn's classification: the file is removed on every path out of
+    // this block, including every `?` error below.
+    let (exit, status) = {
+        let status = allocate_status_file(config)?;
+        let proxy = proxy_for(config, run.ssh_options, Some(status.path()))?;
+        let words = remote_words(&config.remote_eversh, &first_op, &config.limits)?;
+        let interactive = first_op.interactive();
+        let args = outer_ssh_args(&proxy, run.ssh_options, run.host, &words, interactive)?;
+        // The very first spawn of an invocation is never part of a bounded
+        // reconnect episode: it runs unbounded, exactly like an
+        // already-carrying session (design 7).
+        match spawn_link_tracked(config, &args, status.path(), None)? {
+            StatusSpawn::Exited { exit, status } => (exit, status),
+            StatusSpawn::DeadlineExceeded => {
+                // Unreachable: an unbounded spawn never reports this. Fail
+                // safe rather than panic if that invariant is ever
+                // violated.
+                return Ok(SessionEnd::TransportFailed(
+                    TransportFailure::DeadlineExceeded,
+                ));
+            }
         }
     };
     if let Some(end) = spawn_outcome_to_session_end(classify_status_spawn(exit, status)) {
@@ -886,13 +939,18 @@ fn reconnect(
                 true,
             )
         };
-        let status_path = allocate_status_file(config);
-        let proxy = proxy_for(config, run.ssh_options, status_path.as_deref())?;
+        // Fail-closed (round 4) with the same allocation-to-removal guard:
+        // the reattach's own status file must exist before its ssh child
+        // does, and is removed on every path out of this iteration —
+        // Busy retries, carried deaths, terminal outcomes, and every `?`
+        // error below.
+        let status = allocate_status_file(config)?;
+        let proxy = proxy_for(config, run.ssh_options, Some(status.path()))?;
         let words = remote_words(&config.remote_eversh, &op, &config.limits)?;
         let args = outer_ssh_args(&proxy, run.ssh_options, run.host, &words, interactive)?;
         // Bounded ONLY until this reattach starts carrying or reports a
         // terminal record; once carrying, the wait inside becomes unbounded.
-        match spawn_link_tracked(config, &args, status_path.as_deref(), Some(deadline))? {
+        match spawn_link_tracked(config, &args, status.path(), Some(deadline))? {
             StatusSpawn::DeadlineExceeded => {
                 notifier.notify(Event::RetryDeadlineExceeded);
                 return Ok(ReconnectOutcome::Terminal(SessionEnd::TransportFailed(

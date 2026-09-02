@@ -19,7 +19,9 @@ pub enum Error {
     Base64Malformed,
     /// A control request carried unknown flag bits.
     FlagsInvalid,
-    /// The current executable path cannot be quoted as a safe shell word.
+    /// The current executable path cannot be quoted as a safe ProxyCommand
+    /// word (not absolute, non-UTF-8, quotes, control bytes, or a percent
+    /// token OpenSSH would expand inside the quoted word).
     SelfExeUnsafe,
     /// The local link-status file path cannot be quoted as a safe
     /// ProxyCommand argument word.
@@ -42,7 +44,61 @@ pub enum Error {
     ListOutputInvalid,
     /// Supervisor limits failed validation.
     LimitsInvalid,
+    /// The private per-spawn everlink link-status channel could not be
+    /// allocated for a classification-carrying spawn (design 3, 7): the
+    /// operation fails closed with this local error BEFORE any ssh child
+    /// exists, because an uninstrumented spawn's missing record would
+    /// classify an ordinary 255 (an auth or policy failure) as a transport
+    /// failure and wrongly enter the reconnect path.
+    LinkStatusChannel {
+        /// The state root allocation was attempted under, when one
+        /// resolved at all.
+        root: Option<std::path::PathBuf>,
+        /// Why allocation failed.
+        fault: LinkStatusFault,
+    },
     Io(std::io::Error),
+}
+
+/// Why the private per-spawn link-status channel could not be allocated
+/// (design 3, 7).
+#[derive(Debug)]
+pub enum LinkStatusFault {
+    /// No state-root candidate resolved at all: there is no private root
+    /// to allocate the per-spawn file under.
+    NoRoot,
+    /// The private `link-status` directory under the state root could not
+    /// be created — an unwritable or otherwise unallocatable root.
+    RootUnusable(std::io::Error),
+    /// The resolved path cannot be embedded as the single-quoted
+    /// `--status-file` ProxyCommand word: OpenSSH expands percent tokens
+    /// inside quoted ProxyCommand words before the local shell sees the
+    /// quotes, so a state root carrying `%` (like quotes, control bytes,
+    /// or non-UTF-8) is rejected outright, never escaped.
+    UnsafePath,
+    /// Exclusive creation of the per-spawn `0600` file failed.
+    FileCreate(std::io::Error),
+}
+
+impl std::fmt::Display for LinkStatusFault {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoRoot => write!(
+                f,
+                "no state root resolved (set EVERSH_STATE_DIR, XDG_RUNTIME_DIR, XDG_STATE_HOME, or HOME)"
+            ),
+            Self::RootUnusable(error) => {
+                write!(f, "cannot create the private link-status directory ({error})")
+            }
+            Self::UnsafePath => write!(
+                f,
+                "state root path is not a safe ProxyCommand word (percent tokens rejected)"
+            ),
+            Self::FileCreate(error) => {
+                write!(f, "cannot create the per-spawn status file ({error})")
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for Error {
@@ -61,10 +117,16 @@ impl std::fmt::Display for Error {
             Self::Base64Malformed => write!(f, "malformed base64url request token"),
             Self::FlagsInvalid => write!(f, "unknown control-request flags"),
             Self::SelfExeUnsafe => {
-                write!(f, "the eversh executable path is not a safe shell word")
+                write!(
+                    f,
+                    "the eversh executable path is not a safe ProxyCommand word"
+                )
             }
             Self::StatusPathUnsafe => {
-                write!(f, "the link-status file path is not a safe shell word")
+                write!(
+                    f,
+                    "the link-status file path is not a safe ProxyCommand word"
+                )
             }
             Self::RemoteWordInvalid => write!(f, "invalid remote command word"),
             Self::SshOptionRejected => {
@@ -84,6 +146,17 @@ impl std::fmt::Display for Error {
             Self::ListOutputTooLarge => write!(f, "remote list output exceeds its cap"),
             Self::ListOutputInvalid => write!(f, "remote list output is not valid discovery data"),
             Self::LimitsInvalid => write!(f, "supervisor limits failed validation"),
+            Self::LinkStatusChannel { root, fault } => match root {
+                Some(root) => write!(
+                    f,
+                    "cannot allocate the private link-status channel under {}: {fault}",
+                    root.display()
+                ),
+                None => write!(
+                    f,
+                    "cannot allocate the private link-status channel: {fault}"
+                ),
+            },
             Self::Io(e) => write!(f, "io: {e}"),
         }
     }

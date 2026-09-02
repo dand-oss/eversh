@@ -65,9 +65,19 @@ fn proxy_command_status_file_is_one_quoted_argument() {
         );
     }
 
-    // Quotes, control bytes (NUL included), and non-UTF-8 are rejected
-    // outright, never escaped.
-    for bad in ["/tmp/a'b.status", "/tmp/a\nb.status", "/tmp/a\u{0}b.status"] {
+    // Quotes, control bytes (NUL included), non-UTF-8, and PERCENT are
+    // rejected outright, never escaped: OpenSSH expands percent tokens
+    // inside quoted ProxyCommand words before the local shell sees the
+    // quotes, so a `%` in the path would reach the everlink edge expanded
+    // and the record would be written elsewhere than allocated (round 4).
+    for bad in [
+        "/tmp/a'b.status",
+        "/tmp/a\nb.status",
+        "/tmp/a\u{0}b.status",
+        "/tmp/a%b.status",
+        "/tmp/st%hate/link-status/1-1-0.status",
+        "/tmp/%C-expansion.status",
+    ] {
         assert!(
             proxy_command(SELF, "eversh", &[], Some(std::path::Path::new(bad))).is_err(),
             "accepted status path {bad:?}"
@@ -91,13 +101,22 @@ fn proxy_command_status_file_is_one_quoted_argument() {
     }
 
     // The supervisor's allocation pre-filter agrees with the constructor's
-    // rejection: an unembeddable path is filtered out, a safe one passes.
+    // rejection: an unembeddable path is refused (now a hard local error
+    // for classification-carrying spawns), a safe one passes — including
+    // spaces and shell metacharacters, which stay inert inside the quotes.
     assert!(status_word_safe(std::path::Path::new(
         "/tmp/eversh status/one.status"
+    )));
+    assert!(status_word_safe(std::path::Path::new(
+        "/tmp/a$b;c|rm -rf /.status"
     )));
     assert!(!status_word_safe(std::path::Path::new("/tmp/a'b.status")));
     assert!(!status_word_safe(std::path::Path::new(
         "/tmp/a\u{0}b.status"
+    )));
+    assert!(!status_word_safe(std::path::Path::new("/tmp/a%b.status")));
+    assert!(!status_word_safe(std::path::Path::new(
+        "/tmp/st%hate/link-status/1-1-0.status"
     )));
     #[cfg(unix)]
     {
@@ -135,12 +154,22 @@ fn proxy_command_fails_closed() {
             "accepted remote word {remote:?}"
         );
     }
-    for self_exe in ["relative/eversh", "/bin/ever'sh", "/bin/ever\nsh"] {
+    for self_exe in [
+        "relative/eversh",
+        "/bin/ever'sh",
+        "/bin/ever\nsh",
+        // A percent in the install path would be expanded inside the
+        // quoted ProxyCommand word and break the proxy launch: rejected
+        // loudly at first use (round 4 hardening), never escaped.
+        "/opt/ever%sh/bin/eversh",
+        "/bin/eversh%h",
+    ] {
         assert!(
             validate_self_exe(std::path::Path::new(self_exe)).is_err(),
             "accepted self exe {self_exe:?}"
         );
     }
+    assert!(validate_self_exe(std::path::Path::new("/usr/local/bin/eversh")).is_ok());
 }
 
 #[test]
