@@ -1,23 +1,22 @@
 //! Typed orchestration for the public proxy and private process roles.
 
+use crate::actor::{ClientAssociation, ServerAssociation};
 use crate::bootstrap::BootstrapRecord;
-use crate::bridge::{DrainStatus, FinalizeStatus, StdioBridge, TargetBridge};
 use crate::error::Error;
 use crate::identity::EphemeralClientIdentity;
 use crate::identity::EphemeralIdentity;
 use crate::limits::Limits;
 use crate::link_status::{self, StatusCause, TrackedReader, TrackedWriter};
+use crate::resume::{AssociationCompletion, ResumeAssociationConfig};
 use crate::role_protocol::{
     validate_release, ServerStartRecord, StartUdpPolicy, RELEASE_RECORD, SERVER_START_MAX,
 };
-use crate::shutdown::Shutdown;
 use crate::ssh_bootstrap::{
     acquire_bootstrap, read_capped_line, read_capped_to_eof, require_eof, verify_effective_config,
     ChildOwner, SecretBytes,
 };
 use crate::ssh_policy::SshPlan;
-use crate::transport::{ClientEndpoint, ServerEndpoint, UdpBindPolicy};
-use std::net::SocketAddr;
+use crate::transport::{ServerEndpoint, UdpBindPolicy};
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -168,11 +167,13 @@ where
     }
     drop(input);
 
-    let admitted = endpoint.accept_for_role().await?;
-    let connected = admitted.connect_target().await?;
-    let shutdown = Shutdown::new();
-    let bridge = TargetBridge::try_new(connected, limits, shutdown).await?;
-    require_clean_bridge(bridge.run().await)
+    let association =
+        ServerAssociation::accept(endpoint, ResumeAssociationConfig::default()).await?;
+    match association.run().await {
+        Ok(AssociationCompletion::Clean) => Ok(()),
+        Err(crate::actor::ActorError::Terminal(error)) => Err(error),
+        Err(crate::actor::ActorError::Run(error)) => Err(error.source),
+    }
 }
 
 /// Run the public ProxyCommand edge after clap has produced typed values.
@@ -199,27 +200,34 @@ where
     R: AsyncRead + Send + Unpin + 'static,
     W: AsyncWrite + Send + Unpin + 'static,
 {
+    let quic_to_peer_delivered = Arc::new(AtomicBool::new(false));
+    let peer_to_quic_delivered = Arc::new(AtomicBool::new(false));
+    let tracked_stdin = TrackedReader::new(stdin, Arc::clone(&peer_to_quic_delivered));
+    let tracked_stdout = TrackedWriter::new(
+        stdout,
+        Arc::clone(&quic_to_peer_delivered),
+        status_path.clone(),
+    );
+
     let established = async {
         verify_effective_config(&plan, &limits).await?;
         let client_identity = EphemeralClientIdentity::generate()?;
         let record = acquire_bootstrap(&plan, &limits).await?;
-        let server = SocketAddr::new(record.udp_endpoint, record.udp_port);
-        let client = ClientEndpoint::bind(
-            server,
-            UdpBindPolicy::RouteSelected,
-            record.spki_sha256,
-            &client_identity,
+        let association = ClientAssociation::new(
+            &record,
+            plan.port(),
+            client_identity,
+            ResumeAssociationConfig::default(),
             limits,
+            tracked_stdin,
+            tracked_stdout,
         )?;
-        let session = client
-            .connect_and_authenticate(record.token(), plan.port())
-            .await?;
         drop(record);
-        Ok::<_, Error>(session)
+        Ok::<_, Error>(association)
     }
     .await;
-    let session = match established {
-        Ok(session) => session,
+    let association = match established {
+        Ok(association) => association,
         Err(error) => {
             // Everything before bridge construction — effective-config
             // policy, the SSH bootstrap (including its authentication), the
@@ -232,47 +240,26 @@ where
         }
     };
 
-    let shutdown = Shutdown::new();
-    let quic_to_peer_delivered = Arc::new(AtomicBool::new(false));
-    let peer_to_quic_delivered = Arc::new(AtomicBool::new(false));
-    let tracked_stdin = TrackedReader::new(stdin, Arc::clone(&peer_to_quic_delivered));
-    let tracked_stdout = TrackedWriter::new(
-        stdout,
-        Arc::clone(&quic_to_peer_delivered),
-        status_path.clone(),
-    );
-
-    let bridge = match StdioBridge::try_new(
-        session,
-        tracked_stdin,
-        tracked_stdout,
-        limits,
-        shutdown,
-    )
-    .await
-    {
-        Ok(bridge) => bridge,
-        Err(error) => {
-            if let Some(path) = &status_path {
-                link_status::write_cause(path, StatusCause::TransportFailure, false);
-            }
-            return Err(error);
-        }
-    };
-
-    let completion = bridge.run().await;
+    let completion = association.run().await;
     if let Some(path) = &status_path {
         // clean-close requires a completely drained AND finalized bridge
         // (design 6.3, 9): a graceful SourceEof alone does not prove the
         // exchange completed, so the terminal record classifies the WHOLE
         // completion — the same evidence `require_clean_bridge` re-checks
         // below for this process's own result.
-        let cause = link_status::classify_completion(&completion);
+        let cause = match completion {
+            Ok(AssociationCompletion::Clean) => StatusCause::CleanClose,
+            Err(_) => StatusCause::TransportFailure,
+        };
         let carried = quic_to_peer_delivered.load(Ordering::Acquire)
             && peer_to_quic_delivered.load(Ordering::Acquire);
         link_status::write_cause(path, cause, carried);
     }
-    require_clean_bridge(completion)
+    match completion {
+        Ok(AssociationCompletion::Clean) => Ok(()),
+        Err(crate::actor::ActorError::Terminal(error)) => Err(error),
+        Err(crate::actor::ActorError::Run(error)) => Err(error.source),
+    }
 }
 
 fn convert_policy(policy: StartUdpPolicy) -> UdpBindPolicy {
@@ -322,16 +309,6 @@ fn parse_canonical_bootstrap_line(
         return Err(Error::BootstrapMalformed);
     }
     Ok(record)
-}
-
-fn require_clean_bridge(completion: crate::bridge::BridgeCompletion) -> Result<(), Error> {
-    if completion.drain == DrainStatus::Completed
-        && completion.finalize == FinalizeStatus::Completed
-    {
-        Ok(())
-    } else {
-        Err(Error::BridgeIncomplete)
-    }
 }
 
 #[cfg(unix)]

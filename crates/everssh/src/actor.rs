@@ -50,6 +50,16 @@ async fn close_remote(remote: RemoteConnection) {
     let _ = tokio::time::timeout(Duration::from_secs(5), remote.connection.closed()).await;
 }
 
+/// Reports whether the peer deliberately ended this association with our
+/// terminal application close code. Must run before `close_remote`, whose local
+/// close would replace the connection's close evidence.
+async fn peer_sent_terminal_close(remote: &RemoteConnection) -> bool {
+    match tokio::time::timeout(Duration::from_secs(1), remote.connection.closed()).await {
+        Ok(noq::ConnectionError::ApplicationClosed(close)) => close.error_code == CLOSE_CODE,
+        _ => false,
+    }
+}
+
 pub struct ServerAssociation {
     endpoint: ServerEndpoint,
     core: AssociationCore,
@@ -99,6 +109,8 @@ impl ServerAssociation {
                     &mut remote.send,
                 )
                 .await;
+            let peer_terminal = matches!(&result, Err(error) if error.boundary == AssociationBoundary::Remote)
+                && peer_sent_terminal_close(&remote).await;
             close_remote(remote).await;
 
             match result {
@@ -110,6 +122,15 @@ impl ServerAssociation {
                     if self.core.is_clean() {
                         let _ = self.endpoint.close().await;
                         return Ok(AssociationCompletion::Clean);
+                    }
+                    if peer_terminal
+                        || matches!(
+                            &error.source,
+                            Error::Io(source) if source.kind() == std::io::ErrorKind::UnexpectedEof
+                        )
+                    {
+                        let _ = self.endpoint.close().await;
+                        return Err(ActorError::Run(error));
                     }
                     let (connection, peer_ack) = self
                         .endpoint
@@ -224,6 +245,8 @@ where
                     &mut remote.send,
                 )
                 .await;
+            let peer_terminal = matches!(&result, Err(error) if error.boundary == AssociationBoundary::Remote)
+                && peer_sent_terminal_close(&remote).await;
             close_remote(remote).await;
             drop(endpoint);
 
@@ -232,6 +255,14 @@ where
                 Err(error) if error.boundary == AssociationBoundary::Remote => {
                     if self.core.is_clean() {
                         return Ok(AssociationCompletion::Clean);
+                    }
+                    if peer_terminal
+                        || matches!(
+                            &error.source,
+                            Error::Io(source) if source.kind() == std::io::ErrorKind::UnexpectedEof
+                        )
+                    {
+                        return Err(ActorError::Run(error));
                     }
                     continue;
                 }

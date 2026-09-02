@@ -5,10 +5,12 @@
 //! transport association. This module owns that boundary without terminal
 //! interpretation or an unbounded packet-count queue.
 
-use crate::error::Error;
+use crate::error::{DeadlinePhase, Error};
 use std::collections::VecDeque;
 use std::io::Write as StdWrite;
+use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::time::Instant;
 use zeroize::Zeroizing;
 
 pub const RESUME_VERSION: u8 = 1;
@@ -503,12 +505,14 @@ impl ResumeReceiver {
 
 pub const DEFAULT_RESUME_MAX_WIRE_BYTES: usize = 4 * 1024 * 1024;
 pub const DEFAULT_RESUME_MAX_PENDING_FRAMES: usize = 1_024;
+pub const DEFAULT_RESUME_DRAIN_TIMEOUT_MS: u64 = 5_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ResumeAssociationConfig {
     max_wire_bytes: usize,
     max_pending_frames: usize,
     copy_buf: usize,
+    drain_timeout: Duration,
 }
 
 impl ResumeAssociationConfig {
@@ -525,7 +529,16 @@ impl ResumeAssociationConfig {
             max_wire_bytes,
             max_pending_frames,
             copy_buf,
+            drain_timeout: Duration::from_millis(DEFAULT_RESUME_DRAIN_TIMEOUT_MS),
         })
+    }
+
+    pub fn with_drain_timeout(mut self, drain_timeout: Duration) -> Result<Self, Error> {
+        if drain_timeout.is_zero() {
+            return Err(Error::ResumeLimitInvalid);
+        }
+        self.drain_timeout = drain_timeout;
+        Ok(self)
     }
 }
 
@@ -535,6 +548,7 @@ impl Default for ResumeAssociationConfig {
             max_wire_bytes: DEFAULT_RESUME_MAX_WIRE_BYTES,
             max_pending_frames: DEFAULT_RESUME_MAX_PENDING_FRAMES,
             copy_buf: 16 * 1024,
+            drain_timeout: Duration::from_millis(DEFAULT_RESUME_DRAIN_TIMEOUT_MS),
         }
     }
 }
@@ -568,6 +582,13 @@ impl AssociationRunError {
     }
 }
 
+async fn drain_timer(deadline: Option<Instant>) {
+    match deadline {
+        Some(deadline) => tokio::time::sleep_until(deadline).await,
+        None => std::future::pending::<()>().await,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AssociationCompletion {
     Clean,
@@ -580,6 +601,7 @@ pub struct AssociationCore {
     config: ResumeAssociationConfig,
     local_eof: bool,
     remote_eof: bool,
+    drain_deadline: Option<Instant>,
 }
 
 impl AssociationCore {
@@ -591,6 +613,7 @@ impl AssociationCore {
             config,
             local_eof: false,
             remote_eof: false,
+            drain_deadline: None,
         })
     }
 
@@ -640,11 +663,36 @@ impl AssociationCore {
 
         loop {
             if self.clean() {
-                return Ok(AssociationCompletion::Clean);
+                remote_write.shutdown().await.map_err(|source| {
+                    AssociationRunError::io(AssociationBoundary::Remote, source)
+                })?;
+                loop {
+                    let count = remote_read
+                        .read(&mut remote_buffer)
+                        .await
+                        .map_err(|source| {
+                            AssociationRunError::io(AssociationBoundary::Remote, source)
+                        })?;
+                    if count == 0 {
+                        return Ok(AssociationCompletion::Clean);
+                    }
+                }
+            }
+            if let Some(deadline) = self.drain_deadline {
+                if Instant::now() >= deadline {
+                    return Err(AssociationRunError {
+                        boundary: AssociationBoundary::Local,
+                        source: Error::DeadlineExpired(DeadlinePhase::Drain),
+                    });
+                }
             }
             let accept_local = !self.local_eof && self.outbound.can_accept(self.config.copy_buf);
+            let drain_deadline = self.drain_deadline;
             tokio::select! {
                 biased;
+                _ = drain_timer(drain_deadline) => {
+                    continue;
+                }
                 result = local_read.read(&mut local_buffer), if accept_local => {
                     let count = match result {
                         Ok(0) => {
@@ -654,6 +702,10 @@ impl AssociationCore {
                                 .map_err(AssociationRunError::protocol)?;
                             debug_assert_eq!(Some(fin), self.outbound.last_sequence());
                             self.local_eof = true;
+                            if self.drain_deadline.is_none() {
+                                self.drain_deadline =
+                                    Some(Instant::now() + self.config.drain_timeout);
+                            }
                             self.write_outbound_tail(remote_write).await?;
                             continue;
                         }

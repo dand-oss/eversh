@@ -1,8 +1,6 @@
 //! Deterministic UDP policy and locked noq/rustls transport.
 
-use crate::admission::{
-    self, AdmittedStream, AuthenticatedConnection, ConnectedTarget, OneUseToken,
-};
+use crate::admission::{self, AdmittedStream, AuthenticatedConnection, OneUseToken};
 use crate::association::{
     client_spki_from_connection, AssociationAuthorization, BootstrapClientCertVerifier,
     ClientHello as AssociationClientHello, ServerHello, CLIENT_HELLO_INITIAL_LEN,
@@ -834,22 +832,6 @@ impl ServerEndpoint {
         }
     }
 
-    pub(crate) async fn accept_for_role(self) -> Result<RoleAdmission, Error> {
-        let cleanup = self.endpoint.clone();
-        let finalize_timeout = self.limits.finalize_timeout();
-        match self.accept_inner().await {
-            Ok(admitted) => Ok(RoleAdmission {
-                admitted,
-                cleanup,
-                finalize_timeout,
-            }),
-            Err(first) => {
-                let _ = close_endpoint(cleanup, finalize_timeout, b"server admission failed").await;
-                Err(first)
-            }
-        }
-    }
-
     async fn accept_inner(&self) -> Result<AdmittedStream, Error> {
         let endpoint = self.endpoint.clone();
         let authenticated = self.authenticated;
@@ -1236,38 +1218,6 @@ async fn connect_v2_target(address: SocketAddr, deadline: Instant) -> Result<Tcp
         .map_err(|_| Error::DeadlineExpired(DeadlinePhase::TargetConnect))?;
     ensure_deadline(deadline, DeadlinePhase::TargetConnect)?;
     connected.map_err(Error::TargetConnect)
-}
-
-pub(crate) struct RoleAdmission {
-    admitted: AdmittedStream,
-    cleanup: Endpoint,
-    finalize_timeout: std::time::Duration,
-}
-
-impl RoleAdmission {
-    pub(crate) async fn connect_target(self) -> Result<ConnectedTarget, Error> {
-        let Self {
-            admitted,
-            cleanup,
-            finalize_timeout,
-        } = self;
-        match admitted.connect_target().await {
-            Ok(target) => {
-                drop(cleanup);
-                Ok(target)
-            }
-            Err(first) => {
-                let _ = close_endpoint(cleanup, finalize_timeout, b"target connect failed").await;
-                Err(first)
-            }
-        }
-    }
-}
-
-impl std::fmt::Debug for RoleAdmission {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("RoleAdmission { .. }")
-    }
 }
 
 #[derive(Debug)]
