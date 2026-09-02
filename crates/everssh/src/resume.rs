@@ -505,6 +505,7 @@ impl ResumeReceiver {
 
 pub const DEFAULT_RESUME_MAX_WIRE_BYTES: usize = 4 * 1024 * 1024;
 pub const DEFAULT_RESUME_MAX_PENDING_FRAMES: usize = 1_024;
+pub const DEFAULT_RESUME_STALL_TIMEOUT_MS: u64 = 20_000;
 pub const DEFAULT_RESUME_DRAIN_TIMEOUT_MS: u64 = 5_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -512,6 +513,7 @@ pub struct ResumeAssociationConfig {
     max_wire_bytes: usize,
     max_pending_frames: usize,
     copy_buf: usize,
+    stall_timeout: Duration,
     drain_timeout: Duration,
 }
 
@@ -529,8 +531,17 @@ impl ResumeAssociationConfig {
             max_wire_bytes,
             max_pending_frames,
             copy_buf,
+            stall_timeout: Duration::from_millis(DEFAULT_RESUME_STALL_TIMEOUT_MS),
             drain_timeout: Duration::from_millis(DEFAULT_RESUME_DRAIN_TIMEOUT_MS),
         })
+    }
+
+    pub fn with_stall_timeout(mut self, stall_timeout: Duration) -> Result<Self, Error> {
+        if stall_timeout.is_zero() {
+            return Err(Error::ResumeLimitInvalid);
+        }
+        self.stall_timeout = stall_timeout;
+        Ok(self)
     }
 
     pub fn with_drain_timeout(mut self, drain_timeout: Duration) -> Result<Self, Error> {
@@ -548,6 +559,7 @@ impl Default for ResumeAssociationConfig {
             max_wire_bytes: DEFAULT_RESUME_MAX_WIRE_BYTES,
             max_pending_frames: DEFAULT_RESUME_MAX_PENDING_FRAMES,
             copy_buf: 16 * 1024,
+            stall_timeout: Duration::from_millis(DEFAULT_RESUME_STALL_TIMEOUT_MS),
             drain_timeout: Duration::from_millis(DEFAULT_RESUME_DRAIN_TIMEOUT_MS),
         }
     }
@@ -586,6 +598,19 @@ async fn drain_timer(deadline: Option<Instant>) {
     match deadline {
         Some(deadline) => tokio::time::sleep_until(deadline).await,
         None => std::future::pending::<()>().await,
+    }
+}
+
+async fn bound_remote<F, T>(future: F, stall_timeout: Duration) -> std::io::Result<T>
+where
+    F: std::future::Future<Output = std::io::Result<T>>,
+{
+    match tokio::time::timeout(stall_timeout, future).await {
+        Ok(result) => result,
+        Err(_) => Err(std::io::Error::new(
+            std::io::ErrorKind::TimedOut,
+            "remote association operation stalled",
+        )),
     }
 }
 
@@ -663,16 +688,20 @@ impl AssociationCore {
 
         loop {
             if self.clean() {
-                remote_write.shutdown().await.map_err(|source| {
-                    AssociationRunError::io(AssociationBoundary::Remote, source)
-                })?;
+                bound_remote(remote_write.shutdown(), self.config.stall_timeout)
+                    .await
+                    .map_err(|source| {
+                        AssociationRunError::io(AssociationBoundary::Remote, source)
+                    })?;
                 loop {
-                    let count = remote_read
-                        .read(&mut remote_buffer)
-                        .await
-                        .map_err(|source| {
-                            AssociationRunError::io(AssociationBoundary::Remote, source)
-                        })?;
+                    let count = bound_remote(
+                        remote_read.read(&mut remote_buffer),
+                        self.config.stall_timeout,
+                    )
+                    .await
+                    .map_err(|source| {
+                        AssociationRunError::io(AssociationBoundary::Remote, source)
+                    })?;
                     if count == 0 {
                         return Ok(AssociationCompletion::Clean);
                     }
@@ -722,7 +751,7 @@ impl AssociationCore {
                         .map_err(AssociationRunError::protocol)?;
                     self.write_outbound_tail(remote_write).await?;
                 }
-                result = remote_read.read(&mut remote_buffer) => {
+                result = bound_remote(remote_read.read(&mut remote_buffer), self.config.stall_timeout) => {
                     let count = match result {
                         Ok(0) => {
                             if self.clean() {
@@ -762,13 +791,14 @@ impl AssociationCore {
     ) -> Result<(), AssociationRunError> {
         let frames: Vec<ResumeFrame> = self.outbound.frames().cloned().collect();
         for frame in frames {
-            frame
-                .encode_into_async(remote_write)
-                .await
-                .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
+            bound_remote(
+                frame.encode_into_async(remote_write),
+                self.config.stall_timeout,
+            )
+            .await
+            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
         }
-        remote_write
-            .flush()
+        bound_remote(remote_write.flush(), self.config.stall_timeout)
             .await
             .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))
     }
@@ -780,12 +810,13 @@ impl AssociationCore {
         let Some(frame) = self.outbound.frames().last().cloned() else {
             return Ok(());
         };
-        frame
-            .encode_into_async(remote_write)
-            .await
-            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
-        remote_write
-            .flush()
+        bound_remote(
+            frame.encode_into_async(remote_write),
+            self.config.stall_timeout,
+        )
+        .await
+        .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
+        bound_remote(remote_write.flush(), self.config.stall_timeout)
             .await
             .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))
     }
@@ -834,12 +865,13 @@ impl AssociationCore {
             .inbound
             .acknowledgement()
             .map_err(AssociationRunError::protocol)?;
-        acknowledgement
-            .encode_into_async(remote_write)
-            .await
-            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
-        remote_write
-            .flush()
+        bound_remote(
+            acknowledgement.encode_into_async(remote_write),
+            self.config.stall_timeout,
+        )
+        .await
+        .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
+        bound_remote(remote_write.flush(), self.config.stall_timeout)
             .await
             .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
 
