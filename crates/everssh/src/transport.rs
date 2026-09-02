@@ -910,7 +910,15 @@ impl ServerEndpoint {
     }
 
     async fn accept_v2_transport(&self) -> Result<RawV2Connection, Error> {
-        let lease_deadline = self.lease_deadline;
+        self.accept_v2_transport_until(self.lease_deadline).await
+    }
+
+    /// A resumed association waits from the previous connection's death, not
+    /// from the original one-shot bootstrap bind deadline.
+    async fn accept_v2_transport_until(
+        &self,
+        lease_deadline: Instant,
+    ) -> Result<RawV2Connection, Error> {
         let mut retry_observed = false;
         let mut attempts = 0usize;
         let mut handshake_deadline = None;
@@ -1031,7 +1039,10 @@ impl ServerEndpoint {
         server_delivered_ack: u64,
         last_assigned: u64,
     ) -> Result<(AssociationConnection, u64), Error> {
-        let mut raw = self.accept_v2_transport().await?;
+        let renewed_lease = Instant::now()
+            .checked_add(self.limits.server_lease())
+            .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
+        let mut raw = self.accept_v2_transport_until(renewed_lease).await?;
         let error_connection = raw.connection.clone();
         let result = async {
             let mut wire = [0_u8; CLIENT_HELLO_RESUME_LEN];

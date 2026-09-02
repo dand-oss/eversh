@@ -2,7 +2,7 @@
 
 use crate::association::{AssociationAuthorization, ClientHello};
 use crate::bootstrap::BootstrapRecord;
-use crate::error::Error;
+use crate::error::{DeadlinePhase, Error, LimitViolation};
 use crate::identity::EphemeralClientIdentity;
 use crate::limits::Limits;
 use crate::resume::{
@@ -14,8 +14,10 @@ use std::net::SocketAddr;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
+use tokio::time::Instant;
 
 const CLOSE_CODE: noq::VarInt = noq::VarInt::from_u32(0x4556);
+const RECONNECT_BACKOFF: Duration = Duration::from_millis(50);
 
 #[derive(Debug)]
 pub enum ActorError {
@@ -58,6 +60,13 @@ async fn peer_sent_terminal_close(remote: &RemoteConnection) -> bool {
         Ok(noq::ConnectionError::ApplicationClosed(close)) => close.error_code == CLOSE_CODE,
         _ => false,
     }
+}
+
+fn reconnect_is_retryable(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::DeadlineExpired(DeadlinePhase::ClientConnect) | Error::QuicConnect
+    )
 }
 
 pub struct ServerAssociation {
@@ -207,6 +216,7 @@ where
 
     pub async fn run(mut self) -> Result<AssociationCompletion, ActorError> {
         let mut initial = true;
+        let mut reconnect_deadline: Option<Instant> = None;
         loop {
             let endpoint = ClientEndpoint::bind(
                 self.server,
@@ -221,10 +231,36 @@ where
             } else {
                 ClientHello::resume(self.association_id, self.core.delivered_ack())?
             };
-            let (session, server_hello) = endpoint
-                .connect_v2_association(hello)
-                .await
-                .map_err(ActorError::Terminal)?;
+            if !initial {
+                if reconnect_deadline.is_none() {
+                    reconnect_deadline = Some(
+                        Instant::now()
+                            .checked_add(self.reconnect_budget())
+                            .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?,
+                    );
+                }
+                let deadline = reconnect_deadline
+                    .expect("reconnect deadline was just initialized when absent");
+                let attempt_ends = Instant::now()
+                    .checked_add(self.limits.handshake_timeout())
+                    .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
+                if attempt_ends > deadline {
+                    return Err(ActorError::Terminal(Error::DeadlineExpired(
+                        DeadlinePhase::Reconnect,
+                    )));
+                }
+            }
+            let (session, server_hello) = match endpoint.connect_v2_association(hello).await {
+                Ok(session) => session,
+                // A live association survives transient path loss: reconnect
+                // attempts stay inside the bounded association budget below.
+                // Authentication and protocol rejections stay terminal.
+                Err(error) if !initial && reconnect_is_retryable(&error) => {
+                    tokio::time::sleep(RECONNECT_BACKOFF).await;
+                    continue;
+                }
+                Err(error) => return Err(ActorError::Terminal(error)),
+            };
             initial = false;
             self.core
                 .apply_peer_ack(server_hello.delivered_ack())
@@ -274,5 +310,13 @@ where
                 Err(error) => return Err(ActorError::Run(error)),
             }
         }
+    }
+
+    /// The client stops one full handshake before the server's renewed
+    /// association lease, so it can never outlive the accepting endpoint.
+    fn reconnect_budget(&self) -> Duration {
+        self.limits
+            .server_lease()
+            .saturating_sub(self.limits.handshake_timeout())
     }
 }

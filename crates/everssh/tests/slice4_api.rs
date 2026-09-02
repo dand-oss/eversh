@@ -1,10 +1,11 @@
 //! API-level Slice 4 qualification of the production route supervisor.
 #![allow(clippy::unwrap_used)]
 
-use everssh::actor::{ClientAssociation, ServerAssociation};
+use everssh::actor::{ActorError, ClientAssociation, ServerAssociation};
 use everssh::admission::{AuthenticatedConnection, ConnectedTarget};
 use everssh::association::{AssociationId, ClientHello};
 use everssh::bootstrap::BootstrapRecord;
+use everssh::error::DeadlinePhase;
 use everssh::identity::EphemeralIdentity;
 use everssh::resume::ResumeAssociationConfig;
 use everssh::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
@@ -808,10 +809,158 @@ async fn persistent_association_actors_transfer_and_finish_cleanly() {
     assert_eq!(server_seen, b"client-to-server");
 }
 
+#[tokio::test]
+async fn v2_resume_lease_renews_after_the_bootstrap_lease_expires() {
+    let mut short_lease = limits();
+    short_lease.server_lease_ms = 1_000;
+    short_lease.handshake_timeout_ms = 3_000;
+
+    let target_listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let target_address = target_listener.local_addr().unwrap();
+    let target_peer = tokio::spawn(async move { target_listener.accept().await.unwrap().0 });
+    let server_address = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let authenticated =
+        AuthenticatedConnection::new(SocketAddr::from(([192, 0, 2, 91], 50_003)), target_address)
+            .unwrap();
+    let identity = EphemeralIdentity::generate().unwrap();
+    let token = identity.take_bootstrap_token().unwrap();
+    let server = ServerEndpoint::bind(
+        authenticated,
+        UdpBindPolicy::Explicit(server_address),
+        &identity,
+        short_lease,
+    )
+    .unwrap();
+    let association_id = server.association_id();
+    let client_identity = EphemeralClientIdentity::generate().unwrap();
+    let first_client = bind_v2_client_with_limits(
+        server.local_addr(),
+        identity.spki_sha256(),
+        &client_identity,
+        short_lease,
+    )
+    .unwrap();
+
+    let initial_hello =
+        ClientHello::initial(association_id, 0, token, target_address.port()).unwrap();
+    let initial_server = server.accept_v2_initial();
+    let initial_client = first_client.connect_v2_association(initial_hello);
+    let (initial, first_client_result) = tokio::join!(initial_server, initial_client);
+    let initial = initial.unwrap();
+    let (first_session, _) = first_client_result.unwrap();
+    let authorization = initial.connection().authorization();
+    let (_first_connection, persistent_target) = initial.into_parts();
+    let _target_peer = target_peer.await.unwrap();
+
+    // The original one-shot bind lease expires here. A resumed association
+    // must still be accepted because its lease renews after connection death.
+    tokio::time::sleep(Duration::from_millis(1_100)).await;
+    drop(first_session);
+
+    let resume_client = bind_v2_client_with_limits(
+        server.local_addr(),
+        identity.spki_sha256(),
+        &client_identity,
+        short_lease,
+    )
+    .unwrap();
+    let resume_hello = ClientHello::resume(association_id, 0).unwrap();
+    let resume_server = server.accept_v2_resume(authorization, 0, 0);
+    let resume_client_result = resume_client.connect_v2_association(resume_hello);
+    let (resume_server_result, resume_client_result) =
+        tokio::join!(resume_server, resume_client_result);
+    assert!(resume_server_result.is_ok(), "{resume_server_result:?}");
+    assert!(resume_client_result.is_ok(), "{resume_client_result:?}");
+    drop(persistent_target);
+    server.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn client_reconnect_budget_ends_boundedly_without_dropping_association() {
+    let mut short_budget = limits();
+    short_budget.server_lease_ms = 3_000;
+    short_budget.handshake_timeout_ms = 2_750;
+
+    let target_listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let target_address = target_listener.local_addr().unwrap();
+    let ip = selected_non_loopback(SocketAddr::from(([192, 0, 2, 93], 9))).unwrap();
+    let server_address = reserve_udp(ip);
+    let authenticated =
+        AuthenticatedConnection::new(SocketAddr::from(([192, 0, 2, 92], 50_004)), target_address)
+            .unwrap();
+    let identity = EphemeralIdentity::generate().unwrap();
+    let token = identity.take_bootstrap_token().unwrap();
+    let endpoint = ServerEndpoint::bind(
+        authenticated,
+        UdpBindPolicy::Explicit(server_address),
+        &identity,
+        short_budget,
+    )
+    .unwrap();
+    let bootstrap = BootstrapRecord::new(
+        endpoint.local_addr().ip(),
+        endpoint.local_addr().port(),
+        identity.spki_sha256(),
+        token,
+        endpoint.association_id(),
+        std::process::id(),
+    )
+    .unwrap();
+
+    let client_identity = EphemeralClientIdentity::generate().unwrap();
+    let (client_local, mut client_peer) = tokio::io::duplex(128);
+    let (client_read, client_write) = tokio::io::split(client_local);
+    let client = ClientAssociation::new(
+        &bootstrap,
+        target_address.port(),
+        client_identity,
+        ResumeAssociationConfig::new(256, 16, 64)
+            .unwrap()
+            .with_stall_timeout(Duration::from_millis(80))
+            .unwrap(),
+        short_budget,
+        client_read,
+        client_write,
+    )
+    .unwrap();
+    client_peer.write_all(b"must-not-vanish").await.unwrap();
+    let client_task = tokio::spawn(client.run());
+
+    // Accept the bootstrap connection but never read, acknowledge, or accept a
+    // resume. The client must retry within its budget and then fail terminally
+    // rather than silently discarding the retained association bytes.
+    let initial = endpoint.accept_v2_initial().await.unwrap();
+    let (_connection, _target) = initial.into_parts();
+
+    let result = tokio::time::timeout(Duration::from_secs(2), client_task)
+        .await
+        .expect("client reconnect budget was not bounded")
+        .unwrap();
+    assert!(matches!(
+        result,
+        Err(ActorError::Terminal(Error::DeadlineExpired(
+            DeadlinePhase::Reconnect
+        )))
+    ));
+    endpoint.close().await.unwrap();
+}
+
 fn bind_v2_client(
     server: SocketAddr,
     pin: [u8; 32],
     identity: &EphemeralClientIdentity,
+) -> Result<ClientEndpoint, Error> {
+    bind_v2_client_with_limits(server, pin, identity, limits())
+}
+
+fn bind_v2_client_with_limits(
+    server: SocketAddr,
+    pin: [u8; 32],
+    identity: &EphemeralClientIdentity,
+    limits: Limits,
 ) -> Result<ClientEndpoint, Error> {
     for _ in 0..16 {
         let reservation = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
@@ -822,7 +971,7 @@ fn bind_v2_client(
             UdpBindPolicy::Explicit(address),
             pin,
             identity,
-            limits(),
+            limits,
         ) {
             Ok(endpoint) => return Ok(endpoint),
             Err(Error::UdpBind(source)) if source.kind() == std::io::ErrorKind::AddrInUse => {

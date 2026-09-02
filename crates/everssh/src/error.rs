@@ -47,6 +47,7 @@ pub enum DeadlinePhase {
     ClientConnect,
     TargetConnect,
     Drain,
+    Reconnect,
     Finalize,
 }
 
@@ -166,6 +167,7 @@ impl std::fmt::Display for DeadlinePhase {
             Self::ClientConnect => "client connect/authentication",
             Self::TargetConnect => "authorized target connect",
             Self::Drain => "association drain",
+            Self::Reconnect => "association reconnect",
             Self::Finalize => "endpoint finalization",
         };
         f.write_str(message)
