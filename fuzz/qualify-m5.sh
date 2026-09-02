@@ -118,11 +118,11 @@ parse_arguments() {
 require_fixed_tools() {
     local tool
     for tool in \
-        /usr/bin/awk /usr/bin/bash /usr/bin/date /usr/bin/env /usr/bin/find \
-        /usr/bin/flock /usr/bin/git /usr/bin/grep /usr/bin/jq /usr/bin/kill \
-        /usr/bin/mkdir /usr/bin/mv /usr/bin/ps /usr/bin/rmdir /usr/bin/sed \
-        /usr/bin/setsid /usr/bin/sha256sum /usr/bin/sleep /usr/bin/stat \
-        /usr/bin/tail /usr/bin/timeout; do
+        /usr/bin/awk /usr/bin/bash /usr/bin/cp /usr/bin/date /usr/bin/env \
+        /usr/bin/find /usr/bin/flock /usr/bin/git /usr/bin/grep /usr/bin/jq \
+        /usr/bin/kill /usr/bin/mkdir /usr/bin/mv /usr/bin/ps /usr/bin/rmdir \
+        /usr/bin/sed /usr/bin/setsid /usr/bin/sha256sum /usr/bin/sleep \
+        /usr/bin/stat /usr/bin/tail /usr/bin/timeout; do
         [[ -x $tool ]] || {
             printf 'eversh M5 qualification: missing local prerequisite\n' >&2
             exit 1
@@ -291,12 +291,20 @@ run_campaign() {
     local target=$1 max_length=$2 host=$3 build_target=$4 campaign_dir=$5
     local binary corpus artifacts log record start end elapsed status
     local executions average new_units peak_rss artifact_count corpus_count temporary
+    local seed_dir
     binary="$build_target/$host/release/$target"
     corpus="$campaign_dir/corpus/$target"
     artifacts="$campaign_dir/artifacts/$target"
     log="$campaign_dir/raw/$target.log"
     record="$campaign_dir/records/$target.json"
     /usr/bin/mkdir -p -- "$corpus" "$artifacts"
+    # Seed the fresh per-run corpus with any committed known-crash inputs
+    # (fuzz/corpora/<target>/) so every campaign re-checks them; the
+    # campaign corpus itself stays per-run, never shared or mutated.
+    seed_dir="$ROOT/fuzz/corpora/$target"
+    if [[ -d $seed_dir ]] && (( $(count_files "$seed_dir") > 0 )); then
+        /usr/bin/cp -f -- "$seed_dir"/* "$corpus"/
+    fi
     [[ -x $binary ]] || fail "campaign-binary-$target" 1 "$log"
 
     CURRENT_STAGE="campaign-$target"

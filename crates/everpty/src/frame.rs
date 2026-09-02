@@ -312,6 +312,9 @@ impl Frame {
                 if 4 + name_len + 4 > body.len() {
                     return Err(FrameError::Truncated);
                 }
+                if 4 + name_len + 4 < body.len() {
+                    return Err(FrameError::Malformed("hello trailing bytes"));
+                }
                 let name = std::str::from_utf8(&body[4..4 + name_len])
                     .map_err(|_| FrameError::TextNotUtf8)?
                     .to_owned();
@@ -386,8 +389,13 @@ impl Frame {
                 if body.len() != 5 {
                     return Err(FrameError::Malformed("exit length"));
                 }
+                let signal = match body[0] {
+                    0 => false,
+                    1 => true,
+                    _ => return Err(FrameError::Malformed("bad exit signal")),
+                };
                 Self::Exit {
-                    signal: body[0] == 1,
+                    signal,
                     value: u32::from_be_bytes([body[1], body[2], body[3], body[4]]),
                 }
             }
@@ -415,5 +423,180 @@ fn empty(body: &[u8], f: Frame) -> Result<Frame, FrameError> {
         Ok(f)
     } else {
         Err(FrameError::Malformed("payload must be empty"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn typed_frames() -> Vec<Frame> {
+        vec![
+            Frame::Hello {
+                role: Role::Writer,
+                take_over: true,
+                name: "s1".into(),
+                rows: 252,
+                cols: 206,
+            },
+            Frame::Hello {
+                role: Role::Observer,
+                take_over: false,
+                name: "a.b-_c9".into(),
+                rows: 1,
+                cols: 2,
+            },
+            Frame::HelloAck {
+                client_id: 7,
+                broker_protocol_version: PROTOCOL_VERSION,
+                status: AttachStatus::ObserverAccepted,
+            },
+            Frame::Busy {
+                current_writer_id: 42,
+            },
+            Frame::Resize {
+                rows: 80,
+                cols: 240,
+            },
+            Frame::Ownership(OwnershipEvent::Granted),
+            Frame::Ownership(OwnershipEvent::Revoked),
+            Frame::DetachWriter,
+            Frame::Kill,
+            Frame::Ping,
+            Frame::Pong,
+            Frame::Exit {
+                signal: true,
+                value: 9,
+            },
+            Frame::Exit {
+                signal: false,
+                value: 3,
+            },
+            Frame::Error {
+                code: 513,
+                text: "boom".into(),
+            },
+        ]
+    }
+
+    /// A canonical encoding of `frame` with `extra` bytes appended to the
+    /// payload and the header body length patched to match.
+    fn with_trailing(frame: &Frame, extra: &[u8]) -> Vec<u8> {
+        let mut b = frame.encode();
+        let body = u32::from_be_bytes([b[0], b[1], b[2], b[3]]);
+        b[..4].copy_from_slice(&(body + extra.len() as u32).to_be_bytes());
+        b.extend_from_slice(extra);
+        b
+    }
+
+    #[test]
+    fn typed_kinds_reject_trailing_bytes() {
+        let l = Limits::default();
+        for f in typed_frames() {
+            // The exact-length body still decodes and re-encodes
+            // byte-identically.
+            let pristine = f.encode();
+            let (back, used) = match Frame::decode(&pristine, &l) {
+                Ok(ok) => ok,
+                Err(e) => panic!("{:?} must decode, got {e:?}", f.kind()),
+            };
+            assert_eq!(used, pristine.len());
+            assert_eq!(back.encode(), pristine);
+            // One trailing byte must never be accepted silently.
+            let padded = with_trailing(&f, &[0x00]);
+            assert!(
+                Frame::decode(&padded, &l).is_err(),
+                "{:?} must reject a trailing byte",
+                f.kind()
+            );
+        }
+    }
+
+    #[test]
+    fn hello_rejects_trailing_garbage_shapes() {
+        // The 20260902 fuzz_frame crash shape: a valid Hello whose parsed
+        // fields end early, here 1, 2, and 27 trailing bytes.
+        let l = Limits::default();
+        let hello = Frame::Hello {
+            role: Role::Writer,
+            take_over: false,
+            name: "1".into(),
+            rows: 0x00fc,
+            cols: 0x00ce,
+        };
+        for extra in [&[0xce][..], &[0xce, 0xce][..], &[0x2au8; 27][..]] {
+            let padded = with_trailing(&hello, extra);
+            match Frame::decode(&padded, &l) {
+                Err(FrameError::Malformed(m)) => assert_eq!(m, "hello trailing bytes"),
+                other => panic!("expected Malformed, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn exit_signal_byte_must_be_canonical() {
+        let l = Limits::default();
+        for (byte, signal) in [(0u8, false), (1u8, true)] {
+            let mut b = Frame::Exit {
+                signal,
+                value: 0x0102_0304,
+            }
+            .encode();
+            b[HEADER_LEN] = byte;
+            let (back, _) = Frame::decode(&b, &l).expect("canonical signal decodes");
+            assert_eq!(back.encode(), b, "round-trips byte-identically");
+        }
+        for byte in 2..=255u8 {
+            let mut b = Frame::Exit {
+                signal: true,
+                value: 7,
+            }
+            .encode();
+            b[HEADER_LEN] = byte;
+            match Frame::decode(&b, &l) {
+                Err(FrameError::Malformed(m)) => assert_eq!(m, "bad exit signal"),
+                other => panic!("signal byte {byte}: expected Malformed, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn opaque_payload_kinds_stay_length_agnostic() {
+        // Input/Output bodies are raw payload: any length is canonical by
+        // construction and must keep round-tripping byte-identically.
+        let l = Limits::default();
+        for len in [0usize, 1, 2, 255, 4096] {
+            let f = Frame::Input(vec![0xa5; len]);
+            let b = f.encode();
+            let (back, used) = Frame::decode(&b, &l).expect("decodes");
+            assert_eq!(used, b.len());
+            assert_eq!(back, f);
+            assert_eq!(back.encode(), b);
+        }
+    }
+
+    #[test]
+    fn fuzz_frame_crash_artifact_is_rejected() {
+        // Artifact crash-204953801670d4f3ff571d8e8f687c803106aceb from the
+        // 20260902T051552Z-0a087c1ac915 campaign, verbatim: a Hello whose
+        // parsed fields span 9 body bytes inside a 36-byte body (27
+        // trailing bytes). Must be rejected, never decoded-and-reencoded
+        // with a different length (the fuzz harness canonicality assert).
+        let artifact: &[u8] = &[
+            0x00, 0x00, 0x00, 0x26, // body length 38
+            0x01, // protocol version 1
+            0x01, // kind Hello
+            0x01, 0x00, 0x00, 0x01, 0x31, 0x00, 0xfc, 0x00, 0xce, // parsed fields
+            0xce, 0xce, 0x01, 0x00, 0xce, 0xce, 0xff, 0xff, 0xff, 0x2a, 0x2a, 0xff, 0x01, 0x0a,
+            0x31, 0x29, 0x00, 0x2a, 0x01, 0x2a, 0x0a, 0xff, 0x2a, 0xff, 0xff, 0xff,
+            0xff, // 27 trailing garbage bytes
+        ];
+        assert_eq!(artifact.len(), 42);
+        let l = Limits::default();
+        assert!(matches!(Frame::validate_header(artifact, &l), Ok(42)));
+        match Frame::decode(artifact, &l) {
+            Err(FrameError::Malformed(m)) => assert_eq!(m, "hello trailing bytes"),
+            other => panic!("expected Malformed, got {other:?}"),
+        }
     }
 }
