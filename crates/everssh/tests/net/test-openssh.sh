@@ -48,11 +48,11 @@ readonly FORWARD_READY_SECONDS=15
 readonly FORWARD_CLIENT_TIMEOUT_SECONDS=15
 readonly FORWARD_REMOTE_WAIT_ATTEMPTS=300
 readonly POLL_SECONDS=5
-# Production permits 30s of QUIC idle followed by 5s drain and 5s finalize
-# deadlines. Give the external /proc observer five additional seconds to see
-# the process disappear after that internal bound; this does not extend any
-# production deadline.
-readonly SERVER_POLL_SECONDS=45
+# A killed ProxyCommand is indistinguishable from total loss, so the released
+# v2 server holds its association for the 20s remote stall, the renewed 30s
+# resume lease, and bounded finalize. The /proc observer adds five seconds;
+# this does not extend any production deadline.
+readonly SERVER_POLL_SECONDS=60
 readonly READINESS_POLL_ATTEMPTS=60
 readonly OPERATION_TIMEOUT_SECONDS=4
 readonly SSH_SESSION_TIMEOUT_SECONDS=15
