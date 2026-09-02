@@ -7,7 +7,8 @@
 
 use crate::error::Error;
 use std::collections::VecDeque;
-use std::io::Write;
+use std::io::Write as StdWrite;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use zeroize::Zeroizing;
 
 pub const RESUME_VERSION: u8 = 1;
@@ -88,13 +89,17 @@ impl ResumeFrame {
         }
     }
 
+    pub fn is_ack(&self) -> bool {
+        matches!(self.operation, ResumeOperation::Ack)
+    }
+
     pub fn encode(&self) -> Vec<u8> {
         let mut wire = Vec::with_capacity(self.wire_len());
         let _ = self.encode_into(&mut wire);
         wire
     }
 
-    pub fn encode_into<W: Write>(&self, writer: &mut W) -> Result<(), Error> {
+    pub fn encode_into<W: StdWrite>(&self, writer: &mut W) -> Result<(), Error> {
         let payload_len = u32::try_from(self.data_len()).unwrap_or(u32::MAX);
         let kind = match self.operation {
             ResumeOperation::Data(_) => FrameKind::Data,
@@ -109,6 +114,28 @@ impl ResumeFrame {
         writer.write_all(&header)?;
         if let ResumeOperation::Data(bytes) = &self.operation {
             writer.write_all(bytes)?;
+        }
+        Ok(())
+    }
+
+    pub async fn encode_into_async<W: AsyncWrite + Unpin>(
+        &self,
+        writer: &mut W,
+    ) -> std::io::Result<()> {
+        let payload_len = u32::try_from(self.data_len()).unwrap_or(u32::MAX);
+        let kind = match self.operation {
+            ResumeOperation::Data(_) => FrameKind::Data,
+            ResumeOperation::Fin => FrameKind::Fin,
+            ResumeOperation::Ack => FrameKind::Ack,
+        };
+        let mut header = [0; RESUME_HEADER_LEN];
+        header[0] = RESUME_VERSION;
+        header[1] = kind as u8;
+        header[2..10].copy_from_slice(&self.sequence.to_be_bytes());
+        header[10..].copy_from_slice(&payload_len.to_be_bytes());
+        writer.write_all(&header).await?;
+        if let ResumeOperation::Data(bytes) = &self.operation {
+            writer.write_all(bytes).await?;
         }
         Ok(())
     }
@@ -223,11 +250,32 @@ impl ReplayQueue {
         self.frames.front().map(ResumeFrame::sequence)
     }
 
+    pub fn last_sequence(&self) -> Option<u64> {
+        self.frames.back().map(ResumeFrame::sequence)
+    }
+
     pub fn pending_frames(&self) -> usize {
         self.frames.len()
     }
 
-    pub fn encode_pending<W: Write>(&self, writer: &mut W) -> Result<usize, Error> {
+    pub fn frames(&self) -> impl Iterator<Item = &ResumeFrame> {
+        self.frames.iter()
+    }
+
+    pub fn can_accept(&self, data_len: usize) -> bool {
+        let Some(frame_len) = RESUME_HEADER_LEN.checked_add(data_len) else {
+            return false;
+        };
+        self.frames.len() < self.limits.max_pending_frames
+            && frame_len <= self.limits.max_wire_bytes
+            && self.queued_wire_bytes <= self.limits.max_wire_bytes - frame_len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.frames.is_empty()
+    }
+
+    pub fn encode_pending<W: StdWrite>(&self, writer: &mut W) -> Result<usize, Error> {
         let mut count = 0;
         for frame in &self.frames {
             frame.encode_into(writer)?;
@@ -294,6 +342,100 @@ impl ReplayQueue {
     }
 }
 
+/// Incremental decoder for a bounded stream of resume frames.
+#[derive(Debug)]
+pub struct ResumeFrameDecoder {
+    max_data_len: usize,
+    header: [u8; RESUME_HEADER_LEN],
+    header_filled: usize,
+    body: Zeroizing<Vec<u8>>,
+    body_filled: usize,
+}
+
+impl ResumeFrameDecoder {
+    pub fn new(max_data_len: usize) -> Result<Self, Error> {
+        if max_data_len == 0 || max_data_len > RESUME_MAX_DATA_LEN {
+            return Err(Error::ResumeLimitInvalid);
+        }
+        Ok(Self {
+            max_data_len,
+            header: [0; RESUME_HEADER_LEN],
+            header_filled: 0,
+            body: Zeroizing::new(Vec::new()),
+            body_filled: 0,
+        })
+    }
+
+    pub fn decode_chunk(&mut self, input: &[u8]) -> Result<Vec<ResumeFrame>, Error> {
+        let mut decoded = Vec::new();
+        let mut offset = 0;
+        while offset < input.len() {
+            if self.header_filled < RESUME_HEADER_LEN {
+                let count = (input.len() - offset).min(RESUME_HEADER_LEN - self.header_filled);
+                self.header[self.header_filled..self.header_filled + count]
+                    .copy_from_slice(&input[offset..offset + count]);
+                self.header_filled += count;
+                offset += count;
+                if self.header_filled < RESUME_HEADER_LEN {
+                    break;
+                }
+                self.start_body()?;
+            }
+
+            let needed = self.body.len() - self.body_filled;
+            if needed == 0 {
+                decoded.push(self.take_frame()?);
+                continue;
+            }
+
+            let count = (input.len() - offset).min(needed);
+            let destination = &mut self.body[self.body_filled..self.body_filled + count];
+            destination.copy_from_slice(&input[offset..offset + count]);
+            self.body_filled += count;
+            offset += count;
+            if self.body_filled == self.body.len() {
+                decoded.push(self.take_frame()?);
+            }
+        }
+        Ok(decoded)
+    }
+
+    fn start_body(&mut self) -> Result<(), Error> {
+        if self.header[0] != RESUME_VERSION {
+            return Err(Error::ResumeFrameMalformed);
+        }
+        let payload_len = u32::from_be_bytes(
+            self.header[10..]
+                .try_into()
+                .map_err(|_| Error::ResumeFrameMalformed)?,
+        ) as usize;
+        if payload_len > self.max_data_len {
+            return Err(Error::ResumeFrameMalformed);
+        }
+        let mut body = Vec::new();
+        body.try_reserve_exact(payload_len)
+            .map_err(|_| Error::BridgeAllocation)?;
+        body.resize(payload_len, 0);
+        self.body = Zeroizing::new(body);
+        self.body_filled = 0;
+        Ok(())
+    }
+
+    fn take_frame(&mut self) -> Result<ResumeFrame, Error> {
+        let mut header = [0; RESUME_HEADER_LEN];
+        header.copy_from_slice(&self.header);
+        let body = std::mem::take(&mut self.body);
+        self.header = [0; RESUME_HEADER_LEN];
+        self.header_filled = 0;
+        self.body_filled = 0;
+
+        let mut wire = Zeroizing::new(Vec::with_capacity(RESUME_HEADER_LEN + body.len()));
+        wire.extend_from_slice(&header);
+        wire.extend_from_slice(body.as_slice());
+        ResumeFrame::decode_exact(wire.as_slice())
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct ResumeReceiver {
     last_delivered: u64,
@@ -355,6 +497,292 @@ impl ResumeReceiver {
     }
 }
 
+pub const DEFAULT_RESUME_MAX_WIRE_BYTES: usize = 4 * 1024 * 1024;
+pub const DEFAULT_RESUME_MAX_PENDING_FRAMES: usize = 1_024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResumeAssociationConfig {
+    max_wire_bytes: usize,
+    max_pending_frames: usize,
+    copy_buf: usize,
+}
+
+impl ResumeAssociationConfig {
+    pub fn new(
+        max_wire_bytes: usize,
+        max_pending_frames: usize,
+        copy_buf: usize,
+    ) -> Result<Self, Error> {
+        ResumeQueueLimits::new(max_wire_bytes, max_pending_frames)?;
+        if copy_buf == 0 || copy_buf > RESUME_MAX_DATA_LEN || copy_buf > max_wire_bytes {
+            return Err(Error::ResumeLimitInvalid);
+        }
+        Ok(Self {
+            max_wire_bytes,
+            max_pending_frames,
+            copy_buf,
+        })
+    }
+}
+
+impl Default for ResumeAssociationConfig {
+    fn default() -> Self {
+        Self {
+            max_wire_bytes: DEFAULT_RESUME_MAX_WIRE_BYTES,
+            max_pending_frames: DEFAULT_RESUME_MAX_PENDING_FRAMES,
+            copy_buf: 16 * 1024,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssociationBoundary {
+    Local,
+    Remote,
+    Protocol,
+}
+
+#[derive(Debug)]
+pub struct AssociationRunError {
+    pub boundary: AssociationBoundary,
+    pub source: Error,
+}
+
+impl AssociationRunError {
+    fn io(boundary: AssociationBoundary, source: std::io::Error) -> Self {
+        Self {
+            boundary,
+            source: Error::Io(source),
+        }
+    }
+
+    fn protocol(source: Error) -> Self {
+        Self {
+            boundary: AssociationBoundary::Protocol,
+            source,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssociationCompletion {
+    Clean,
+}
+
+/// Transport-independent replay state shared by the client and server actors.
+pub struct AssociationCore {
+    outbound: ReplayQueue,
+    inbound: ResumeReceiver,
+    config: ResumeAssociationConfig,
+    local_eof: bool,
+    remote_eof: bool,
+}
+
+impl AssociationCore {
+    pub fn new(config: ResumeAssociationConfig) -> Result<Self, Error> {
+        let limits = ResumeQueueLimits::new(config.max_wire_bytes, config.max_pending_frames)?;
+        Ok(Self {
+            outbound: ReplayQueue::new(limits),
+            inbound: ResumeReceiver::default(),
+            config,
+            local_eof: false,
+            remote_eof: false,
+        })
+    }
+
+    pub fn apply_peer_ack(&mut self, sequence: u64) -> Result<(), Error> {
+        self.outbound.ack_through(sequence)
+    }
+
+    pub fn outbound_is_empty(&self) -> bool {
+        self.outbound.is_empty()
+    }
+
+    pub async fn run_connection<LR, LW, RR, RW>(
+        &mut self,
+        local_read: &mut LR,
+        local_write: &mut LW,
+        remote_read: &mut RR,
+        remote_write: &mut RW,
+    ) -> Result<AssociationCompletion, AssociationRunError>
+    where
+        LR: AsyncRead + Unpin,
+        LW: AsyncWrite + Unpin,
+        RR: AsyncRead + Unpin,
+        RW: AsyncWrite + Unpin,
+    {
+        let mut decoder =
+            ResumeFrameDecoder::new(self.config.copy_buf).map_err(AssociationRunError::protocol)?;
+        self.replay(remote_write).await?;
+
+        let mut local_buffer = Vec::new();
+        local_buffer
+            .try_reserve_exact(self.config.copy_buf)
+            .map_err(|_| AssociationRunError::protocol(Error::BridgeAllocation))?;
+        local_buffer.resize(self.config.copy_buf, 0);
+        let mut remote_buffer = [0_u8; 1024];
+
+        loop {
+            if self.clean() {
+                return Ok(AssociationCompletion::Clean);
+            }
+            let accept_local = !self.local_eof && self.outbound.can_accept(self.config.copy_buf);
+            tokio::select! {
+                biased;
+                result = local_read.read(&mut local_buffer), if accept_local => {
+                    let count = match result {
+                        Ok(0) => {
+                            let fin = self
+                                .outbound
+                                .push_fin()
+                                .map_err(AssociationRunError::protocol)?;
+                            debug_assert_eq!(Some(fin), self.outbound.last_sequence());
+                            self.local_eof = true;
+                            self.write_outbound_tail(remote_write).await?;
+                            continue;
+                        }
+                        Ok(count) => count,
+                        Err(source) => {
+                            return Err(AssociationRunError::io(
+                                AssociationBoundary::Local,
+                                source,
+                            ));
+                        }
+                    };
+                    self.outbound
+                        .push_data(local_buffer[..count].to_vec())
+                        .map_err(AssociationRunError::protocol)?;
+                    self.write_outbound_tail(remote_write).await?;
+                }
+                result = remote_read.read(&mut remote_buffer) => {
+                    let count = match result {
+                        Ok(0) => {
+                            if self.clean() {
+                                return Ok(AssociationCompletion::Clean);
+                            }
+                            return Err(AssociationRunError::io(
+                                AssociationBoundary::Remote,
+                                std::io::Error::new(
+                                    std::io::ErrorKind::UnexpectedEof,
+                                    "remote stream ended before association FIN",
+                                ),
+                            ));
+                        }
+                        Ok(count) => count,
+                        Err(source) => {
+                            return Err(AssociationRunError::io(
+                                AssociationBoundary::Remote,
+                                source,
+                            ));
+                        }
+                    };
+                    let frames = decoder
+                        .decode_chunk(&remote_buffer[..count])
+                        .map_err(AssociationRunError::protocol)?;
+                    for frame in frames {
+                        self.accept_remote_frame(frame, local_write, remote_write)
+                            .await?;
+                    }
+                }
+            }
+        }
+    }
+
+    async fn replay<RW: AsyncWrite + Unpin>(
+        &mut self,
+        remote_write: &mut RW,
+    ) -> Result<(), AssociationRunError> {
+        let frames: Vec<ResumeFrame> = self.outbound.frames().cloned().collect();
+        for frame in frames {
+            frame
+                .encode_into_async(remote_write)
+                .await
+                .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
+        }
+        remote_write
+            .flush()
+            .await
+            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))
+    }
+
+    async fn write_outbound_tail<RW: AsyncWrite + Unpin>(
+        &mut self,
+        remote_write: &mut RW,
+    ) -> Result<(), AssociationRunError> {
+        let Some(frame) = self.outbound.frames().last().cloned() else {
+            return Ok(());
+        };
+        frame
+            .encode_into_async(remote_write)
+            .await
+            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
+        remote_write
+            .flush()
+            .await
+            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))
+    }
+
+    async fn accept_remote_frame<LW: AsyncWrite + Unpin, RW: AsyncWrite + Unpin>(
+        &mut self,
+        frame: ResumeFrame,
+        local_write: &mut LW,
+        remote_write: &mut RW,
+    ) -> Result<(), AssociationRunError> {
+        if frame.is_ack() {
+            let acknowledgement = frame.sequence();
+            return self
+                .apply_peer_ack(acknowledgement)
+                .map_err(AssociationRunError::protocol);
+        }
+        match self
+            .inbound
+            .accept(frame)
+            .map_err(AssociationRunError::protocol)?
+        {
+            ResumeDelivery::Data(bytes) => {
+                local_write
+                    .write_all(bytes.as_slice())
+                    .await
+                    .map_err(|source| {
+                        AssociationRunError::io(AssociationBoundary::Local, source)
+                    })?;
+                local_write.flush().await.map_err(|source| {
+                    AssociationRunError::io(AssociationBoundary::Local, source)
+                })?;
+            }
+            ResumeDelivery::Fin => {
+                local_write.flush().await.map_err(|source| {
+                    AssociationRunError::io(AssociationBoundary::Local, source)
+                })?;
+                local_write.shutdown().await.map_err(|source| {
+                    AssociationRunError::io(AssociationBoundary::Local, source)
+                })?;
+                self.remote_eof = true;
+            }
+            ResumeDelivery::Duplicate => {}
+        }
+
+        let acknowledgement = self
+            .inbound
+            .acknowledgement()
+            .map_err(AssociationRunError::protocol)?;
+        acknowledgement
+            .encode_into_async(remote_write)
+            .await
+            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
+        remote_write
+            .flush()
+            .await
+            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
+
+        Ok(())
+    }
+
+    fn clean(&self) -> bool {
+        self.local_eof && self.remote_eof && self.outbound.is_empty()
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -363,7 +791,7 @@ mod tests {
 
     struct FailingWriter;
 
-    impl Write for FailingWriter {
+    impl StdWrite for FailingWriter {
         fn write(&mut self, _bytes: &[u8]) -> io::Result<usize> {
             Err(io::Error::other("resume writer failure"))
         }
@@ -384,6 +812,55 @@ mod tests {
             offset = end;
         }
         frames
+    }
+
+    #[tokio::test]
+    async fn association_core_transfers_both_directions_and_finishes_cleanly() {
+        let config = ResumeAssociationConfig::new(256, 16, 64).unwrap();
+        let mut client = AssociationCore::new(config).unwrap();
+        let mut server = AssociationCore::new(config).unwrap();
+
+        let (client_local, mut client_peer) = tokio::io::duplex(128);
+        let (server_target, mut target_peer) = tokio::io::duplex(128);
+        let (client_network, server_network) = tokio::io::duplex(128);
+        let (mut client_local_read, mut client_local_write) = tokio::io::split(client_local);
+        let (mut client_remote_read, mut client_remote_write) = tokio::io::split(client_network);
+        let (mut server_target_read, mut server_target_write) = tokio::io::split(server_target);
+        let (mut server_remote_read, mut server_remote_write) = tokio::io::split(server_network);
+
+        client_peer.write_all(b"hello").await.unwrap();
+        target_peer.write_all(b"world").await.unwrap();
+        shutdown_split(&mut client_peer).await;
+        shutdown_split(&mut target_peer).await;
+
+        let client_connection = client.run_connection(
+            &mut client_local_read,
+            &mut client_local_write,
+            &mut client_remote_read,
+            &mut client_remote_write,
+        );
+        let server_connection = server.run_connection(
+            &mut server_target_read,
+            &mut server_target_write,
+            &mut server_remote_read,
+            &mut server_remote_write,
+        );
+        let (client_result, server_result) = tokio::join!(client_connection, server_connection);
+        assert_eq!(client_result.unwrap(), AssociationCompletion::Clean);
+        assert_eq!(server_result.unwrap(), AssociationCompletion::Clean);
+        assert!(client.outbound_is_empty());
+        assert!(server.outbound_is_empty());
+
+        let mut client_seen = Vec::new();
+        client_peer.read_to_end(&mut client_seen).await.unwrap();
+        assert_eq!(client_seen, b"world");
+        let mut server_seen = Vec::new();
+        target_peer.read_to_end(&mut server_seen).await.unwrap();
+        assert_eq!(server_seen, b"hello");
+    }
+
+    async fn shutdown_split<W: AsyncWrite + Unpin>(writer: &mut W) {
+        writer.shutdown().await.unwrap();
     }
 
     #[test]
@@ -413,6 +890,36 @@ mod tests {
         assert!(ResumeFrame::decode_exact(&bad_kind).is_err());
         assert!(ResumeFrame::data(0, b"data".to_vec()).is_err());
         assert!(ResumeFrame::data(1, Vec::new()).is_err());
+    }
+
+    #[test]
+    fn streaming_decoder_reassembles_multiple_frames_at_every_split() {
+        let first = ResumeFrame::data(1, b"first".to_vec()).unwrap();
+        let second = ResumeFrame::data(2, b"second!".to_vec()).unwrap();
+        let fin = ResumeFrame::fin(3).unwrap();
+        let mut wire = Vec::new();
+        for frame in [first.clone(), second.clone(), fin.clone()] {
+            frame.encode_into(&mut wire).unwrap();
+        }
+
+        let mut decoder = ResumeFrameDecoder::new(16).unwrap();
+        for split in 0..=wire.len() {
+            let mut found = Vec::new();
+            for chunk in [&wire[..split], &wire[split..]] {
+                found.extend(decoder.decode_chunk(chunk).unwrap());
+            }
+            assert_eq!(found, vec![first.clone(), second.clone(), fin.clone()]);
+        }
+
+        let mut oversize = ResumeFrame::data(1, vec![0_u8; 17]).unwrap().encode();
+        oversize.extend_from_slice(&[0]);
+        let mut rejected = ResumeFrameDecoder::new(16).unwrap();
+        assert!(rejected.decode_chunk(&oversize).is_err());
+
+        let mut bad_version = first.encode();
+        bad_version[0] ^= 1;
+        let mut version_rejected = ResumeFrameDecoder::new(16).unwrap();
+        assert!(version_rejected.decode_chunk(&bad_version).is_err());
     }
 
     #[test]
