@@ -769,6 +769,96 @@ exec "$EVERSSH_BIN" __bootstrap-parent-v1
 }
 
 #[test]
+fn production_proxy_transfers_one_mib_concurrent_echo() {
+    let temp = TempDir::new("proxy-concurrent-echo");
+    write_fake_ssh(
+        &temp,
+        r#"#!/bin/sh
+is_query=no
+for arg in "$@"; do [ "$arg" = "-G" ] && is_query=yes; done
+if [ "$is_query" = yes ]; then printf 'hostname fake\n'; exit 0; fi
+SSH_CONNECTION="$FAKE_CONN"; export SSH_CONNECTION
+exec "$EVERSSH_BIN" __bootstrap-parent-v1
+"#,
+    );
+    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+    let target_port = listener.local_addr().unwrap().port();
+    let route_ip = selected_non_loopback_v4();
+    let payload: Vec<u8> = (0..1_048_576)
+        .map(|index| ((index * 223 + 97) & 0xff) as u8)
+        .collect();
+    let expected = payload.clone();
+    let target = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut writer = stream.try_clone().unwrap();
+        let echo = thread::spawn(move || {
+            let mut remaining = expected.as_slice();
+            while !remaining.is_empty() {
+                let count = remaining.len().min(16_384);
+                writer.write_all(&remaining[..count]).unwrap();
+                remaining = &remaining[count..];
+                thread::sleep(Duration::from_micros(200));
+            }
+        });
+        let mut received = Vec::new();
+        let mut chunk = [0u8; 16_384];
+        loop {
+            let count = stream.read(&mut chunk).unwrap();
+            if count == 0 {
+                break;
+            }
+            received.extend_from_slice(&chunk[..count]);
+        }
+        echo.join().unwrap();
+        assert_eq!(received.len(), 1_048_576);
+        received
+    });
+
+    let mut child = Command::new(BIN)
+        .args(["ssh-proxy", "alias", &target_port.to_string()])
+        .env("PATH", fake_path(&temp))
+        .env("EVERSSH_BIN", BIN)
+        .env(
+            "FAKE_CONN",
+            format!("{route_ip} 50000 {route_ip} {target_port}"),
+        )
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    let mut stdout = child.stdout.take().unwrap();
+    let reader = thread::spawn(move || {
+        let mut received = Vec::new();
+        stdout.read_to_end(&mut received).unwrap();
+        received
+    });
+    let stdin_result = stdin.write_all(&payload);
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    let received = reader.join().unwrap();
+    assert!(
+        stdin_result.is_ok(),
+        "stdin failed: {:?}, proxy stderr={:?}, status={}",
+        stdin_result,
+        output.stderr,
+        output.status
+    );
+    let target_received = target.join().unwrap();
+    assert!(
+        output.status.success(),
+        "stderr={:?} received={} target={}",
+        output.stderr,
+        received.len(),
+        target_received.len()
+    );
+    assert!(output.stderr.is_empty());
+    assert_eq!(received.len(), 1_048_576);
+    assert_eq!(received, target_received);
+}
+
+#[test]
 fn malformed_binary_edges_are_bounded_and_do_not_echo_arguments() {
     for connection in [
         "",

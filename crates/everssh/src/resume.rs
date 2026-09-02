@@ -677,7 +677,16 @@ impl AssociationCore {
     {
         let mut decoder =
             ResumeFrameDecoder::new(self.config.copy_buf).map_err(AssociationRunError::protocol)?;
-        self.replay(remote_write).await?;
+        // Pending remote bytes are selected alongside both reads. A blocked
+        // QUIC write in one direction must never starve the reads that open
+        // flow control and carry peer acknowledgements in the other direction.
+        let mut wire: Vec<u8> = Vec::new();
+        let mut wire_offset = 0usize;
+        for frame in self.outbound.frames().cloned() {
+            frame
+                .encode_into(&mut wire)
+                .map_err(AssociationRunError::protocol)?;
+        }
 
         let mut local_buffer = Vec::new();
         local_buffer
@@ -687,7 +696,7 @@ impl AssociationCore {
         let mut remote_buffer = [0_u8; 1024];
 
         loop {
-            if self.clean() {
+            if self.clean() && wire_offset >= wire.len() {
                 bound_remote(remote_write.shutdown(), self.config.stall_timeout)
                     .await
                     .map_err(|source| {
@@ -715,12 +724,49 @@ impl AssociationCore {
                     });
                 }
             }
-            let accept_local = !self.local_eof && self.outbound.can_accept(self.config.copy_buf);
+            let wire_unwritten = wire.len() - wire_offset;
+            let accept_local = !self.local_eof
+                && self.outbound.can_accept(self.config.copy_buf)
+                && wire_unwritten + self.config.copy_buf <= self.config.max_wire_bytes;
             let drain_deadline = self.drain_deadline;
+            let wire_pending = wire_offset < wire.len();
             tokio::select! {
                 biased;
                 _ = drain_timer(drain_deadline) => {
                     continue;
+                }
+                result = bound_remote(
+                    remote_write.write(&wire[wire_offset..]),
+                    self.config.stall_timeout,
+                ), if wire_pending => {
+                    let count = result.map_err(|source| {
+                        AssociationRunError::io(AssociationBoundary::Remote, source)
+                    })?;
+                    if count == 0 {
+                        return Err(AssociationRunError::io(
+                            AssociationBoundary::Remote,
+                            std::io::Error::new(
+                                std::io::ErrorKind::WriteZero,
+                                "remote association write made no progress",
+                            ),
+                        ));
+                    }
+                    wire_offset += count;
+                    if wire_offset == wire.len() {
+                        wire.clear();
+                        wire_offset = 0;
+                    } else if wire_offset > self.config.copy_buf {
+                        wire.drain(..wire_offset);
+                        wire_offset = 0;
+                    }
+                    if wire_offset < wire.len() {
+                        continue;
+                    }
+                    bound_remote(remote_write.flush(), self.config.stall_timeout)
+                        .await
+                        .map_err(|source| {
+                            AssociationRunError::io(AssociationBoundary::Remote, source)
+                        })?;
                 }
                 result = local_read.read(&mut local_buffer), if accept_local => {
                     let count = match result {
@@ -735,7 +781,7 @@ impl AssociationCore {
                                 self.drain_deadline =
                                     Some(Instant::now() + self.config.drain_timeout);
                             }
-                            self.write_outbound_tail(remote_write).await?;
+                            self.queue_outbound_tail(&mut wire)?;
                             continue;
                         }
                         Ok(count) => count,
@@ -749,7 +795,7 @@ impl AssociationCore {
                     self.outbound
                         .push_data(local_buffer[..count].to_vec())
                         .map_err(AssociationRunError::protocol)?;
-                    self.write_outbound_tail(remote_write).await?;
+                    self.queue_outbound_tail(&mut wire)?;
                 }
                 result = bound_remote(remote_read.read(&mut remote_buffer), self.config.stall_timeout) => {
                     let count = match result {
@@ -777,55 +823,27 @@ impl AssociationCore {
                         .decode_chunk(&remote_buffer[..count])
                         .map_err(AssociationRunError::protocol)?;
                     for frame in frames {
-                        self.accept_remote_frame(frame, local_write, remote_write)
-                            .await?;
+                        self.accept_remote_frame(frame, local_write, &mut wire).await?;
                     }
                 }
             }
         }
     }
 
-    async fn replay<RW: AsyncWrite + Unpin>(
-        &mut self,
-        remote_write: &mut RW,
-    ) -> Result<(), AssociationRunError> {
-        let frames: Vec<ResumeFrame> = self.outbound.frames().cloned().collect();
-        for frame in frames {
-            bound_remote(
-                frame.encode_into_async(remote_write),
-                self.config.stall_timeout,
-            )
-            .await
-            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
-        }
-        bound_remote(remote_write.flush(), self.config.stall_timeout)
-            .await
-            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))
-    }
-
-    async fn write_outbound_tail<RW: AsyncWrite + Unpin>(
-        &mut self,
-        remote_write: &mut RW,
-    ) -> Result<(), AssociationRunError> {
+    fn queue_outbound_tail(&self, wire: &mut Vec<u8>) -> Result<(), AssociationRunError> {
         let Some(frame) = self.outbound.frames().last().cloned() else {
             return Ok(());
         };
-        bound_remote(
-            frame.encode_into_async(remote_write),
-            self.config.stall_timeout,
-        )
-        .await
-        .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
-        bound_remote(remote_write.flush(), self.config.stall_timeout)
-            .await
-            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))
+        frame
+            .encode_into(wire)
+            .map_err(AssociationRunError::protocol)
     }
 
-    async fn accept_remote_frame<LW: AsyncWrite + Unpin, RW: AsyncWrite + Unpin>(
+    async fn accept_remote_frame<LW: AsyncWrite + Unpin>(
         &mut self,
         frame: ResumeFrame,
         local_write: &mut LW,
-        remote_write: &mut RW,
+        wire: &mut Vec<u8>,
     ) -> Result<(), AssociationRunError> {
         if frame.is_ack() {
             let acknowledgement = frame.sequence();
@@ -865,15 +883,9 @@ impl AssociationCore {
             .inbound
             .acknowledgement()
             .map_err(AssociationRunError::protocol)?;
-        bound_remote(
-            acknowledgement.encode_into_async(remote_write),
-            self.config.stall_timeout,
-        )
-        .await
-        .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
-        bound_remote(remote_write.flush(), self.config.stall_timeout)
-            .await
-            .map_err(|source| AssociationRunError::io(AssociationBoundary::Remote, source))?;
+        acknowledgement
+            .encode_into(wire)
+            .map_err(AssociationRunError::protocol)?;
 
         Ok(())
     }
