@@ -22,7 +22,9 @@ Milestone 0 is a bounded Rust/noq feasibility and exact dependency-pin gate, not
 
 ## Reviewed source snapshots
 
-These exact snapshots were reviewed by 2026-08-30. They are evidence snapshots, not approved dependencies unless the design and licence checks explicitly add them.
+These exact snapshots were reviewed by 2026-08-30, with the transport-resume
+additions below reviewed by 2026-09-02. They are evidence snapshots, not approved
+dependencies unless the design and licence checks explicitly add them.
 
 | Project | Reviewed snapshot | Licence | Use or boundary |
 | --- | --- | --- | --- |
@@ -42,12 +44,34 @@ These exact snapshots were reviewed by 2026-08-30. They are evidence snapshots, 
 | [tsshd](https://github.com/trzsz/tsshd) | `7fe3f454a8446de849b56e6b93fcaa0fd2604fd1` | MIT | Ownership, reconnect, PTY, and hostile-network test ideas; its SSH replacement and output cache are rejected. |
 | [trzsz-ssh](https://github.com/trzsz/trzsz-ssh) | `dca1425cd9c63f342e03706e53f3e3885cee9597` | MIT | Bootstrap and reconnect comparison; terminal filtering, redraw, and input policy are rejected. |
 | [StableSSH](https://github.com/hrntknr/stablessh) | `22318e4fd7736cc89128fb89378ac5ea8574e495` | MIT | Proof of the application acknowledgements, replay queues, and persistent gateway required for hard stream resumption; rejected by design. |
+| [quic-send](https://github.com/maxomatic458/quic-send) | `687bd48f9006a3e7e5235dab1de18e4e27adb014` | MIT | Resumable QUIC transfer and hole-punching evidence; file-transfer state cannot be reused for an opaque SSH byte stream. |
+| [fsend](https://github.com/maxomatic458/fsend) | `7ea94ca910d8ac08f3250c7a34d6b5bce2af1ca0` | MIT | WebRTC/Iroh resumable-transfer comparison; browser storage and transfer-chunk semantics are outside everssh. |
+| [QCP](https://docs.rs/qcp/latest/qcp/) | source `599a0fb07feb93eb3a1f1bb469ccde96435bc7bd`, docs 0.9.0 | AGPL-3.0 | SSH-assisted QUIC bulk-transfer architecture and transport tuning evidence only; licence and one-shot transfer semantics exclude code reuse. |
+| [bitbang](https://github.com/richlegrand/bitbang) | `8db7931e13918713aa100c2aa3f767335eb66d23` | MIT | Trustless-signaling/WebRTC P2P reachability comparison; its URL bearer model and browser-facing framework are not an everssh transport. |
+| [neqo](https://github.com/mozilla/neqo) | `e7ce4aa4bc8b02b6f5457c065c65abc24e43d14d` | MIT OR Apache-2.0 | Alternate Rust QUIC implementation and test-suite evidence; no change to the pinned noq selection. |
+| [p2psh](https://github.com/tovsaa/p2psh) | `6dc884cd427dadfe1e7efb154f8a41510bf7aada` | Apache-2.0 | WebRTC DataChannel SSH-like shell, hybrid post-quantum handshake, signaling privacy, and bounded resume-chain comparison. |
+| [sshx](https://github.com/suutaku/sshx) | `819701ff9fe618cd53cd1980bbef3139330fc7ba` | MIT | Go/pion WebRTC P2P SSH tunnel comparison; signaling and daemon architecture reviewed, not adopted. |
+| [Terminal7](https://github.com/tuzig/terminal7) | `e45109b904449bfe328fb7e99cd097a7760fe8d3` | GPL-3.0-only | Smart-client terminal multiplexer and WebRTC behavior reference only. |
+| [ws-terminal](https://github.com/uditrajput03/ws-terminal) | `b8e1e85439c9d859de6d582aad51db3069cb44b2` | MIT | Outbound WebSocket/PTY reachability comparison; no encryption-by-default or stream-resume contract. |
+| [ws-relay](https://github.com/uditrajput03/ws-relay) | `fe5aa0622bc4f2511d1b0dbb285210c07b018698` | ISC | Simple relay/channel architecture and its trust exposure; not a candidate data plane. |
 | [quic-go](https://github.com/quic-go/quic-go) | `cf0c4ffd0ce6af5172fa59cde9b82ec19b2bf029` | MIT | Historical one-stream and migration API evidence only; it is not an eversh implementation candidate. |
 | [Asupersync](https://github.com/Dicklesworthstone/asupersync) | `289402bcf6746533d98153ca1fcae21333fe6a71` | custom MIT-like licence with OpenAI/Anthropic restriction | Request -> Drain -> Finalize and structured-cancellation reference only; no dependency or copied source. |
 | [ATP](https://github.com/Dicklesworthstone/atp) | distribution `1df65ca1f483418ccdf9c6c977184a83df4df531`; pinned Asupersync `cb87a3546bc7cf5d87ccbcca3a95c74ec3fcdcbd` | custom MIT-like licence with OpenAI/Anthropic restriction | Fountain-coded bulk-transfer and bounded-memory test comparison only; no dependency or protocol reuse. |
 | [Mosh](https://github.com/mobile-shell/mosh) | current product/protocol reference | GPL-3.0-or-later | Roaming and sleep/wake test conditions; terminal state, prediction, and replay are permanent non-goals. |
 | [MoshCatty](https://github.com/binaricat/MoshCatty) | `554b9d305e7ac4b11de740d764bbc3e05f816d7b` | GPL-3.0-or-later | Rust loss/reorder and Mosh interoperability test reference only. |
 | [RoSE](https://github.com/nikhiljha/rose) | `f145dfc383d925d9703d500d24f8f95bf8edcdfd` | GPL-3.0-or-later | Quinn/rustls and hostile-network test comparison only; remote terminal state is excluded. |
+
+## Reviewed transport articles
+
+These articles were reviewed by 2026-09-02 as behavior evidence, not dependency
+approval:
+
+| Article | Use or boundary |
+| --- | --- |
+| [Rust WebRTC without the WebRTC glue](https://archive.casouri.cc/note/2024/rust-webrtc/index.html) | Maps the ICE/DTLS/SCTP layering and cert-fingerprint exchange needed if a future native WebRTC transport is evaluated. |
+| [BitBang: one binary, one URL, zero config](https://hackaday.com/2026/08/03/get-a-remote-terminal-with-one-binary-one-url-and-zero-config/) | Documents browser-facing P2P terminal reachability and trustless-signaling tradeoffs. |
+| [Trickling ICE over SSH](https://terminal7.dev/posts/trickling_ice_over_ssh/) | Shows SSH as an authentication/signaling channel before upgrading a Terminal7 session to WebRTC. |
+| [Replacing WebRTC](https://moq.dev/blog/replacing-webrtc/) | Contrasts WebRTC's P2P/ICE strengths with QUIC/WebTransport and why neither magically provides terminal prediction. |
 
 ## PTY references
 
