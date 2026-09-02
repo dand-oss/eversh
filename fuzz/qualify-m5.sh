@@ -51,6 +51,10 @@ readonly -a FUZZ_TARGETS=(
 )
 readonly -a FUZZ_MAX_LENGTHS=(4096 4096 4096 4096 4096 4096 256 4096)
 readonly -a RELEASE_BINARIES=(everpty everlink eversh)
+# All three release binaries are feature-gated behind their crate's `cli`
+# feature (eversh/cli enables everlink/cli but not everpty/cli), so every
+# release build must enable all three explicitly.
+readonly RELEASE_FEATURES="everpty/cli,everlink/cli,eversh/cli"
 
 COMMAND=run
 JSON_OUTPUT=0
@@ -499,7 +503,8 @@ run_qualification() {
     /usr/bin/rmdir -- "$FUZZ_DIR/artifacts" 2>/dev/null || true
 
     run_logged release-build "$gate_dir/release-build.log" "$ROOT" \
-        "$CARGO" "+$STABLE_TOOLCHAIN" build --release --locked
+        "$CARGO" "+$STABLE_TOOLCHAIN" build --release --locked \
+        --features "$RELEASE_FEATURES"
     for binary_name in "${RELEASE_BINARIES[@]}"; do
         binary_path="$CARGO_TARGET_DIR/release/$binary_name"
         [[ -x $binary_path ]] || fail release-artifact-missing 1 "$gate_dir/release-build.log"
@@ -522,7 +527,8 @@ run_qualification() {
     run_logged release-build-reproducibility \
         "$gate_dir/release-build-reproducibility.log" "$ROOT" \
         "CARGO_TARGET_DIR=$release_b_dir" \
-        "$CARGO" "+$STABLE_TOOLCHAIN" build --release --locked
+        "$CARGO" "+$STABLE_TOOLCHAIN" build --release --locked \
+        --features "$RELEASE_FEATURES"
     for binary_name in "${RELEASE_BINARIES[@]}"; do
         binary_path_b="$release_b_dir/release/$binary_name"
         [[ -x $binary_path_b ]] \
