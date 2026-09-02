@@ -235,6 +235,8 @@ fn direct_children(parent: u32) -> Vec<u32> {
 fn production_proxy_uses_real_roles_and_preserves_both_half_closes() {
     let temp = TempDir::new("proxy-success");
     let capture = temp.0.join("argv");
+    let status_file = temp.0.join("status");
+    fs::write(&status_file, b"").unwrap();
     write_fake_ssh(
         &temp,
         r#"#!/bin/sh
@@ -307,6 +309,8 @@ exec "$EVERLINK_BIN" __bootstrap-parent-v1
             "FAKE_CONN",
             format!("{route_ip} 50000 {route_ip} {target_port}"),
         )
+        .arg("--status-file")
+        .arg(&status_file)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -319,6 +323,13 @@ exec "$EVERLINK_BIN" __bootstrap-parent-v1
     assert!(output.status.success(), "stderr={:?}", output.stderr);
     assert_eq!(output.stdout, downlink);
     assert!(output.stderr.is_empty());
+    // A fully completed exchange — clean SourceEof AND clean drain AND
+    // clean finalize — is the only shape that records `clean-close`, with
+    // bytes having flowed in both directions (design 3, 7).
+    assert_eq!(
+        fs::read_to_string(&status_file).unwrap(),
+        "everlink-status-v1 carrying\neverlink-status-v1 cause clean-close carried=1\n"
+    );
     let argv = fs::read_to_string(capture).unwrap();
     assert_eq!(argv.matches("BEGIN\n").count(), 2);
     assert_eq!(argv.matches("ENV:kept\n").count(), 2);

@@ -22,7 +22,11 @@ pub struct Limits {
 
     // --- supervisor runtime values ---
     /// Maximum reconnect attempts after an established session ends
-    /// unexpectedly (design 7: finite attempts).
+    /// unexpectedly for an ordinary in-episode failure (design 7: finite
+    /// attempts). A Busy reattach does not consume this budget — the
+    /// episode deadline alone bounds the Busy-retry path, because the
+    /// remote writer slot can stay legitimately held far longer than a
+    /// small attempt budget could span.
     pub retry_attempts_max: u32,
     /// First backoff delay in milliseconds.
     pub retry_backoff_base_ms: u64,
@@ -30,6 +34,12 @@ pub struct Limits {
     pub retry_backoff_cap_ms: u64,
     /// Overall reconnect deadline in milliseconds.
     pub retry_deadline_ms: u64,
+    /// Invocation-wide cap on reconnect-episode restarts: a reattach that
+    /// genuinely carried the session before dying again starts a fresh
+    /// episode, but never more than this many times — past the cap the
+    /// invocation ends as a visible ordinary failure instead of looping
+    /// forever on a flapping topology.
+    pub episode_restarts_max: u32,
     /// Cap on captured remote list output bytes.
     pub list_output_max: usize,
     /// Maximum sessions resume-all will launch in one invocation.
@@ -49,6 +59,7 @@ impl Default for Limits {
             retry_backoff_base_ms: 250,
             retry_backoff_cap_ms: 5_000,
             retry_deadline_ms: 60_000,
+            episode_restarts_max: 3,
             list_output_max: 1024 * 1024,
             resume_sessions_max: 64,
         }
@@ -68,6 +79,7 @@ impl Limits {
             || self.retry_backoff_base_ms == 0
             || self.retry_backoff_cap_ms < self.retry_backoff_base_ms
             || self.retry_deadline_ms == 0
+            || self.episode_restarts_max == 0
             || self.list_output_max == 0
             || self.resume_sessions_max == 0
         {

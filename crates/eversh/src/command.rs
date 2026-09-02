@@ -97,10 +97,21 @@ pub fn audit_ssh_option(option: &str) -> Result<(), Error> {
 /// process re-invoked through its everlink role. `%n` preserves the original
 /// destination token and `%p` the effective port, so ssh_config aliases and
 /// port resolution stay authoritative (design 6.4).
+///
+/// `status_file`, when set, is appended as a `--status-file` ARGUMENT for
+/// the local everlink `ssh-proxy` edge (design 3, 7). OpenSSH executes the
+/// ProxyCommand line through the user's local shell, so the path travels in
+/// everlink's own argv — a purely local handoff that no environment-
+/// forwarding policy (`SendEnv`/`AcceptEnv`) can transmit remotely and no
+/// ambient environment value can imitate. It inherits the exact same
+/// single-quote rejection discipline as every other word: quotes, control
+/// bytes (NUL included), and non-UTF-8 are rejected outright, never
+/// escaped.
 pub fn proxy_command(
     self_exe: &str,
     remote_eversh: &str,
     ssh_options: &[String],
+    status_file: Option<&std::path::Path>,
 ) -> Result<String, Error> {
     validate_remote_eversh(remote_eversh)?;
     let mut command = quote_single(self_exe)?;
@@ -113,7 +124,28 @@ pub fn proxy_command(
         command.push_str(" --ssh-option ");
         command.push_str(&quote_single(option)?);
     }
+    if let Some(path) = status_file {
+        let word = path.to_str().ok_or(Error::StatusPathUnsafe)?;
+        command.push_str(" --status-file ");
+        command.push_str(&quote_single(word)?);
+    }
     Ok(command)
+}
+
+/// Whether a local link-status file path can be embedded as the
+/// single-quoted `--status-file` ProxyCommand word: UTF-8, no quotes, no
+/// control bytes (NUL included), and bounded length — the same rejection
+/// discipline as [`validate_self_exe`]. The supervisor's best-effort status
+/// allocation uses this so an unembeddable state root degrades to
+/// uninstrumented spawns (the safe exit-code-only default) instead of
+/// failing a session outright.
+pub fn status_word_safe(path: &std::path::Path) -> bool {
+    path.to_str().is_some_and(|text| {
+        text.len() <= WORD_MAX
+            && !text
+                .chars()
+                .any(|character| character.is_control() || character == '\'')
+    })
 }
 
 /// One remote everpty-role operation (the private versioned remote grammar).

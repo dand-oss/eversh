@@ -45,7 +45,10 @@ fn binary() -> &'static OsStr {
 /// role's stderr would produce into the SAME stream as stdout whenever a
 /// pty was requested (`-t`), exactly like real sshd does, so a test relying
 /// on an in-band-stderr assumption fails here the same way it would against
-/// real OpenSSH.
+/// real OpenSSH. The status path is extracted from the `--status-file`
+/// argument inside the ProxyCommand option value, exactly as the real
+/// everlink edge receives it from its own argv after the local shell splits
+/// the ProxyCommand line — never from the environment.
 ///
 /// Modes: `run` (default) actually execs the remote command, writing
 /// `carrying` before (for non-probe ops) and a terminal `cause clean-close
@@ -61,11 +64,17 @@ fn binary() -> &'static OsStr {
 /// answers a probe `Live` but, for a reattach, writes `carrying` then
 /// `cause transport-failure carried=1`, restores mode `run`, and exits
 /// 255 — a reattach that briefly carried real bytes before dying again.
-/// `busyonce` answers the
-/// FIRST non-probe (reattach) invocation with the real Busy exit code once,
-/// then behaves like `run`; `busypersist` always answers Busy for non-probe
-/// invocations. Every probe-classifying mode answers a probe invocation
-/// `Live` (exit 0) without touching the real broker.
+/// `carriedflap` is the same carried death WITHOUT ever restoring `run` —
+/// a topology that flaps forever, driving the supervisor into its
+/// invocation-wide episode-restart cap. `busyonce` answers the FIRST
+/// non-probe (reattach) invocation with the real Busy exit code once, then
+/// behaves like `run`; `busypersist` always answers Busy for non-probe
+/// invocations; `busyhold` answers Busy for the first
+/// `FAKE_BUSY_HOLD` (default 6) non-probe invocations via a counter file,
+/// then behaves like `run` — simulating a remote writer whose slot is
+/// legitimately held past the old attempt budget and released before the
+/// episode deadline. Every probe-classifying mode answers a probe
+/// invocation `Live` (exit 0) without touching the real broker.
 const FAKE_SSH: &str = r#"#!/bin/sh
 set -u
 stamp=$(date +%s%N)-$$
@@ -88,13 +97,27 @@ for arg in "$@"; do
   if [ "$arg" = probe ]; then is_probe=1; fi
 done
 
+# The per-spawn status path arrives as a --status-file argument inside the
+# ProxyCommand option value (never an environment variable): extract it the
+# same way the real everlink edge receives it after the local shell splits
+# the ProxyCommand line.
+status_file=
+for arg in "$@"; do
+  case "$arg" in
+    ProxyCommand=*" --status-file '"*)
+      rest=${arg#*" --status-file '"}
+      status_file=${rest%%"'"*}
+      ;;
+  esac
+done
+
 status_carrying() {
-  [ -n "${EVERSH_LINK_STATUS_FILE:-}" ] || return 0
-  printf 'everlink-status-v1 carrying\n' >> "$EVERSH_LINK_STATUS_FILE" 2>/dev/null || true
+  [ -n "$status_file" ] || return 0
+  printf 'everlink-status-v1 carrying\n' >> "$status_file" 2>/dev/null || true
 }
 status_cause() {
-  [ -n "${EVERSH_LINK_STATUS_FILE:-}" ] || return 0
-  printf 'everlink-status-v1 cause %s carried=%s\n' "$1" "$2" >> "$EVERSH_LINK_STATUS_FILE" 2>/dev/null || true
+  [ -n "$status_file" ] || return 0
+  printf 'everlink-status-v1 cause %s carried=%s\n' "$1" "$2" >> "$status_file" 2>/dev/null || true
 }
 
 mode=run
@@ -111,25 +134,38 @@ if [ "$mode" = hangreattach ]; then
   if [ "$is_probe" -eq 1 ]; then exit 0; fi
   exec sleep 600
 fi
-if [ "$mode" = carrieddeath ]; then
+if [ "$mode" = carrieddeath ] || [ "$mode" = carriedflap ]; then
   if [ "$is_probe" -eq 1 ]; then exit 0; fi
   status_carrying
   status_cause transport-failure 1
   # The dying reattach itself restores the `run` phase so the restarted
   # episode's probe/reattach is real — again strictly before the
-  # supervisor can observe this exit.
-  printf %s run > "$FAKE_SSH_MODE_FILE" 2>/dev/null || true
+  # supervisor can observe this exit. carriedflap deliberately never
+  # restores it: every later reattach dies the same carried death.
+  if [ "$mode" = carrieddeath ]; then
+    printf %s run > "$FAKE_SSH_MODE_FILE" 2>/dev/null || true
+  fi
   exit 255
 fi
-if [ "$mode" = busyonce ] || [ "$mode" = busypersist ]; then
+if [ "$mode" = busyonce ] || [ "$mode" = busypersist ] || [ "$mode" = busyhold ]; then
   if [ "$is_probe" -eq 1 ]; then exit 0; fi
   if [ "$mode" = busypersist ]; then exit 3; fi
   marker="$FAKE_CAPTURE_DIR/.busyonce-used"
-  if [ ! -f "$marker" ]; then
+  if [ "$mode" = busyonce ] && [ ! -f "$marker" ]; then
     : > "$marker"
     exit 3
   fi
-  # marker already consumed: fall through to a real reattach exec below.
+  if [ "$mode" = busyhold ]; then
+    count_file="$FAKE_CAPTURE_DIR/.busyhold-count"
+    n=0
+    [ -f "$count_file" ] && n=$(cat "$count_file")
+    n=$((n+1))
+    printf %s "$n" > "$count_file"
+    hold=${FAKE_BUSY_HOLD:-6}
+    if [ "$n" -le "$hold" ]; then exit 3; fi
+  fi
+  # Budget consumed (or marker already used): fall through to a real
+  # reattach exec below.
 fi
 
 # mode=run, or busyonce's post-marker fallthrough: a real invocation.
@@ -450,6 +486,18 @@ struct PtySession {
 }
 
 fn spawn_interactive(fixture: &Fixture, label: &str, args: &[&str]) -> PtySession {
+    spawn_interactive_env(fixture, label, args, &[])
+}
+
+/// [`spawn_interactive`] with extra environment entries for the spawned
+/// eversh process (used to preset fake-ssh scenario controls such as
+/// `FAKE_SSH_NEXT_MODE`).
+fn spawn_interactive_env(
+    fixture: &Fixture,
+    label: &str,
+    args: &[&str],
+    extra_env: &[(&str, &str)],
+) -> PtySession {
     let (master, slave) = sys::openpty(24, 80).unwrap();
     let stdin = slave.try_clone().unwrap();
     let stderr_path = fixture.base.join(format!("{label}.stderr"));
@@ -461,6 +509,9 @@ fn spawn_interactive(fixture: &Fixture, label: &str, args: &[&str]) -> PtySessio
         .stdout(Stdio::from(File::from(slave)))
         .stderr(Stdio::from(stderr))
         .args(args);
+    for (key, value) in extra_env {
+        command.env(key, value);
+    }
     let child = command.spawn().unwrap();
     let master = File::from(master);
     sys::set_nonblocking(master.as_fd()).unwrap();
@@ -596,19 +647,22 @@ fn transport_failure_reattaches_same_session_without_replay() {
     assert!(stderr.contains("probing session 'work'"), "{stderr}");
     assert!(stderr.contains("reattaching session 'work'"), "{stderr}");
 
-    // Every structured invocation (attach-or-create, probe, attach) carries
-    // the local link-status env var (design 3, 7).
-    for name in [
-        &captures[0].0,
-        &captures[captures.len() - 2].0,
-        &captures[captures.len() - 1].0,
-    ] {
+    // Every structured invocation (attach-or-create, probe, attach) embeds
+    // its own per-spawn status path as a --status-file ProxyCommand argument
+    // (design 3, 7) — and none carries it as an environment variable.
+    for index in [0, captures.len() - 2, captures.len() - 1] {
+        let (name, argv) = &captures[index];
+        assert!(
+            argv[1].contains(" --status-file '"),
+            "{name} must embed the status path as a ProxyCommand argument: {}",
+            argv[1]
+        );
         let env = fixture.env_for(name);
         assert!(
-            env.iter().any(|entry| {
-                String::from_utf8_lossy(entry).starts_with("EVERSH_LINK_STATUS_FILE=")
+            env.iter().all(|entry| {
+                !String::from_utf8_lossy(entry).starts_with("EVERSH_LINK_STATUS_FILE=")
             }),
-            "{name} must carry the link-status env var"
+            "{name} must never carry a link-status environment variable"
         );
     }
 
@@ -691,6 +745,11 @@ fn auth_failure_before_establishment_is_not_retried() {
     );
     let stderr = fs::read_to_string(&session.stderr_path).unwrap();
     assert!(!stderr.contains("probing"), "{stderr}");
+    // The deterministic pre-bridge diagnostic the real-OpenSSH gate greps.
+    assert!(
+        stderr.contains("ssh reported failure with the transport intact"),
+        "pre-bridge failure diagnostic missing: {stderr}"
+    );
 }
 
 #[test]
@@ -1033,18 +1092,24 @@ fn reattach_busy_once_is_retried_within_the_episode() {
     );
 }
 
-#[test]
-fn reattach_busy_persisting_exhausts_and_never_escalates() {
+/// Common setup for the library-level busy-retry workers: establish a real
+/// broker+child, detach it (the broker and child persist, writerless), and
+/// leave the fake-ssh controls pointed at this process's environment so the
+/// library-driven `attach()` below sees them.
+fn busy_retry_setup(label: &str, name: &str) -> Fixture {
     let fixture = Fixture::new();
     fixture.set_mode("run");
-    let mut session = spawn_interactive(
+    std::env::set_var("EVERSH_STATE_DIR", &fixture.state);
+    std::env::set_var("FAKE_CAPTURE_DIR", &fixture.capture);
+    std::env::set_var("FAKE_SSH_MODE_FILE", &fixture.mode_file);
+    let mut setup = spawn_interactive(
         &fixture,
-        "busypersist",
+        label,
         &[
             "connect",
             "testhost",
             "--session",
-            "bzp1",
+            name,
             "--",
             "/bin/sh",
             "-c",
@@ -1053,41 +1118,121 @@ fn reattach_busy_persisting_exhausts_and_never_escalates() {
     );
     let mut seen = Vec::new();
     read_until(
-        &mut session.master,
+        &mut setup.master,
         &mut seen,
-        b"T:1\r",
-        "busypersist ready",
+        b"READY",
+        &format!("{label} ready"),
     );
-    let before = fixture.captures("ssh").len();
+    let detached = fixture
+        .command()
+        .args(["detach", "testhost", name])
+        .output()
+        .unwrap();
+    assert_eq!(
+        detached.status.code(),
+        Some(0),
+        "{label} setup detach failed: {}",
+        String::from_utf8_lossy(&detached.stderr)
+    );
+    let status = wait_bounded(&mut setup.child, &format!("{label} setup after detach"));
+    assert_eq!(
+        status.code(),
+        Some(1),
+        "{label} setup stderr: {}",
+        fs::read_to_string(&setup.stderr_path).unwrap()
+    );
+    fixture
+}
 
-    let ssh_pid = fixture.newest_ssh_pid();
-    send_signal(ssh_pid, "-USR1");
-    let gone_deadline = Instant::now() + Duration::from_secs(5);
-    while std::path::Path::new(&format!("/proc/{ssh_pid}")).exists() {
-        assert!(Instant::now() < gone_deadline, "fake ssh survived SIGUSR1");
-        std::thread::sleep(Duration::from_millis(2));
+/// Kill the library call's own first (established) ssh spawn and switch the
+/// fakes to `mode` for every later invocation.
+fn kill_first_spawn_and_set_mode(fixture: &Fixture, before: usize, mode: &str) {
+    let seen_deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        if fixture.ssh_pid_files().len() > before {
+            break;
+        }
+        assert!(
+            Instant::now() < seen_deadline,
+            "attach() never invoked ssh; captures: {:?}",
+            fixture.captures("ssh")
+        );
+        std::thread::sleep(Duration::from_millis(5));
     }
-    // Every reattach persistently reports Busy; probes stay Live.
-    fixture.set_mode("busypersist");
-
-    let status = wait_bounded(&mut session.child, "busypersist exhaustion");
-    assert_eq!(status.code(), Some(255));
-    let stderr = fs::read_to_string(&session.stderr_path).unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    let ssh_pid = fixture.newest_ssh_pid();
     assert!(
-        stderr.contains("busy"),
-        "exhaustion must report the busy diagnostic: {stderr}"
+        std::path::Path::new(&format!("/proc/{ssh_pid}")).exists(),
+        "the established attach() ssh process (pid {ssh_pid}) already exited"
+    );
+    send_signal(ssh_pid, "-USR1");
+    fixture.set_mode(mode);
+}
+
+#[test]
+fn reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating() {
+    if is_isolated_worker("reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating")
+    {
+        reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating_worker();
+        return;
+    }
+    run_isolated("reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating");
+}
+
+fn reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating_worker() {
+    // Finding 1: a reattach that persistently reports Busy is retried
+    // against the episode's OWN deadline, never the attempt budget and
+    // never `--take-over` — so the busy streak must run PAST the old
+    // attempt budget (5) before the deadline ends it.
+    let fixture = busy_retry_setup("busypersist", "bzp1");
+    let _stdin_guard = BlockingStdin::install();
+
+    let limits = eversh::Limits {
+        retry_deadline_ms: 5_000,
+        retry_backoff_base_ms: 50,
+        retry_backoff_cap_ms: 100,
+        ..eversh::Limits::default()
+    };
+    let config = library_config(&fixture, limits);
+    let before = fixture.ssh_pid_files().len();
+
+    let handle = std::thread::spawn(move || {
+        let mut notifier = SilentNotifier;
+        eversh::supervisor::attach(&config, "testhost", "bzp1", false, &[], &mut notifier)
+    });
+    kill_first_spawn_and_set_mode(&fixture, before, "busypersist");
+
+    let start = Instant::now();
+    let result = handle.join().unwrap();
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < Duration::from_secs(10),
+        "deadline not enforced promptly: {elapsed:?}"
+    );
+    assert_eq!(
+        result.unwrap(),
+        SessionEnd::TransportFailed(TransportFailure::Busy)
     );
 
-    // Never escalated to take_over on any attach retry.
+    // The busy streak ran past the old attempt budget before the deadline
+    // bound it, and no attach ever escalated to take_over.
     let mut all = fixture.captures("ssh");
     let after = all.split_off(before);
+    let probes = after
+        .iter()
+        .filter(|(_, argv)| argv.contains(&"probe".to_owned()))
+        .count();
+    let attaches = after
+        .iter()
+        .filter(|(_, argv)| {
+            argv.contains(&"attach".to_owned()) && !argv.contains(&"attach-or-create".to_owned())
+        })
+        .count();
     assert!(
-        after
-            .iter()
-            .any(|(_, argv)| argv.contains(&"attach".to_owned())
-                && !argv.contains(&"attach-or-create".to_owned())),
-        "expected at least one busy-retried attach: {after:?}"
+        probes > 5,
+        "busy retries must not be attempt-capped: {after:?}"
     );
+    assert!(attaches > 5, "{after:?}");
     for request in attach_requests(&after) {
         assert!(
             !request.take_over,
@@ -1095,8 +1240,7 @@ fn reattach_busy_persisting_exhausts_and_never_escalates() {
         );
     }
 
-    // Cleanup: the broker (and its writer, still holding the session)
-    // persist; kill it directly.
+    // Cleanup: the broker persists; kill it directly.
     fixture.set_mode("run");
     let killed = fixture
         .command()
@@ -1104,6 +1248,116 @@ fn reattach_busy_persisting_exhausts_and_never_escalates() {
         .output()
         .unwrap();
     assert_eq!(killed.status.code(), Some(0));
+}
+
+#[test]
+fn busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases() {
+    if is_isolated_worker("busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases")
+    {
+        busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases_worker();
+        return;
+    }
+    run_isolated("busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases");
+}
+
+fn busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases_worker() {
+    // Finding 1, the S3 shape: after a path death the remote writer slot is
+    // legitimately held for a long window (everlink's idle timeout), so a
+    // reattach keeps reporting Busy. With the deadline governing the busy
+    // path, the supervisor must still be reattaching WELL past the old
+    // 5-attempt budget when the slot finally releases — and then succeed,
+    // on the same local process, without ever taking over.
+    let fixture = busy_retry_setup("busyhold", "bzh1");
+    std::env::set_var("FAKE_BUSY_HOLD", "9");
+    let _stdin_guard = BlockingStdin::install();
+
+    let limits = eversh::Limits {
+        // Generous deadline: the release must land well inside it.
+        retry_deadline_ms: 30_000,
+        retry_backoff_base_ms: 50,
+        retry_backoff_cap_ms: 100,
+        ..eversh::Limits::default()
+    };
+    let config = library_config(&fixture, limits);
+    let before = fixture.ssh_pid_files().len();
+
+    let handle = std::thread::spawn(move || {
+        let mut notifier = SilentNotifier;
+        eversh::supervisor::attach(&config, "testhost", "bzh1", false, &[], &mut notifier)
+    });
+    kill_first_spawn_and_set_mode(&fixture, before, "busyhold");
+
+    let start = Instant::now();
+    // The post-hold REAL reattach is the 11th attach-type spawn (1 first
+    // spawn + 9 busy). Wait for it, then give it the same 300ms
+    // establishment margin the restart test uses before terminating the
+    // session, so the child's TERM-trap exit code is delivered through the
+    // reattached writer.
+    let reattach_deadline = Instant::now() + Duration::from_secs(25);
+    loop {
+        let mut all = fixture.captures("ssh");
+        let attach_spawns = all
+            .split_off(before)
+            .iter()
+            .filter(|(_, argv)| {
+                argv.contains(&"attach".to_owned())
+                    && !argv.contains(&"attach-or-create".to_owned())
+            })
+            .count();
+        if attach_spawns >= 11 {
+            break;
+        }
+        assert!(
+            Instant::now() < reattach_deadline,
+            "busy retries never spanned the hold: {:?}",
+            fixture.captures("ssh")
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    std::thread::sleep(Duration::from_millis(300));
+    let killed = fixture
+        .command()
+        .args(["__everpty", "v1", "kill", "bzh1"])
+        .output()
+        .unwrap();
+    assert_eq!(killed.status.code(), Some(0));
+
+    let result = handle.join().unwrap();
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < Duration::from_secs(25),
+        "reattach did not settle promptly: {elapsed:?}"
+    );
+    assert_eq!(
+        result.unwrap(),
+        SessionEnd::Remote(41),
+        "the post-hold reattach must deliver the child's exit status"
+    );
+
+    // Nine busy reattaches ran first — four more than the old attempt
+    // budget ever allowed — then the tenth reattached for real. (The
+    // initial attach() spawn is itself one attach invocation, so: 1 first
+    // spawn + 9 busy + 1 real = 11 attaches against 10 probes.)
+    let mut all = fixture.captures("ssh");
+    let after = all.split_off(before);
+    let probes = after
+        .iter()
+        .filter(|(_, argv)| argv.contains(&"probe".to_owned()))
+        .count();
+    let attaches = after
+        .iter()
+        .filter(|(_, argv)| {
+            argv.contains(&"attach".to_owned()) && !argv.contains(&"attach-or-create".to_owned())
+        })
+        .count();
+    assert_eq!(probes, 10, "{after:?}");
+    assert_eq!(
+        attaches, 11,
+        "1 first spawn + 9 busy reattaches + 1 real reattach: {after:?}"
+    );
+    for request in attach_requests(&after) {
+        assert!(!request.take_over, "busy retry must never escalate");
+    }
 }
 
 #[test]
@@ -1911,7 +2165,88 @@ fn episode_restarts_after_a_carrying_reattach_dies_again_worker() {
 }
 
 #[test]
-fn link_status_env_present_on_structured_ops_and_absent_on_raw_ssh() {
+fn episode_restart_cap_bounds_flapping_reconnects() {
+    // Finding 1: carried-death episode restarts are capped invocation-wide.
+    // A topology whose every reattach briefly carries and then dies again
+    // (banner-only flapping) must end as a visible ordinary failure after
+    // the cap, never loop forever. Defaults: episode_restarts_max=3, so
+    // exactly four carried-death reattaches run (three restarts allowed,
+    // the fourth refused).
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let mut session = spawn_interactive_env(
+        &fixture,
+        "flap",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "flap1",
+            "--",
+            "/bin/sh",
+            "-c",
+            TICK_SCRIPT,
+        ],
+        // The USR1-killed transport publishes the flapping phase from inside
+        // its own trap, strictly before the supervisor can observe the exit.
+        &[("FAKE_SSH_NEXT_MODE", "carriedflap")],
+    );
+    let mut seen = Vec::new();
+    read_until(&mut session.master, &mut seen, b"T:1\r", "flap ready");
+    let before = fixture.captures("ssh").len();
+
+    let ssh_pid = fixture.newest_ssh_pid();
+    send_signal(ssh_pid, "-USR1");
+
+    let status = wait_bounded(&mut session.child, "flap exhaustion");
+    assert_eq!(status.code(), Some(255));
+    let stderr = fs::read_to_string(&session.stderr_path).unwrap();
+    assert!(
+        stderr.contains("episode restart"),
+        "restart-cap failure must be visible: {stderr}"
+    );
+
+    // Exactly four probe+reattach cycles after the initial death — bounded,
+    // not infinite — and never a takeover.
+    let mut all = fixture.captures("ssh");
+    let after = all.split_off(before);
+    let probes = after
+        .iter()
+        .filter(|(_, argv)| argv.contains(&"probe".to_owned()))
+        .count();
+    let reattaches = after
+        .iter()
+        .filter(|(_, argv)| {
+            argv.contains(&"attach".to_owned()) && !argv.contains(&"attach-or-create".to_owned())
+        })
+        .count();
+    assert_eq!(probes, 4, "{after:?}");
+    assert_eq!(reattaches, 4, "{after:?}");
+    for request in attach_requests(&after) {
+        assert!(
+            !request.take_over,
+            "a flapping reconnect must never escalate to take_over"
+        );
+    }
+
+    // Cleanup: the broker and child persist (no writer ever reattached);
+    // kill directly.
+    fixture.set_mode("run");
+    let killed = fixture
+        .command()
+        .args(["__everpty", "v1", "kill", "flap1"])
+        .output()
+        .unwrap();
+    assert_eq!(killed.status.code(), Some(0));
+}
+
+#[test]
+fn status_file_argument_on_structured_ops_only_never_raw_ssh_or_env() {
+    // Finding 4: the status path travels as a --status-file ProxyCommand
+    // ARGUMENT for structured interactive operations and probes only. Raw
+    // `eversh ssh` never carries it, and NO invocation ever carries (or
+    // honors) a link-status environment variable — the env handoff no
+    // longer exists.
     let fixture = Fixture::new();
     fixture.set_mode("run");
     let mut session = spawn_interactive(
@@ -1932,15 +2267,22 @@ fn link_status_env_present_on_structured_ops_and_absent_on_raw_ssh() {
     assert_eq!(status.code(), Some(0));
     let structured = fixture.captures("ssh");
     assert_eq!(structured.len(), 1);
-    let structured_env = fixture.env_for(&structured[0].0);
+    let (name, argv) = &structured[0];
     assert!(
-        structured_env
-            .iter()
-            .any(|entry| String::from_utf8_lossy(entry).starts_with("EVERSH_LINK_STATUS_FILE=")),
-        "structured op must carry the link-status env var"
+        argv[1].contains(" --status-file '"),
+        "{name} must embed the status path as a ProxyCommand argument: {}",
+        argv[1]
+    );
+    let structured_env = fixture.env_for(name);
+    assert!(
+        structured_env.iter().all(|entry| {
+            !String::from_utf8_lossy(entry).starts_with("EVERSH_LINK_STATUS_FILE=")
+        }),
+        "no invocation may carry a link-status environment variable"
     );
 
-    // Raw ssh never sets it, even though it shares the same outer machinery.
+    // Raw ssh never passes it, even though it shares the same outer
+    // machinery.
     fixture.set_mode("fail255");
     let output = fixture
         .command()
@@ -1950,15 +2292,13 @@ fn link_status_env_present_on_structured_ops_and_absent_on_raw_ssh() {
     assert_eq!(output.status.code(), Some(255));
     let mut all = fixture.captures("ssh");
     let raw = all.pop().unwrap();
-    let raw_env = fixture.env_for(&raw.0);
     assert!(
-        raw_env.iter().all(|entry| {
-            !String::from_utf8_lossy(entry).starts_with("EVERSH_LINK_STATUS_FILE=")
-        }),
-        "raw ssh must never carry the link-status env var"
+        !raw.1[1].contains("--status-file"),
+        "raw ssh must never carry a status file: {}",
+        raw.1[1]
     );
 
-    // The private root the env var points into stays 0700 (design 3, 7).
+    // The private root the argument points into stays 0700 (design 3, 7).
     let link_status_dir = fixture.state.join("link-status");
     let mode = fs::metadata(&link_status_dir).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o700, "link-status directory must stay private");

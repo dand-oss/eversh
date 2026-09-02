@@ -16,22 +16,26 @@
 //! remote command happened to exit 255 itself. Resolving that ambiguity
 //! does not need a remote-side channel: for every structured interactive
 //! operation and every probe, eversh creates a private per-spawn file under
-//! its own state root (a `0700` directory, `0600` files) and points the
-//! outer `ssh` child at it via [`everlink::link_status::STATUS_FILE_ENV`] —
-//! OpenSSH passes its own process environment to the ProxyCommand it
-//! launches, so the local everlink `ssh-proxy` edge inherits the variable
-//! directly. Raw `eversh ssh` never sets it and stays fully inherited and
-//! uninstrumented (design 7: it is never retried, so there is nothing to
-//! classify).
+//! its own state root (a `0700` directory, `0600` files) and passes its
+//! path to the local everlink `ssh-proxy` edge as a `--status-file`
+//! ProxyCommand ARGUMENT. OpenSSH executes the ProxyCommand line through
+//! the user's local shell, so the path arrives in everlink's own argv: no
+//! environment variable exists, no `SendEnv`/`AcceptEnv` policy can forward
+//! one remotely, and no ambient value can instrument a spawn that was not
+//! given the argument. Raw `eversh ssh` never passes it and stays fully
+//! inherited and uninstrumented (design 7: it is never retried, so there is
+//! nothing to classify).
 //!
 //! everlink appends two kinds of versioned line to that file: `carrying`,
 //! written once as soon as the QUIC stream first delivers a byte
 //! originating from the remote peer (a genuine round trip — the remote
 //! sshd's own banner proves it), and a terminal `cause <word>
-//! carried=<0|1>` line on every exit path, mapping its own M3 terminal
-//! cause to exactly two classes (`clean-close` for a graceful completed
-//! exchange, `transport-failure` for everything else) and recording whether
-//! application bytes ever flowed in both directions.
+//! carried=<0|1>` line on every exit path, mapping its own terminal
+//! evidence to exactly two classes — `clean-close` only for a graceful
+//! `SourceEof` whose Drain AND Finalize both completed cleanly (plus every
+//! pre-bridge failure: an ordinary failure with nothing carried), and
+//! `transport-failure` for everything else — recording whether application
+//! bytes ever flowed in both directions.
 //!
 //! ## Classification (findings 1, 2)
 //!
@@ -49,26 +53,39 @@
 //! bounded probe is always safer than silently skipping a retry a live
 //! session still needed.
 //!
-//! ## Reconnect contract (design 7, finding 3)
+//! ## Reconnect contract (design 7, findings 3)
 //!
 //! After an established named connect, attach, or observe ends unexpectedly
 //! with a transport-failure (or unparseable) 255, a fresh authenticated
 //! bootstrap probes whether the same broker is alive. Retries reattach the
 //! SAME session with plain `attach` — a missing or exited broker is never
-//! restarted, so no application work is duplicated — under finite attempts,
-//! bounded exponential backoff with jitter, and an overall
-//! `retry_deadline_ms` deadline that bounds the WHOLE episode: a reattach
-//! spawn is deadline-bounded only until its status file shows `carrying`
-//! (or any terminal record has already arrived) — a hung probe or a
+//! restarted, so no application work is duplicated — under bounded
+//! exponential backoff with jitter and an overall `retry_deadline_ms`
+//! deadline that bounds the WHOLE episode: a reattach spawn is
+//! deadline-bounded only until its status file shows `carrying` (or any
+//! terminal record has already arrived) — a hung probe or a
 //! not-yet-carrying reattach is killed and reaped at the remaining
 //! deadline, with termios restored first — after which the wait is
-//! unbounded, exactly like any live session. A later reattach whose OWN
-//! status file shows `carried=1` before it dies again starts a FRESH
-//! episode with fresh attempt/deadline budgets; `carried=0` deaths continue
-//! the same episode's budget. A reattach reporting Busy (a writer is
-//! already attached — the dead transport's old writer slot may not have
-//! been revoked yet) is retried within the SAME episode's budget too, never
-//! escalated to `--take-over`.
+//! unbounded, exactly like any live session.
+//!
+//! A reattach reporting Busy (a writer is already attached) is retried
+//! against the episode's OWN deadline, never the attempt budget and never
+//! `--take-over`: after a path death the remote writer slot can stay
+//! legitimately held for up to everlink's idle timeout (~30s), because the
+//! remote bridge only learns of the loss when its QUIC endpoint expires —
+//! a small attempt count would give up long before the broker could
+//! possibly revoke the slot. Other in-episode failures (an unreachable
+//! host, a reattach that dies again without carrying) keep the finite
+//! attempt budget: they give up fast by design rather than hammering a
+//! down host.
+//!
+//! A later reattach whose OWN status file shows `carried=1` before it dies
+//! again starts a FRESH episode with fresh attempt/deadline budgets, and
+//! `carried=0` deaths continue the same episode's budget — but episode
+//! restarts are capped invocation-wide (`episode_restarts_max`): a
+//! topology that repeatedly delivers a carrying session and then kills it
+//! ends as a visible ordinary failure once the cap is reached, never a
+//! silent infinite loop.
 //!
 //! Because every spawn stays fully inherited (no piped descriptor to await
 //! EOF on), a deadline-triggered kill of the direct `ssh` child is always
@@ -85,7 +102,7 @@
 #![cfg(unix)]
 
 use crate::command::{
-    kitty_launch_args, outer_ssh_args, proxy_command, raw_ssh_args, remote_words,
+    kitty_launch_args, outer_ssh_args, proxy_command, raw_ssh_args, remote_words, status_word_safe,
     validate_self_exe, RemoteOp,
 };
 use crate::error::Error;
@@ -162,10 +179,14 @@ pub enum TransportFailure {
     /// A probe was terminated locally.
     ProbeSignaled(i32),
     /// Every retry within the episode kept finding the session reported
-    /// Busy (a writer is already attached) until the attempt budget or
-    /// deadline ran out. Never escalated to `--take-over`: a legitimately
-    /// attached new writer must not be stolen.
+    /// Busy (a writer is already attached) until the episode deadline ran
+    /// out. Never escalated to `--take-over`: a legitimately attached new
+    /// writer must not be stolen.
     Busy,
+    /// The invocation-wide episode-restart cap was exhausted: transports
+    /// kept dying after genuinely carrying the session. A visible, ordinary
+    /// failure — the episode loop never continues silently past the cap.
+    RestartsExhausted,
 }
 
 /// The supervised outcome of a session-carrying invocation.
@@ -229,10 +250,15 @@ pub enum Event<'a> {
     /// SSH failed with the transport intact (finding 1).
     SshFailed,
     /// A reattach found the session Busy; retried within the same episode's
-    /// budget rather than escalating to `--take-over`.
+    /// deadline budget rather than escalating to `--take-over`.
     ReattachBusy {
         name: &'a str,
         attempt: u32,
+    },
+    /// The invocation-wide episode-restart cap was reached: carried-death
+    /// restarts stop here as a visible, ordinary failure.
+    EpisodeRestartsExhausted {
+        restarts: u32,
     },
 }
 
@@ -247,9 +273,17 @@ impl Notifier for SilentNotifier {
     fn notify(&mut self, _event: Event<'_>) {}
 }
 
-fn proxy_for(config: &Config, ssh_options: &[String]) -> Result<String, Error> {
+/// Build the ProxyCommand for one spawn. `status_file`, when set, is the
+/// same per-spawn link-status file the spawn's ssh child is classified
+/// through: the path travels to the local everlink edge as a ProxyCommand
+/// argument (never an environment variable — see the module header).
+fn proxy_for(
+    config: &Config,
+    ssh_options: &[String],
+    status_file: Option<&Path>,
+) -> Result<String, Error> {
     let self_exe = validate_self_exe(&config.self_exe)?;
-    proxy_command(self_exe, &config.remote_eversh, ssh_options)
+    proxy_command(self_exe, &config.remote_eversh, ssh_options, status_file)
 }
 
 fn spawn_inherited(config: &Config, args: &[OsString]) -> Result<ExitKind, Error> {
@@ -302,11 +336,11 @@ fn wait_bounded_child(child: &mut Child, deadline: Instant) -> Result<BoundedExi
     }
 }
 
-/// `status_path`, when set, points a probe's outer ssh child at its own
-/// link-status file (design 3, 7); the file is removed before returning
-/// regardless of outcome. Probe classification itself is exit-code-only —
-/// see [`probe`] — the file exists here mainly for parity/diagnostic value
-/// with structured interactive spawns.
+/// `status_path`, when set, is the probe's own link-status file (design 3,
+/// 7), already embedded in the ProxyCommand inside `args`; the file is
+/// removed before returning regardless of outcome. Probe classification
+/// itself is exit-code-only — see [`probe`] — the file exists here mainly
+/// for parity/diagnostic value with structured interactive spawns.
 fn spawn_quiet_bounded(
     config: &Config,
     args: &[OsString],
@@ -318,9 +352,6 @@ fn spawn_quiet_bounded(
         .args(args)
         .stdin(Stdio::null())
         .stdout(Stdio::null());
-    if let Some(path) = status_path {
-        command.env(link_status::STATUS_FILE_ENV, path);
-    }
     let mut child = command.spawn()?;
     let outcome = wait_bounded_child(&mut child, deadline)?;
     if let Some(path) = status_path {
@@ -420,10 +451,12 @@ fn link_status_settled(path: &Path) -> bool {
 /// Allocate one fresh per-spawn link-status file (design 3, 7): a `0700`
 /// directory under [`Config::link_status_root`] and one `0600` file with a
 /// process-id/timestamp/counter name, created exclusively so a collision is
-/// a hard failure rather than a silently reused stale file. Best-effort:
-/// any failure (no root resolved, permissions, disk full, ...) simply
-/// yields `None`, and every caller already treats "no status file" as a
-/// safe fallback.
+/// a hard failure rather than a silently reused stale file. The path must
+/// also embed as the single-quoted `--status-file` ProxyCommand word, so an
+/// unembeddable state root (non-UTF-8, quotes, control bytes) skips
+/// instrumentation here. Best-effort: any failure (no root resolved,
+/// permissions, disk full, ...) simply yields `None`, and every caller
+/// already treats "no status file" as a safe fallback.
 fn allocate_status_file(config: &Config) -> Option<PathBuf> {
     let root = config.link_status_root.as_ref()?;
     let dir = root.join("link-status");
@@ -437,6 +470,9 @@ fn allocate_status_file(config: &Config) -> Option<PathBuf> {
     builder.recursive(true).mode(0o700);
     builder.create(&dir).ok()?;
     let path = dir.join(unique_status_name());
+    if !status_word_safe(&path) {
+        return None;
+    }
     std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -471,9 +507,10 @@ enum StatusSpawn {
 /// (attach-or-create, attach, observe — never raw ssh, which stays fully
 /// inherited and uninstrumented). stdin/stdout/stderr remain FULLY
 /// inherited for the live terminal path (design 7) — classification comes
-/// entirely from the local out-of-band link-status file, never a piped
-/// descriptor, so a deadline-triggered kill of the direct child is always
-/// bounded regardless of any surviving descendant.
+/// entirely from the local out-of-band link-status file (whose path is
+/// already embedded in the ProxyCommand argument inside `args`), never a
+/// piped descriptor, so a deadline-triggered kill of the direct child is
+/// always bounded regardless of any surviving descendant.
 ///
 /// `deadline`, when set, bounds the wait ONLY until the status file shows
 /// `carrying` (or a terminal record has already arrived): a hung
@@ -497,9 +534,6 @@ fn spawn_link_tracked(
     };
     let mut command = Command::new(&config.ssh_program);
     command.args(args);
-    if let Some(path) = status_path {
-        command.env(link_status::STATUS_FILE_ENV, path);
-    }
     let mut child = command.spawn()?;
 
     if let Some(deadline) = deadline {
@@ -603,14 +637,14 @@ fn probe(
     ssh_options: &[String],
     deadline: Instant,
 ) -> Result<ProbeStatus, Error> {
-    let proxy = proxy_for(config, ssh_options)?;
+    let status_path = allocate_status_file(config);
+    let proxy = proxy_for(config, ssh_options, status_path.as_deref())?;
     let words = remote_words(
         &config.remote_eversh,
         &RemoteOp::Probe { name },
         &config.limits,
     )?;
     let args = outer_ssh_args(&proxy, ssh_options, host, &words, false)?;
-    let status_path = allocate_status_file(config);
     Ok(
         match spawn_quiet_bounded(config, &args, status_path.as_deref(), deadline)? {
             BoundedExit::DeadlineExceeded => ProbeStatus::DeadlineExceeded,
@@ -681,11 +715,11 @@ fn run_with_reconnect(
 ) -> Result<SessionEnd, Error> {
     config.limits.validate()?;
     validate_host(run.host)?;
-    let proxy = proxy_for(config, run.ssh_options)?;
+    let status_path = allocate_status_file(config);
+    let proxy = proxy_for(config, run.ssh_options, status_path.as_deref())?;
     let words = remote_words(&config.remote_eversh, &first_op, &config.limits)?;
     let interactive = first_op.interactive();
     let args = outer_ssh_args(&proxy, run.ssh_options, run.host, &words, interactive)?;
-    let status_path = allocate_status_file(config);
     // The very first spawn of an invocation is never part of a bounded
     // reconnect episode: it runs unbounded, exactly like an already-carrying
     // session (design 7).
@@ -708,11 +742,25 @@ fn run_with_reconnect(
     // TransportAfterFailure: enter the reconnect episode. A later
     // carried-then-255 reattach starts a FRESH episode with fresh
     // attempt/deadline budgets (finding 3), so this loops rather than
-    // recursing.
+    // recursing — but restarts are capped invocation-wide: a topology that
+    // keeps delivering a carrying session and then killing it ends as a
+    // visible ordinary failure once `episode_restarts_max` is reached,
+    // never a silent infinite loop.
+    let mut restarts: u32 = 0;
     loop {
         match reconnect(config, run, notifier)? {
             ReconnectOutcome::Terminal(end) => return Ok(end),
-            ReconnectOutcome::RestartEpisode => continue,
+            ReconnectOutcome::RestartEpisode => {
+                restarts += 1;
+                if restarts > config.limits.episode_restarts_max {
+                    notifier.notify(Event::EpisodeRestartsExhausted {
+                        restarts: config.limits.episode_restarts_max,
+                    });
+                    return Ok(SessionEnd::TransportFailed(
+                        TransportFailure::RestartsExhausted,
+                    ));
+                }
+            }
         }
     }
 }
@@ -724,12 +772,16 @@ enum ReconnectOutcome {
     RestartEpisode,
 }
 
-/// One bounded reconnect episode: finite attempts, bounded backoff with
-/// jitter, and an overall deadline that bounds a hung probe or a
-/// not-yet-carrying reattach (finding 3). Once a reattach starts carrying it
-/// runs unbounded; if THAT later dies again with `carried=1`, this returns
-/// [`ReconnectOutcome::RestartEpisode`] rather than continuing this
-/// episode's attempt count.
+/// One bounded reconnect episode: finite attempts for ordinary in-episode
+/// failures, bounded backoff with jitter, and an overall deadline that
+/// bounds a hung probe, a not-yet-carrying reattach, AND the Busy-retry
+/// path (finding 3). Busy reattach responses never consume the attempt
+/// budget — the episode deadline alone governs them, because the remote
+/// writer slot can stay legitimately held for up to everlink's idle timeout
+/// after a path death, far longer than a small attempt budget could span.
+/// Once a reattach starts carrying it runs unbounded; if THAT later dies
+/// again with `carried=1`, this returns [`ReconnectOutcome::RestartEpisode`]
+/// rather than continuing this episode's attempt count.
 fn reconnect(
     config: &Config,
     run: SessionRun<'_>,
@@ -738,29 +790,28 @@ fn reconnect(
     let limits = &config.limits;
     let deadline = Instant::now() + Duration::from_millis(limits.retry_deadline_ms);
     let mut attempt: u32 = 0;
-    // Whether the MOST RECENT retry cause was a reattach reporting Busy: a
-    // dead transport's writer slot may not have been revoked yet, so a
-    // reattach getting Busy is retried within this same episode's budget
-    // (never escalated to take_over). When the budget/deadline then runs
-    // out, the busy diagnostic is reported as the reason rather than a
+    // Whether the most recent retry cause was a reattach reporting Busy,
+    // and how many Busy responses have stacked up consecutively. A Busy
+    // reattach continues without charging the attempt budget (the deadline
+    // alone bounds it); the streak grows the backoff so a long hold is
+    // polled gently rather than hammered, and when the deadline then runs
+    // out the busy diagnostic is reported as the reason rather than a
     // generic exhaustion message.
     let mut last_busy = false;
+    let mut busy_streak: u32 = 0;
     loop {
-        attempt += 1;
-        if attempt > limits.retry_attempts_max {
-            notifier.notify(Event::RetryExhausted {
-                attempts: limits.retry_attempts_max,
-            });
-            let reason = if last_busy {
-                TransportFailure::Busy
-            } else {
-                TransportFailure::AttemptsExhausted
-            };
-            return Ok(ReconnectOutcome::Terminal(SessionEnd::TransportFailed(
-                reason,
-            )));
+        if !last_busy {
+            attempt += 1;
+            if attempt > limits.retry_attempts_max {
+                notifier.notify(Event::RetryExhausted {
+                    attempts: limits.retry_attempts_max,
+                });
+                return Ok(ReconnectOutcome::Terminal(SessionEnd::TransportFailed(
+                    TransportFailure::AttemptsExhausted,
+                )));
+            }
         }
-        let delay = backoff_delay(attempt, limits);
+        let delay = backoff_delay(attempt.saturating_add(busy_streak), limits);
         if Instant::now() + delay >= deadline {
             notifier.notify(Event::RetryDeadlineExceeded);
             let reason = if last_busy {
@@ -794,6 +845,7 @@ fn reconnect(
             ProbeStatus::Unreachable => {
                 notifier.notify(Event::ProbeUnreachable { attempt });
                 last_busy = false;
+                busy_streak = 0;
                 continue;
             }
             ProbeStatus::Failed(code) => {
@@ -834,10 +886,10 @@ fn reconnect(
                 true,
             )
         };
-        let proxy = proxy_for(config, run.ssh_options)?;
+        let status_path = allocate_status_file(config);
+        let proxy = proxy_for(config, run.ssh_options, status_path.as_deref())?;
         let words = remote_words(&config.remote_eversh, &op, &config.limits)?;
         let args = outer_ssh_args(&proxy, run.ssh_options, run.host, &words, interactive)?;
-        let status_path = allocate_status_file(config);
         // Bounded ONLY until this reattach starts carrying or reports a
         // terminal record; once carrying, the wait inside becomes unbounded.
         match spawn_link_tracked(config, &args, status_path.as_deref(), Some(deadline))? {
@@ -854,23 +906,25 @@ fn reconnect(
                 SpawnOutcome::TransportAfterFailure { carried: false } => {
                     notifier.notify(Event::TransportInterrupted { attempt });
                     last_busy = false;
+                    busy_streak = 0;
                 }
                 SpawnOutcome::SshFailedCleanClose => {
                     notifier.notify(Event::SshFailed);
                     return Ok(ReconnectOutcome::Terminal(SessionEnd::SshFailed));
                 }
                 // A reattach finding the session Busy is retried within
-                // THIS episode's existing attempt/backoff/deadline budget:
-                // the dead transport's writer slot may not have been
-                // revoked yet by the time the retry lands. Never escalated
-                // to take_over — a legitimately attached new writer must
-                // not be stolen.
+                // THIS episode's deadline budget without charging its
+                // attempt budget: the dead transport's writer slot may not
+                // be revoked for up to everlink's idle timeout after the
+                // path death. Never escalated to take_over — a
+                // legitimately attached new writer must not be stolen.
                 SpawnOutcome::Remote(REMOTE_BUSY_EXIT) if !run.observer => {
                     notifier.notify(Event::ReattachBusy {
                         name: run.name,
                         attempt,
                     });
                     last_busy = true;
+                    busy_streak += 1;
                 }
                 SpawnOutcome::Remote(code) => {
                     return Ok(ReconnectOutcome::Terminal(SessionEnd::Remote(code)));
@@ -1043,7 +1097,7 @@ pub fn list(
 ) -> Result<Captured, Error> {
     config.limits.validate()?;
     let label = local_host.map(origin_label);
-    let proxy = proxy_for(config, ssh_options)?;
+    let proxy = proxy_for(config, ssh_options, None)?;
     let words = remote_words(
         &config.remote_eversh,
         &RemoteOp::List {
@@ -1064,17 +1118,19 @@ pub fn simple_remote(
     ssh_options: &[String],
 ) -> Result<ExitKind, Error> {
     config.limits.validate()?;
-    let proxy = proxy_for(config, ssh_options)?;
+    let proxy = proxy_for(config, ssh_options, None)?;
     let words = remote_words(&config.remote_eversh, op, &config.limits)?;
     let args = outer_ssh_args(&proxy, ssh_options, host, &words, false)?;
     spawn_quiet(config, &args)
 }
 
 /// `eversh ssh`: raw OpenSSH over everlink. Never restarted (design 7),
-/// never sets the link-status env var — stays fully inherited and
-/// uninstrumented on every descriptor. `pre_options` are outer SSH options
-/// (placed before the destination, unaudited); `post_command` is an
-/// optional remote command (placed after the destination) — see
+/// never passes a link-status file to its ProxyCommand — stays fully
+/// inherited and uninstrumented on every descriptor (and since the handoff
+/// is an argument, not an environment variable, no ambient value can
+/// instrument it either). `pre_options` are outer SSH options (placed
+/// before the destination, unaudited); `post_command` is an optional
+/// remote command (placed after the destination) — see
 /// [`crate::command::split_raw_tokens`] (finding 4).
 pub fn raw_ssh(
     config: &Config,
@@ -1088,7 +1144,7 @@ pub fn raw_ssh(
     // bootstrap's ProxyCommand (design 6.4); a rejected option simply stays
     // outer-ssh-only rather than erroring in raw mode (finding 4).
     let audited = crate::command::audited_subset(pre_options);
-    let proxy = proxy_for(config, &audited)?;
+    let proxy = proxy_for(config, &audited, None)?;
     let args = raw_ssh_args(&proxy, pre_options, host, post_command)?;
     Ok(match spawn_inherited(config, &args)? {
         ExitKind::Code(code) => SessionEnd::Remote(code),
@@ -1106,7 +1162,7 @@ pub fn session_names(
 ) -> Result<Vec<String>, Error> {
     config.limits.validate()?;
     let label = origin_label(local_host);
-    let proxy = proxy_for(config, ssh_options)?;
+    let proxy = proxy_for(config, ssh_options, None)?;
     let words = remote_words(
         &config.remote_eversh,
         &RemoteOp::List {

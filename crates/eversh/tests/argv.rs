@@ -18,14 +18,94 @@ fn os(values: &[&str]) -> Vec<OsString> {
 #[test]
 fn proxy_command_is_exact_and_quoted() {
     let options = vec!["-oConnectTimeout=7".to_owned(), "-4".to_owned()];
-    let proxy = proxy_command(SELF, "eversh", &options).unwrap();
+    let proxy = proxy_command(SELF, "eversh", &options, None).unwrap();
     assert_eq!(
         proxy,
         "'/usr/local/bin/eversh' __everlink ssh-proxy '%n' '%p' \
          --remote-eversh 'eversh' --ssh-option '-oConnectTimeout=7' --ssh-option '-4'"
     );
-    let proxy = proxy_command(SELF, "/opt/eversh/bin/eversh", &[]).unwrap();
+    let proxy = proxy_command(SELF, "/opt/eversh/bin/eversh", &[], None).unwrap();
     assert!(proxy.contains("--remote-eversh '/opt/eversh/bin/eversh'"));
+    assert!(!proxy.contains("--status-file"));
+}
+
+#[test]
+fn proxy_command_status_file_is_one_quoted_argument() {
+    // The status path is a plain single-quoted ProxyCommand argument —
+    // local-only, never an environment variable (design 3, 7; finding 4).
+    let proxy = proxy_command(
+        SELF,
+        "eversh",
+        &[],
+        Some(std::path::Path::new(
+            "/tmp/eversh/link-status/4242-1-0.status",
+        )),
+    )
+    .unwrap();
+    assert_eq!(
+        proxy,
+        "'/usr/local/bin/eversh' __everlink ssh-proxy '%n' '%p' \
+         --remote-eversh 'eversh' \
+         --status-file '/tmp/eversh/link-status/4242-1-0.status'"
+    );
+
+    // Spaces and shell metacharacters stay inert inside the single-quoted
+    // word: the local shell executing the ProxyCommand passes them through
+    // as ONE argv element for the everlink edge.
+    for path in [
+        "/tmp/eversh status/one.status",
+        "/tmp/a$b;c|rm -rf /.status",
+        "/tmp/quote\"double/tilde~.status",
+        "/tmp/ünïcödé/öne.status",
+    ] {
+        let proxy = proxy_command(SELF, "eversh", &[], Some(std::path::Path::new(path))).unwrap();
+        assert!(
+            proxy.ends_with(&format!("--status-file '{path}'")),
+            "{proxy}"
+        );
+    }
+
+    // Quotes, control bytes (NUL included), and non-UTF-8 are rejected
+    // outright, never escaped.
+    for bad in ["/tmp/a'b.status", "/tmp/a\nb.status", "/tmp/a\u{0}b.status"] {
+        assert!(
+            proxy_command(SELF, "eversh", &[], Some(std::path::Path::new(bad))).is_err(),
+            "accepted status path {bad:?}"
+        );
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        assert!(
+            proxy_command(
+                SELF,
+                "eversh",
+                &[],
+                Some(std::path::Path::new(std::ffi::OsStr::from_bytes(
+                    b"/tmp/\xff.status"
+                )))
+            )
+            .is_err(),
+            "accepted non-UTF-8 status path"
+        );
+    }
+
+    // The supervisor's allocation pre-filter agrees with the constructor's
+    // rejection: an unembeddable path is filtered out, a safe one passes.
+    assert!(status_word_safe(std::path::Path::new(
+        "/tmp/eversh status/one.status"
+    )));
+    assert!(!status_word_safe(std::path::Path::new("/tmp/a'b.status")));
+    assert!(!status_word_safe(std::path::Path::new(
+        "/tmp/a\u{0}b.status"
+    )));
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        assert!(!status_word_safe(std::path::Path::new(
+            std::ffi::OsStr::from_bytes(b"/tmp/\xff.status")
+        )));
+    }
 }
 
 #[test]
@@ -38,7 +118,7 @@ fn proxy_command_fails_closed() {
         "-oUser=a'b",
     ] {
         assert!(
-            proxy_command(SELF, "eversh", &[option.to_owned()]).is_err(),
+            proxy_command(SELF, "eversh", &[option.to_owned()], None).is_err(),
             "accepted {option}"
         );
     }
@@ -51,7 +131,7 @@ fn proxy_command_fails_closed() {
         "a'b",
     ] {
         assert!(
-            proxy_command(SELF, remote, &[]).is_err(),
+            proxy_command(SELF, remote, &[], None).is_err(),
             "accepted remote word {remote:?}"
         );
     }
@@ -93,7 +173,7 @@ fn outer_ssh_argv_is_ordered_and_exact() {
         ]
     );
 
-    let proxy = proxy_command(SELF, "eversh", &[]).unwrap();
+    let proxy = proxy_command(SELF, "eversh", &[], None).unwrap();
     let args = outer_ssh_args(&proxy, &["-4".to_owned()], "user@alias", &words, true).unwrap();
     assert_eq!(
         args,
@@ -178,7 +258,7 @@ fn list_words_carry_the_filter_as_the_single_token() {
 
 #[test]
 fn raw_ssh_argv_injects_only_the_proxy() {
-    let proxy = proxy_command(SELF, "eversh", &[]).unwrap();
+    let proxy = proxy_command(SELF, "eversh", &[], None).unwrap();
     // No inner `--`: every token is an option (legacy behavior preserved).
     let args = raw_ssh_args(
         &proxy,
@@ -202,7 +282,7 @@ fn raw_ssh_argv_injects_only_the_proxy() {
 
 #[test]
 fn raw_ssh_argv_splits_pre_and_post_on_inner_separator() {
-    let proxy = proxy_command(SELF, "eversh", &[]).unwrap();
+    let proxy = proxy_command(SELF, "eversh", &[], None).unwrap();
 
     // With an inner `--`: options before it precede the destination; the
     // remote command after it follows the destination (finding 4).
@@ -241,7 +321,7 @@ fn raw_mode_audited_subset_mirrors_into_the_proxy_command() {
     let audited = audited_subset(&tokens);
     assert_eq!(audited, vec!["-4".to_owned()]);
 
-    let proxy = proxy_command(SELF, "eversh", &audited).unwrap();
+    let proxy = proxy_command(SELF, "eversh", &audited, None).unwrap();
     assert!(proxy.contains("--ssh-option '-4'"), "{proxy}");
     assert!(!proxy.contains("-L"), "{proxy}");
 

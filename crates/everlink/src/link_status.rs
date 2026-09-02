@@ -1,19 +1,14 @@
 //! Local, out-of-band status file for the `ssh-proxy` client edge (design 3,
-//! 7). eversh points this process at a private per-spawn file via
-//! [`STATUS_FILE_ENV`] for structured interactive operations and probes
-//! only (never raw `eversh ssh`, which is never retried and stays fully
-//! uninstrumented). OpenSSH passes its own process environment to the
-//! ProxyCommand it launches, so this edge inherits the variable directly —
-//! no wire-protocol or argv change is needed.
-//!
-//! This file — not the remote host — is what lets eversh's supervisor
-//! distinguish a genuinely dead transport from an ordinary completed
-//! exchange, without any remote-side instrumentation: an SSH exit code of
-//! 255 is produced identically whether OpenSSH itself failed before ever
-//! establishing anything, the transport died mid-session, or (formerly) a
-//! remote command happened to exit 255. Reading this file after such an
-//! exit resolves the ambiguity locally.
+//! 7). eversh points this process at a private per-spawn file for structured
+//! interactive operations and probes only (never raw `eversh ssh`, which is
+//! never retried and stays fully uninstrumented) by passing the path as a
+//! `--status-file` ProxyCommand ARGUMENT. OpenSSH executes the ProxyCommand
+//! line through the user's local shell, so the path arrives in this
+//! process's own argv — a purely local handoff that no environment-
+//! forwarding policy (`SendEnv`/`AcceptEnv`) can transmit remotely and no
+//! ambient environment value can imitate.
 
+use crate::bridge::{BridgeCompletion, DrainStatus, FinalizeStatus};
 use crate::shutdown::TerminalCause;
 use std::fs::OpenOptions;
 use std::io::{self, Write};
@@ -23,11 +18,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-
-/// Env var carrying the private per-spawn status file path. eversh sets
-/// this in the outer `ssh` child's environment for structured interactive
-/// operations and probes only.
-pub const STATUS_FILE_ENV: &str = "EVERSH_LINK_STATUS_FILE";
 
 const STATUS_PREFIX: &str = "everlink-status-v1";
 
@@ -68,7 +58,9 @@ pub enum StatusRecord {
 ///
 /// A graceful `SourceEof` — either the local ssh client closing its own
 /// output after a completed exchange, or the remote gracefully finishing
-/// and closing its QUIC send side — is the only clean case. Every other
+/// and closing its QUIC send side — is the only potentially clean case;
+/// whether it proves a completed exchange is decided by
+/// [`classify_completion`] against the drain/finalize evidence. Every other
 /// variant (a failed or stalled copy operation, cancellation, a failed
 /// bridge task, a QUIC path failure, a route-supervisor failure, a
 /// construction failure, a deadline that could not even be represented, or
@@ -86,6 +78,27 @@ pub fn classify_cause(cause: TerminalCause) -> StatusCause {
         | TerminalCause::ConstructionFailed
         | TerminalCause::DeadlineOverflow(_)
         | TerminalCause::FinalizeTimeout => StatusCause::TransportFailure,
+    }
+}
+
+/// Classify one COMPLETED bridge run for the terminal status record.
+///
+/// A `clean-close` requires more than a graceful `SourceEof` terminal cause
+/// (design 6.3): the exchange is only proven completed when Drain AND
+/// Finalize both finished cleanly. A remote FIN followed by path loss, a
+/// shutdown failure, or an incomplete/expired drain would otherwise claim a
+/// clean completed exchange and suppress a probe a live session still
+/// needed — so any `SourceEof` without fully clean shutdown evidence, like
+/// every other terminal cause regardless of its evidence, is a
+/// `transport-failure`.
+pub fn classify_completion(completion: &BridgeCompletion) -> StatusCause {
+    let graceful_cause = classify_cause(completion.cause) == StatusCause::CleanClose;
+    let clean_shutdown = completion.drain == DrainStatus::Completed
+        && completion.finalize == FinalizeStatus::Completed;
+    if graceful_cause && clean_shutdown {
+        StatusCause::CleanClose
+    } else {
+        StatusCause::TransportFailure
     }
 }
 
@@ -135,9 +148,10 @@ fn write_carrying(path: &Path) {
     append_line(path, &format!("{STATUS_PREFIX} carrying\n"));
 }
 
-/// Record the final cause. Callers write this on every exit path,
-/// including setup failures that never reach a live bridge (those pass
-/// `StatusCause::TransportFailure` and `carried: false`).
+/// Record the final cause. Callers write this on every exit path, including
+/// setup failures that never reach a live bridge (those pass
+/// `StatusCause::CleanClose` and `carried: false`: an ordinary failure, per
+/// design 7's bootstrap/authentication rule).
 pub fn write_cause(path: &Path, cause: StatusCause, carried: bool) {
     append_line(
         path,
@@ -270,6 +284,72 @@ mod tests {
                 classify_cause(cause),
                 StatusCause::TransportFailure,
                 "{cause:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn classify_completion_requires_a_clean_cause_and_a_clean_drain_and_finalize() {
+        let source_eof = TerminalCause::SourceEof(CopyDirection::PeerToQuic);
+        let clean = BridgeCompletion {
+            cause: source_eof,
+            drain: DrainStatus::Completed,
+            finalize: FinalizeStatus::Completed,
+        };
+        assert_eq!(classify_completion(&clean), StatusCause::CleanClose);
+
+        // A graceful SourceEof WITHOUT fully clean shutdown evidence is a
+        // transport failure, never a clean completed exchange (a remote FIN
+        // followed by path loss, an incomplete drain, or a failed finalize
+        // must not suppress a required probe).
+        for completion in [
+            BridgeCompletion {
+                cause: source_eof,
+                drain: DrainStatus::Incomplete,
+                finalize: FinalizeStatus::Completed,
+            },
+            BridgeCompletion {
+                cause: source_eof,
+                drain: DrainStatus::DeadlineExpired,
+                finalize: FinalizeStatus::Completed,
+            },
+            BridgeCompletion {
+                cause: source_eof,
+                drain: DrainStatus::Completed,
+                finalize: FinalizeStatus::DeadlineExpired,
+            },
+            BridgeCompletion {
+                cause: source_eof,
+                drain: DrainStatus::Incomplete,
+                finalize: FinalizeStatus::DeadlineExpired,
+            },
+        ] {
+            assert_eq!(
+                classify_completion(&completion),
+                StatusCause::TransportFailure,
+                "{completion:?}"
+            );
+        }
+
+        // Every other terminal cause stays a transport failure even when the
+        // drain/finalize evidence happens to be clean.
+        for cause in [
+            TerminalCause::Cancelled,
+            TerminalCause::PathFailed,
+            TerminalCause::OperationFailed {
+                direction: CopyDirection::QuicToPeer,
+                operation: CopyOperation::Write,
+            },
+        ] {
+            let completion = BridgeCompletion {
+                cause,
+                drain: DrainStatus::Completed,
+                finalize: FinalizeStatus::Completed,
+            };
+            assert_eq!(
+                classify_completion(&completion),
+                StatusCause::TransportFailure,
+                "{completion:?}"
             );
         }
     }

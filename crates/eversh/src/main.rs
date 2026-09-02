@@ -538,6 +538,12 @@ impl Notifier for StderrNotifier {
                      retrying without take-over"
                 );
             }
+            Event::EpisodeRestartsExhausted { restarts } => {
+                eprintln!(
+                    "eversh: transport kept failing after carrying the session; \
+                     episode restart limit ({restarts}) reached"
+                );
+            }
         }
     }
 }
@@ -574,6 +580,10 @@ fn exit_session_end(end: SessionEnd) -> ! {
                 TransportFailure::Busy => eprintln!(
                     "eversh: transport failed; the session stayed busy (writer already \
                      attached) and was never retried with take-over"
+                ),
+                TransportFailure::RestartsExhausted => eprintln!(
+                    "eversh: transport failed; reconnect episode restart limit reached \
+                     (the session kept reconnecting and dying)"
                 ),
             }
             std::process::exit(255);

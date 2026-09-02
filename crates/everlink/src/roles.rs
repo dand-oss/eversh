@@ -174,15 +174,18 @@ where
 }
 
 /// Run the public ProxyCommand edge after clap has produced typed values.
-/// `status_path`, when set (design 3, 7 — the caller reads it from
-/// [`link_status::STATUS_FILE_ENV`] at the edge; this typed library
-/// function never reads global environment itself), receives the local
-/// out-of-band status record on every exit path: a `carrying` line as soon
-/// as the QUIC stream first delivers a byte from the remote peer, and a
-/// terminal `cause ... carried=...` line no matter how this function
-/// returns — including a setup failure before any bridge ever started,
-/// which is always reported as an ordinary transport failure with nothing
-/// carried.
+/// `status_path`, when set (design 3, 7 — the caller reads it from this
+/// process's own argv at the edge; this typed library function never reads
+/// global environment itself), receives the local out-of-band status record
+/// on every exit path: a `carrying` line as soon as the QUIC stream first
+/// delivers a byte from the remote peer, and a terminal `cause ...
+/// carried=...` line no matter how this function returns — including a
+/// failure before any bridge ever started, which is always reported as an
+/// ORDINARY failure (`clean-close`, nothing carried) so the supervisor
+/// reports the resulting 255 immediately with no probe and no reconnect
+/// episode (design 7: bootstrap and authentication failures remain ordinary
+/// OpenSSH failures; nothing was ever carried, so a retry could only
+/// duplicate work).
 pub async fn run_ssh_proxy<R, W>(
     plan: SshPlan,
     limits: Limits,
@@ -214,8 +217,12 @@ where
     let session = match established {
         Ok(session) => session,
         Err(error) => {
+            // Everything before bridge construction — effective-config
+            // policy, the SSH bootstrap (including its authentication), the
+            // client UDP bind, and QUIC connect/authenticate — never carried
+            // a byte and left no live session behind: an ordinary failure.
             if let Some(path) = &status_path {
-                link_status::write_cause(path, StatusCause::TransportFailure, false);
+                link_status::write_cause(path, StatusCause::CleanClose, false);
             }
             return Err(error);
         }
@@ -251,7 +258,12 @@ where
 
     let completion = bridge.run().await;
     if let Some(path) = &status_path {
-        let cause = link_status::classify_cause(completion.cause);
+        // clean-close requires a completely drained AND finalized bridge
+        // (design 6.3, 9): a graceful SourceEof alone does not prove the
+        // exchange completed, so the terminal record classifies the WHOLE
+        // completion — the same evidence `require_clean_bridge` re-checks
+        // below for this process's own result.
+        let cause = link_status::classify_completion(&completion);
         let carried = quic_to_peer_delivered.load(Ordering::Acquire)
             && peer_to_quic_delivered.load(Ordering::Acquire);
         link_status::write_cause(path, cause, carried);

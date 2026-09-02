@@ -21,6 +21,9 @@ pub enum Error {
     FlagsInvalid,
     /// The current executable path cannot be quoted as a safe shell word.
     SelfExeUnsafe,
+    /// The local link-status file path cannot be quoted as a safe
+    /// ProxyCommand argument word.
+    StatusPathUnsafe,
     /// A remote binary word failed conservative validation.
     RemoteWordInvalid,
     /// A user-supplied SSH option failed the audited allowlist.
@@ -59,6 +62,9 @@ impl std::fmt::Display for Error {
             Self::FlagsInvalid => write!(f, "unknown control-request flags"),
             Self::SelfExeUnsafe => {
                 write!(f, "the eversh executable path is not a safe shell word")
+            }
+            Self::StatusPathUnsafe => {
+                write!(f, "the link-status file path is not a safe shell word")
             }
             Self::RemoteWordInvalid => write!(f, "invalid remote command word"),
             Self::SshOptionRejected => {

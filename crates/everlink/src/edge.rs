@@ -59,6 +59,12 @@ enum Command {
         destination: String,
         /// Effective OpenSSH port, normally ProxyCommand `%p`.
         port: String,
+        /// Private per-spawn local link-status file (design 3, 7), passed by
+        /// eversh as a ProxyCommand ARGUMENT — never an environment
+        /// variable, so no `SendEnv`/`AcceptEnv` policy can transmit it and
+        /// no ambient environment value can imitate it.
+        #[arg(long = "status-file", value_name = "PATH")]
+        status_file: Option<PathBuf>,
         /// Absolute path to the compatible everlink binary on the remote host.
         #[arg(long = "remote-bin", value_name = "ABSOLUTE_PATH")]
         remote_bin: Option<String>,
@@ -99,6 +105,7 @@ fn prepare(command: Command) -> Result<PreparedRole, Error> {
         Command::SshProxy {
             destination,
             port,
+            status_file,
             remote_bin,
             remote_eversh,
             ssh_option,
@@ -113,15 +120,11 @@ fn prepare(command: Command) -> Result<PreparedRole, Error> {
                 (None, None) => plan,
                 (Some(_), Some(_)) => return Err(Error::InvalidSshArgument),
             };
-            // The sanctioned edge-only environment read (design 2): the
-            // typed `roles::run_ssh_proxy` library function never reads
-            // global environment itself. OpenSSH passes its own process
-            // environment to the ProxyCommand it launches, so this variable
-            // — set by eversh only for structured interactive operations
-            // and probes, never for raw `eversh ssh` — arrives here intact.
-            let status_path =
-                std::env::var_os(crate::link_status::STATUS_FILE_ENV).map(PathBuf::from);
-            Ok(PreparedRole::Proxy(plan, status_path))
+            // The status path arrives as this process's OWN argument (clap
+            // above), never the environment: the typed
+            // `roles::run_ssh_proxy` library function receives it as a
+            // parameter and never reads global environment itself.
+            Ok(PreparedRole::Proxy(plan, status_file))
         }
         Command::BootstrapParentV1 => {
             let value = std::env::var_os("SSH_CONNECTION")
