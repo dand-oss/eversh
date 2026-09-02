@@ -9,12 +9,12 @@ use crate::limits::Limits;
 use std::net::IpAddr;
 use zeroize::Zeroize;
 
-pub const BOOTSTRAP_VERSION: u8 = 1;
+pub const BOOTSTRAP_VERSION: u8 = 2;
 pub const AUTH_VERSION: u8 = 1;
 pub const TOKEN_LEN: usize = 32;
 pub const AUTH_FRAME_LEN: usize = 35;
-pub const ALPN: &[&[u8]] = &[b"eversh-link/1"];
-const BOOTSTRAP_WIRE_MAX: usize = 199;
+pub const ALPN: &[&[u8]] = &[b"everssh-link/2"];
+const BOOTSTRAP_WIRE_MAX: usize = 233;
 
 /// A token whose bytes are deliberately unavailable to `Debug` and scrubbed
 /// when ownership ends.
@@ -110,7 +110,7 @@ impl Drop for BootstrapLine {
     }
 }
 
-/// `everssh v1 HOST PORT SPKI_HEX TOKEN_HEX PID\n`.
+/// `everssh v2 HOST PORT SPKI_HEX TOKEN_HEX ASSOCIATION_ID_HEX PID\n`.
 pub struct BootstrapRecord {
     pub version: u8,
     pub udp_endpoint: IpAddr,
@@ -118,6 +118,7 @@ pub struct BootstrapRecord {
     /// SHA-256 over the server certificate's SubjectPublicKeyInfo DER.
     pub spki_sha256: [u8; 32],
     token: SecretToken,
+    association_id: crate::association::AssociationId,
     /// Diagnostics-safe process identity of the one-shot server child.
     pub pid: u32,
 }
@@ -128,6 +129,7 @@ impl BootstrapRecord {
         udp_port: u16,
         spki_sha256: [u8; 32],
         token: SecretToken,
+        association_id: crate::association::AssociationId,
         pid: u32,
     ) -> Result<Self, Error> {
         if udp_port == 0 || unusable_ip(udp_endpoint) {
@@ -139,6 +141,7 @@ impl BootstrapRecord {
             udp_port,
             spki_sha256,
             token,
+            association_id,
             pid,
         })
     }
@@ -152,7 +155,7 @@ impl BootstrapRecord {
         // never reallocate after token bytes enter the buffer, because the
         // allocator cannot scrub the abandoned allocation for us.
         let mut line = String::with_capacity(BOOTSTRAP_WIRE_MAX);
-        line.push_str("everssh v1 ");
+        line.push_str("everssh v2 ");
         line.push_str(&self.udp_endpoint.to_string());
         line.push(' ');
         line.push_str(&self.udp_port.to_string());
@@ -160,6 +163,8 @@ impl BootstrapRecord {
         encode_hex_into(&self.spki_sha256, &mut line);
         line.push(' ');
         encode_hex_into(self.token.as_bytes(), &mut line);
+        line.push(' ');
+        encode_hex_into(self.association_id.as_bytes(), &mut line);
         line.push(' ');
         line.push_str(&self.pid.to_string());
         line.push('\n');
@@ -176,7 +181,7 @@ impl BootstrapRecord {
         }
         let mut parts = line.split(' ');
         match (parts.next(), parts.next()) {
-            (Some("everssh"), Some("v1")) => {}
+            (Some("everssh"), Some("v2")) => {}
             _ => return Err(Error::BootstrapMalformed),
         }
         let udp_endpoint: IpAddr = parts
@@ -192,6 +197,9 @@ impl BootstrapRecord {
             .ok_or(Error::BootstrapMalformed)?;
         let token = decode_secret_hex32(parts.next().ok_or(Error::BootstrapMalformed)?)
             .ok_or(Error::BootstrapMalformed)?;
+        let association_id_bytes = decode_hex16(parts.next().ok_or(Error::BootstrapMalformed)?)
+            .ok_or(Error::BootstrapMalformed)?;
+        let association_id = crate::association::AssociationId::from_bytes(association_id_bytes)?;
         let pid = parts
             .next()
             .and_then(|part| part.parse::<u32>().ok())
@@ -199,7 +207,14 @@ impl BootstrapRecord {
         if parts.next().is_some() {
             return Err(Error::BootstrapMalformed);
         }
-        Self::new(udp_endpoint, udp_port, spki_sha256, token, pid)
+        Self::new(
+            udp_endpoint,
+            udp_port,
+            spki_sha256,
+            token,
+            association_id,
+            pid,
+        )
     }
 }
 
@@ -211,6 +226,7 @@ impl Clone for BootstrapRecord {
             udp_port: self.udp_port,
             spki_sha256: self.spki_sha256,
             token: self.token.clone(),
+            association_id: self.association_id,
             pid: self.pid,
         }
     }
@@ -224,6 +240,7 @@ impl std::fmt::Debug for BootstrapRecord {
             .field("udp_port", &self.udp_port)
             .field("spki_sha256", &self.spki_sha256)
             .field("token", &"<REDACTED>")
+            .field("association_id", &self.association_id)
             .field("pid", &self.pid)
             .finish()
     }
@@ -236,6 +253,7 @@ impl PartialEq for BootstrapRecord {
             && self.udp_port == other.udp_port
             && self.spki_sha256 == other.spki_sha256
             && self.token == other.token
+            && self.association_id == other.association_id
             && self.pid == other.pid
     }
 }
@@ -365,6 +383,17 @@ fn decode_secret_hex32(value: &str) -> Option<SecretToken> {
     let mut output = SecretToken::zeroed();
     for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
         output.0[index] = (hex_nibble(pair[0])? << 4) | hex_nibble(pair[1])?;
+    }
+    Some(output)
+}
+
+fn decode_hex16(value: &str) -> Option<[u8; 16]> {
+    if value.len() != 32 {
+        return None;
+    }
+    let mut output = [0_u8; 16];
+    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+        output[index] = (hex_nibble(pair[0])? << 4) | hex_nibble(pair[1])?;
     }
     Some(output)
 }

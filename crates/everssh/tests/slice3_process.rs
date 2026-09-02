@@ -6,6 +6,7 @@ use everssh::admission::AuthenticatedConnection;
 use everssh::bootstrap::{BootstrapRecord, SecretToken};
 use everssh::role_protocol::{ServerStartRecord, StartUdpPolicy};
 use everssh::transport::{ClientEndpoint, UdpBindPolicy};
+use everssh::EphemeralClientIdentity;
 use everssh::Limits;
 use std::fs;
 use std::io::{BufRead, ErrorKind, Read, Write};
@@ -126,8 +127,15 @@ fn bind_client_endpoint_retrying_ephemeral_addr_in_use(
             )
         });
         drop(reservation);
+        let client_identity = EphemeralClientIdentity::generate().unwrap();
 
-        match ClientEndpoint::bind(server, UdpBindPolicy::Explicit(address), pin, limits) {
+        match ClientEndpoint::bind(
+            server,
+            UdpBindPolicy::Explicit(address),
+            pin,
+            &client_identity,
+            limits,
+        ) {
             Ok(endpoint) => {
                 let actual = endpoint.local_addr().unwrap_or_else(|error| {
                     panic!(

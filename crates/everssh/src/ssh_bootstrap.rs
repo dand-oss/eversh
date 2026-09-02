@@ -511,6 +511,7 @@ mod tests {
             4444,
             [7; 32],
             SecretToken::from_bytes([8; 32]),
+            crate::association::AssociationId::from_bytes([0x57; 16]).unwrap(),
             9,
         )
         .unwrap();

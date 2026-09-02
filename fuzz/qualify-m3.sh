@@ -37,8 +37,9 @@ readonly -a FUZZ_TARGETS=(
     fuzz_auth_frame
     fuzz_everssh_close_sequence
     fuzz_everssh_stream_boundary
+    fuzz_resume_handshake
 )
-readonly -a FUZZ_MAX_LENGTHS=(4096 4096 256 4096)
+readonly -a FUZZ_MAX_LENGTHS=(4096 4096 256 4096 4096)
 
 COMMAND=run
 JSON_OUTPUT=0
@@ -62,7 +63,7 @@ usage() {
 Usage: fuzz/qualify-m3.sh [setup|run|network] [--json]
 
   setup   Install exact isolated Rust, cargo-deny, and cargo-fuzz tools.
-  run     Require a clean commit, run full local gates, then four campaigns.
+  run     Require a clean commit, run full local gates, then five campaigns.
   network Require a clean commit, then run production OpenSSH and migration gates.
   --json  Print the sanitized JSON receipt instead of the one-line summary.
 

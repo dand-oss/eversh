@@ -10,7 +10,7 @@
 
 use everssh::admission::{AuthenticatedConnection, ConnectedTarget};
 use everssh::bootstrap::SecretToken;
-use everssh::identity::EphemeralIdentity;
+use everssh::identity::{EphemeralClientIdentity, EphemeralIdentity};
 use everssh::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
 use everssh::{
     CopyDirection, CopyOperation, DeadlineKind, DrainStatus, FinalizeStatus, Limits, Phase,
@@ -233,10 +233,12 @@ async fn connected_pair(limits: Limits) -> (ConnectedTarget, ClientSession, TcpS
     )
     .unwrap();
     let server_address = server.local_addr();
+    let client_identity = EphemeralClientIdentity::generate().unwrap();
     let client = ClientEndpoint::bind(
         server_address,
         UdpBindPolicy::Explicit(free_udp()),
         identity.spki_sha256(),
+        &client_identity,
         limits,
     )
     .unwrap();
@@ -767,10 +769,12 @@ async fn wrong_token_round(limits: Limits, baseline: &ProcessSample, peak: &mut 
     )
     .unwrap();
     let server_address = server.local_addr();
+    let client_identity = EphemeralClientIdentity::generate().unwrap();
     let client = ClientEndpoint::bind(
         server_address,
         UdpBindPolicy::Explicit(free_udp()),
         identity.spki_sha256(),
+        &client_identity,
         limits,
     )
     .unwrap();
@@ -832,11 +836,13 @@ async fn concurrent_unauthenticated_attempts(
     let attempts = limits.max_retry_attempts;
     let mut clients = Vec::with_capacity(attempts);
     for _ in 0..attempts {
+        let client_identity = EphemeralClientIdentity::generate().unwrap();
         clients.push(
             ClientEndpoint::bind(
                 server_address,
                 UdpBindPolicy::Explicit(free_udp()),
                 identity.spki_sha256(),
+                &client_identity,
                 limits,
             )
             .unwrap(),

@@ -65,6 +65,45 @@ impl std::fmt::Debug for EphemeralIdentity {
     }
 }
 
+/// Ephemeral client identity used by the v2 association ProxyCommand.
+///
+/// The certificate is intentionally self-signed: TLS proves possession of the
+/// private key, while the one-use bootstrap authentication binds its SPKI to
+/// one server association. No CA trust or long-lived identity is introduced.
+pub struct EphemeralClientIdentity {
+    certificate: CertificateDer<'static>,
+    private_key_der: Zeroizing<Vec<u8>>,
+    spki_sha256: [u8; 32],
+}
+
+impl EphemeralClientIdentity {
+    pub fn generate() -> Result<Self, Error> {
+        generate_client_with(|| KeyPair::generate().map_err(|_| Error::IdentityKeyGeneration))
+    }
+
+    pub fn certificate_der(&self) -> &CertificateDer<'static> {
+        &self.certificate
+    }
+
+    pub fn spki_sha256(&self) -> [u8; 32] {
+        self.spki_sha256
+    }
+
+    pub(crate) fn private_key_der(&self) -> PrivateKeyDer<'static> {
+        PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(self.private_key_der.to_vec()))
+    }
+}
+
+impl std::fmt::Debug for EphemeralClientIdentity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EphemeralClientIdentity")
+            .field("certificate_len", &self.certificate.as_ref().len())
+            .field("spki_sha256", &self.spki_sha256)
+            .field("private_key", &"<REDACTED>")
+            .finish()
+    }
+}
+
 trait TokenRandom {
     fn fill(&self, destination: &mut [u8]) -> Result<(), ()>;
 }
@@ -111,6 +150,34 @@ where
         spki_sha256,
         bootstrap_token: Mutex::new(Some(bootstrap_token)),
         token_owner,
+    })
+}
+
+fn generate_client_with<K>(key_source: K) -> Result<EphemeralClientIdentity, Error>
+where
+    K: FnOnce() -> Result<KeyPair, Error>,
+{
+    let key_pair = ZeroizingKeyPair(key_source()?);
+    let parameters = CertificateParams::new(vec!["localhost".to_owned()])
+        .map_err(|_| Error::IdentityCertificateGeneration)?;
+    let certificate = parameters
+        .self_signed(&key_pair.0)
+        .map_err(|_| Error::IdentityCertificateGeneration)?;
+    let certificate = certificate.der().clone();
+    let spki = extract_spki(&certificate).ok_or(Error::IdentityCertificateMalformed)?;
+    let spki_sha256 = sha256(spki);
+    let private_key_der = Zeroizing::new(key_pair.0.serialized_der().to_vec());
+    let signing_key = parse_signing_key(&private_key_der)?;
+    let certified_key = CertifiedKey::new(vec![certificate.clone()], signing_key);
+    certified_key
+        .keys_match()
+        .map_err(|_| Error::IdentitySigningKey)?;
+    drop(certified_key);
+
+    Ok(EphemeralClientIdentity {
+        certificate,
+        private_key_der,
+        spki_sha256,
     })
 }
 

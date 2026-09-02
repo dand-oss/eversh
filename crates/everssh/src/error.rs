@@ -97,6 +97,8 @@ pub enum Error {
     ResumeSequenceOverflow,
     ResumeOperationInvalid,
     ResumeLimitInvalid,
+    AssociationIdMalformed,
+    HandshakeMalformed,
     DeadlineExpired(DeadlinePhase),
     TokenStateUnavailable,
     TargetConnect(std::io::Error),
@@ -233,6 +235,8 @@ impl std::fmt::Display for Error {
                 f.write_str("resume operation is invalid for receiver state")
             }
             Self::ResumeLimitInvalid => f.write_str("resume queue limits are invalid"),
+            Self::AssociationIdMalformed => f.write_str("association identity is malformed"),
+            Self::HandshakeMalformed => f.write_str("resume handshake is malformed"),
             Self::DeadlineExpired(phase) => write!(f, "absolute {phase} deadline expired"),
             Self::TokenStateUnavailable => f.write_str("one-use token state unavailable"),
             Self::TargetConnect(source) => {

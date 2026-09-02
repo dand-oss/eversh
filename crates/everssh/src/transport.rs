@@ -3,8 +3,10 @@
 use crate::admission::{
     self, AdmittedStream, AuthenticatedConnection, ConnectedTarget, OneUseToken,
 };
+use crate::association::BootstrapClientCertVerifier;
 use crate::bootstrap::{try_encode_auth_frame, SecretToken, ALPN};
 use crate::error::{DeadlinePhase, EndpointViolation, Error, LimitViolation, UdpPolicyViolation};
+use crate::identity::EphemeralClientIdentity;
 use crate::identity::EphemeralIdentity;
 use crate::limits::Limits;
 use crate::pinning::{PinMismatchMarker, PinMismatchState, SpkiPinVerifier};
@@ -1477,6 +1479,7 @@ impl ClientEndpoint {
         server_address: SocketAddr,
         policy: UdpBindPolicy,
         spki_sha256: [u8; 32],
+        client_identity: &EphemeralClientIdentity,
         limits: Limits,
     ) -> Result<Self, Error> {
         require_tokio_runtime()?;
@@ -1485,7 +1488,7 @@ impl ClientEndpoint {
         let bound = bind_udp(server_address, policy, &limits)?;
         let initial_route = bound.route_identity();
         let provider = ring_provider();
-        let (rustls, pin_mismatch) = locked_client_tls(spki_sha256, provider)?;
+        let (rustls, pin_mismatch) = locked_client_tls(spki_sha256, provider, client_identity)?;
         let (client_config, profile) = locked_client_config(rustls, &limits)?;
         let endpoint = endpoint_from_socket(bound, None)?;
         endpoint.set_default_client_config(client_config);
@@ -1835,10 +1838,10 @@ fn locked_server_tls(
     identity: &EphemeralIdentity,
     provider: Arc<CryptoProvider>,
 ) -> Result<Arc<RustlsServerConfig>, Error> {
-    let mut config = RustlsServerConfig::builder_with_provider(provider)
+    let mut config = RustlsServerConfig::builder_with_provider(provider.clone())
         .with_protocol_versions(&[&noq::rustls::version::TLS13])
         .map_err(|_| Error::TlsConfiguration)?
-        .with_no_client_auth()
+        .with_client_cert_verifier(Arc::new(BootstrapClientCertVerifier::new(provider.clone())))
         .with_cert_resolver(Arc::new(SingleCertResolver(identity.certified_key())));
     config.alpn_protocols = ALPN.iter().map(|protocol| protocol.to_vec()).collect();
     config.max_early_data_size = 0;
@@ -1852,6 +1855,7 @@ fn locked_server_tls(
 fn locked_client_tls(
     spki_sha256: [u8; 32],
     provider: Arc<CryptoProvider>,
+    client_identity: &EphemeralClientIdentity,
 ) -> Result<(Arc<RustlsClientConfig>, PinMismatchState), Error> {
     let (verifier, mismatch) = SpkiPinVerifier::tracked(spki_sha256, provider.clone());
     let mut config = RustlsClientConfig::builder_with_provider(provider.clone())
@@ -1859,7 +1863,11 @@ fn locked_client_tls(
         .map_err(|_| Error::TlsConfiguration)?
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(verifier))
-        .with_no_client_auth();
+        .with_client_auth_cert(
+            vec![client_identity.certificate_der().clone()],
+            client_identity.private_key_der(),
+        )
+        .map_err(|_| Error::IdentitySigningKey)?;
     config.alpn_protocols = ALPN.iter().map(|protocol| protocol.to_vec()).collect();
     config.resumption = Resumption::disabled();
     config.enable_early_data = false;
@@ -2014,10 +2022,12 @@ mod tests {
         )
         .unwrap_or_else(|error| panic!("cannot bind test server: {error}"));
         let client_address = free_udp_v4();
+        let client_identity = EphemeralClientIdentity::generate().unwrap();
         let client = ClientEndpoint::bind(
             server.local_addr(),
             UdpBindPolicy::Explicit(client_address),
             pin,
+            &client_identity,
             limits,
         )
         .unwrap_or_else(|error| panic!("cannot bind test client: {error}"));
@@ -2085,8 +2095,9 @@ mod tests {
     fn locked_configuration_has_no_implicit_capabilities() {
         let limits = Limits::default();
         let identity = EphemeralIdentity::generate().unwrap();
+        let client_identity = EphemeralClientIdentity::generate().unwrap();
         let server_tls = locked_server_tls(&identity, ring_provider()).unwrap();
-        assert_eq!(server_tls.alpn_protocols, vec![b"eversh-link/1".to_vec()]);
+        assert_eq!(server_tls.alpn_protocols, vec![b"everssh-link/2".to_vec()]);
         assert_eq!(server_tls.max_early_data_size, 0);
         assert!(!server_tls.send_half_rtt_data);
         assert_eq!(server_tls.send_tls13_tickets, 0);
@@ -2094,9 +2105,9 @@ mod tests {
         assert!(!server_tls.session_storage.can_cache());
 
         let (client_tls, pin_mismatch) =
-            locked_client_tls(identity.spki_sha256(), ring_provider()).unwrap();
+            locked_client_tls(identity.spki_sha256(), ring_provider(), &client_identity).unwrap();
         assert!(!pin_mismatch.observed());
-        assert_eq!(client_tls.alpn_protocols, vec![b"eversh-link/1".to_vec()]);
+        assert_eq!(client_tls.alpn_protocols, vec![b"everssh-link/2".to_vec()]);
         assert!(client_tls.check_selected_alpn);
         assert!(!client_tls.enable_early_data);
 
@@ -2104,7 +2115,7 @@ mod tests {
         let (_, client) = locked_client_config(client_tls, &limits).unwrap();
         assert_eq!(server, client);
         assert!(server.tls13_only);
-        assert_eq!(server.alpn, b"eversh-link/1");
+        assert_eq!(server.alpn, b"everssh-link/2");
         assert!(!server.client_resumption);
         assert!(!server.early_data);
         assert!(!server.server_half_rtt_data);
@@ -2471,10 +2482,12 @@ mod tests {
         assert_eq!(server.profile(), client.profile());
 
         let second_client_address = free_udp_v4();
+        let second_client_identity = EphemeralClientIdentity::generate().unwrap();
         let second_client = ClientEndpoint::bind(
             server.local_addr(),
             UdpBindPolicy::Explicit(second_client_address),
             identity.spki_sha256(),
+            &second_client_identity,
             limits,
         )
         .unwrap();

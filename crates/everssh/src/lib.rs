@@ -7,6 +7,7 @@
 //! constructs a runtime.
 
 pub mod admission;
+pub mod association;
 pub mod bootstrap;
 pub mod bridge;
 #[cfg(feature = "cli")]
@@ -27,6 +28,7 @@ pub mod transport;
 
 pub use bridge::{BridgeCompletion, DrainStatus, FinalizeStatus, StdioBridge, TargetBridge};
 pub use error::Error;
+pub use identity::EphemeralClientIdentity;
 pub use limits::Limits;
 pub use shutdown::{
     CopyDirection, CopyOperation, DeadlineKind, Phase, RequestStatus, Shutdown, ShutdownSnapshot,

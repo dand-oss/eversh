@@ -1,8 +1,10 @@
 //! Typed orchestration for the public proxy and private process roles.
 
+use crate::association::AssociationId;
 use crate::bootstrap::BootstrapRecord;
 use crate::bridge::{DrainStatus, FinalizeStatus, StdioBridge, TargetBridge};
 use crate::error::Error;
+use crate::identity::EphemeralClientIdentity;
 use crate::identity::EphemeralIdentity;
 use crate::limits::Limits;
 use crate::link_status::{self, StatusCause, TrackedReader, TrackedWriter};
@@ -128,6 +130,7 @@ where
         endpoint.local_addr().port(),
         identity.spki_sha256(),
         identity.take_bootstrap_token()?,
+        AssociationId::generate()?,
         std::process::id(),
     )?;
     let line = record.encode();
@@ -199,12 +202,14 @@ where
 {
     let established = async {
         verify_effective_config(&plan, &limits).await?;
+        let client_identity = EphemeralClientIdentity::generate()?;
         let record = acquire_bootstrap(&plan, &limits).await?;
         let server = SocketAddr::new(record.udp_endpoint, record.udp_port);
         let client = ClientEndpoint::bind(
             server,
             UdpBindPolicy::RouteSelected,
             record.spki_sha256,
+            &client_identity,
             limits,
         )?;
         let session = client
@@ -424,9 +429,10 @@ mod tests {
             let pid_file = root.join("pid");
             let argv_file = root.join("argv");
             let line = format!(
-                "everssh v1 192.0.2.2 4444 {} {} 123\\n",
+                "everssh v2 192.0.2.2 4444 {} {} {} 123\\n",
                 "00".repeat(32),
-                "11".repeat(32)
+                "11".repeat(32),
+                "22".repeat(16)
             );
             let behavior = match mode {
                 "success" => format!(

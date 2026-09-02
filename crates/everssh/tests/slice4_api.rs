@@ -2,10 +2,11 @@
 #![allow(clippy::unwrap_used)]
 
 use everssh::admission::{AuthenticatedConnection, ConnectedTarget};
+use everssh::association::AssociationId;
 use everssh::bootstrap::BootstrapRecord;
 use everssh::identity::EphemeralIdentity;
 use everssh::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
-use everssh::{Error, Limits, Phase, Shutdown, StdioBridge, TargetBridge};
+use everssh::{EphemeralClientIdentity, Error, Limits, Phase, Shutdown, StdioBridge, TargetBridge};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
 use std::path::{Path, PathBuf};
@@ -106,10 +107,12 @@ async fn establish(ip: IpAddr, expected_frames: u64) -> Pair {
         limits(),
     )
     .unwrap();
+    let client_identity = EphemeralClientIdentity::generate().unwrap();
     let client = ClientEndpoint::bind(
         server.local_addr(),
         UdpBindPolicy::RouteSelected,
         identity.spki_sha256(),
+        &client_identity,
         limits(),
     )
     .unwrap();
@@ -355,6 +358,7 @@ async fn netns_api_server_helper() {
         server.local_addr().port(),
         identity.spki_sha256(),
         token,
+        AssociationId::from_bytes([0x51; 16]).unwrap(),
         std::process::id(),
     )
     .unwrap();
@@ -395,10 +399,12 @@ async fn netns_api_client_helper() {
         BootstrapRecord::parse(encoded.trim_end_matches('\n'), &netns_limits()).unwrap();
     fs::remove_file(directory.join("bootstrap")).unwrap();
     let endpoint = SocketAddr::new(bootstrap.udp_endpoint, bootstrap.udp_port);
+    let client_identity = EphemeralClientIdentity::generate().unwrap();
     let client = ClientEndpoint::bind(
         endpoint,
         UdpBindPolicy::RouteSelected,
         bootstrap.spki_sha256,
+        &client_identity,
         netns_limits(),
     )
     .unwrap();

@@ -2,6 +2,7 @@
 #![allow(clippy::unwrap_used)]
 
 use everssh::admission::AuthenticatedConnection;
+use everssh::association::AssociationId;
 use everssh::bootstrap::{
     decode_auth_frame, encode_auth_frame, try_encode_auth_frame, BootstrapRecord, SecretToken,
     AUTH_FRAME_LEN,
@@ -47,6 +48,7 @@ fn bootstrap_debug_redacts_token_without_changing_wire() {
         4433,
         [0x33; 32],
         token,
+        AssociationId::from_bytes([0x44; 16]).unwrap(),
         4242,
     )
     .unwrap();

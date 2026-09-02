@@ -74,3 +74,10 @@ path = "fuzz_targets/fuzz_everssh_stream_boundary.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "fuzz_resume_handshake"
+path = "fuzz_targets/fuzz_resume_handshake.rs"
+test = false
+doc = false
+bench = false

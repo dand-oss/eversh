@@ -129,7 +129,7 @@ impl OneUseToken {
         }
     }
 
-    fn claim(&self, candidate: &[u8]) -> Result<(), Error> {
+    pub(crate) fn claim(&self, candidate: &[u8]) -> Result<(), Error> {
         let candidate_verifier = Zeroizing::new(sha256(candidate));
         let mut state = self
             .state

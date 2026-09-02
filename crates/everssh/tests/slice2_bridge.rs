@@ -5,6 +5,7 @@ use everssh::admission::{AuthenticatedConnection, ConnectedTarget};
 use everssh::error::LimitViolation;
 use everssh::identity::EphemeralIdentity;
 use everssh::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
+use everssh::EphemeralClientIdentity;
 use everssh::{
     CopyDirection, DrainStatus, Error, FinalizeStatus, Limits, Phase, Shutdown, TargetBridge,
     TerminalCause,
@@ -55,10 +56,12 @@ async fn connected_pair(limits: Limits) -> (ConnectedTarget, ClientSession, TcpS
     )
     .unwrap();
     let actual_server_address = server.local_addr();
+    let client_identity = EphemeralClientIdentity::generate().unwrap();
     let client = ClientEndpoint::bind(
         actual_server_address,
         UdpBindPolicy::Explicit(free_udp()),
         identity.spki_sha256(),
+        &client_identity,
         limits,
     )
     .unwrap();

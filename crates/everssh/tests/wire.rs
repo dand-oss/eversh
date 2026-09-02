@@ -2,6 +2,7 @@
 //! types: total parsing, caps before allocation, constant-time compare.
 #![allow(clippy::unwrap_used)]
 
+use everssh::association::AssociationId;
 use everssh::bootstrap::*;
 use everssh::limits::Limits;
 use std::net::IpAddr;
@@ -12,6 +13,7 @@ fn sample_record() -> BootstrapRecord {
         4433,
         [7; 32],
         SecretToken::from_bytes([9; 32]),
+        AssociationId::from_bytes([0x42; 16]).unwrap(),
         4242,
     )
     .unwrap()
@@ -92,6 +94,7 @@ fn ipv6_literal_roundtrips() {
         4433,
         [7; 32],
         SecretToken::from_bytes([9; 32]),
+        AssociationId::from_bytes([0x42; 16]).unwrap(),
         4242,
     )
     .unwrap();
