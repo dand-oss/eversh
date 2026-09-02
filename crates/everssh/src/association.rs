@@ -9,6 +9,7 @@ use noq::rustls::crypto::{verify_tls12_signature, verify_tls13_signature, Crypto
 use noq::rustls::pki_types::{CertificateDer, UnixTime};
 use noq::rustls::server::danger::{ClientCertVerified, ClientCertVerifier};
 use noq::rustls::{DigitallySignedStruct, DistinguishedName};
+use noq::Connection;
 use ring::rand::{SecureRandom, SystemRandom};
 use std::sync::Arc;
 use zeroize::Zeroizing;
@@ -267,6 +268,18 @@ pub struct AssociationAuthorization {
     association_id: AssociationId,
     client_spki_sha256: [u8; 32],
     target_port: u16,
+}
+
+pub(crate) fn client_spki_from_connection(connection: &Connection) -> Result<[u8; 32], Error> {
+    let identity = connection.peer_identity().ok_or(Error::AuthRejected)?;
+    let certificates = identity
+        .downcast_ref::<Vec<CertificateDer<'_>>>()
+        .ok_or(Error::AuthRejected)?;
+    let [certificate] = certificates.as_slice() else {
+        return Err(Error::AuthRejected);
+    };
+    let spki = extract_spki(certificate).ok_or(Error::AuthRejected)?;
+    Ok(crate::bootstrap::sha256(spki))
 }
 
 impl AssociationAuthorization {

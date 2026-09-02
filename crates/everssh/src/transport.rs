@@ -3,7 +3,11 @@
 use crate::admission::{
     self, AdmittedStream, AuthenticatedConnection, ConnectedTarget, OneUseToken,
 };
-use crate::association::BootstrapClientCertVerifier;
+use crate::association::{
+    client_spki_from_connection, AssociationAuthorization, BootstrapClientCertVerifier,
+    ClientHello as AssociationClientHello, ServerHello, CLIENT_HELLO_INITIAL_LEN,
+    CLIENT_HELLO_RESUME_LEN, SERVER_HELLO_LEN,
+};
 use crate::bootstrap::{try_encode_auth_frame, SecretToken, ALPN};
 use crate::error::{DeadlinePhase, EndpointViolation, Error, LimitViolation, UdpPolicyViolation};
 use crate::identity::EphemeralClientIdentity;
@@ -14,7 +18,9 @@ use crate::shutdown::{Shutdown, TerminalCause};
 use noq::crypto::rustls::{QuicClientConfig, QuicServerConfig};
 use noq::rustls::client::Resumption;
 use noq::rustls::crypto::CryptoProvider;
-use noq::rustls::server::{ClientHello, NoServerSessionStorage, ResolvesServerCert};
+use noq::rustls::server::{
+    ClientHello as RustlsClientHello, NoServerSessionStorage, ResolvesServerCert,
+};
 use noq::rustls::sign::CertifiedKey;
 use noq::rustls::{ClientConfig as RustlsClientConfig, ServerConfig as RustlsServerConfig};
 use noq::{
@@ -24,6 +30,7 @@ use noq::{
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6, UdpSocket};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
+use tokio::net::TcpStream;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
@@ -742,6 +749,7 @@ mod linux_route {
 pub struct ServerEndpoint {
     endpoint: Endpoint,
     local_address: SocketAddr,
+    association_id: crate::association::AssociationId,
     authenticated: AuthenticatedConnection,
     token: Arc<OneUseToken>,
     accept_config: Arc<ServerConfig>,
@@ -764,6 +772,7 @@ impl ServerEndpoint {
             .checked_add(limits.server_lease())
             .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
         let local_address = bound.local_addr();
+        let association_id = crate::association::AssociationId::generate()?;
         let provider = ring_provider();
         let rustls = locked_server_tls(identity, provider)?;
         let (server_config, profile) = locked_server_config(rustls, &limits)?;
@@ -772,6 +781,7 @@ impl ServerEndpoint {
         Ok(Self {
             endpoint,
             local_address,
+            association_id,
             authenticated,
             token: identity.token_owner(),
             accept_config,
@@ -783,6 +793,10 @@ impl ServerEndpoint {
 
     pub fn local_addr(&self) -> SocketAddr {
         self.local_address
+    }
+
+    pub fn association_id(&self) -> crate::association::AssociationId {
+        self.association_id
     }
 
     pub fn profile(&self) -> &LockedTransportProfile {
@@ -835,16 +849,13 @@ impl ServerEndpoint {
         }
     }
 
-    async fn accept_inner(self) -> Result<AdmittedStream, Error> {
-        let Self {
-            endpoint,
-            authenticated,
-            token,
-            accept_config,
-            limits,
-            lease_deadline,
-            ..
-        } = self;
+    async fn accept_inner(&self) -> Result<AdmittedStream, Error> {
+        let endpoint = self.endpoint.clone();
+        let authenticated = self.authenticated;
+        let token = self.token.clone();
+        let accept_config = self.accept_config.clone();
+        let limits = self.limits;
+        let lease_deadline = self.lease_deadline;
         let mut handshake_deadline = None;
         let mut retry_observed = false;
         let mut attempts = 0usize;
@@ -892,9 +903,8 @@ impl ServerEndpoint {
                 return Err(Error::AddressNotValidated);
             }
 
-            endpoint.set_server_config(None);
             let connecting = incoming
-                .accept_with(accept_config)
+                .accept_with(accept_config.clone())
                 .map_err(|error| map_connection_error(&error))?;
             let absolute =
                 handshake_deadline.ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
@@ -915,6 +925,158 @@ impl ServerEndpoint {
             .await;
         }
     }
+
+    async fn accept_v2_transport(&self) -> Result<RawV2Connection, Error> {
+        let lease_deadline = self.lease_deadline;
+        let mut retry_observed = false;
+        let mut attempts = 0usize;
+        let mut handshake_deadline = None;
+
+        loop {
+            let waiting_deadline = handshake_deadline.unwrap_or(lease_deadline);
+            let incoming = tokio::time::timeout_at(waiting_deadline, self.endpoint.accept())
+                .await
+                .map_err(|_| {
+                    if handshake_deadline.is_some() {
+                        Error::DeadlineExpired(DeadlinePhase::Handshake)
+                    } else {
+                        Error::LeaseExpired
+                    }
+                })?
+                .ok_or(Error::EndpointClosed)?;
+            if Instant::now() >= waiting_deadline {
+                incoming.refuse();
+                return Err(if handshake_deadline.is_some() {
+                    Error::DeadlineExpired(DeadlinePhase::Handshake)
+                } else {
+                    Error::LeaseExpired
+                });
+            }
+
+            if handshake_deadline.is_none() {
+                let candidate = Instant::now()
+                    .checked_add(self.limits.handshake_timeout())
+                    .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
+                handshake_deadline = Some(candidate.min(lease_deadline));
+            }
+            if attempts >= self.limits.max_retry_attempts {
+                incoming.refuse();
+                return Err(Error::RetryLimitExceeded);
+            }
+            attempts += 1;
+
+            if !incoming.remote_address_validated() {
+                incoming.retry().map_err(|_| Error::RetryFailed)?;
+                retry_observed = true;
+                continue;
+            }
+            if !retry_observed {
+                incoming.refuse();
+                return Err(Error::AddressNotValidated);
+            }
+
+            let deadline =
+                handshake_deadline.ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
+            let connecting = incoming
+                .accept_with(self.accept_config.clone())
+                .map_err(|error| map_connection_error(&error))?;
+            let connection = tokio::time::timeout_at(deadline, connecting)
+                .await
+                .map_err(|_| Error::DeadlineExpired(DeadlinePhase::Handshake))?
+                .map_err(|error| map_connection_error(&error))?;
+            ensure_deadline(deadline, DeadlinePhase::Handshake)?;
+            let (send, recv) = tokio::time::timeout_at(deadline, connection.accept_bi())
+                .await
+                .map_err(|_| Error::DeadlineExpired(DeadlinePhase::Handshake))?
+                .map_err(|_| Error::StreamOpen)?;
+            return Ok(RawV2Connection {
+                connection,
+                send,
+                recv,
+                deadline,
+                retry_observed,
+            });
+        }
+    }
+
+    pub async fn accept_v2_initial(&self) -> Result<InitialV2Association, Error> {
+        let mut raw = self.accept_v2_transport().await?;
+        let error_connection = raw.connection.clone();
+        let result = async {
+            let mut wire = [0_u8; CLIENT_HELLO_INITIAL_LEN];
+            read_exact_v2(&mut raw.recv, &mut wire, raw.deadline).await?;
+            let hello = AssociationClientHello::decode_exact(&wire)?;
+            let client_spki = client_spki_from_connection(&raw.connection)?;
+            let authorization = AssociationAuthorization::establish(
+                self.association_id,
+                self.authenticated.local().port(),
+                client_spki,
+                hello,
+                self.token.as_ref(),
+            )?;
+            let target =
+                connect_v2_target(self.authenticated.authorized_target_addr(), raw.deadline)
+                    .await?;
+            write_all_v2(
+                &mut raw.send,
+                &ServerHello::new(self.association_id, 0).encode(),
+                raw.deadline,
+            )
+            .await?;
+            Ok::<_, Error>(InitialV2Association {
+                connection: AssociationConnection::new(
+                    raw,
+                    authorization,
+                    self.limits.finalize_timeout(),
+                ),
+                target,
+            })
+        }
+        .await;
+        match result {
+            Ok(association) => Ok(association),
+            Err(error) => {
+                error_connection.close(CLOSE_CODE, b"association handshake failed");
+                Err(error)
+            }
+        }
+    }
+
+    pub async fn accept_v2_resume(
+        &self,
+        authorization: AssociationAuthorization,
+        server_delivered_ack: u64,
+        last_assigned: u64,
+    ) -> Result<AssociationConnection, Error> {
+        let mut raw = self.accept_v2_transport().await?;
+        let error_connection = raw.connection.clone();
+        let result = async {
+            let mut wire = [0_u8; CLIENT_HELLO_RESUME_LEN];
+            read_exact_v2(&mut raw.recv, &mut wire, raw.deadline).await?;
+            let hello = AssociationClientHello::decode_exact(&wire)?;
+            let client_spki = client_spki_from_connection(&raw.connection)?;
+            authorization.authorize_resume(client_spki, hello, last_assigned)?;
+            write_all_v2(
+                &mut raw.send,
+                &ServerHello::new(authorization.association_id(), server_delivered_ack).encode(),
+                raw.deadline,
+            )
+            .await?;
+            Ok::<_, Error>(AssociationConnection::new(
+                raw,
+                authorization,
+                self.limits.finalize_timeout(),
+            ))
+        }
+        .await;
+        match result {
+            Ok(connection) => Ok(connection),
+            Err(error) => {
+                error_connection.close(CLOSE_CODE, b"association resume rejected");
+                Err(error)
+            }
+        }
+    }
 }
 
 impl std::fmt::Debug for ServerEndpoint {
@@ -924,6 +1086,141 @@ impl std::fmt::Debug for ServerEndpoint {
             .field("profile", &self.profile)
             .finish_non_exhaustive()
     }
+}
+
+struct RawV2Connection {
+    connection: Connection,
+    send: SendStream,
+    recv: RecvStream,
+    deadline: Instant,
+    retry_observed: bool,
+}
+
+/// One authenticated v2 QUIC connection belonging to a persistent association.
+pub struct AssociationConnection {
+    raw: RawV2Connection,
+    authorization: AssociationAuthorization,
+    finalize_timeout: Duration,
+}
+
+impl AssociationConnection {
+    fn new(
+        raw: RawV2Connection,
+        authorization: AssociationAuthorization,
+        finalize_timeout: Duration,
+    ) -> Self {
+        Self {
+            raw,
+            authorization,
+            finalize_timeout,
+        }
+    }
+
+    pub fn authorization(&self) -> AssociationAuthorization {
+        self.authorization
+    }
+
+    pub fn retry_observed(&self) -> bool {
+        self.raw.retry_observed
+    }
+
+    pub fn quic_send_mut(&mut self) -> &mut SendStream {
+        &mut self.raw.send
+    }
+
+    pub fn quic_recv_mut(&mut self) -> &mut RecvStream {
+        &mut self.raw.recv
+    }
+
+    pub async fn close(self) -> Result<(), Error> {
+        let deadline = Instant::now()
+            .checked_add(self.finalize_timeout)
+            .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
+        self.raw
+            .connection
+            .close(CLOSE_CODE, b"association connection closed");
+        let closed = tokio::time::timeout_at(deadline, self.raw.connection.closed()).await;
+        drop(self.raw.send);
+        drop(self.raw.recv);
+        if closed.is_ok() && Instant::now() < deadline {
+            Ok(())
+        } else {
+            Err(Error::DeadlineExpired(DeadlinePhase::Finalize))
+        }
+    }
+}
+
+impl std::fmt::Debug for AssociationConnection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AssociationConnection")
+            .field("authorization", &self.authorization)
+            .field("retry_observed", &self.raw.retry_observed)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The first token-backed association connection plus its persistent target.
+pub struct InitialV2Association {
+    connection: AssociationConnection,
+    target: TcpStream,
+}
+
+impl InitialV2Association {
+    pub fn connection(&self) -> &AssociationConnection {
+        &self.connection
+    }
+
+    pub fn target_mut(&mut self) -> &mut TcpStream {
+        &mut self.target
+    }
+
+    pub fn into_parts(self) -> (AssociationConnection, TcpStream) {
+        (self.connection, self.target)
+    }
+}
+
+impl std::fmt::Debug for InitialV2Association {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("InitialV2Association")
+            .field("connection", &self.connection)
+            .finish_non_exhaustive()
+    }
+}
+
+async fn read_exact_v2(
+    recv: &mut RecvStream,
+    bytes: &mut [u8],
+    deadline: Instant,
+) -> Result<(), Error> {
+    let mut filled = 0;
+    while filled < bytes.len() {
+        ensure_deadline(deadline, DeadlinePhase::Authentication)?;
+        let read = tokio::time::timeout_at(deadline, recv.read(&mut bytes[filled..]))
+            .await
+            .map_err(|_| Error::DeadlineExpired(DeadlinePhase::Authentication))?
+            .map_err(|_| Error::StreamRead)?;
+        match read {
+            Some(0) | None => return Err(Error::AuthRejected),
+            Some(count) => filled += count,
+        }
+    }
+    Ok(())
+}
+
+async fn write_all_v2(send: &mut SendStream, bytes: &[u8], deadline: Instant) -> Result<(), Error> {
+    tokio::time::timeout_at(deadline, send.write_all(bytes))
+        .await
+        .map_err(|_| Error::DeadlineExpired(DeadlinePhase::Authentication))?
+        .map_err(|_| Error::StreamWrite)
+}
+
+async fn connect_v2_target(address: SocketAddr, deadline: Instant) -> Result<TcpStream, Error> {
+    ensure_deadline(deadline, DeadlinePhase::TargetConnect)?;
+    let connected = tokio::time::timeout_at(deadline, TcpStream::connect(address))
+        .await
+        .map_err(|_| Error::DeadlineExpired(DeadlinePhase::TargetConnect))?;
+    ensure_deadline(deadline, DeadlinePhase::TargetConnect)?;
+    connected.map_err(Error::TargetConnect)
 }
 
 pub(crate) struct RoleAdmission {
@@ -1533,6 +1830,42 @@ impl ClientEndpoint {
         }
     }
 
+    pub async fn connect_v2_association(
+        self,
+        hello: AssociationClientHello,
+    ) -> Result<(ClientSession, ServerHello), Error> {
+        let cleanup = self.endpoint.clone();
+        let finalize_timeout = self.limits.finalize_timeout();
+        let result = self.connect_v2_association_inner(hello).await;
+        match result {
+            Ok(session) => {
+                drop(cleanup);
+                Ok(session)
+            }
+            Err(first) => {
+                let _ = close_endpoint(cleanup, finalize_timeout, b"client connect failed").await;
+                Err(first)
+            }
+        }
+    }
+
+    async fn connect_v2_association_inner(
+        self,
+        hello: AssociationClientHello,
+    ) -> Result<(ClientSession, ServerHello), Error> {
+        let expected_id = hello.association_id();
+        let wire = hello.encode();
+        let mut transport = self.connect_transport().await?;
+        write_all_v2(&mut transport.send, &wire, transport.deadline).await?;
+        let mut server_wire = [0_u8; SERVER_HELLO_LEN];
+        read_exact_v2(&mut transport.recv, &mut server_wire, transport.deadline).await?;
+        let server_hello = ServerHello::decode_exact(&server_wire)?;
+        if server_hello.association_id() != expected_id {
+            return Err(Error::HandshakeMalformed);
+        }
+        Ok((transport.into_session(), server_hello))
+    }
+
     async fn connect_and_authenticate_inner(
         self,
         token: &SecretToken,
@@ -1829,7 +2162,7 @@ impl std::fmt::Debug for SingleCertResolver {
 }
 
 impl ResolvesServerCert for SingleCertResolver {
-    fn resolve(&self, _client_hello: ClientHello<'_>) -> Option<Arc<CertifiedKey>> {
+    fn resolve(&self, _client_hello: RustlsClientHello<'_>) -> Option<Arc<CertifiedKey>> {
         Some(self.0.clone())
     }
 }

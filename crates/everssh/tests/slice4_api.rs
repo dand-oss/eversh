@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used)]
 
 use everssh::admission::{AuthenticatedConnection, ConnectedTarget};
-use everssh::association::AssociationId;
+use everssh::association::{AssociationId, ClientHello};
 use everssh::bootstrap::BootstrapRecord;
 use everssh::identity::EphemeralIdentity;
 use everssh::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
@@ -584,6 +584,180 @@ async fn repeated_same_route_failure_is_bounded_and_fresh_connection_gets_no_rep
     client_closed.unwrap();
     let mut fresh_target = fresh.target.await.unwrap();
     assert_eq!(fresh_target.read(&mut byte).await.unwrap(), 0);
+}
+
+#[tokio::test]
+async fn v2_sequential_associations_reuse_one_target_stream() {
+    let target_listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let target_address = target_listener.local_addr().unwrap();
+    let target_peer = tokio::spawn(async move { target_listener.accept().await.unwrap().0 });
+    let server_address = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let authenticated =
+        AuthenticatedConnection::new(SocketAddr::from(([192, 0, 2, 90], 50_001)), target_address)
+            .unwrap();
+    let identity = EphemeralIdentity::generate().unwrap();
+    let token = identity.take_bootstrap_token().unwrap();
+    let server = ServerEndpoint::bind(
+        authenticated,
+        UdpBindPolicy::Explicit(server_address),
+        &identity,
+        limits(),
+    )
+    .unwrap();
+    let association_id = server.association_id();
+    let client_identity = EphemeralClientIdentity::generate().unwrap();
+    let first_client = bind_v2_client(
+        server.local_addr(),
+        identity.spki_sha256(),
+        &client_identity,
+    )
+    .unwrap();
+
+    let initial_hello =
+        ClientHello::initial(association_id, 0, token.clone(), target_address.port()).unwrap();
+    let initial_server = server.accept_v2_initial();
+    let initial_client = first_client.connect_v2_association(initial_hello);
+    let (initial, first_client_result) = tokio::join!(initial_server, initial_client);
+    let initial = initial.unwrap();
+    let (mut first_session, server_hello) = first_client_result.unwrap();
+    assert_eq!(server_hello.association_id(), association_id);
+    let authorization = initial.connection().authorization();
+    let mut target_peer = target_peer.await.unwrap();
+    let (mut first_connection, mut persistent_target) = initial.into_parts();
+    target_peer.write_all(b"first").await.unwrap();
+    let mut first_bytes = [0_u8; 5];
+    persistent_target
+        .read_exact(&mut first_bytes)
+        .await
+        .unwrap();
+    first_connection
+        .quic_send_mut()
+        .write_all(&first_bytes)
+        .await
+        .unwrap();
+    first_session
+        .quic_recv_mut()
+        .read_exact(&mut first_bytes)
+        .await
+        .unwrap();
+    assert_eq!(&first_bytes, b"first");
+
+    let (first_server_closed, ()) = tokio::join!(first_connection.close(), first_session.close());
+    first_server_closed.unwrap();
+
+    let foreign_identity = EphemeralClientIdentity::generate().unwrap();
+    let foreign_client = bind_v2_client(
+        server.local_addr(),
+        identity.spki_sha256(),
+        &foreign_identity,
+    )
+    .unwrap();
+    let foreign_hello = ClientHello::resume(association_id, 0).unwrap();
+    let (foreign_server, foreign_client_result) = tokio::join!(
+        server.accept_v2_resume(authorization, 0, 0),
+        foreign_client.connect_v2_association(foreign_hello)
+    );
+    assert!(matches!(foreign_server, Err(Error::AuthRejected)));
+    assert!(foreign_client_result.is_err());
+
+    let wrong_id = AssociationId::from_bytes([0x76; 16]).unwrap();
+    let wrong_id_client = bind_v2_client(
+        server.local_addr(),
+        identity.spki_sha256(),
+        &client_identity,
+    )
+    .unwrap();
+    let wrong_id_hello = ClientHello::resume(wrong_id, 0).unwrap();
+    let (wrong_id_server, wrong_id_client_result) = tokio::join!(
+        server.accept_v2_resume(authorization, 0, 0),
+        wrong_id_client.connect_v2_association(wrong_id_hello)
+    );
+    assert!(matches!(wrong_id_server, Err(Error::AuthRejected)));
+    assert!(wrong_id_client_result.is_err());
+
+    let reused_token_client = bind_v2_client(
+        server.local_addr(),
+        identity.spki_sha256(),
+        &client_identity,
+    )
+    .unwrap();
+    let reused_token_hello =
+        ClientHello::initial(association_id, 0, token, target_address.port()).unwrap();
+    let (reused_token_server, reused_token_client_result) = tokio::join!(
+        server.accept_v2_initial(),
+        reused_token_client.connect_v2_association(reused_token_hello)
+    );
+    assert!(matches!(reused_token_server, Err(Error::TokenReuse)));
+    assert!(reused_token_client_result.is_err());
+
+    let second_client = bind_v2_client(
+        server.local_addr(),
+        identity.spki_sha256(),
+        &client_identity,
+    )
+    .unwrap();
+    let resume_hello = ClientHello::resume(association_id, 0).unwrap();
+    let resume_server = server.accept_v2_resume(authorization, 0, 0);
+    let resume_client = second_client.connect_v2_association(resume_hello);
+    let (second_connection, second_client_result) = tokio::join!(resume_server, resume_client);
+    let mut second_connection = second_connection.unwrap();
+    let (mut second_session, resume_response) = second_client_result.unwrap();
+    assert_eq!(resume_response.association_id(), association_id);
+
+    target_peer.write_all(b"second").await.unwrap();
+    let mut second_bytes = [0_u8; 6];
+    persistent_target
+        .read_exact(&mut second_bytes)
+        .await
+        .unwrap();
+    second_connection
+        .quic_send_mut()
+        .write_all(&second_bytes)
+        .await
+        .unwrap();
+    second_session
+        .quic_recv_mut()
+        .read_exact(&mut second_bytes)
+        .await
+        .unwrap();
+    assert_eq!(&second_bytes, b"second");
+
+    let (second_server_closed, ()) =
+        tokio::join!(second_connection.close(), second_session.close());
+    second_server_closed.unwrap();
+    drop(persistent_target);
+    let mut end = [0_u8; 1];
+    assert_eq!(target_peer.read(&mut end).await.unwrap(), 0);
+    server.close().await.unwrap();
+}
+
+fn bind_v2_client(
+    server: SocketAddr,
+    pin: [u8; 32],
+    identity: &EphemeralClientIdentity,
+) -> Result<ClientEndpoint, Error> {
+    for _ in 0..16 {
+        let reservation = UdpSocket::bind((Ipv4Addr::LOCALHOST, 0))?;
+        let address = reservation.local_addr()?;
+        drop(reservation);
+        match ClientEndpoint::bind(
+            server,
+            UdpBindPolicy::Explicit(address),
+            pin,
+            identity,
+            limits(),
+        ) {
+            Ok(endpoint) => return Ok(endpoint),
+            Err(Error::UdpBind(source)) if source.kind() == std::io::ErrorKind::AddrInUse => {
+                continue;
+            }
+            Err(source) => return Err(source),
+        }
+    }
+    Err(Error::PortRangeExhausted)
 }
 
 #[tokio::test]

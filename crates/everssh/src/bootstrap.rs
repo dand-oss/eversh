@@ -150,6 +150,10 @@ impl BootstrapRecord {
         &self.token
     }
 
+    pub fn association_id(&self) -> crate::association::AssociationId {
+        self.association_id
+    }
+
     pub fn encode(&self) -> BootstrapLine {
         // Reserve the full maximum representation up front. In particular,
         // never reallocate after token bytes enter the buffer, because the

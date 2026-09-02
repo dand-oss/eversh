@@ -1,6 +1,5 @@
 //! Typed orchestration for the public proxy and private process roles.
 
-use crate::association::AssociationId;
 use crate::bootstrap::BootstrapRecord;
 use crate::bridge::{DrainStatus, FinalizeStatus, StdioBridge, TargetBridge};
 use crate::error::Error;
@@ -130,7 +129,7 @@ where
         endpoint.local_addr().port(),
         identity.spki_sha256(),
         identity.take_bootstrap_token()?,
-        AssociationId::generate()?,
+        endpoint.association_id(),
         std::process::id(),
     )?;
     let line = record.encode();
