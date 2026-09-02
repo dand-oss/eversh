@@ -11,9 +11,14 @@ remote host (including ZeroTier or Tailscale overlay addresses).
 Requirements: Rust 1.88 or newer (the release is qualified with 1.95.0) and
 a Linux host.
 
-    cargo build --release --locked
+    cargo build --release --locked --features everpty/cli,everlink/cli,eversh/cli
 
 The three binaries land in `target/release/{eversh,everpty,everlink}`.
+Every `[[bin]]` is gated behind its own crate's `cli` feature and no single
+crate's feature implies the other two (`eversh/cli` enables `everlink/cli`
+but not `everpty/cli`), so the feature-less build produces none of them;
+the command above is the exact release-build invocation the qualification
+receipt uses.
 Release artifact hashes for a qualified build are recorded in the release
 qualification receipt under `target/qualification/eversh/`.
 

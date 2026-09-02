@@ -29,8 +29,10 @@ Contract values
 | unix_path_max | 107 | Linux sun_path minus NUL, checked before bind. |
 
 Runtime values (selected in M2 by driving the byte/ownership/resource suites
-listed in design 11.1–11.2; evidence: crates/everpty/tests/resources.rs and
-the M2 gate logs retained with the M2 completion record)
+listed in design 11.1–11.2; evidence: the per-knob selection record
+plans/m2-limits.md — which pins the exact ignored-measurement invocation and
+the retained measurement artifacts it references — plus the non-ignored
+boundary regressions in crates/everpty/tests/resources.rs)
 | Limit | Value | Selection rationale |
 | --- | --- | --- |
 | startup_deadline_ms | 10000 | Broker must see its initial writer well within interactive startup; 100x observed loopback attach time. |
@@ -62,8 +64,9 @@ Contract values
 | token_len | 32 | 256-bit one-use token. |
 | max_bi_streams | 1 | Exactly one SSH-carrying stream. |
 
-Runtime values (M0 candidates remeasured in M3; evidence: the
-everlink-resource-bounds gate metrics and raw campaign/network logs in
+Runtime values (M0 candidates remeasured in M3; evidence: the resource
+gate log target/qualification/everlink/runs/20260901T104502Z-c10b885d2cc7/gates/everlink-resource-bounds.log
+and the raw campaign/network logs under
 target/qualification/everlink/runs/20260901T104502Z-c10b885d2cc7 and
 target/qualification/everlink/network/20260901T105153Z-c10b885d2cc7)
 | Limit | Value | Selection rationale |
@@ -95,8 +98,10 @@ Contract values
 | origin_count_max / origin_label_max | 4 / 64 | Mirrors everpty metadata bounds. |
 
 Runtime values (selected in M4/M5 by the reconnect and resource gates;
-evidence: target/qualification/eversh/runs and the supervisor composition
-suite's bounded-attempt assertions)
+evidence: the supervisor stability rounds, resource-bounds, and OpenSSH e2e
+gate logs under target/qualification/eversh/runs/20260902T055944Z-c78a4f5fe666/gates/,
+plus the bounded-attempt assertions in
+crates/eversh/tests/supervisor_linux.rs)
 | Limit | Value | Selection rationale |
 | --- | --- | --- |
 | retry_attempts_max | 5 | Finite probe/reattach budget for ordinary in-episode failures; the exhaustion gate counts exactly five probes. A Busy reattach never consumes it — the episode deadline alone governs Busy retries. |
@@ -112,6 +117,9 @@ suite's bounded-attempt assertions)
 A runtime value may change only when `fuzz/qualify-m4.sh run` (deterministic
 gates), the everlink resource gate, and — for transport values — the
 `fuzz/qualify-m3.sh run`/`network` gates remain green; a release-qualified
-change additionally requires `fuzz/qualify-m5.sh run` to pass in full. The
-new value must be recorded here with its selection method in the same
-change.
+change additionally requires `fuzz/qualify-m5.sh run` to pass in full. An
+everpty limit change whose selection evidence is being revised additionally
+requires re-running the ignored local limits measurement (the exact
+invocation pinned in plans/m2-limits.md) — a green boundary-only gate rerun
+is not remeasurement. The new value must be recorded here with its
+selection method in the same change.
