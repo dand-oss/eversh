@@ -1,10 +1,12 @@
 //! API-level Slice 4 qualification of the production route supervisor.
 #![allow(clippy::unwrap_used)]
 
+use everssh::actor::{ClientAssociation, ServerAssociation};
 use everssh::admission::{AuthenticatedConnection, ConnectedTarget};
 use everssh::association::{AssociationId, ClientHello};
 use everssh::bootstrap::BootstrapRecord;
 use everssh::identity::EphemeralIdentity;
+use everssh::resume::ResumeAssociationConfig;
 use everssh::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
 use everssh::{EphemeralClientIdentity, Error, Limits, Phase, Shutdown, StdioBridge, TargetBridge};
 use std::fs;
@@ -703,7 +705,7 @@ async fn v2_sequential_associations_reuse_one_target_stream() {
     let resume_server = server.accept_v2_resume(authorization, 0, 0);
     let resume_client = second_client.connect_v2_association(resume_hello);
     let (second_connection, second_client_result) = tokio::join!(resume_server, resume_client);
-    let mut second_connection = second_connection.unwrap();
+    let (mut second_connection, _) = second_connection.unwrap();
     let (mut second_session, resume_response) = second_client_result.unwrap();
     assert_eq!(resume_response.association_id(), association_id);
 
@@ -732,6 +734,78 @@ async fn v2_sequential_associations_reuse_one_target_stream() {
     let mut end = [0_u8; 1];
     assert_eq!(target_peer.read(&mut end).await.unwrap(), 0);
     server.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn persistent_association_actors_transfer_and_finish_cleanly() {
+    let ip = selected_non_loopback(SocketAddr::from(([192, 0, 2, 1], 9))).unwrap();
+    let target_listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let target_address = target_listener.local_addr().unwrap();
+    let target_peer_task = tokio::spawn(async move { target_listener.accept().await.unwrap().0 });
+    let server_address = reserve_udp(ip);
+    let authenticated =
+        AuthenticatedConnection::new(SocketAddr::new(ip, 50_002), target_address).unwrap();
+    let identity = EphemeralIdentity::generate().unwrap();
+    let token = identity.take_bootstrap_token().unwrap();
+    let endpoint = ServerEndpoint::bind(
+        authenticated,
+        UdpBindPolicy::Explicit(server_address),
+        &identity,
+        limits(),
+    )
+    .unwrap();
+    let bootstrap = BootstrapRecord::new(
+        endpoint.local_addr().ip(),
+        endpoint.local_addr().port(),
+        identity.spki_sha256(),
+        token,
+        endpoint.association_id(),
+        std::process::id(),
+    )
+    .unwrap();
+    let client_identity = EphemeralClientIdentity::generate().unwrap();
+    let (client_local, mut client_peer) = tokio::io::duplex(128);
+    let (client_read, client_write) = tokio::io::split(client_local);
+    let client = ClientAssociation::new(
+        &bootstrap,
+        target_address.port(),
+        client_identity,
+        ResumeAssociationConfig::new(256, 16, 64).unwrap(),
+        limits(),
+        client_read,
+        client_write,
+    )
+    .unwrap();
+
+    client_peer.write_all(b"client-to-server").await.unwrap();
+    client_peer.shutdown().await.unwrap();
+
+    let client_task = tokio::spawn(client.run());
+    let association =
+        ServerAssociation::accept(endpoint, ResumeAssociationConfig::new(256, 16, 64).unwrap())
+            .await
+            .unwrap();
+    let mut target_peer = target_peer_task.await.unwrap();
+    target_peer.write_all(b"server-to-client").await.unwrap();
+    target_peer.shutdown().await.unwrap();
+    let server_result = tokio::time::timeout(Duration::from_secs(5), association.run())
+        .await
+        .expect("server actor timed out")
+        .unwrap();
+    let client_result = tokio::time::timeout(Duration::from_secs(5), client_task)
+        .await
+        .expect("client actor timed out")
+        .unwrap()
+        .unwrap();
+    assert_eq!(server_result, everssh::resume::AssociationCompletion::Clean);
+    assert_eq!(client_result, everssh::resume::AssociationCompletion::Clean);
+
+    let mut client_seen = Vec::new();
+    client_peer.read_to_end(&mut client_seen).await.unwrap();
+    assert_eq!(client_seen, b"server-to-client");
+    let mut server_seen = Vec::new();
+    target_peer.read_to_end(&mut server_seen).await.unwrap();
+    assert_eq!(server_seen, b"client-to-server");
 }
 
 fn bind_v2_client(

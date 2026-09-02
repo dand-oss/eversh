@@ -1047,7 +1047,7 @@ impl ServerEndpoint {
         authorization: AssociationAuthorization,
         server_delivered_ack: u64,
         last_assigned: u64,
-    ) -> Result<AssociationConnection, Error> {
+    ) -> Result<(AssociationConnection, u64), Error> {
         let mut raw = self.accept_v2_transport().await?;
         let error_connection = raw.connection.clone();
         let result = async {
@@ -1055,17 +1055,16 @@ impl ServerEndpoint {
             read_exact_v2(&mut raw.recv, &mut wire, raw.deadline).await?;
             let hello = AssociationClientHello::decode_exact(&wire)?;
             let client_spki = client_spki_from_connection(&raw.connection)?;
-            authorization.authorize_resume(client_spki, hello, last_assigned)?;
+            let peer_ack = authorization.authorize_resume(client_spki, hello, last_assigned)?;
             write_all_v2(
                 &mut raw.send,
                 &ServerHello::new(authorization.association_id(), server_delivered_ack).encode(),
                 raw.deadline,
             )
             .await?;
-            Ok::<_, Error>(AssociationConnection::new(
-                raw,
-                authorization,
-                self.limits.finalize_timeout(),
+            Ok::<_, Error>((
+                AssociationConnection::new(raw, authorization, self.limits.finalize_timeout()),
+                peer_ack,
             ))
         }
         .await;
@@ -1130,6 +1129,17 @@ impl AssociationConnection {
 
     pub fn quic_recv_mut(&mut self) -> &mut RecvStream {
         &mut self.raw.recv
+    }
+
+    pub fn into_remote_parts(
+        self,
+    ) -> (Connection, SendStream, RecvStream, AssociationAuthorization) {
+        (
+            self.raw.connection,
+            self.raw.send,
+            self.raw.recv,
+            self.authorization,
+        )
     }
 
     pub async fn close(self) -> Result<(), Error> {
@@ -1990,6 +2000,18 @@ impl ClientSession {
 
     pub fn quic_recv_mut(&mut self) -> &mut RecvStream {
         &mut self.recv
+    }
+
+    pub fn into_remote_parts(self) -> (Endpoint, Connection, SendStream, RecvStream) {
+        let ClientSessionParts {
+            endpoint,
+            connection,
+            send,
+            recv,
+            supervisor,
+        } = self.into_parts();
+        drop(supervisor);
+        (endpoint, connection, send, recv)
     }
 
     pub fn stable_id(&self) -> usize {

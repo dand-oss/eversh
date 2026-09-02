@@ -495,6 +495,10 @@ impl ResumeReceiver {
     pub fn acknowledgement(&self) -> Result<ResumeFrame, Error> {
         ResumeFrame::ack(self.last_delivered)
     }
+
+    pub fn delivered_ack(&self) -> u64 {
+        self.last_delivered
+    }
 }
 
 pub const DEFAULT_RESUME_MAX_WIRE_BYTES: usize = 4 * 1024 * 1024;
@@ -596,6 +600,14 @@ impl AssociationCore {
 
     pub fn outbound_is_empty(&self) -> bool {
         self.outbound.is_empty()
+    }
+
+    pub fn delivered_ack(&self) -> u64 {
+        self.inbound.delivered_ack()
+    }
+
+    pub fn outbound_last_assigned(&self) -> u64 {
+        self.outbound.last_assigned
     }
 
     pub async fn run_connection<LR, LW, RR, RW>(

@@ -6,6 +6,7 @@
 //! Library code never prints, reads global arguments/environment, exits, or
 //! constructs a runtime.
 
+pub mod actor;
 pub mod admission;
 pub mod association;
 pub mod bootstrap;
