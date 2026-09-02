@@ -2,8 +2,8 @@
 //! types: total parsing, caps before allocation, constant-time compare.
 #![allow(clippy::unwrap_used)]
 
-use everlink::bootstrap::*;
-use everlink::limits::Limits;
+use everssh::bootstrap::*;
+use everssh::limits::Limits;
 use std::net::IpAddr;
 
 fn sample_record() -> BootstrapRecord {
@@ -36,7 +36,7 @@ fn record_cap_checked_before_parse() {
     let too_long = "x".repeat(l.bootstrap_record_max);
     assert!(matches!(
         BootstrapRecord::parse(&too_long, &l),
-        Err(everlink::Error::BootstrapMalformed)
+        Err(everssh::Error::BootstrapMalformed)
     ));
 }
 
@@ -45,13 +45,13 @@ fn record_rejects_garbage_totally() {
     let l = Limits::default();
     for bad in [
         "",
-        "everlink v2 127.0.0.1 1 a b 2",
-        "everlink v1 hostname 1 a b 2", // names are not resolved: literal only
-        "everlink v1 127.0.0.1 99999 a b 2",
-        "everlink v1 127.0.0.1 1 xx yy 2",
-        "everlink v1 127.0.0.1 1 a b 2 extra",
+        "everssh v2 127.0.0.1 1 a b 2",
+        "everssh v1 hostname 1 a b 2", // names are not resolved: literal only
+        "everssh v1 127.0.0.1 99999 a b 2",
+        "everssh v1 127.0.0.1 1 xx yy 2",
+        "everssh v1 127.0.0.1 1 a b 2 extra",
         "m0 v1 127.0.0.1 1 a b 2", // old spike magic rejected
-        "everlink v1 127.0.0.1 1 7 9 2",
+        "everssh v1 127.0.0.1 1 7 9 2",
     ] {
         assert!(
             BootstrapRecord::parse(bad, &l).is_err(),
@@ -117,7 +117,7 @@ fn auth_frame_is_exactly_35_bytes_be() {
     bad_version[0] = 2;
     assert!(matches!(
         decode_auth_frame(&bad_version, &l),
-        Err(everlink::Error::VersionUnsupported)
+        Err(everssh::Error::VersionUnsupported)
     ));
 }
 
@@ -133,16 +133,13 @@ fn spki_extraction_matches_rcgen_vector() {
     // Vector property (from M0): extraction hashes the SubjectPublicKeyInfo,
     // not the whole certificate, and is deterministic per key.
     let ck = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-    let spki = everlink::pinning::extract_spki(ck.cert.der()).expect("spki");
+    let spki = everssh::pinning::extract_spki(ck.cert.der()).expect("spki");
     assert!(spki.len() > 40 && spki.len() < ck.cert.der().len());
     // Same key re-issued (different serial/validity) yields the same SPKI.
     let ck2 = rcgen::generate_simple_self_signed(vec!["other".into()]).unwrap();
-    let spki2 = everlink::pinning::extract_spki(ck2.cert.der()).expect("spki");
+    let spki2 = everssh::pinning::extract_spki(ck2.cert.der()).expect("spki");
     assert_ne!(spki, spki2, "different keys must pin differently");
     // A different certificate with the SAME key material is unavailable from
     // generate_simple_self_signed; determinism is asserted instead.
-    assert_eq!(
-        everlink::pinning::extract_spki(ck.cert.der()).unwrap(),
-        spki
-    );
+    assert_eq!(everssh::pinning::extract_spki(ck.cert.der()).unwrap(), spki);
 }

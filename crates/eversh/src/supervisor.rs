@@ -1,14 +1,14 @@
-//! Thin supervision of OpenSSH, everlink, and Kitty processes (design 7).
+//! Thin supervision of OpenSSH, everssh, and Kitty processes (design 7).
 //!
-//! Every function here launches the installed `ssh` binary over the everlink
+//! Every function here launches the installed `ssh` binary over the everssh
 //! ProxyCommand and supervises it: eversh never relays or parses terminal
 //! data, never builds a runtime, and preserves inherited stdin/stdout/stderr
 //! for the live terminal path. Effective OpenSSH configuration resolution is
 //! delegated to OpenSSH itself: ProxyCommand `%n`/`%p` carry the original
-//! destination token and effective port into everlink, whose own `ssh -G`
+//! destination token and effective port into everssh, whose own `ssh -G`
 //! verification rejects recursive proxying (design 6.4, 8).
 //!
-//! ## The local everlink link-status file (design 3, 7)
+//! ## The local everssh link-status file (design 3, 7)
 //!
 //! OpenSSH reserves exit 255 for its own failures, but that single code is
 //! produced identically whether the SSH session never established anything
@@ -17,9 +17,9 @@
 //! does not need a remote-side channel: for every structured interactive
 //! operation and every probe, eversh creates a private per-spawn file under
 //! its own state root (a `0700` directory, `0600` files) and passes its
-//! path to the local everlink `ssh-proxy` edge as a `--status-file`
+//! path to the local everssh `ssh-proxy` edge as a `--status-file`
 //! ProxyCommand ARGUMENT. OpenSSH executes the ProxyCommand line through
-//! the user's local shell, so the path arrives in everlink's own argv: no
+//! the user's local shell, so the path arrives in everssh's own argv: no
 //! environment variable exists, no `SendEnv`/`AcceptEnv` policy can forward
 //! one remotely, and no ambient value can instrument a spawn that was not
 //! given the argument. The channel is mandatory, never best-effort: if the
@@ -36,7 +36,7 @@
 //! inherited and uninstrumented (design 7: it is never retried, so there is
 //! nothing to classify).
 //!
-//! everlink appends two kinds of versioned line to that file: `carrying`,
+//! everssh appends two kinds of versioned line to that file: `carrying`,
 //! written once as soon as the QUIC stream first delivers a byte
 //! originating from the remote peer (a genuine round trip — the remote
 //! sshd's own banner proves it), and a terminal `cause <word>
@@ -81,7 +81,7 @@
 //! A reattach reporting Busy (a writer is already attached) is retried
 //! against the episode's OWN deadline, never the attempt budget and never
 //! `--take-over`: after a path death the remote writer slot can stay
-//! legitimately held for up to everlink's idle timeout (~30s), because the
+//! legitimately held for up to everssh's idle timeout (~30s), because the
 //! remote bridge only learns of the loss when its QUIC endpoint expires —
 //! a small attempt count would give up long before the broker could
 //! possibly revoke the slot. Other in-episode failures (an unreachable
@@ -99,10 +99,10 @@
 //!
 //! Because every spawn stays fully inherited (no piped descriptor to await
 //! EOF on), a deadline-triggered kill of the direct `ssh` child is always
-//! bounded regardless of any surviving descendant (notably everlink's own
+//! bounded regardless of any surviving descendant (notably everssh's own
 //! `ssh-proxy` ProxyCommand child, if it is mid-handshake): eversh never
 //! waits on it. Residual documented limitation: once a reattach is
-//! carrying, a wedge on that now-live transport is bounded by everlink's
+//! carrying, a wedge on that now-live transport is bounded by everssh's
 //! own contractual timeouts (idle/stall/handshake/lease deadlines are all
 //! finite and measured in single-digit to low tens of seconds — design 4,
 //! 6.3), not by `retry_deadline_ms`. A user who needs a tighter bound on
@@ -118,7 +118,7 @@ use crate::command::{
 use crate::error::{Error, LinkStatusFault};
 use crate::limits::Limits;
 use crate::remote::{origin_label, validate_host, validate_name, ControlRequest};
-use everlink::link_status;
+use everssh::link_status;
 use std::ffi::OsString;
 use std::io::Read;
 use std::os::fd::AsFd;
@@ -137,7 +137,7 @@ pub struct Config {
     pub ssh_program: OsString,
     /// The Kitty launcher used by resume-all.
     pub kitty_program: OsString,
-    /// This executable, re-invoked as the local everlink role and by Kitty
+    /// This executable, re-invoked as the local everssh role and by Kitty
     /// tabs.
     pub self_exe: PathBuf,
     /// The remote combined eversh binary: bare PATH word or absolute path.
@@ -146,7 +146,7 @@ pub struct Config {
     pub kitty_listen_on: Option<String>,
     /// The local host name used for generated origin metadata.
     pub local_host: String,
-    /// The private local root eversh's own per-spawn everlink link-status
+    /// The private local root eversh's own per-spawn everssh link-status
     /// files are created under (design 3, 7); `None` when no state-root
     /// candidate resolves at all, in which case every classification-
     /// carrying spawn (structured interactive operations and probes) fails
@@ -287,7 +287,7 @@ impl Notifier for SilentNotifier {
 
 /// Build the ProxyCommand for one spawn. `status_file`, when set, is the
 /// same per-spawn link-status file the spawn's ssh child is classified
-/// through: the path travels to the local everlink edge as a ProxyCommand
+/// through: the path travels to the local everssh edge as a ProxyCommand
 /// argument (never an environment variable — see the module header).
 fn proxy_for(
     config: &Config,
@@ -313,7 +313,7 @@ fn spawn_quiet(config: &Config, args: &[OsString]) -> Result<ExitKind, Error> {
 }
 
 // ---------------------------------------------------------------------------
-// Bounded waits and the local everlink link-status file (design 3, 7;
+// Bounded waits and the local everssh link-status file (design 3, 7;
 // findings 1-3).
 // ---------------------------------------------------------------------------
 
@@ -382,7 +382,7 @@ fn restore_termios(termios: &everpty::sys::TerminalAttributes) {
 }
 
 /// Bounded grace period for the final status-file read after the direct
-/// child is confirmed reaped: covers the everlink `ssh-proxy` ProxyCommand
+/// child is confirmed reaped: covers the everssh `ssh-proxy` ProxyCommand
 /// descendant's own terminal write landing a few scheduler ticks after its
 /// parent `ssh` process exits. A reliability improvement only — reading a
 /// local file never blocks the way a pipe read can, so this grace period
@@ -830,7 +830,7 @@ enum ReconnectOutcome {
 /// bounds a hung probe, a not-yet-carrying reattach, AND the Busy-retry
 /// path (finding 3). Busy reattach responses never consume the attempt
 /// budget — the episode deadline alone governs them, because the remote
-/// writer slot can stay legitimately held for up to everlink's idle timeout
+/// writer slot can stay legitimately held for up to everssh's idle timeout
 /// after a path death, far longer than a small attempt budget could span.
 /// Once a reattach starts carrying it runs unbounded; if THAT later dies
 /// again with `carried=1`, this returns [`ReconnectOutcome::RestartEpisode`]
@@ -973,7 +973,7 @@ fn reconnect(
                 // A reattach finding the session Busy is retried within
                 // THIS episode's deadline budget without charging its
                 // attempt budget: the dead transport's writer slot may not
-                // be revoked for up to everlink's idle timeout after the
+                // be revoked for up to everssh's idle timeout after the
                 // path death. Never escalated to take_over — a
                 // legitimately attached new writer must not be stolen.
                 SpawnOutcome::Remote(REMOTE_BUSY_EXIT) if !run.observer => {
@@ -1182,7 +1182,7 @@ pub fn simple_remote(
     spawn_quiet(config, &args)
 }
 
-/// `eversh ssh`: raw OpenSSH over everlink. Never restarted (design 7),
+/// `eversh ssh`: raw OpenSSH over everssh. Never restarted (design 7),
 /// never passes a link-status file to its ProxyCommand — stays fully
 /// inherited and uninstrumented on every descriptor (and since the handoff
 /// is an argument, not an environment variable, no ambient value can
@@ -1198,7 +1198,7 @@ pub fn raw_ssh(
 ) -> Result<SessionEnd, Error> {
     config.limits.validate()?;
     // Raw options are passed verbatim to the outer ssh (unaudited escape
-    // hatch), but only the audited subset is mirrored into the everlink
+    // hatch), but only the audited subset is mirrored into the everssh
     // bootstrap's ProxyCommand (design 6.4); a rejected option simply stays
     // outer-ssh-only rather than erroring in raw mode (finding 4).
     let audited = crate::command::audited_subset(pre_options);

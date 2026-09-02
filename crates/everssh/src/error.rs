@@ -1,4 +1,4 @@
-//! Typed, diagnostics-safe failures for everlink.
+//! Typed, diagnostics-safe failures for everssh.
 
 /// The endpoint invariant rejected at the authenticated boundary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

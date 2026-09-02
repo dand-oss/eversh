@@ -209,7 +209,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "everlink"
+name = "everssh"
 version = "0.1.0"
 dependencies = [
  "noq",
@@ -232,7 +232,7 @@ dependencies = [
 name = "eversh"
 version = "0.1.0"
 dependencies = [
- "everlink",
+ "everssh",
  "everpty",
 ]
 
@@ -240,7 +240,7 @@ dependencies = [
 name = "eversh-fuzz"
 version = "0.1.0"
 dependencies = [
- "everlink",
+ "everssh",
  "everpty",
  "eversh",
  "libfuzzer-sys",

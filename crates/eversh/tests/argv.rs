@@ -21,7 +21,7 @@ fn proxy_command_is_exact_and_quoted() {
     let proxy = proxy_command(SELF, "eversh", &options, None).unwrap();
     assert_eq!(
         proxy,
-        "'/usr/local/bin/eversh' __everlink ssh-proxy '%n' '%p' \
+        "'/usr/local/bin/eversh' __everssh ssh-proxy '%n' '%p' \
          --remote-eversh 'eversh' --ssh-option '-oConnectTimeout=7' --ssh-option '-4'"
     );
     let proxy = proxy_command(SELF, "/opt/eversh/bin/eversh", &[], None).unwrap();
@@ -44,14 +44,14 @@ fn proxy_command_status_file_is_one_quoted_argument() {
     .unwrap();
     assert_eq!(
         proxy,
-        "'/usr/local/bin/eversh' __everlink ssh-proxy '%n' '%p' \
+        "'/usr/local/bin/eversh' __everssh ssh-proxy '%n' '%p' \
          --remote-eversh 'eversh' \
          --status-file '/tmp/eversh/link-status/4242-1-0.status'"
     );
 
     // Spaces and shell metacharacters stay inert inside the single-quoted
     // word: the local shell executing the ProxyCommand passes them through
-    // as ONE argv element for the everlink edge.
+    // as ONE argv element for the everssh edge.
     for path in [
         "/tmp/eversh status/one.status",
         "/tmp/a$b;c|rm -rf /.status",
@@ -68,7 +68,7 @@ fn proxy_command_status_file_is_one_quoted_argument() {
     // Quotes, control bytes (NUL included), non-UTF-8, and PERCENT are
     // rejected outright, never escaped: OpenSSH expands percent tokens
     // inside quoted ProxyCommand words before the local shell sees the
-    // quotes, so a `%` in the path would reach the everlink edge expanded
+    // quotes, so a `%` in the path would reach the everssh edge expanded
     // and the record would be written elsewhere than allocated (round 4).
     for bad in [
         "/tmp/a'b.status",
@@ -344,7 +344,7 @@ fn raw_ssh_argv_splits_pre_and_post_on_inner_separator() {
 
 #[test]
 fn raw_mode_audited_subset_mirrors_into_the_proxy_command() {
-    // A passing option is forwarded into the everlink bootstrap; an
+    // A passing option is forwarded into the everssh bootstrap; an
     // unaudited token stays outer-ssh-only and never errors (finding 4).
     let tokens = ["-4", "-L", "8080:localhost:80"].map(str::to_owned);
     let audited = audited_subset(&tokens);
@@ -398,10 +398,10 @@ fn kitty_launch_argv_is_exact() {
 
 #[test]
 fn role_markers_agree_across_crates() {
-    // The combined dispatcher and everlink's remote bootstrap policy must
-    // spell the everlink role marker identically.
+    // The combined dispatcher and everssh's remote bootstrap policy must
+    // spell the everssh role marker identically.
     assert_eq!(
-        eversh::role::EVERLINK_ROLE,
-        everlink::ssh_policy::COMBINED_EVERLINK_ROLE
+        eversh::role::EVERSSH_ROLE,
+        everssh::ssh_policy::COMBINED_EVERSSH_ROLE
     );
 }

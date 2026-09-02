@@ -4,7 +4,7 @@
 #[test]
 fn error_is_static_send_sync() {
     fn assert_traits<T: std::error::Error + Send + Sync + 'static>() {}
-    assert_traits::<everlink::Error>();
+    assert_traits::<everssh::Error>();
 }
 
 #[test]
@@ -13,16 +13,16 @@ fn slice2_public_types_have_owned_thread_safe_boundaries() {
     fn assert_send_sync<T: Send + Sync>() {}
     fn assert_copy<T: Copy>() {}
 
-    assert_send::<everlink::TargetBridge>();
-    assert_send::<everlink::StdioBridge>();
-    assert_send_sync::<everlink::Shutdown>();
-    assert_copy::<everlink::BridgeCompletion>();
-    assert_copy::<everlink::TerminalCause>();
+    assert_send::<everssh::TargetBridge>();
+    assert_send::<everssh::StdioBridge>();
+    assert_send_sync::<everssh::Shutdown>();
+    assert_copy::<everssh::BridgeCompletion>();
+    assert_copy::<everssh::TerminalCause>();
 }
 
 #[test]
 fn runtime_limits_are_provisional() {
-    let l = everlink::Limits::default();
+    let l = everssh::Limits::default();
     let named: [(&str, u64); 17] = [
         ("copy_buf", l.copy_buf as u64),
         ("send_window", l.send_window),
@@ -60,7 +60,7 @@ fn runtime_limits_are_provisional() {
 
 #[test]
 fn contract_limits_are_fixed() {
-    let l = everlink::Limits::default();
+    let l = everssh::Limits::default();
     assert_eq!(l.token_len, 32, "256-bit token is a contract value");
     assert_eq!(
         l.max_bi_streams, 1,

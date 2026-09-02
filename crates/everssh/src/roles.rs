@@ -27,7 +27,7 @@ use tokio::time::Instant;
 
 /// Run the SSH-launched parent. Its only global inputs are supplied by the
 /// process edge. `server_role_args` is the argv prefix required to reach the
-/// everlink role when re-invoking `self_exe` (empty for the standalone
+/// everssh role when re-invoking `self_exe` (empty for the standalone
 /// binary; the combined binary's role marker otherwise).
 pub async fn run_bootstrap_parent<W>(
     authenticated: crate::admission::AuthenticatedConnection,
@@ -416,7 +416,7 @@ mod tests {
                 .unwrap()
                 .as_nanos();
             let root = std::env::temp_dir().join(format!(
-                "everlink-role-{mode}-{}-{nonce}",
+                "everssh-role-{mode}-{}-{nonce}",
                 std::process::id()
             ));
             fs::create_dir(&root).unwrap();
@@ -424,13 +424,13 @@ mod tests {
             let pid_file = root.join("pid");
             let argv_file = root.join("argv");
             let line = format!(
-                "everlink v1 192.0.2.2 4444 {} {} 123\\n",
+                "everssh v1 192.0.2.2 4444 {} {} 123\\n",
                 "00".repeat(32),
                 "11".repeat(32)
             );
             let behavior = match mode {
                 "success" => format!(
-                    "printf '{line}'; exec 1>&-; IFS= read -r release || exit 31; [ \"$release\" = 'everlink-release v1' ] || exit 32; exit 0"
+                    "printf '{line}'; exec 1>&-; IFS= read -r release || exit 31; [ \"$release\" = 'everssh-release v1' ] || exit 32; exit 0"
                 ),
                 "chatter" => format!("printf '{line}junk\\n'; exec 1>&-; sleep 30"),
                 "missing-eof" => format!("printf '{line}'; sleep 30"),
@@ -541,7 +541,7 @@ mod tests {
         let future = run_bootstrap_parent(
             authenticated,
             script.executable.clone(),
-            &["__everlink"],
+            &["__everssh"],
             writer,
             test_limits(),
         );
@@ -555,8 +555,8 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(
             fs::read_to_string(&script.argv_file).unwrap(),
-            "__everlink __server-v1",
-            "combined dispatch must re-invoke through the everlink role marker"
+            "__everssh __server-v1",
+            "combined dispatch must re-invoke through the everssh role marker"
         );
     }
 

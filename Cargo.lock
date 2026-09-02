@@ -277,19 +277,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "everlink"
-version = "0.1.0"
-dependencies = [
- "clap",
- "noq",
- "rcgen",
- "ring",
- "subtle",
- "tokio",
- "zeroize",
-]
-
-[[package]]
 name = "everpty"
 version = "0.1.0"
 dependencies = [
@@ -304,8 +291,21 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata",
  "clap",
- "everlink",
  "everpty",
+ "everssh",
+]
+
+[[package]]
+name = "everssh"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "noq",
+ "rcgen",
+ "ring",
+ "subtle",
+ "tokio",
+ "zeroize",
 ]
 
 [[package]]

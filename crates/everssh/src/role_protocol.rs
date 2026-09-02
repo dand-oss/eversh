@@ -8,7 +8,7 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 /// Maximum canonical `client-ip client-port server-ip server-port` bytes.
 pub const SSH_CONNECTION_MAX: usize = 91;
 pub const SERVER_START_MAX: usize = 512;
-pub const RELEASE_RECORD: &[u8] = b"everlink-release v1\n";
+pub const RELEASE_RECORD: &[u8] = b"everssh-release v1\n";
 
 /// The only UDP policies that may cross the protected parent/server pipe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -52,7 +52,7 @@ impl ServerStartRecord {
         let peer = self.authenticated.peer();
         let local = self.authenticated.local();
         let mut output = String::with_capacity(SERVER_START_MAX);
-        output.push_str("everlink-start v1 ");
+        output.push_str("everssh-start v1 ");
         output.push_str(&peer.ip().to_string());
         output.push(' ');
         output.push_str(&peer.port().to_string());
@@ -90,7 +90,7 @@ impl ServerStartRecord {
         if fields.iter().any(|field| field.is_empty()) || fields.len() < 7 {
             return Err(Error::ServerStartMalformed);
         }
-        if fields[0] != "everlink-start" || fields[1] != "v1" {
+        if fields[0] != "everssh-start" || fields[1] != "v1" {
             return Err(Error::ServerStartMalformed);
         }
         let authenticated = connection_from_fields(&fields[2..6])?;
@@ -278,6 +278,6 @@ mod tests {
             );
         }
         assert!(validate_release(RELEASE_RECORD).is_ok());
-        assert!(validate_release(b"everlink-release v2\n").is_err());
+        assert!(validate_release(b"everssh-release v2\n").is_err());
     }
 }

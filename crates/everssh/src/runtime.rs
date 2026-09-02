@@ -1,7 +1,7 @@
 //! The single Tokio runtime owner (design 6.3).
 //!
 //! M1 exposes only the construction counter used by the role-isolation
-//! tests: every non-everlink role must leave `constructions()` at zero. The
+//! tests: every non-everssh role must leave `constructions()` at zero. The
 //! actual runtime is built in M3; nothing here ever creates a second
 //! runtime or enters one from library code.
 

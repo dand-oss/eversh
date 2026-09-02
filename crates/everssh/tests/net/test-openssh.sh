@@ -149,17 +149,17 @@ SSHD_EXPECTED_OUTPUT=
 SSHD_REMOTE_BIN=
 CURRENT_USER=
 WORKSPACE_ROOT=
-EVERLINK_EXE=
+EVERSSH_EXE=
 SSHD_HOST_BLOB=
 SERVER_PID=
 SERVER_START=
 SERVER_EXE=
 SERVER_PGRP=
 SERVER_ROLE=
-SSH_ALIAS=everlink-slice5a-alias
-readonly PTY_TERM_VALUE=everlink-m3s5-pty
-readonly PTY_INPUT_LINE=everlink-pty-canonical-input-v1
-readonly PTY_MARKER=EVERLINK-PTY-SESSION-OK
+SSH_ALIAS=everssh-slice5a-alias
+readonly PTY_TERM_VALUE=everssh-m3s5-pty
+readonly PTY_INPUT_LINE=everssh-pty-canonical-input-v1
+readonly PTY_MARKER=EVERSSH-PTY-SESSION-OK
 SSH_SHIM_DIR=
 SSH_SHIM=
 SSH_QUERY_ARGV=
@@ -229,7 +229,7 @@ validate_owned() {
 
 validate_temp_target() {
     local path=$1 canonical mode
-    [[ -n $path && $path == /tmp/everlink-slice5a.* && -d $path ]] || return 1
+    [[ -n $path && $path == /tmp/everssh-slice5a.* && -d $path ]] || return 1
     canonical=$("$READLINK_TOOL" -e -- "$path") || return 1
     [[ $canonical == "$path" && $canonical != /tmp && $canonical != / ]] || return 1
     mode=$("$STAT_TOOL" -c '%a' -- "$path") || return 1
@@ -257,16 +257,16 @@ run_bounded() {
 
 verify_current_binary() {
     local binary_mtime input input_mtime
-    WORKSPACE_ROOT=${SCRIPT_PATH%/crates/everlink/tests/net/test-openssh.sh}
-    EVERLINK_EXE="$WORKSPACE_ROOT/target/debug/everlink"
-    [[ "$SCRIPT_PATH" == "$WORKSPACE_ROOT/crates/everlink/tests/net/test-openssh.sh" ]] || return 1
-    [[ -x "$EVERLINK_EXE" ]] || return 1
-    [[ "$($READLINK_TOOL -e -- "$EVERLINK_EXE")" == "$EVERLINK_EXE" ]] || return 1
-    binary_mtime=$($STAT_TOOL -c '%Y' -- "$EVERLINK_EXE") || return 1
+    WORKSPACE_ROOT=${SCRIPT_PATH%/crates/everssh/tests/net/test-openssh.sh}
+    EVERSSH_EXE="$WORKSPACE_ROOT/target/debug/everssh"
+    [[ "$SCRIPT_PATH" == "$WORKSPACE_ROOT/crates/everssh/tests/net/test-openssh.sh" ]] || return 1
+    [[ -x "$EVERSSH_EXE" ]] || return 1
+    [[ "$($READLINK_TOOL -e -- "$EVERSSH_EXE")" == "$EVERSSH_EXE" ]] || return 1
+    binary_mtime=$($STAT_TOOL -c '%Y' -- "$EVERSSH_EXE") || return 1
     for input in "$WORKSPACE_ROOT/Cargo.toml" \
-        "$WORKSPACE_ROOT/Cargo.lock" "$WORKSPACE_ROOT/crates/everlink/Cargo.toml" \
+        "$WORKSPACE_ROOT/Cargo.lock" "$WORKSPACE_ROOT/crates/everssh/Cargo.toml" \
         "$WORKSPACE_ROOT/crates/everpty/Cargo.toml" "$WORKSPACE_ROOT/crates/eversh/Cargo.toml" \
-        "$WORKSPACE_ROOT"/crates/everlink/src/*.rs; do
+        "$WORKSPACE_ROOT"/crates/everssh/src/*.rs; do
         [[ -f "$input" ]] || return 1
         input_mtime=$($STAT_TOOL -c '%Y' -- "$input") || return 1
         (( binary_mtime > input_mtime )) || return 1
@@ -565,7 +565,7 @@ run_child_probe() {
     CHILD_ROOT=${probe_lines[4]}
     [[ $CHILD_SLEEP_PID =~ ^[0-9]+$ && $CHILD_SLEEP_START =~ ^[0-9]+$ ]] || return 1
     [[ $CHILD_SLEEP_EXE == "$SLEEP_TOOL" && $CHILD_SLEEP_PGRP == "$CHILD_SLEEP_PID" ]] || return 1
-    [[ $CHILD_ROOT == /tmp/everlink-slice5a.* ]] || return 1
+    [[ $CHILD_ROOT == /tmp/everssh-slice5a.* ]] || return 1
 
     # Release the child only after the parent has recorded and checked its tuple.
     if ! validate_owned "$CHILD_PID" "$CHILD_START" "$CHILD_EXE" "$CHILD_PGRP" "$CHILD_ROLE"; then
@@ -635,8 +635,8 @@ prepare_isolated_sshd() {
     SSHD_REMOTE_BIN="$TMP_ROOT/remote-bin"
     "$MKDIR_TOOL" -m 700 -- "$TMP_ROOT/sshd" "$TMP_ROOT/ca" \
         "$SSHD_REMOTE_BIN" || return 1
-    "$LN_TOOL" -s -- "$EVERLINK_EXE" "$SSHD_REMOTE_BIN/everlink" || return 1
-    [[ "$($READLINK_TOOL -e -- "$SSHD_REMOTE_BIN/everlink")" == "$EVERLINK_EXE" ]] || return 1
+    "$LN_TOOL" -s -- "$EVERSSH_EXE" "$SSHD_REMOTE_BIN/everssh" || return 1
+    [[ "$($READLINK_TOOL -e -- "$SSHD_REMOTE_BIN/everssh")" == "$EVERSSH_EXE" ]] || return 1
     : > "$SSHD_LOG"
     "$CHMOD_TOOL" 600 -- "$SSHD_LOG" || return 1
     run_bounded "$SSHKEYGEN_TOOL" -q -t ed25519 -N '' -f "$SSHD_HOST_KEY" >/dev/null 2>&1 || return 1
@@ -863,7 +863,7 @@ readonly QUERY_ARGV="$SHIM_DIR/query.argv"
 readonly BOOTSTRAP_ARGV="$SHIM_DIR/bootstrap.argv"
 readonly QUERY_OUTPUT="$SHIM_DIR/query.stdout"
 readonly SERVER_IDENTITY="$SHIM_DIR/server.identity"
-readonly BOOTSTRAP_COMMAND='everlink __bootstrap-parent-v1'
+readonly BOOTSTRAP_COMMAND='everssh __bootstrap-parent-v1'
 
 write_argv() {
     local path=$1 tmp
@@ -891,7 +891,7 @@ capture_server_identity() {
     exe=$("$READLINK_TOOL" -e -- "/proc/$pid/exe") || exit 1
     [[ -n $exe ]] || exit 1
     tmp="${SERVER_IDENTITY}.tmp.$$"
-    printf '%s\n%s\n%s\n%s\ndetached-everlink-server\n' \
+    printf '%s\n%s\n%s\n%s\ndetached-everssh-server\n' \
         "$pid" "$starttime" "$exe" "$pgrp" > "$tmp" || exit 1
     "$CHMOD_TOOL" 600 -- "$tmp" || exit 1
     "$MV_TOOL" -f -- "$tmp" "$SERVER_IDENTITY" || exit 1
@@ -939,7 +939,7 @@ set -e
 bootstrap_lines=()
 mapfile -t bootstrap_lines <<< "$bootstrap_capture"
 [[ ${#bootstrap_lines[@]} -eq 2 && ${bootstrap_lines[1]} == 0 ]] || exit 1
-pattern='^everlink v1 [^[:space:]]+ [0-9]+ [0-9a-f]{64} [0-9a-f]{64} [1-9][0-9]*$'
+pattern='^everssh v1 [^[:space:]]+ [0-9]+ [0-9a-f]{64} [0-9a-f]{64} [1-9][0-9]*$'
 [[ ${bootstrap_lines[0]} =~ $pattern ]] || exit 1
 server_pid=${bootstrap_lines[0]##* }
 capture_server_identity "$server_pid"
@@ -1021,7 +1021,7 @@ write_ssh_configs() {
         '    GlobalKnownHostsFile /dev/null' \
         '    StrictHostKeyChecking yes' \
         '    HostKeyAlgorithms ssh-ed25519' \
-        "    ProxyCommand $ENV_TOOL PATH=$SSH_SHIM_DIR:/usr/bin:/bin EVERLINK_SHIM_DIR=$SSH_SHIM_DIR $EVERLINK_EXE ssh-proxy %n %p --ssh-option=-F$SSH_INNER_CONFIG" \
+        "    ProxyCommand $ENV_TOOL PATH=$SSH_SHIM_DIR:/usr/bin:/bin EVERSSH_SHIM_DIR=$SSH_SHIM_DIR $EVERSSH_EXE ssh-proxy %n %p --ssh-option=-F$SSH_INNER_CONFIG" \
         '    BatchMode yes' \
         '    PubkeyAuthentication yes' \
         '    PasswordAuthentication no' \
@@ -1124,8 +1124,8 @@ load_server_identity() {
     server_pgrp=${server_lines[3]}
     server_role=${server_lines[4]}
     [[ $server_pid =~ ^[1-9][0-9]*$ && $server_start =~ ^[1-9][0-9]*$ ]] || return 1
-    [[ $server_pgrp =~ ^[1-9][0-9]*$ && $server_exe == "$EVERLINK_EXE" ]] || return 1
-    [[ $server_role == detached-everlink-server ]] || return 1
+    [[ $server_pgrp =~ ^[1-9][0-9]*$ && $server_exe == "$EVERSSH_EXE" ]] || return 1
+    [[ $server_role == detached-everssh-server ]] || return 1
     SERVER_PID=$server_pid
     SERVER_START=$server_start
     SERVER_EXE=$server_exe
@@ -1150,7 +1150,7 @@ assert_shim_argv_evidence() {
         -o SessionType=default -o RequestTTY=no -o ClearAllForwardings=yes
         -o ForwardAgent=no -o ForwardX11=no -o ForwardX11Trusted=no
         -o Tunnel=no -o StdinNull=yes -p "$ISOLATED_PORT"
-        "-F$SSH_INNER_CONFIG" -- "$SSH_ALIAS" 'everlink __bootstrap-parent-v1'
+        "-F$SSH_INNER_CONFIG" -- "$SSH_ALIAS" 'everssh __bootstrap-parent-v1'
     )
     local -a actual=()
     local query_size
@@ -1191,8 +1191,8 @@ assert_common_proxy_effective() {
     assert_effective_config "$SSH_QUERY_OUTPUT" forwardx11 no || return 1
     assert_effective_config "$SSH_QUERY_OUTPUT" tunnel false || return 1
     assert_no_effective_value "$SSH_QUERY_OUTPUT" remotecommand \
-        'everlink __bootstrap-parent-v1' || return 1
-    assert_no_effective_value "$SSH_QUERY_OUTPUT" 'everlink' 'v1'
+        'everssh __bootstrap-parent-v1' || return 1
+    assert_no_effective_value "$SSH_QUERY_OUTPUT" 'everssh' 'v1'
 }
 
 verify_proxy_evidence() {
@@ -1348,7 +1348,7 @@ run_outer_ssh() {
     "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
         "${SSH_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" "${env_options[@]}" \
         "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
-        "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
+        "EVERSSH_SHIM_DIR=$SSH_SHIM_DIR" \
         "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" -n -T -- "$SSH_ALIAS" \
         "$remote_command" > "$output" 2> "$error"
     status=$?
@@ -1359,7 +1359,7 @@ run_outer_ssh() {
 }
 
 run_direct_ssh() {
-    local number=$1 expected="EverLink isolated direct connection $1" status
+    local number=$1 expected="EverSSH isolated direct connection $1" status
     local output="$TMP_ROOT/sshd/direct-$number.stdout"
     local error="$TMP_ROOT/sshd/direct-$number.stderr"
     printf '%s\n' "$expected" > "$SSHD_EXPECTED_OUTPUT"
@@ -1411,7 +1411,7 @@ run_agent_certificate_production_session() {
         "$SSH_AGENT_PRIVATE" "$SSH_AGENT_PUBLIC" && "$CAT_TOOL" \
         "$SSH_AGENT_PUBLIC" > "$cert_source" && "$CHMOD_TOOL" 600 -- "$cert_source" && \
         run_bounded "$SSHKEYGEN_TOOL" -q -s "$SSHD_CA_KEY" \
-        -I everlink-slice5a-cert -n "$CURRENT_USER" -V +10m "$cert_source" \
+        -I everssh-slice5a-cert -n "$CURRENT_USER" -V +10m "$cert_source" \
         >"$SSH_AGENT_OUTPUT_DIR/sign.stdout" 2>"$SSH_AGENT_OUTPUT_DIR/sign.stderr" && \
         "$CHMOD_TOOL" 600 -- "$SSH_AGENT_CERT" && run_bounded "$SSHKEYGEN_TOOL" \
         -Lf "$SSH_AGENT_CERT" >"$SSH_AGENT_OUTPUT_DIR/cert.info" \
@@ -1422,7 +1422,7 @@ run_agent_certificate_production_session() {
     fi
     ca_fingerprint=$($AWK_TOOL 'NR == 1 { print $2 }' "$SSH_AGENT_OUTPUT_DIR/ca.fingerprint") || { report_session_failure 8 cert-fingerprint; return 1; }
     if ! "$AWK_TOOL" -v principal="$CURRENT_USER" -v ca="$ca_fingerprint" '
-        $1 == "Key" && $2 == "ID:" && $3 == "\"everlink-slice5a-cert\"" { id=1 }; $1 == "Signing" && $2 == "CA:" && $4 == ca { signer=1 }; $1 == "Valid:" && $2 == "from" && $4 == "to" { valid=1 }; $1 == "Principals:" { in_principals=1; next }; in_principals && $1 == principal && NF == 1 { named=1 }; $1 == "Critical" { in_principals=0 }
+        $1 == "Key" && $2 == "ID:" && $3 == "\"everssh-slice5a-cert\"" { id=1 }; $1 == "Signing" && $2 == "CA:" && $4 == ca { signer=1 }; $1 == "Valid:" && $2 == "from" && $4 == "to" { valid=1 }; $1 == "Principals:" { in_principals=1; next }; in_principals && $1 == principal && NF == 1 { named=1 }; $1 == "Critical" { in_principals=0 }
         END { exit !(id && signer && valid && named) }' \
         "$SSH_AGENT_OUTPUT_DIR/cert.info"; then
         report_session_failure 8 cert-evidence; return 1
@@ -1445,7 +1445,7 @@ run_agent_certificate_production_session() {
     write_agent_configs_and_shim 8 || { report_session_failure 8 config; return 1; }
     : > "$TMP_ROOT/outer-8.stdout"; : > "$TMP_ROOT/outer-8.stderr"
     "$CHMOD_TOOL" 600 -- "$TMP_ROOT/outer-8.stdout" "$TMP_ROOT/outer-8.stderr" || return 1
-    run_outer_ssh 8 0 'EverLink isolated production connection 8' isolated-agent || \
+    run_outer_ssh 8 0 'EverSSH isolated production connection 8' isolated-agent || \
         { report_session_failure 8 command; return 1; }
     verify_agent_proxy_evidence || { report_session_failure 8 proxy-evidence; return 1; }
     poll_server_gone "$SERVER_PID" "$SERVER_START" "$SERVER_EXE" "$SERVER_PGRP" \
@@ -1478,7 +1478,7 @@ run_binary_production_session() {
     "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
         "${SSH_BINARY_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
         "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
-        "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
+        "EVERSSH_SHIM_DIR=$SSH_SHIM_DIR" \
         "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" -T -- "$SSH_ALIAS" \
         /usr/bin/cat < "$input" > "$output" 2> "$error"
     status=$?
@@ -1525,10 +1525,10 @@ report_session_failure() {
     [[ $stage =~ ^[a-z][a-z0-9-]{0,31}$ ]] || return 1
     if [[ -n $detail ]]; then
         [[ $detail =~ ^[0-9]{1,12}$ ]] || return 1
-        printf 'everlink-slice5a session=%s stage=%s detail=%s\n' \
+        printf 'everssh-slice5a session=%s stage=%s detail=%s\n' \
             "$session_number" "$stage" "$detail" >&2
     else
-        printf 'everlink-slice5a session=%s stage=%s\n' \
+        printf 'everssh-slice5a session=%s stage=%s\n' \
             "$session_number" "$stage" >&2
     fi
 }
@@ -1577,7 +1577,7 @@ run_pty_production_session() {
     "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
         "${SSH_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
         "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
-        "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
+        "EVERSSH_SHIM_DIR=$SSH_SHIM_DIR" \
         "TERM=$PTY_TERM_VALUE" \
         "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" -tt -- "$SSH_ALIAS" \
         "$remote_command" < "$input" > "$output" 2> "$error"
@@ -1678,7 +1678,7 @@ run_sftp_production_session() {
     "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
         "${SFTP_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
         "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
-        "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
+        "EVERSSH_SHIM_DIR=$SSH_SHIM_DIR" \
         "$SFTP_TOOL" -q -4 -F "$SSH_OUTER_CONFIG" -S "$SSH_TOOL" \
         -b "$batch" "$SSH_ALIAS" < /dev/null > "$output" 2> "$error"
     status=$?
@@ -1860,7 +1860,7 @@ run_scp_production_session() {
     "$TIMEOUT_TOOL" --signal=TERM --kill-after=1s \
         "${SCP_SESSION_TIMEOUT_SECONDS}s" "$ENV_TOOL" \
         "PATH=$SSH_SHIM_DIR:/usr/bin:/bin" \
-        "EVERLINK_SHIM_DIR=$SSH_SHIM_DIR" \
+        "EVERSSH_SHIM_DIR=$SSH_SHIM_DIR" \
         "$SCP_TOOL" -q -4 -F "$SSH_OUTER_CONFIG" -S "$SSH_TOOL" -- \
         "$SSH_ALIAS:$source" "$download" < /dev/null > "$output" 2> "$error"
     status=$?
@@ -1962,10 +1962,10 @@ forward_report_failure() {
     esac
     [[ -z $detail || $detail =~ ^[0-9]{1,12}$ ]] || return 1
     if [[ -n $detail ]]; then
-        printf 'everlink-slice5a session=7 stage=%s detail=%s\n' \
+        printf 'everssh-slice5a session=7 stage=%s detail=%s\n' \
             "$stage" "$detail" >&2
     else
-        printf 'everlink-slice5a session=7 stage=%s\n' "$stage" >&2
+        printf 'everssh-slice5a session=7 stage=%s\n' "$stage" >&2
     fi
 }
 
@@ -2025,8 +2025,8 @@ run_forward_production_session() {
     local remote_client_error="$TMP_ROOT/forward-7.remote-client.stderr"
     local expected_output="$TMP_ROOT/forward-7.expected"
     local remote_expected_output="$TMP_ROOT/forward-7.remote.expected"
-    local expected='EverLink isolated forwarded connection 7'
-    local remote_expected='EverLink isolated remote-forwarded connection 7'
+    local expected='EverSSH isolated forwarded connection 7'
+    local remote_expected='EverSSH isolated remote-forwarded connection 7'
     local remote_command path status result i deadline cmp_status size mode pid
 
     [[ $session_number == 7 ]] || return 1
@@ -2062,7 +2062,7 @@ run_forward_production_session() {
     }
     remote_command="i=0; while [ ! -e '$FORWARD_RELEASE' ] && [ \"\$i\" -lt $FORWARD_REMOTE_WAIT_ATTEMPTS ]; do i=\$((i + 1)); /usr/bin/sleep 0.1; done; [ -e '$FORWARD_RELEASE' ]"
     "$SETSID_TOOL" "$ENV_TOOL" PATH="$SSH_SHIM_DIR:/usr/bin:/bin" \
-        EVERLINK_SHIM_DIR="$SSH_SHIM_DIR" "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" \
+        EVERSSH_SHIM_DIR="$SSH_SHIM_DIR" "$SSH_TOOL" -4 -F "$SSH_OUTER_CONFIG" \
         -n -T -o ClearAllForwardings=no -o ExitOnForwardFailure=yes \
         -o StreamLocalBindMask=0077 \
         -L "$FORWARD_SOCK:127.0.0.1:$ISOLATED_PORT" \
@@ -2243,7 +2243,7 @@ cleanup_detached_server() {
 
 run_signal_child() {
     local i
-    TMP_ROOT=$("$MKtemp_TOOL" -d -- /tmp/everlink-slice5a.XXXXXX)
+    TMP_ROOT=$("$MKtemp_TOOL" -d -- /tmp/everssh-slice5a.XXXXXX)
     "$CHMOD_TOOL" 700 -- "$TMP_ROOT"
     validate_temp_target "$TMP_ROOT" || return 1
     start_sleep signal-probe-sleep
@@ -2333,7 +2333,7 @@ cleanup() {
         exit 1
     fi
     if [[ $MODE == parent ]]; then
-        printf 'EverLink Slice 5A production OpenSSH path: PASS\n'
+        printf 'EverSSH Slice 5A production OpenSSH path: PASS\n'
     fi
     exit 0
 }
@@ -2354,11 +2354,11 @@ if [[ $MODE == child ]]; then
 fi
 
 verify_current_binary || {
-    printf 'target/debug/everlink is stale or invalid\n' >&2
+    printf 'target/debug/everssh is stale or invalid\n' >&2
     exit 1
 }
 
-TMP_ROOT=$("$MKtemp_TOOL" -d -- /tmp/everlink-slice5a.XXXXXX)
+TMP_ROOT=$("$MKtemp_TOOL" -d -- /tmp/everssh-slice5a.XXXXXX)
 "$CHMOD_TOOL" 700 -- "$TMP_ROOT"
 validate_temp_target "$TMP_ROOT" || {
     printf 'invalid temporary root\n' >&2
@@ -2410,7 +2410,7 @@ run_direct_ssh 1 || {
     printf 'first direct ssh health check failed\n' >&2
     exit 1
 }
-run_production_session 1 0 'EverLink isolated production connection' || {
+run_production_session 1 0 'EverSSH isolated production connection' || {
     printf 'first production ProxyCommand session failed\n' >&2
     exit 1
 }
@@ -2418,7 +2418,7 @@ run_direct_ssh 2 || {
     printf 'second direct ssh health check failed\n' >&2
     exit 1
 }
-run_production_session 2 42 'EverLink isolated production connection 2' || {
+run_production_session 2 42 'EverSSH isolated production connection 2' || {
     printf 'second production ProxyCommand session failed\n' >&2
     exit 1
 }

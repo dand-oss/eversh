@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-const STATUS_PREFIX: &str = "everlink-status-v1";
+const STATUS_PREFIX: &str = "everssh-status-v1";
 
 /// The two-class mapping every M3 [`TerminalCause`] collapses to (design
 /// 6.3, 9): a transport that plainly died underneath a live peer, or an
@@ -357,18 +357,18 @@ mod tests {
     #[test]
     fn parse_line_round_trips_every_record_shape() {
         assert_eq!(
-            parse_line("everlink-status-v1 carrying"),
+            parse_line("everssh-status-v1 carrying"),
             Some(StatusRecord::Carrying)
         );
         assert_eq!(
-            parse_line("everlink-status-v1 cause clean-close carried=1"),
+            parse_line("everssh-status-v1 cause clean-close carried=1"),
             Some(StatusRecord::Cause {
                 cause: StatusCause::CleanClose,
                 carried: true
             })
         );
         assert_eq!(
-            parse_line("everlink-status-v1 cause transport-failure carried=0"),
+            parse_line("everssh-status-v1 cause transport-failure carried=0"),
             Some(StatusRecord::Cause {
                 cause: StatusCause::TransportFailure,
                 carried: false
@@ -376,12 +376,12 @@ mod tests {
         );
         for bad in [
             "",
-            "everlink-status-v1",
-            "everlink-status-v1carrying",
-            "everlink-status-v1 established",
-            "everlink-status-v1 cause bogus carried=0",
-            "everlink-status-v1 cause clean-close carried=2",
-            "everlink-status-v1 cause clean-close",
+            "everssh-status-v1",
+            "everssh-status-v1carrying",
+            "everssh-status-v1 established",
+            "everssh-status-v1 cause bogus carried=0",
+            "everssh-status-v1 cause clean-close carried=2",
+            "everssh-status-v1 cause clean-close",
             "eversh-status-v1 carrying",
         ] {
             assert!(parse_line(bad).is_none(), "{bad:?}");
@@ -390,8 +390,7 @@ mod tests {
 
     #[test]
     fn write_cause_and_carrying_append_exact_lines() {
-        let dir =
-            std::env::temp_dir().join(format!("everlink-status-write-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("everssh-status-write-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("status");
         std::fs::write(&path, b"").unwrap();
@@ -401,9 +400,9 @@ mod tests {
         let content = std::fs::read_to_string(&path).unwrap();
         assert_eq!(
             content,
-            "everlink-status-v1 carrying\n\
-             everlink-status-v1 cause transport-failure carried=0\n\
-             everlink-status-v1 cause clean-close carried=1\n"
+            "everssh-status-v1 carrying\n\
+             everssh-status-v1 cause transport-failure carried=0\n\
+             everssh-status-v1 cause clean-close carried=1\n"
         );
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -411,7 +410,7 @@ mod tests {
     #[test]
     fn append_to_missing_file_is_a_silent_no_op() {
         let path = std::env::temp_dir().join(format!(
-            "everlink-status-missing-{}-{:?}",
+            "everssh-status-missing-{}-{:?}",
             std::process::id(),
             std::time::SystemTime::now()
         ));
@@ -421,7 +420,7 @@ mod tests {
 
     #[tokio::test]
     async fn tracked_writer_records_carrying_exactly_once_on_first_nonempty_write() {
-        let dir = std::env::temp_dir().join(format!("everlink-status-tw-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("everssh-status-tw-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("status");
         std::fs::write(&path, b"").unwrap();
@@ -437,7 +436,7 @@ mod tests {
         writer.write_all(b"world").await.unwrap();
         assert_eq!(
             std::fs::read_to_string(&path).unwrap(),
-            "everlink-status-v1 carrying\n",
+            "everssh-status-v1 carrying\n",
             "carrying must be written exactly once"
         );
         let _ = std::fs::remove_dir_all(&dir);

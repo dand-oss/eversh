@@ -1,11 +1,11 @@
 //! API-level Slice 4 qualification of the production route supervisor.
 #![allow(clippy::unwrap_used)]
 
-use everlink::admission::{AuthenticatedConnection, ConnectedTarget};
-use everlink::bootstrap::BootstrapRecord;
-use everlink::identity::EphemeralIdentity;
-use everlink::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
-use everlink::{Error, Limits, Phase, Shutdown, StdioBridge, TargetBridge};
+use everssh::admission::{AuthenticatedConnection, ConnectedTarget};
+use everssh::bootstrap::BootstrapRecord;
+use everssh::identity::EphemeralIdentity;
+use everssh::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
+use everssh::{Error, Limits, Phase, Shutdown, StdioBridge, TargetBridge};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
 use std::path::{Path, PathBuf};
@@ -260,16 +260,16 @@ async fn exercise_port_migration(ip: IpAddr) {
 }
 
 fn helper_environment(role: &str) -> Option<(u8, PathBuf)> {
-    if std::env::var("EVERLINK_SLICE4_API_ROLE").ok().as_deref() != Some(role) {
+    if std::env::var("EVERSSH_SLICE4_API_ROLE").ok().as_deref() != Some(role) {
         return None;
     }
-    let family = std::env::var("EVERLINK_SLICE4_API_FAMILY")
+    let family = std::env::var("EVERSSH_SLICE4_API_FAMILY")
         .expect("missing API helper family")
         .parse::<u8>()
         .expect("invalid API helper family");
     assert!(matches!(family, 4 | 6));
     let directory = PathBuf::from(
-        std::env::var_os("EVERLINK_SLICE4_API_DIR").expect("missing API helper directory"),
+        std::env::var_os("EVERSSH_SLICE4_API_DIR").expect("missing API helper directory"),
     );
     Some((family, directory))
 }
@@ -367,7 +367,7 @@ async fn netns_api_server_helper() {
         .await
         .unwrap();
     let completion = bridge.run().await;
-    assert_eq!(completion.finalize, everlink::FinalizeStatus::Completed);
+    assert_eq!(completion.finalize, everssh::FinalizeStatus::Completed);
     assert_eq!(shutdown.phase(), Phase::Finalized);
     let received = target.await.unwrap();
     let mut expected = Vec::new();

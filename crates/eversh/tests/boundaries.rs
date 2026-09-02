@@ -29,7 +29,7 @@ fn workspace_members_are_exactly_three_crates() {
         .into_iter()
         .map(|p| p.name.to_string())
         .collect();
-    for expected in ["everpty", "everlink", "eversh"] {
+    for expected in ["everpty", "everssh", "eversh"] {
         assert!(names.remove(expected), "missing member {expected}");
     }
     assert!(names.is_empty(), "unexpected extra members: {names:?}");
@@ -46,11 +46,7 @@ fn exactly_three_production_binaries() {
         .map(|t| t.name.clone())
         .collect();
     bins.sort();
-    assert_eq!(
-        bins,
-        vec!["everlink", "everpty", "eversh"],
-        "binary targets"
-    );
+    assert_eq!(bins, vec!["everpty", "eversh", "everssh"], "binary targets");
 }
 
 #[test]
@@ -131,9 +127,9 @@ fn everpty_dependency_closure_is_pure() {
 }
 
 #[test]
-fn everlink_closure_has_no_ssh_or_second_runtime() {
+fn everssh_closure_has_no_ssh_or_second_runtime() {
     let m = metadata();
-    let closure = resolve_closure(&m, "everlink");
+    let closure = resolve_closure(&m, "everssh");
     for banned in [
         "russh",
         "thrussh",
@@ -147,28 +143,28 @@ fn everlink_closure_has_no_ssh_or_second_runtime() {
     ] {
         assert!(
             !closure.contains(banned),
-            "everlink closure must not contain {banned}"
+            "everssh closure must not contain {banned}"
         );
     }
     assert!(
         closure.contains("tokio"),
-        "everlink owns the single tokio runtime"
+        "everssh owns the single tokio runtime"
     );
-    assert!(closure.contains("noq"), "everlink owns the noq transport");
+    assert!(closure.contains("noq"), "everssh owns the noq transport");
     assert!(
         closure.contains("rcgen"),
-        "everlink owns certificate generation (M3)"
+        "everssh owns certificate generation (M3)"
     );
 }
 
 #[test]
-fn everlink_surface_has_no_terminal_replay_or_persistence_layer() {
+fn everssh_surface_has_no_terminal_replay_or_persistence_layer() {
     let m = metadata();
     let package = m
         .packages
         .iter()
-        .find(|package| package.name == "everlink")
-        .expect("everlink package");
+        .find(|package| package.name == "everssh")
+        .expect("everssh package");
     let direct_dependencies: BTreeSet<_> = package
         .dependencies
         .iter()
@@ -180,10 +176,10 @@ fn everlink_surface_has_no_terminal_replay_or_persistence_layer() {
             .collect();
     assert_eq!(
         direct_dependencies, approved_dependencies,
-        "everlink's direct dependency surface must remain the reviewed transport, runtime, crypto, secret, and optional CLI set"
+        "everssh's direct dependency surface must remain the reviewed transport, runtime, crypto, secret, and optional CLI set"
     );
 
-    let closure = resolve_closure(&m, "everlink");
+    let closure = resolve_closure(&m, "everssh");
     for banned in [
         "alacritty_terminal",
         "heed",
@@ -200,7 +196,7 @@ fn everlink_surface_has_no_terminal_replay_or_persistence_layer() {
     ] {
         assert!(
             !closure.contains(banned),
-            "everlink closure must not contain terminal, replay, or persistence package {banned}"
+            "everssh closure must not contain terminal, replay, or persistence package {banned}"
         );
     }
 }
@@ -222,10 +218,10 @@ fn eversh_surface_is_exactly_the_composition_set() {
         .filter(|dependency| dependency.kind == cargo_metadata::DependencyKind::Normal)
         .map(|dependency| dependency.name.as_str())
         .collect();
-    let approved: BTreeSet<_> = ["clap", "everlink", "everpty"].into_iter().collect();
+    let approved: BTreeSet<_> = ["clap", "everssh", "everpty"].into_iter().collect();
     assert_eq!(
         direct, approved,
-        "eversh's direct dependency surface must stay everpty + everlink + optional clap"
+        "eversh's direct dependency surface must stay everpty + everssh + optional clap"
     );
 }
 
@@ -235,7 +231,7 @@ fn libraries_build_without_clap() {
     // is an optional dependency of each crate, so `--no-default-features
     // --lib` builds without it (also enforced by the CI gate).
     let m = metadata();
-    for crate_name in ["everpty", "everlink", "eversh"] {
+    for crate_name in ["everpty", "everssh", "eversh"] {
         let pkg = m
             .packages
             .iter()

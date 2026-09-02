@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Local-only EverLink M3 deterministic and fuzz qualification.
-# Raw tool output stays under target/qualification/everlink; stdout is a receipt only.
+# Local-only EverSSH M3 deterministic and fuzz qualification.
+# Raw tool output stays under target/qualification/everssh; stdout is a receipt only.
 set -Eeuo pipefail
 
 umask 077
@@ -14,7 +14,7 @@ readonly ROOT=$(
     pwd -P
 )
 readonly FUZZ_DIR="$ROOT/fuzz"
-readonly QUAL_ROOT="$ROOT/target/qualification/everlink"
+readonly QUAL_ROOT="$ROOT/target/qualification/everssh"
 readonly TOOL_ROOT="$QUAL_ROOT/tools"
 readonly RUSTUP_HOME="$TOOL_ROOT/rustup"
 readonly CARGO_HOME="$TOOL_ROOT/cargo"
@@ -35,8 +35,8 @@ readonly CAMPAIGN_WATCHDOG_SECONDS=180
 readonly -a FUZZ_TARGETS=(
     fuzz_bootstrap_record
     fuzz_auth_frame
-    fuzz_everlink_close_sequence
-    fuzz_everlink_stream_boundary
+    fuzz_everssh_close_sequence
+    fuzz_everssh_stream_boundary
 )
 readonly -a FUZZ_MAX_LENGTHS=(4096 4096 256 4096)
 
@@ -67,7 +67,7 @@ Usage: fuzz/qualify-m3.sh [setup|run|network] [--json]
   --json  Print the sanitized JSON receipt instead of the one-line summary.
 
 No raw compiler or campaign output is written to stdout or stderr. Logs, corpora,
-artifacts, and receipts stay under target/qualification/everlink.
+artifacts, and receipts stay under target/qualification/everssh.
 EOF
 }
 
@@ -84,7 +84,7 @@ parse_arguments() {
                 exit 0
                 ;;
             *)
-                printf 'EverLink qualification: invalid argument\n' >&2
+                printf 'EverSSH qualification: invalid argument\n' >&2
                 usage >&2
                 exit 2
                 ;;
@@ -94,7 +94,7 @@ parse_arguments() {
     case $COMMAND in
         setup|run|network) ;;
         *)
-            printf 'EverLink qualification: invalid command\n' >&2
+            printf 'EverSSH qualification: invalid command\n' >&2
             usage >&2
             exit 2
             ;;
@@ -112,7 +112,7 @@ require_fixed_tools() {
         /usr/bin/sha256sum /usr/bin/sleep /usr/bin/sort /usr/bin/tail \
         /usr/bin/timeout /usr/bin/uname; do
         [[ -x $tool ]] || {
-            printf 'EverLink qualification: missing local prerequisite\n' >&2
+            printf 'EverSSH qualification: missing local prerequisite\n' >&2
             exit 1
         }
     done
@@ -123,7 +123,7 @@ emit_receipt() {
     if ((JSON_OUTPUT)); then
         /usr/bin/jq -c . "$receipt"
     else
-        printf 'EverLink qualification: %s; receipt=%s\n' "$verdict" "$receipt"
+        printf 'EverSSH qualification: %s; receipt=%s\n' "$verdict" "$receipt"
     fi
 }
 
@@ -532,22 +532,22 @@ run_qualification() {
         "$CARGO" "+$STABLE_TOOLCHAIN" clippy --workspace --all-targets --all-features --locked -- -D warnings
     run_test_gate root-test "$gate_dir/root-test.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" test --workspace --all-features --locked
-    run_test_gate everlink-resource-bounds "$gate_dir/everlink-resource-bounds.log" "$ROOT" \
-        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink \
-        --test everlink-resource-bounds --locked -- --nocapture --test-threads=1
-    resource_metrics=$(/usr/bin/grep -o 'everlink-resource-bounds: PASS.*' \
-        "$gate_dir/everlink-resource-bounds.log" | /usr/bin/tail -n 1) \
-        || fail everlink-resource-receipt 1 "$gate_dir/everlink-resource-bounds.log"
-    [[ $resource_metrics == 'everlink-resource-bounds: PASS '* ]] \
-        || fail everlink-resource-receipt 1 "$gate_dir/everlink-resource-bounds.log"
+    run_test_gate everssh-resource-bounds "$gate_dir/everssh-resource-bounds.log" "$ROOT" \
+        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everssh \
+        --test everssh-resource-bounds --locked -- --nocapture --test-threads=1
+    resource_metrics=$(/usr/bin/grep -o 'everssh-resource-bounds: PASS.*' \
+        "$gate_dir/everssh-resource-bounds.log" | /usr/bin/tail -n 1) \
+        || fail everssh-resource-receipt 1 "$gate_dir/everssh-resource-bounds.log"
+    [[ $resource_metrics == 'everssh-resource-bounds: PASS '* ]] \
+        || fail everssh-resource-receipt 1 "$gate_dir/everssh-resource-bounds.log"
     run_logged root-no-default-libs "$gate_dir/root-no-default-libs.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" check --workspace --no-default-features --lib --locked
     run_test_gate dependency-boundaries "$gate_dir/dependency-boundaries.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" test -p eversh --test boundaries --locked
     run_test_gate security-secret-redaction "$gate_dir/security-secret-redaction.log" "$ROOT" \
-        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --test slice1_core --locked
+        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everssh --test slice1_core --locked
     run_test_gate security-process-secrets "$gate_dir/security-process-secrets.log" "$ROOT" \
-        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --features cli \
+        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everssh --features cli \
         --test slice3_process --locked \
         server_requires_release_and_exposes_no_token_in_process_state -- --exact
     run_logged msrv-check "$gate_dir/msrv-check.log" "$ROOT" \
@@ -625,7 +625,7 @@ run_qualification() {
             },
             deterministic_gates: [
                 "git-diff-check", "root-fmt", "root-check", "root-clippy",
-                "root-test", "everlink-resource-bounds", "root-no-default-libs",
+                "root-test", "everssh-resource-bounds", "root-no-default-libs",
                 "dependency-boundaries", "security-secret-redaction",
                 "security-process-secrets", "msrv-check", "aarch64-check",
                 "cargo-deny-root", "cargo-deny-fuzz", "fuzz-fmt", "fuzz-check",
@@ -682,8 +682,8 @@ run_network_qualification() {
     gate_dir="$RUN_ROOT/gates"
     /usr/bin/mkdir -p -- "$gate_dir"
     started=$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)
-    openssh_script="$ROOT/crates/everlink/tests/net/test-openssh.sh"
-    migration_script="$ROOT/crates/everlink/tests/net/test-migration.sh"
+    openssh_script="$ROOT/crates/everssh/tests/net/test-openssh.sh"
+    migration_script="$ROOT/crates/everssh/tests/net/test-migration.sh"
     openssh_log="$gate_dir/production-openssh.log"
     migration_log="$gate_dir/production-migration.log"
 
@@ -693,21 +693,21 @@ run_network_qualification() {
     export CARGO_TARGET_DIR="$ROOT/target"
 
     run_logged network-build "$gate_dir/network-build.log" "$ROOT" \
-        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everlink --all-features --locked --no-run
-    binary_hash_before=$(/usr/bin/sha256sum "$ROOT/target/debug/everlink")
+        "$CARGO" "+$STABLE_TOOLCHAIN" test -p everssh --all-features --locked --no-run
+    binary_hash_before=$(/usr/bin/sha256sum "$ROOT/target/debug/everssh")
     binary_hash_before=${binary_hash_before%% *}
     [[ $binary_hash_before =~ ^[0-9a-f]{64}$ ]] \
         || fail network-binary-identity 1 "$gate_dir/network-build.log"
     run_logged production-openssh "$openssh_log" "$ROOT" \
         /usr/bin/bash "$openssh_script"
-    /usr/bin/grep -Fqx 'EverLink Slice 5A production OpenSSH path: PASS' "$openssh_log" \
+    /usr/bin/grep -Fqx 'EverSSH Slice 5A production OpenSSH path: PASS' "$openssh_log" \
         || fail production-openssh-receipt 1 "$openssh_log"
     run_logged production-migration "$migration_log" "$ROOT" \
         /usr/bin/sudo -n -- /usr/bin/timeout --signal=TERM --kill-after=10s 600s \
         "$migration_script"
-    /usr/bin/grep -Fqx 'everlink Slice 4 production netns/veth gate: PASS' "$migration_log" \
+    /usr/bin/grep -Fqx 'everssh Slice 4 production netns/veth gate: PASS' "$migration_log" \
         || fail production-migration-receipt 1 "$migration_log"
-    binary_hash_after=$(/usr/bin/sha256sum "$ROOT/target/debug/everlink")
+    binary_hash_after=$(/usr/bin/sha256sum "$ROOT/target/debug/everssh")
     binary_hash_after=${binary_hash_after%% *}
     [[ $binary_hash_after == "$binary_hash_before" ]] \
         || fail network-binary-identity 1 "$gate_dir/network-build.log"
@@ -722,7 +722,7 @@ run_network_qualification() {
         --arg completed_utc "$completed" \
         --arg stable "$STABLE_VERSION" \
         --arg cargo_target_dir "$CARGO_TARGET_DIR" \
-        --arg everlink_binary_sha256 "$binary_hash_before" \
+        --arg everssh_binary_sha256 "$binary_hash_before" \
         --arg run_root "$RUN_ROOT" \
         --arg openssh_log "$openssh_log" \
         --arg migration_log "$migration_log" \
@@ -738,7 +738,7 @@ run_network_qualification() {
             completed_utc: $completed_utc,
             toolchain: $stable,
             cargo_target_dir: $cargo_target_dir,
-            everlink_binary_sha256: $everlink_binary_sha256,
+            everssh_binary_sha256: $everssh_binary_sha256,
             gates: [
                 {
                     name: "production-openssh",
@@ -781,7 +781,7 @@ main() {
     /usr/bin/mkdir -p -- "$QUAL_ROOT"
     exec 9>"$QUAL_ROOT/qualification.lock"
     /usr/bin/flock -n 9 || {
-        printf 'EverLink qualification: another local run owns the lock\n' >&2
+        printf 'EverSSH qualification: another local run owns the lock\n' >&2
         exit 1
     }
     export RUSTUP_HOME CARGO_HOME

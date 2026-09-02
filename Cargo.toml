@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
     "crates/everpty",
-    "crates/everlink",
+    "crates/everssh",
     "crates/eversh",
 ]
 exclude = ["fuzz", "spikes"]

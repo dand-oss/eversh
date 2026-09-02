@@ -2,12 +2,12 @@
 
 Status: Rust implementation contract and staged delivery baseline | Last updated: 2026-08-30
 
-This document is normative for v1 of `everpty`, `everlink`, and `eversh`. The terms MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are normative. A change to a MUST or MUST NOT requires a recorded design revision.
+This document is normative for v1 of `everpty`, `everssh`, and `eversh`. The terms MUST, MUST NOT, SHOULD, SHOULD NOT, and MAY are normative. A change to a MUST or MUST NOT requires a recorded design revision.
 
 ## 1. Locked product decisions
 
 - All original implementation code is Rust.
-- The repository is one Cargo workspace with one Cargo.lock, three reusable library crates, and separate `everpty`, `everlink`, and `eversh` executables.
+- The repository is one Cargo workspace with one Cargo.lock, three reusable library crates, and separate `everpty`, `everssh`, and `eversh` executables.
 - The project is dual-licensed MIT OR Apache-2.0; dependencies and incorporated code must be distributable under both choices.
 - `everpty` owns one PTY, one child process, a private Unix socket, writer ownership, observers, resize, signals, and child status.
 - `everpty` MUST NOT depend on or initialize Tokio or noq in its core; a small poll-based event loop or bounded fixed workers are permitted.
@@ -16,8 +16,8 @@ This document is normative for v1 of `everpty`, `everlink`, and `eversh`. The te
 - The current writer is lossless while healthy: finite live queues MAY backpressure the PTY, but a writer that exceeds the configured stall deadline is detached and its undelivered live queue is discarded so the broker can resume draining.
 - A second writer returns `Busy` by default; ownership changes only after explicit `--take-over`.
 - Observers receive future output only, never control input or resize, and are disconnected rather than allowed to block the writer or child.
-- `everlink` is a transparent one-stream QUIC ProxyCommand bridge to the authorized localhost OpenSSH server.
-- `everlink` uses exactly one Tokio runtime, noq, its reviewed rustls path, TLS 1.3, one reliable ordered bidirectional stream, standard migration, and bounded flow control.
+- `everssh` is a transparent one-stream QUIC ProxyCommand bridge to the authorized localhost OpenSSH server.
+- `everssh` uses exactly one Tokio runtime, noq, its reviewed rustls path, TLS 1.3, one reliable ordered bidirectional stream, standard migration, and bounded flow control.
 - OpenSSH remains the authority for user authentication, host keys, ssh_config, PTY negotiation, command execution, forwarding, SFTP, and SCP.
 - QUIC bootstrap trust is ephemeral and delivered through an already authenticated SSH bootstrap; users do not manage a second eversh identity.
 - A hard QUIC failure ends the old SSH stream; eversh opens a fresh SSH connection and reattaches the surviving everpty session.
@@ -28,15 +28,15 @@ This document is normative for v1 of `everpty`, `everlink`, and `eversh`. The te
 
 ## 2. Crate and process architecture
 
-The workspace contains `crates/everpty`, `crates/everlink`, and `crates/eversh`, with exactly three physical binary targets: standalone `everpty`, standalone `everlink`, and the combined/multi-role user-facing `eversh` executable. The combined `eversh` executable links all three libraries and exposes private role dispatch for remote startup.
+The workspace contains `crates/everpty`, `crates/everssh`, and `crates/eversh`, with exactly three physical binary targets: standalone `everpty`, standalone `everssh`, and the combined/multi-role user-facing `eversh` executable. The combined `eversh` executable links all three libraries and exposes private role dispatch for remote startup.
 
 The three physical executables call the same typed library APIs. The combined executable does not merge a broker or QUIC server into the supervisor process: each PTY session is a daemon-per-session process, and each QUIC server is a one-shot process.
 
-Private combined-binary dispatch selects exactly one logical role before runtime initialization. A process dispatched to the everpty role runs the everpty attach or broker edge, and a process dispatched to the everlink role runs the QUIC edge; neither initializes or passes terminal bytes through the eversh supervisor library.
+Private combined-binary dispatch selects exactly one logical role before runtime initialization. A process dispatched to the everpty role runs the everpty attach or broker edge, and a process dispatched to the everssh role runs the QUIC edge; neither initializes or passes terminal bytes through the eversh supervisor library.
 
 CLI parsing, terminal mode changes, process exit codes, and stderr presentation stay at binary edges. Libraries accept typed configuration and return typed errors; library functions MUST NOT inspect global arguments, print diagnostics, or call process exit.
 
-`everpty` has no async-runtime dependency in its core. A poll-based broker is preferred; if blocking workers are required, their count and queue capacity are fixed by configuration and tested. `everlink` owns the single Tokio runtime for its process; eversh launches and supervises child processes and does not create a second relay loop.
+`everpty` has no async-runtime dependency in its core. A poll-based broker is preferred; if blocking workers are required, their count and queue capacity are fixed by configuration and tested. `everssh` owns the single Tokio runtime for its process; eversh launches and supervises child processes and does not create a second relay loop.
 
 ## 3. Ownership and byte invariants
 
@@ -122,11 +122,11 @@ A stale socket is removed only after a connection attempt fails and an exclusive
 
 The public interface is `everpty start NAME [-- COMMAND...]`, `everpty attach NAME [--take-over]`, `everpty observe NAME`, `everpty list [--json]`, `everpty current`, `everpty detach NAME`, and `everpty kill NAME`. `start` fails with `AlreadyExists` when the name is live, `detach NAME` revokes the current writer without sending a terminal byte, and the internal attach-or-create operation used by eversh is atomic under the per-session lock.
 
-## 6. everlink contract
+## 6. everssh contract
 
 ### 6.1 One-shot SSH bootstrap
 
-There is no installed always-on gateway in v1. Each ProxyCommand performs an ordinary system SSH bootstrap that launches one remote `everlink` server.
+There is no installed always-on gateway in v1. Each ProxyCommand performs an ordinary system SSH bootstrap that launches one remote `everssh` server.
 
 The server binds the selected directly reachable UDP address and port, creates an ephemeral TLS certificate and one-use token, detaches from the bootstrap process, writes exactly one bounded bootstrap record, waits for one authenticated QUIC client, connects only to the loopback sshd port derived from the authenticated bootstrap connection's `SSH_CONNECTION`, and exits when the target or QUIC stream closes. A server with no valid client before its lease deadline exits. The client cannot select an arbitrary target.
 
@@ -142,23 +142,23 @@ The one-shot server is never an open proxy. It connects only to the loopback ssh
 
 ### 6.3 Runtime, migration, and shutdown
 
-`everlink` uses exactly one Tokio runtime and one noq rustls path. It does not add Asupersync, a second async runtime, or a custom noq runtime/UDP adapter. Quinn is a documented fallback only if noq fails the bounded standard-migration gate; selecting Quinn requires a recorded dependency and security review.
+`everssh` uses exactly one Tokio runtime and one noq rustls path. It does not add Asupersync, a second async runtime, or a custom noq runtime/UDP adapter. Quinn is a documented fallback only if noq fails the bounded standard-migration gate; selecting Quinn requires a recorded dependency and security review.
 
 Standard migration is the only live-stream mobility contract. The implementation validates a changed path, preserves the same QUIC connection when possible, and exposes path-failure state to its supervisor. QAD, multipath, QNT, and custom NAT traversal are disabled in v1.
 
-The supervisor implements Request -> Drain -> Finalize explicitly. Request stops new work after the first terminal condition and records the cause; Drain closes or completes owned copy directions, half-closes where valid, drains protocol close work, and waits only until configured deadlines; Finalize closes sockets, joins or aborts owned tasks, closes the target TCP connection, scrubs secret state, and verifies no owned task remains. everlink reaps only processes it actually owns and never reaps the system sshd target. Every terminal condition is idempotent and the first cause wins.
+The supervisor implements Request -> Drain -> Finalize explicitly. Request stops new work after the first terminal condition and records the cause; Drain closes or completes owned copy directions, half-closes where valid, drains protocol close work, and waits only until configured deadlines; Finalize closes sockets, joins or aborts owned tasks, closes the target TCP connection, scrubs secret state, and verifies no owned task remains. everssh reaps only processes it actually owns and never reaps the system sshd target. Every terminal condition is idempotent and the first cause wins.
 
-A stalled or expired path eventually closes the QUIC and target TCP streams under the configured path/idle deadline. The old SSH stream ends. everlink does not retry and does not persist bytes; eversh decides whether to create a fresh SSH connection.
+A stalled or expired path eventually closes the QUIC and target TCP streams under the configured path/idle deadline. The old SSH stream ends. everssh does not retry and does not persist bytes; eversh decides whether to create a fresh SSH connection.
 
 ### 6.4 Bootstrap OpenSSH and standalone interface
 
-The public standalone interface is `everlink ssh-proxy SSH_DESTINATION SSH_PORT [--ssh-option OPTION...]`; an OpenSSH ProxyCommand uses `%n` for the original destination token and `%p` for the effective port so a configured host alias is not silently replaced by `%h`. everlink launches the bootstrap with the system `ssh` executable, the same destination/user/port/authentication/host-key inputs, and explicit overrides that prevent recursive ProxyCommand, remote commands, TTY allocation, and unrelated forwarding. eversh passes an audited allowlist of applicable command-line SSH options to both the inner SSH process and bootstrap instead of copying session-only options blindly. ProxyJump follows the explicit policy in section 8.
+The public standalone interface is `everssh ssh-proxy SSH_DESTINATION SSH_PORT [--ssh-option OPTION...]`; an OpenSSH ProxyCommand uses `%n` for the original destination token and `%p` for the effective port so a configured host alias is not silently replaced by `%h`. everssh launches the bootstrap with the system `ssh` executable, the same destination/user/port/authentication/host-key inputs, and explicit overrides that prevent recursive ProxyCommand, remote commands, TTY allocation, and unrelated forwarding. eversh passes an audited allowlist of applicable command-line SSH options to both the inner SSH process and bootstrap instead of copying session-only options blindly. ProxyJump follows the explicit policy in section 8.
 
 Internal server and bootstrap roles are private versioned entry points used by eversh and the combined executable. Library APIs are typed and do not read terminal state or print diagnostics.
 
 ## 7. eversh supervisor contract
 
-eversh parses commands, resolves effective OpenSSH configuration, starts everlink, constructs bounded versioned remote control requests, invokes the installed `ssh` binary, preserves inherited stdin/stdout/stderr for the live terminal path, records session origin metadata, and applies retry policy. Remote command strings contain only fixed command words, validated conservative identifiers, and at most one bounded unpadded-base64url token containing a versioned child-argument request; decoded bytes are never evaluated as shell syntax, NUL is rejected before Unix process creation, and bootstrap tokens are never placed in command strings, argv, or environment.
+eversh parses commands, resolves effective OpenSSH configuration, starts everssh, constructs bounded versioned remote control requests, invokes the installed `ssh` binary, preserves inherited stdin/stdout/stderr for the live terminal path, records session origin metadata, and applies retry policy. Remote command strings contain only fixed command words, validated conservative identifiers, and at most one bounded unpadded-base64url token containing a versioned child-argument request; decoded bytes are never evaluated as shell syntax, NUL is rejected before Unix process creation, and bootstrap tokens are never placed in command strings, argv, or environment.
 
 eversh MUST preserve ssh_config aliases and options, agent and key use, host-key checks, user and port selection, certificates, forwarding, SFTP, SCP, and normal OpenSSH exit behavior. Bootstrap connections explicitly avoid recursive eversh ProxyCommand use. Remote control requests validate session names and encode arbitrary child argument vectors without shell interpolation.
 
@@ -168,13 +168,13 @@ eversh distinguishes child/session exit, strict attach errors, local termination
 
 The public interface is `eversh connect HOST [--session NAME] [--take-over] [-- COMMAND...]`, `eversh attach HOST NAME [--take-over]`, `eversh observe HOST NAME`, `eversh list HOST [--local-host NAME] [--json]`, `eversh resume-all HOST [--local-host NAME]`, `eversh detach HOST NAME`, `eversh kill HOST NAME`, and `eversh ssh HOST [-- SSH_OPTIONS...]`.
 
-`resume-all` lists matching live sessions, launches one Kitty tab per session when configured, targets `KITTY_LISTEN_ON` when available, keeps failed attaches visible, closes cleanly ended tabs, and reports every partial failure. Kitty integration remains in eversh and is absent from everpty and everlink.
+`resume-all` lists matching live sessions, launches one Kitty tab per session when configured, targets `KITTY_LISTEN_ON` when available, keeps failed attaches visible, closes cleanly ended tabs, and reports every partial failure. Kitty integration remains in eversh and is absent from everpty and everssh.
 
 ## 8. Deployment and version policy
 
-The remote host must already have a compatible combined `eversh` executable or the required standalone `everpty` and `everlink` roles on `PATH`. V1 does not upload binaries, install missing binaries, self-update, or run an upgrade agent. Installation and upgrades are operator actions; managed signed upgrades are a v2 candidate.
+The remote host must already have a compatible combined `eversh` executable or the required standalone `everpty` and `everssh` roles on `PATH`. V1 does not upload binaries, install missing binaries, self-update, or run an upgrade agent. Installation and upgrades are operator actions; managed signed upgrades are a v2 candidate.
 
-The everpty Unix-socket protocol and everlink bootstrap/QUIC protocol each carry an explicit protocol version. Unknown, unsupported, malformed, or downgraded versions fail closed and produce a clear stderr diagnostic that names the component and protocol version. Compatibility is determined by the wire protocol version, not by an assumed binary version or filename. A broker may continue running across an on-disk binary replacement; each later client must advertise and support the broker's live protocol version, and an incompatible client must fail without unlinking or replacing the broker.
+The everpty Unix-socket protocol and everssh bootstrap/QUIC protocol each carry an explicit protocol version. Unknown, unsupported, malformed, or downgraded versions fail closed and produce a clear stderr diagnostic that names the component and protocol version. Compatibility is determined by the wire protocol version, not by an assumed binary version or filename. A broker may continue running across an on-disk binary replacement; each later client must advertise and support the broker's live protocol version, and an incompatible client must fail without unlinking or replacing the broker.
 
 Bootstrap SSH connections disable recursive eversh ProxyCommand use explicitly. V1 does not silently infer or synthesize ProxyJump behavior: a ProxyJump configuration is either handled by the user's ordinary bootstrap SSH path when the resulting UDP endpoint is explicitly reachable, or rejected with a clear diagnostic. Direct UDP and ZeroTier/Tailscale endpoint policy is explicit and independently testable.
 
@@ -236,7 +236,7 @@ A feature is incomplete until its failure and ownership boundaries are exercised
 - Prove no output, token, arguments, environment, or keystrokes enter metadata or persistent files.
 - Run under resource pressure and assert configured finite client, queue, descriptor, worker, and child cleanup gates.
 
-### 11.3 everlink protocol and network tests
+### 11.3 everssh protocol and network tests
 
 - Verify exact bidirectional bytes for interactive SSH, arbitrary binary streams, EOF, half-close, remote command exit, SFTP, SCP, local forwarding, and remote forwarding.
 - Accept only the pinned certificate, valid token, authorized target, and supported protocol; reject wrong pin, invalid token, reuse, expiry, duplicate auth, malformed bootstrap, and unauthenticated target access.
@@ -249,9 +249,9 @@ A feature is incomplete until its failure and ownership boundaries are exercised
 
 ### 11.4 eversh supervisor tests
 
-Use fake ssh, everlink, remote-control, and Kitty launcher binaries to capture exact argv, environment allowlists, inherited descriptors, stdout/stderr separation, and exit mapping. Verify ssh_config and host arguments are preserved, recursive bootstrap is avoided, arbitrary child argv cannot become shell syntax, a live named broker is reattached after transport failure, a missing or exited broker is not restarted, raw SSH commands and transfers are never replayed, child exit does not retry, Busy/NotFound/auth failures remain visible, and resume-all reports partial launch failure.
+Use fake ssh, everssh, remote-control, and Kitty launcher binaries to capture exact argv, environment allowlists, inherited descriptors, stdout/stderr separation, and exit mapping. Verify ssh_config and host arguments are preserved, recursive bootstrap is avoided, arbitrary child argv cannot become shell syntax, a live named broker is reattached after transport failure, a missing or exited broker is not restarted, raw SSH commands and transfers are never replayed, child exit does not retry, Busy/NotFound/auth failures remain visible, and resume-all reports partial launch failure.
 
-At least one Linux release test runs real OpenSSH through everlink into everpty, and separate tests exercise the standalone everpty and everlink executables. No release claim is made from fakes alone.
+At least one Linux release test runs real OpenSSH through everssh into everpty, and separate tests exercise the standalone everpty and everssh executables. No release claim is made from fakes alone.
 
 ## 12. Dependency and build policy
 
@@ -281,7 +281,7 @@ Implement the daemon-per-session PTY broker, initial-writer-before-spawn orderin
 
 Exit criteria are all everpty byte, ownership, lifecycle, security, fault, and resource tests under a real Linux PTY.
 
-### Milestone 3: secure everlink
+### Milestone 3: secure everssh
 
 Implement SSH-assisted one-shot bootstrap, ephemeral pin/token, one authenticated noq stream, loopback target restriction, half-close, flow control, migration, path failure, and Request -> Drain -> Finalize. Verify the raw OpenSSH, SFTP, SCP, and forwarding paths.
 
@@ -289,7 +289,7 @@ Exit criteria are real OpenSSH compatibility and all bootstrap, migration, shutd
 
 ### Milestone 4: thin eversh composition
 
-Implement connect, attach, observe, list, resume-all, detach, kill, raw ssh mode, combined-binary role dispatch, generated origin metadata, Kitty tab launching, and fresh-SSH hard reconnect. Keep terminal stdin/stdout inherited through OpenSSH and keep all relay work in everlink.
+Implement connect, attach, observe, list, resume-all, detach, kill, raw ssh mode, combined-binary role dispatch, generated origin metadata, Kitty tab launching, and fresh-SSH hard reconnect. Keep terminal stdin/stdout inherited through OpenSSH and keep all relay work in everssh.
 
 Exit criteria are transport retry versus child-exit distinction, same-session reattach, visible attach failures, preserved local scrollback, and proven absence of detached-output replay.
 
@@ -303,8 +303,8 @@ Exit criteria are every v1 acceptance criterion below, with evidence artifacts r
 
 A v1 release is accepted only when all of the following are true:
 
-- Linux install produces exactly three physical executables from the same Rust workspace: standalone everpty, standalone everlink, and combined/multi-role eversh.
-- A real OpenSSH client authenticates through everlink to system sshd, including a PTY shell, command execution, SFTP, SCP, local forwarding, and remote forwarding.
+- Linux install produces exactly three physical executables from the same Rust workspace: standalone everpty, standalone everssh, and combined/multi-role eversh.
+- A real OpenSSH client authenticates through everssh to system sshd, including a PTY shell, command execution, SFTP, SCP, local forwarding, and remote forwarding.
 - The system OpenSSH configuration, host-key policy, agent, keys, and exit semantics remain authoritative.
 - everpty preserves arbitrary PTY bytes, survives attachment loss, drains and discards detached output, and never parses or restores terminal state.
 - Busy, explicit takeover, observer future-only output, writer resize, process-group cleanup, and stale-socket rules pass race and fault tests.
@@ -318,7 +318,7 @@ A v1 release is accepted only when all of the following are true:
 
 Remote scrollback, terminal parsing or state restoration, local prediction, output replay, per-observer virtual terminal viewports, expired SSH stream resumption, server-side rendering, terminal snapshots, and application-level exactly-once reconnect are permanent core non-goals. They are not deferred features and must not be smuggled into a v1 or v2 implementation under another name.
 
-Any future feature that needs terminal parsing or replay belongs in an optional product above these raw primitives, not in the everpty or everlink data paths.
+Any future feature that needs terminal parsing or replay belongs in an optional product above these raw primitives, not in the everpty or everssh data paths.
 
 ## 16. Review checklist
 

@@ -15,7 +15,7 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-const BIN: &str = env!("CARGO_BIN_EXE_everlink");
+const BIN: &str = env!("CARGO_BIN_EXE_everssh");
 
 struct TempDir(std::path::PathBuf);
 
@@ -26,7 +26,7 @@ impl TempDir {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("everlink-{label}-{}-{nonce}", std::process::id()));
+            std::env::temp_dir().join(format!("everssh-{label}-{}-{nonce}", std::process::id()));
         fs::create_dir(&path).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
         Self(path)
@@ -61,9 +61,9 @@ fn selected_non_loopback_v4() -> Ipv4Addr {
     }
 }
 
-const CARRYING_LINE: &str = "everlink-status-v1 carrying\n";
-const CLEAN_CLOSE_LINE: &str = "everlink-status-v1 cause clean-close carried=0\n";
-const TRANSPORT_FAILURE_LINE: &str = "everlink-status-v1 cause transport-failure carried=0\n";
+const CARRYING_LINE: &str = "everssh-status-v1 carrying\n";
+const CLEAN_CLOSE_LINE: &str = "everssh-status-v1 cause clean-close carried=0\n";
+const TRANSPORT_FAILURE_LINE: &str = "everssh-status-v1 cause transport-failure carried=0\n";
 
 /// Run the real binary as `ssh-proxy` against a PATH-scoped fake `ssh` and
 /// return (exit code, stderr, status-file bytes).
@@ -109,7 +109,7 @@ exit 255
 "#;
 
 /// A fake `ssh` whose effective config carries an active proxy — rejected
-/// by everlink's own recursive-proxy policy (`SshPolicyRejected`).
+/// by everssh's own recursive-proxy policy (`SshPolicyRejected`).
 const POLICY_REJECT_SSH: &str = r#"#!/bin/sh
 printf 'hostname fake\nproxycommand ssh -W %h:%p jump\n'
 exit 0
@@ -224,7 +224,7 @@ for arg in "$@"; do
 done
 SSH_CONNECTION="$FAKE_CONN"
 export SSH_CONNECTION
-exec "$EVERLINK_BIN" __bootstrap-parent-v1
+exec "$EVERSSH_BIN" __bootstrap-parent-v1
 "#,
     );
 
@@ -249,7 +249,7 @@ exec "$EVERLINK_BIN" __bootstrap-parent-v1
         .arg("--status-file")
         .arg(&status)
         .env("PATH", fake_path(&temp))
-        .env("EVERLINK_BIN", BIN)
+        .env("EVERSSH_BIN", BIN)
         .env(
             "FAKE_CONN",
             format!("{route_ip} 50000 {route_ip} {target_port}"),

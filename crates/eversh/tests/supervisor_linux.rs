@@ -39,7 +39,7 @@ fn binary() -> &'static OsStr {
 }
 
 /// The fake ssh script: captures argv NUL-separated plus its pid and
-/// environment, honors a mode file, and simulates the LOCAL everlink
+/// environment, honors a mode file, and simulates the LOCAL everssh
 /// link-status file protocol eversh's supervisor now reads (design 3, 7)
 /// instead of any remote channel — including merging what a real remote
 /// role's stderr would produce into the SAME stream as stdout whenever a
@@ -47,14 +47,14 @@ fn binary() -> &'static OsStr {
 /// on an in-band-stderr assumption fails here the same way it would against
 /// real OpenSSH. The status path is extracted from the `--status-file`
 /// argument inside the ProxyCommand option value, exactly as the real
-/// everlink edge receives it from its own argv after the local shell splits
+/// everssh edge receives it from its own argv after the local shell splits
 /// the ProxyCommand line — never from the environment.
 ///
 /// Modes: `run` (default) actually execs the remote command, writing
 /// `carrying` before (for non-probe ops) and a terminal `cause clean-close
 /// carried=1` after it exits naturally; SIGUSR1 kills the exec'd child and
 /// exits 255 without writing a terminal record (mirroring an uncatchable
-/// SIGKILL to a real everlink process), publishing `FAKE_SSH_NEXT_MODE` as
+/// SIGKILL to a real everssh process), publishing `FAKE_SSH_NEXT_MODE` as
 /// the next mode when set. `fail255` writes `cause clean-close
 /// carried=0` and exits 255 (an ordinary SSH-level failure/rejection — also
 /// used to make a probe report Unreachable, which never reads the file).
@@ -99,7 +99,7 @@ done
 
 # The per-spawn status path arrives as a --status-file argument inside the
 # ProxyCommand option value (never an environment variable): extract it the
-# same way the real everlink edge receives it after the local shell splits
+# same way the real everssh edge receives it after the local shell splits
 # the ProxyCommand line.
 status_file=
 for arg in "$@"; do
@@ -113,11 +113,11 @@ done
 
 status_carrying() {
   [ -n "$status_file" ] || return 0
-  printf 'everlink-status-v1 carrying\n' >> "$status_file" 2>/dev/null || true
+  printf 'everssh-status-v1 carrying\n' >> "$status_file" 2>/dev/null || true
 }
 status_cause() {
   [ -n "$status_file" ] || return 0
-  printf 'everlink-status-v1 cause %s carried=%s\n' "$1" "$2" >> "$status_file" 2>/dev/null || true
+  printf 'everssh-status-v1 cause %s carried=%s\n' "$1" "$2" >> "$status_file" 2>/dev/null || true
 }
 
 mode=run
@@ -354,7 +354,7 @@ impl Fixture {
 
 /// A minor finding repair: no captured supervisor-invoked process
 /// environment may carry a bootstrap token (a 64-hex-character run) or a raw
-/// bootstrap record line (`everlink v1 ...`) — the supervisor never places
+/// bootstrap record line (`everssh v1 ...`) — the supervisor never places
 /// secrets in argv or environment (design 3, 4, 10).
 fn assert_no_secret_env(fixture: &Fixture, kind: &str) {
     let entries = fixture.captured_env(kind);
@@ -370,7 +370,7 @@ fn assert_no_secret_env(fixture: &Fixture, kind: &str) {
             "captured {kind} environment leaked a 64-hex token: {text}"
         );
         assert!(
-            !value.starts_with("everlink v1 "),
+            !value.starts_with("everssh v1 "),
             "captured {kind} environment leaked a bootstrap record: {text}"
         );
     }
@@ -761,7 +761,7 @@ fn percent_state_root_fails_closed_before_any_ssh_spawn() {
     fixture.set_mode("run");
     // A state root whose own path contains a percent token: OpenSSH
     // expands `%h` inside the quoted --status-file ProxyCommand word
-    // before the local shell sees the quotes, so everlink would receive
+    // before the local shell sees the quotes, so everssh would receive
     // (and write) a DIFFERENT path than the supervisor allocated.
     let hostile = fixture.base.join("st%hate");
     fs::create_dir_all(&hostile).unwrap();
@@ -1513,7 +1513,7 @@ fn busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases() {
 
 fn busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases_worker() {
     // Finding 1, the S3 shape: after a path death the remote writer slot is
-    // legitimately held for a long window (everlink's idle timeout), so a
+    // legitimately held for a long window (everssh's idle timeout), so a
     // reattach keeps reporting Busy. With the deadline governing the busy
     // path, the supervisor must still be reattaching WELL past the old
     // 5-attempt budget when the slot finally releases — and then succeed,
@@ -1626,9 +1626,9 @@ fn raw_ssh_passes_through_and_never_retries() {
     let argv = &captures[0].1;
     assert_eq!(argv[0], "-o");
     assert!(argv[1].starts_with("ProxyCommand='"));
-    assert!(argv[1].contains("__everlink ssh-proxy '%n' '%p' --remote-eversh 'eversh'"));
+    assert!(argv[1].contains("__everssh ssh-proxy '%n' '%p' --remote-eversh 'eversh'"));
     // `-L` fails the audited allowlist: it must never be mirrored into the
-    // everlink bootstrap, but raw mode must not error over it either
+    // everssh bootstrap, but raw mode must not error over it either
     // (finding 4).
     assert!(
         !argv[1].contains("--ssh-option"),
@@ -1848,10 +1848,10 @@ fn everpty_role_grammar_and_version_fail_closed_at_the_binary() {
         .unwrap();
     assert_eq!(output.status.code(), Some(5));
 
-    // The everlink role dispatches to the shared edge.
+    // The everssh role dispatches to the shared edge.
     let output = fixture
         .command()
-        .args(["__everlink", "--help"])
+        .args(["__everssh", "--help"])
         .output()
         .unwrap();
     assert_eq!(output.status.code(), Some(0));

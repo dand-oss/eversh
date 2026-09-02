@@ -1,12 +1,12 @@
 //! Slice 3 literal parsing and authoritative OpenSSH argv policy.
 #![allow(clippy::unwrap_used)]
 
-use everlink::role_protocol::{
+use everssh::role_protocol::{
     parse_ssh_connection, validate_release, ServerStartRecord, StartUdpPolicy, RELEASE_RECORD,
     SERVER_START_MAX, SSH_CONNECTION_MAX,
 };
-use everlink::ssh_policy::{validate_effective_config, SshPlan, REMOTE_BOOTSTRAP_COMMAND};
-use everlink::Limits;
+use everssh::ssh_policy::{validate_effective_config, SshPlan, REMOTE_BOOTSTRAP_COMMAND};
+use everssh::Limits;
 use std::fs;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::process::Command;
@@ -17,7 +17,7 @@ fn temp_path(label: &str) -> std::path::PathBuf {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    std::env::temp_dir().join(format!("everlink-{label}-{}-{nonce}", std::process::id()))
+    std::env::temp_dir().join(format!("everssh-{label}-{}-{nonce}", std::process::id()))
 }
 
 #[test]
@@ -109,19 +109,19 @@ fn argv_is_destination_safe_allowlisted_and_fixed() {
 fn absolute_remote_binary_avoids_remote_path_lookup_without_command_injection() {
     let plan = SshPlan::new("alice@work-alias".into(), "2222".into(), vec![])
         .unwrap()
-        .with_remote_binary("/home/alice/bin/everlink".into())
+        .with_remote_binary("/home/alice/bin/everssh".into())
         .unwrap();
     assert_eq!(
         plan.bootstrap_args().last().unwrap(),
-        "/home/alice/bin/everlink __bootstrap-parent-v1"
+        "/home/alice/bin/everssh __bootstrap-parent-v1"
     );
 
     for rejected in [
-        "everlink",
-        "$HOME/bin/everlink",
-        "/home/alice/bin/everlink --help",
-        "/home/alice/bin/everlink$(false)",
-        "/home/alice/bin/../everlink",
+        "everssh",
+        "$HOME/bin/everssh",
+        "/home/alice/bin/everssh --help",
+        "/home/alice/bin/everssh$(false)",
+        "/home/alice/bin/../everssh",
     ] {
         assert!(
             SshPlan::new("alias".into(), "22".into(), vec![])
@@ -308,10 +308,10 @@ fn connection_and_private_records_are_capped_canonical_and_policy_checked() {
 
     for line in [
         "",
-        "everlink-start v2 192.0.2.1 50000 192.0.2.2 22 route",
-        "everlink-start v1 192.0.2.1 050000 192.0.2.2 22 route",
-        "everlink-start v1 192.0.2.1 50000 192.0.2.2 22 unknown",
-        "everlink-start v1 192.0.2.1 50000 192.0.2.2 22 route extra",
+        "everssh-start v2 192.0.2.1 50000 192.0.2.2 22 route",
+        "everssh-start v1 192.0.2.1 050000 192.0.2.2 22 route",
+        "everssh-start v1 192.0.2.1 50000 192.0.2.2 22 unknown",
+        "everssh-start v1 192.0.2.1 50000 192.0.2.2 22 route extra",
     ] {
         assert!(
             ServerStartRecord::parse(line, &limits).is_err(),
@@ -323,10 +323,10 @@ fn connection_and_private_records_are_capped_canonical_and_policy_checked() {
     assert!(validate_release(RELEASE_RECORD).is_ok());
     for bad in [
         b"".as_slice(),
-        b"everlink-release v1",
-        b"everlink-release v1\r\n",
-        b"everlink-release v1\nextra",
-        b"everlink-release v2\n",
+        b"everssh-release v1",
+        b"everssh-release v1\r\n",
+        b"everssh-release v1\nextra",
+        b"everssh-release v2\n",
     ] {
         assert!(validate_release(bad).is_err());
     }

@@ -16,7 +16,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "=0.4.13"
 everpty = { path = "../crates/everpty" }
-everlink = { path = "../crates/everlink" }
+everssh = { path = "../crates/everssh" }
 eversh = { path = "../crates/eversh" }
 
 [[bin]]
@@ -62,15 +62,15 @@ doc = false
 bench = false
 
 [[bin]]
-name = "fuzz_everlink_close_sequence"
-path = "fuzz_targets/fuzz_everlink_close_sequence.rs"
+name = "fuzz_everssh_close_sequence"
+path = "fuzz_targets/fuzz_everssh_close_sequence.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "fuzz_everlink_stream_boundary"
-path = "fuzz_targets/fuzz_everlink_stream_boundary.rs"
+name = "fuzz_everssh_stream_boundary"
+path = "fuzz_targets/fuzz_everssh_stream_boundary.rs"
 test = false
 doc = false
 bench = false

@@ -1,6 +1,6 @@
 #![no_main]
 
-use everlink::shutdown::{
+use everssh::shutdown::{
     CopyDirection, CopyOperation, DeadlineKind, Phase, RequestStatus, Shutdown, ShutdownSnapshot,
     TerminalCause, TransitionError,
 };

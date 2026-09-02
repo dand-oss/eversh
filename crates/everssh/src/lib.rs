@@ -1,4 +1,4 @@
-//! everlink: one authenticated, ordered, byte-transparent OpenSSH stream
+//! everssh: one authenticated, ordered, byte-transparent OpenSSH stream
 //! over QUIC via noq 1.1.1 (M0 selection).
 //!
 //! M3 Slice 3 scope: typed OpenSSH bootstrap roles, deterministic UDP policy,

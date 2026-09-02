@@ -1,5 +1,5 @@
 # Workspace cargo-deny policy (M0 allow-list, no rcgen ban: rcgen is an
-# audited everlink dependency pinned =0.13.2 with only the ring feature).
+# audited everssh dependency pinned =0.13.2 with only the ring feature).
 # clap is permitted only where a CLI feature pulls it in as an optional dep.
 
 [licenses]
@@ -23,7 +23,7 @@ yanked = "deny"
 multiple-versions = "warn"
 deny = [
   # No second SSH implementation, no async runtime besides the single Tokio
-  # runtime owned by everlink, no unreviewed crypto providers.
+  # runtime owned by everssh, no unreviewed crypto providers.
   { name = "russh" },
   { name = "thrussh" },
   { name = "ssh2" },

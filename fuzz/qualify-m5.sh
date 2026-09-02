@@ -19,9 +19,9 @@ readonly ROOT=$(
     pwd -P
 )
 readonly FUZZ_DIR="$ROOT/fuzz"
-readonly EVERLINK_QUAL_ROOT="$ROOT/target/qualification/everlink"
+readonly EVERSSH_QUAL_ROOT="$ROOT/target/qualification/everssh"
 readonly QUAL_ROOT="$ROOT/target/qualification/eversh"
-readonly TOOL_ROOT="$EVERLINK_QUAL_ROOT/tools"
+readonly TOOL_ROOT="$EVERSSH_QUAL_ROOT/tools"
 readonly RUSTUP_HOME="$TOOL_ROOT/rustup"
 readonly CARGO_HOME="$TOOL_ROOT/cargo"
 readonly CARGO_BIN="$CARGO_HOME/bin"
@@ -46,15 +46,15 @@ readonly -a FUZZ_TARGETS=(
     fuzz_remote_control
     fuzz_metadata
     fuzz_proc_stat
-    fuzz_everlink_close_sequence
-    fuzz_everlink_stream_boundary
+    fuzz_everssh_close_sequence
+    fuzz_everssh_stream_boundary
 )
 readonly -a FUZZ_MAX_LENGTHS=(4096 4096 4096 4096 4096 4096 256 4096)
-readonly -a RELEASE_BINARIES=(everpty everlink eversh)
+readonly -a RELEASE_BINARIES=(everpty everssh eversh)
 # All three release binaries are feature-gated behind their crate's `cli`
-# feature (eversh/cli enables everlink/cli but not everpty/cli), so every
+# feature (eversh/cli enables everssh/cli but not everpty/cli), so every
 # release build must enable all three explicitly.
-readonly RELEASE_FEATURES="everpty/cli,everlink/cli,eversh/cli"
+readonly RELEASE_FEATURES="everpty/cli,everssh/cli,eversh/cli"
 
 COMMAND=run
 JSON_OUTPUT=0
@@ -391,7 +391,7 @@ run_qualification() {
     validate_tools || {
         /usr/bin/mkdir -p -- "$QUAL_ROOT/runs"
         RECEIPT_PATH="$QUAL_ROOT/runs/missing-tools.json"
-        fail validate-tools 1 "$EVERLINK_QUAL_ROOT/setup/raw.log"
+        fail validate-tools 1 "$EVERSSH_QUAL_ROOT/setup/raw.log"
     }
 
     HEAD_SHA=$(/usr/bin/git -C "$ROOT" rev-parse HEAD)

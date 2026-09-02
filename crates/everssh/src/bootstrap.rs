@@ -110,7 +110,7 @@ impl Drop for BootstrapLine {
     }
 }
 
-/// `everlink v1 HOST PORT SPKI_HEX TOKEN_HEX PID\n`.
+/// `everssh v1 HOST PORT SPKI_HEX TOKEN_HEX PID\n`.
 pub struct BootstrapRecord {
     pub version: u8,
     pub udp_endpoint: IpAddr,
@@ -152,7 +152,7 @@ impl BootstrapRecord {
         // never reallocate after token bytes enter the buffer, because the
         // allocator cannot scrub the abandoned allocation for us.
         let mut line = String::with_capacity(BOOTSTRAP_WIRE_MAX);
-        line.push_str("everlink v1 ");
+        line.push_str("everssh v1 ");
         line.push_str(&self.udp_endpoint.to_string());
         line.push(' ');
         line.push_str(&self.udp_port.to_string());
@@ -176,7 +176,7 @@ impl BootstrapRecord {
         }
         let mut parts = line.split(' ');
         match (parts.next(), parts.next()) {
-            (Some("everlink"), Some("v1")) => {}
+            (Some("everssh"), Some("v1")) => {}
             _ => return Err(Error::BootstrapMalformed),
         }
         let udp_endpoint: IpAddr = parts

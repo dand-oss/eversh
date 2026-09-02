@@ -3,12 +3,12 @@
 set -Eeuo pipefail
 
 if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-    echo "everlink migration gate requires root" >&2
+    echo "everssh migration gate requires root" >&2
     exit 77
 fi
 
 ROOT=$(cd "$(dirname "$0")/../../../.." && pwd)
-BIN="$ROOT/target/debug/everlink"
+BIN="$ROOT/target/debug/everssh"
 IP=/usr/bin/ip
 TC=/usr/sbin/tc
 PY=/usr/bin/python3
@@ -18,8 +18,8 @@ for tool in "$IP" "$TC" "$PY" "$DD" "$TIMEOUT" /usr/bin/env /usr/bin/cmp /usr/bi
     [[ -x "$tool" ]] || { echo "missing required tool: $tool" >&2; exit 1; }
 done
 [[ -x "$BIN" ]] || { echo "missing production binary: $BIN" >&2; exit 1; }
-[[ ! "$ROOT/crates/everlink/Cargo.toml" -nt "$BIN" ]] \
-    && [[ -z $(/usr/bin/find "$ROOT/crates/everlink/src" -type f -name '*.rs' -newer "$BIN" -print -quit) ]] || {
+[[ ! "$ROOT/crates/everssh/Cargo.toml" -nt "$BIN" ]] \
+    && [[ -z $(/usr/bin/find "$ROOT/crates/everssh/src" -type f -name '*.rs' -newer "$BIN" -print -quit) ]] || {
     echo "stale production binary; run the cargo test gate first" >&2
     exit 1
 }
@@ -28,14 +28,14 @@ for candidate in "$ROOT"/target/debug/deps/slice4_api-*; do
     [[ -x "$candidate" ]] || continue
     [[ -z "$API_BIN" || "$candidate" -nt "$API_BIN" ]] && API_BIN=$candidate
 done
-[[ -n "$API_BIN" && "$API_BIN" -nt "$ROOT/crates/everlink/tests/slice4_api.rs" ]] \
-    && [[ ! "$ROOT/crates/everlink/Cargo.toml" -nt "$API_BIN" ]] \
-    && [[ -z $(/usr/bin/find "$ROOT/crates/everlink/src" -type f -name '*.rs' -newer "$API_BIN" -print -quit) ]] || {
+[[ -n "$API_BIN" && "$API_BIN" -nt "$ROOT/crates/everssh/tests/slice4_api.rs" ]] \
+    && [[ ! "$ROOT/crates/everssh/Cargo.toml" -nt "$API_BIN" ]] \
+    && [[ -z $(/usr/bin/find "$ROOT/crates/everssh/src" -type f -name '*.rs' -newer "$API_BIN" -print -quit) ]] || {
     echo "missing current slice4_api test binary; run the cargo test gate first" >&2
     exit 1
 }
 
-TMP=$(mktemp -d /tmp/everlink-slice4.XXXXXX)
+TMP=$(mktemp -d /tmp/everssh-slice4.XXXXXX)
 TAG=e$(printf '%04x' $((RANDOM & 65535)))
 NS_ALL=()
 PID_ALL=()
@@ -100,7 +100,7 @@ for argument in "$@"; do
     [ "$argument" = "-G" ] && query=yes
 done
 if [ "$query" = yes ]; then
-    printf 'hostname everlink-netns\n'
+    printf 'hostname everssh-netns\n'
     exit 0
 fi
 exec /usr/bin/ip netns exec "$EL_SERVER_NS" /usr/bin/env -i \
@@ -310,8 +310,8 @@ run_api_source_migration() {
     mkdir -m 0700 "$shared"
 
     "$IP" netns exec "$CURRENT_S" /usr/bin/env \
-        EVERLINK_SLICE4_API_ROLE=server EVERLINK_SLICE4_API_FAMILY="$family" \
-        EVERLINK_SLICE4_API_DIR="$shared" \
+        EVERSSH_SLICE4_API_ROLE=server EVERSSH_SLICE4_API_FAMILY="$family" \
+        EVERSSH_SLICE4_API_DIR="$shared" \
         "$API_BIN" --exact netns_api_server_helper --nocapture \
         >"$TMP/$stem.server.log" 2>&1 &
     local server_pid=$!
@@ -319,8 +319,8 @@ run_api_source_migration() {
     wait_path "$shared/bootstrap" 5
 
     "$IP" netns exec "$CURRENT_C" /usr/bin/env \
-        EVERLINK_SLICE4_API_ROLE=client EVERLINK_SLICE4_API_FAMILY="$family" \
-        EVERLINK_SLICE4_API_DIR="$shared" \
+        EVERSSH_SLICE4_API_ROLE=client EVERSSH_SLICE4_API_FAMILY="$family" \
+        EVERSSH_SLICE4_API_DIR="$shared" \
         "$API_BIN" --exact netns_api_client_helper --nocapture \
         >"$TMP/$stem.client.log" 2>&1 &
     local client_pid=$!
@@ -362,7 +362,7 @@ run_api_source_migration() {
     grep -q 'stable_id=.* rebinds=1 .* frames=400' "$shared/client-report"
     grep -q '^frames=400 target_closed=true$' "$shared/server-report"
     teardown_topology
-    echo "everlink IPv$family API source-address migration: PASS"
+    echo "everssh IPv$family API source-address migration: PASS"
 }
 
 run_migration() {
@@ -425,7 +425,7 @@ run_migration() {
     wait_bytes "$PROXY_OUTPUT" $((600 * 1024)) 12
     finish_normal_proxy "$frames"
     teardown_topology
-    echo "everlink IPv$family production migration: PASS"
+    echo "everssh IPv$family production migration: PASS"
 }
 
 run_loss() {
@@ -461,7 +461,7 @@ run_loss() {
     [[ $target_status -eq 0 ]] || { echo "$mode target failed: $target_status" >&2; return 1; }
     grep -q '^accepts=1 ' "$TARGET_REPORT"
     teardown_topology
-    echo "everlink $mode bounded shutdown: PASS"
+    echo "everssh $mode bounded shutdown: PASS"
 }
 
 run_fresh_no_replay() {
@@ -474,7 +474,7 @@ run_fresh_no_replay() {
     wait_bytes "$PROXY_OUTPUT" $((12 * 1024)) 8
     finish_normal_proxy "$frames"
     teardown_topology
-    echo "everlink fresh connection no-replay boundary: PASS"
+    echo "everssh fresh connection no-replay boundary: PASS"
 }
 
 run_api_source_migration 4 u
@@ -494,4 +494,4 @@ run_loss same-route c 22992
 run_loss total-loss d 22993
 run_fresh_no_replay
 
-echo "everlink Slice 4 production netns/veth gate: PASS"
+echo "everssh Slice 4 production netns/veth gate: PASS"

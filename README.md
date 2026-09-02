@@ -5,7 +5,7 @@ Persistent remote shells without a terminal multiplexer or a remote screen buffe
 > [!IMPORTANT]
 > eversh is in the design phase. There is no usable release yet. The commands below describe the intended v1 interface and may change only through the design-review gates in [plans/design.md](plans/design.md).
 
-eversh keeps two independent failures independent: `everpty` keeps the remote PTY and process alive when its client disappears, while `everlink` carries an ordinary OpenSSH connection over a roaming QUIC path. `eversh` composes both pieces into the normal user experience, and each component remains useful separately.
+eversh keeps two independent failures independent: `everpty` keeps the remote PTY and process alive when its client disappears, while `everssh` carries an ordinary OpenSSH connection over a roaming QUIC path. `eversh` composes both pieces into the normal user experience, and each component remains useful separately.
 
 ## Product boundary
 
@@ -23,17 +23,17 @@ eversh does not provide terminal prediction or local echo. QUIC is a reliable or
 
 `everpty` deliberately has no terminal parser, virtual screen, screen model, history file, output ring, replay, log, scrollback, alternate-screen handling, attach-time redraw, newline conversion, or detach-key interception. It forwards arbitrary bytes unchanged.
 
-### `everlink`
+### `everssh`
 
-`everlink` is a reusable Rust QUIC byte-link library and standalone executable. In its primary mode it is an OpenSSH `ProxyCommand`: the client side reads and writes standard I/O, the server side connects to the authorized loopback `sshd`, and one ordered QUIC stream carries the opaque OpenSSH byte stream in both directions.
+`everssh` is a reusable Rust QUIC byte-link library and standalone executable. In its primary mode it is an OpenSSH `ProxyCommand`: the client side reads and writes standard I/O, the server side connects to the authorized loopback `sshd`, and one ordered QUIC stream carries the opaque OpenSSH byte stream in both directions.
 
-V1 uses exactly one Tokio runtime for `everlink`, `noq` with its reviewed rustls path, TLS 1.3, one authenticated reliable bidirectional stream, standard QUIC migration, and bounded flow control. `everlink` does not parse SSH or terminal data, implement SSH authentication, own PTYs, predict input, or replay bytes across a hard reconnect.
+V1 uses exactly one Tokio runtime for `everssh`, `noq` with its reviewed rustls path, TLS 1.3, one authenticated reliable bidirectional stream, standard QUIC migration, and bounded flow control. `everssh` does not parse SSH or terminal data, implement SSH authentication, own PTYs, predict input, or replay bytes across a hard reconnect.
 
 The QUIC server is launched through an already authenticated OpenSSH bootstrap. The bootstrap delivers an ephemeral certificate pin and one-use token. A failed QUIC connection causes the inner SSH connection to end; a fresh SSH connection is required. Quinn is retained only as a documented Rust fallback if the bounded noq feasibility gate cannot pass the required standard migration tests.
 
 ### `eversh`
 
-`eversh` is a reusable Rust supervisor library and standalone user-facing executable. It invokes the installed system OpenSSH client, uses the existing SSH configuration, keys, agent, host-key policy, forwarding, SFTP, and SCP behavior, starts `everlink`, and requests remote `everpty` operations.
+`eversh` is a reusable Rust supervisor library and standalone user-facing executable. It invokes the installed system OpenSSH client, uses the existing SSH configuration, keys, agent, host-key policy, forwarding, SFTP, and SCP behavior, starts `everssh`, and requests remote `everpty` operations.
 
 `eversh` is a thin supervisor. It does not relay terminal data, parse terminal bytes, own a PTY, or become a second SSH implementation. For a named persistent `everpty` session, it decides when to retry after an unexpected transport failure, starts a fresh SSH connection, verifies that the same session is still alive, and reattaches it. It never automatically restarts raw SSH commands, forwarding, SFTP, or SCP.
 
@@ -48,7 +48,7 @@ Kitty or another local terminal emulator
                   |
                   | ProxyCommand stdin/stdout
                   v
-        everlink client ===== QUIC/UDP ===== everlink server
+        everssh client ===== QUIC/UDP ===== everssh server
                                                 |
                                                 | TCP loopback
                                                 v
@@ -59,9 +59,9 @@ Kitty or another local terminal emulator
                everpty attach -- Unix socket -- PTY broker -- child process
 ~~~
 
-The ownership boundaries are intentional: the local terminal owns rendering and scrollback, OpenSSH owns user and host authentication and SSH features, `everlink` owns the roaming encrypted byte transport, `everpty` owns PTY and child lifetime, and `eversh` owns composition and reconnect policy.
+The ownership boundaries are intentional: the local terminal owns rendering and scrollback, OpenSSH owns user and host authentication and SSH features, `everssh` owns the roaming encrypted byte transport, `everpty` owns PTY and child lifetime, and `eversh` owns composition and reconnect policy.
 
-V1 installs exactly three physical executables from the same reusable crates: standalone `everpty`, standalone `everlink`, and the user-facing combined/multi-role `eversh` executable. The combined `eversh` binary contains all three libraries and private role dispatch, but persistent PTY brokers and one-shot QUIC servers remain separate operating-system processes.
+V1 installs exactly three physical executables from the same reusable crates: standalone `everpty`, standalone `everssh`, and the user-facing combined/multi-role `eversh` executable. The combined `eversh` binary contains all three libraries and private role dispatch, but persistent PTY brokers and one-shot QUIC servers remain separate operating-system processes.
 
 ## No retained or replay output buffer
 
@@ -87,15 +87,15 @@ everpty list
 everpty current
 everpty kill work
 
-everlink ssh-proxy HOST PORT
-ssh -o 'ProxyCommand everlink ssh-proxy %n %p' server.ever
+everssh ssh-proxy HOST PORT
+ssh -o 'ProxyCommand everssh ssh-proxy %n %p' server.ever
 ~~~
 
 When the remote user's non-interactive `PATH` does not include the install
 directory, select the compatible remote executable explicitly:
 
 ~~~sh
-ssh -o 'ProxyCommand everlink ssh-proxy --remote-bin /home/alice/bin/everlink %n %p' server.ever
+ssh -o 'ProxyCommand everssh ssh-proxy --remote-bin /home/alice/bin/everssh %n %p' server.ever
 ~~~
 
 `--remote-bin` accepts a canonical absolute path only; it does not invoke a
@@ -111,9 +111,9 @@ V1 does not include public relays, rendezvous services, accounts, custom NAT tra
 
 ## Rust workspace
 
-All original implementation code is Rust in one Cargo workspace with one `Cargo.lock`. The workspace contains reusable `everpty`, `everlink`, and `eversh` crates plus thin binary targets. The production dependency graph contains no terminal-emulation crate, no second SSH implementation, no Asupersync dependency, and no GPL/AGPL or custom-restricted dependency.
+All original implementation code is Rust in one Cargo workspace with one `Cargo.lock`. The workspace contains reusable `everpty`, `everssh`, and `eversh` crates plus thin binary targets. The production dependency graph contains no terminal-emulation crate, no second SSH implementation, no Asupersync dependency, and no GPL/AGPL or custom-restricted dependency.
 
-`everpty` has no Tokio/noq core dependency. `everlink` uses one Tokio runtime and noq's reviewed rustls integration. `eversh` remains a supervisor and uses no data-relay loop. The remote side must already have a compatible combined `eversh` binary or the required standalone roles on `PATH`; v1 does not upload binaries, self-update, or run an upgrade agent. Protocol versions fail closed with clear stderr diagnostics, and compatibility is by protocol version rather than assumed binary version. A broker may keep running across an on-disk binary upgrade; a later client may attach only if it supports the broker's live protocol version. Recursive ProxyCommand use is disabled for bootstrap, ProxyJump is not guessed, and direct or overlay UDP endpoint rules are explicit. The exact Rust toolchain, MSRV, noq release, rustls features, limits, endpoint policy, and acceptance gates are normative in [plans/design.md](plans/design.md).
+`everpty` has no Tokio/noq core dependency. `everssh` uses one Tokio runtime and noq's reviewed rustls integration. `eversh` remains a supervisor and uses no data-relay loop. The remote side must already have a compatible combined `eversh` binary or the required standalone roles on `PATH`; v1 does not upload binaries, self-update, or run an upgrade agent. Protocol versions fail closed with clear stderr diagnostics, and compatibility is by protocol version rather than assumed binary version. A broker may keep running across an on-disk binary upgrade; a later client may attach only if it supports the broker's live protocol version. Recursive ProxyCommand use is disabled for bootstrap, ProxyJump is not guessed, and direct or overlay UDP endpoint rules are explicit. The exact Rust toolchain, MSRV, noq release, rustls features, limits, endpoint policy, and acceptance gates are normative in [plans/design.md](plans/design.md).
 
 ## References and licence
 

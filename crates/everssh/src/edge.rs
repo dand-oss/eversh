@@ -1,7 +1,7 @@
-//! Shared process edge for the everlink role (design 2).
+//! Shared process edge for the everssh role (design 2).
 //!
-//! This module is the binary edge of the everlink role, packaged once so the
-//! standalone `everlink` executable and the combined `eversh` dispatcher run
+//! This module is the binary edge of the everssh role, packaged once so the
+//! standalone `everssh` executable and the combined `eversh` dispatcher run
 //! the exact same argument grammar, prepared-role construction, runtime
 //! ownership, and direct standard-descriptor handling. It is compiled only
 //! with the `cli` feature, is not part of the typed library API, and is the
@@ -12,7 +12,7 @@
 
 use crate::admission::AuthenticatedConnection;
 use crate::role_protocol::parse_ssh_connection;
-use crate::ssh_policy::{SshPlan, COMBINED_EVERLINK_ROLE};
+use crate::ssh_policy::{SshPlan, COMBINED_EVERSSH_ROLE};
 use crate::{Error, Limits};
 use clap::{error::ErrorKind as ClapErrorKind, ArgAction, Parser, Subcommand};
 use std::ffi::OsString;
@@ -22,8 +22,8 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-/// How this everlink role process was invoked. The combined binary re-invokes
-/// itself through its `__everlink` role marker, so every self-spawn must carry
+/// How this everssh role process was invoked. The combined binary re-invokes
+/// itself through its `__everssh` role marker, so every self-spawn must carry
 /// that marker as an argv prefix; the standalone binary spawns itself bare.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Invocation {
@@ -35,14 +35,14 @@ impl Invocation {
     fn server_role_args(self) -> &'static [&'static str] {
         match self {
             Self::Standalone => &[],
-            Self::CombinedEversh => &[COMBINED_EVERLINK_ROLE],
+            Self::CombinedEversh => &[COMBINED_EVERSSH_ROLE],
         }
     }
 }
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "everlink",
+    name = "everssh",
     version,
     about = "One-stream authenticated QUIC ProxyCommand for OpenSSH"
 )]
@@ -65,11 +65,11 @@ enum Command {
         /// no ambient environment value can imitate it.
         #[arg(long = "status-file", value_name = "PATH")]
         status_file: Option<PathBuf>,
-        /// Absolute path to the compatible everlink binary on the remote host.
+        /// Absolute path to the compatible everssh binary on the remote host.
         #[arg(long = "remote-bin", value_name = "ABSOLUTE_PATH")]
         remote_bin: Option<String>,
         /// Remote combined eversh binary (bare command word or absolute path)
-        /// whose `__everlink` role provides the bootstrap parent.
+        /// whose `__everssh` role provides the bootstrap parent.
         #[arg(
             long = "remote-eversh",
             value_name = "WORD_OR_ABSOLUTE_PATH",
@@ -115,7 +115,7 @@ fn prepare(command: Command) -> Result<PreparedRole, Error> {
                 (Some(remote_bin), None) => plan.with_remote_binary(remote_bin)?,
                 (None, Some(remote_eversh)) => plan.with_remote_invocation(vec![
                     remote_eversh,
-                    COMBINED_EVERLINK_ROLE.to_owned(),
+                    COMBINED_EVERSSH_ROLE.to_owned(),
                 ])?,
                 (None, None) => plan,
                 (Some(_), Some(_)) => return Err(Error::InvalidSshArgument),
@@ -141,11 +141,11 @@ fn prepare(command: Command) -> Result<PreparedRole, Error> {
     }
 }
 
-/// Run the everlink role edge to completion. `args` is the argument vector
+/// Run the everssh role edge to completion. `args` is the argument vector
 /// WITHOUT the program name (and without any combined-binary role marker).
 /// Returns the process exit code (0 success, 2 argument/policy, 3 runtime).
 pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
-    let argv = std::iter::once(OsString::from("everlink")).chain(args);
+    let argv = std::iter::once(OsString::from("everssh")).chain(args);
     let cli = match Cli::try_parse_from(argv) {
         Ok(cli) => cli,
         Err(error)
@@ -157,21 +157,21 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
             return if error.print().is_ok() { 0 } else { 2 };
         }
         Err(_) => {
-            eprintln!("everlink: invalid arguments");
+            eprintln!("everssh: invalid arguments");
             return 2;
         }
     };
     let prepared = match prepare(cli.command) {
         Ok(prepared) => prepared,
         Err(error) => {
-            eprintln!("everlink: {error}");
+            eprintln!("everssh: {error}");
             return 2;
         }
     };
     let runtime = match crate::runtime::build() {
         Ok(runtime) => runtime,
         Err(_) => {
-            eprintln!("everlink: runtime unavailable");
+            eprintln!("everssh: runtime unavailable");
             return 3;
         }
     };
@@ -207,7 +207,7 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
     match result {
         Ok(()) => 0,
         Err(error) => {
-            eprintln!("everlink: {error}");
+            eprintln!("everssh: {error}");
             3
         }
     }

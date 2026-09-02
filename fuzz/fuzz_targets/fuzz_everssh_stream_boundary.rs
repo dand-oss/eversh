@@ -1,7 +1,7 @@
 #![no_main]
 
-use everlink::bootstrap::{decode_auth_frame, encode_auth_frame, AUTH_FRAME_LEN};
-use everlink::limits::Limits;
+use everssh::bootstrap::{decode_auth_frame, encode_auth_frame, AUTH_FRAME_LEN};
+use everssh::limits::Limits;
 use libfuzzer_sys::fuzz_target;
 
 const MAX_CHUNK_STEPS: usize = 32;

@@ -2,11 +2,11 @@
 #![cfg(feature = "cli")]
 #![allow(clippy::unwrap_used)]
 
-use everlink::admission::AuthenticatedConnection;
-use everlink::bootstrap::{BootstrapRecord, SecretToken};
-use everlink::role_protocol::{ServerStartRecord, StartUdpPolicy};
-use everlink::transport::{ClientEndpoint, UdpBindPolicy};
-use everlink::Limits;
+use everssh::admission::AuthenticatedConnection;
+use everssh::bootstrap::{BootstrapRecord, SecretToken};
+use everssh::role_protocol::{ServerStartRecord, StartUdpPolicy};
+use everssh::transport::{ClientEndpoint, UdpBindPolicy};
+use everssh::Limits;
 use std::fs;
 use std::io::{BufRead, ErrorKind, Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, UdpSocket};
@@ -17,7 +17,7 @@ use std::process::{Child, ChildStdin, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-const BIN: &str = env!("CARGO_BIN_EXE_everlink");
+const BIN: &str = env!("CARGO_BIN_EXE_everssh");
 
 struct TempDir(std::path::PathBuf);
 
@@ -28,7 +28,7 @@ impl TempDir {
             .unwrap()
             .as_nanos();
         let path =
-            std::env::temp_dir().join(format!("everlink-{label}-{}-{nonce}", std::process::id()));
+            std::env::temp_dir().join(format!("everssh-{label}-{}-{nonce}", std::process::id()));
         fs::create_dir(&path).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
         Self(path)
@@ -140,12 +140,12 @@ fn bind_client_endpoint_retrying_ephemeral_addr_in_use(
                 );
                 return (endpoint, address);
             }
-            Err(everlink::Error::UdpBind(source))
+            Err(everssh::Error::UdpBind(source))
                 if source.kind() == ErrorKind::AddrInUse && attempt < MAX_ATTEMPTS =>
             {
                 thread::sleep(Duration::from_millis(5));
             }
-            Err(everlink::Error::UdpBind(source)) if source.kind() == ErrorKind::AddrInUse => {
+            Err(everssh::Error::UdpBind(source)) if source.kind() == ErrorKind::AddrInUse => {
                 panic!(
                     "client UDP bind remained in use after {MAX_ATTEMPTS} attempts; last reserved address {address}: {source}"
                 )
@@ -256,7 +256,7 @@ if [ "$is_query" = yes ]; then
 fi
 SSH_CONNECTION="$FAKE_CONN"
 export SSH_CONNECTION
-exec "$EVERLINK_BIN" __bootstrap-parent-v1
+exec "$EVERSSH_BIN" __bootstrap-parent-v1
 "#,
     );
 
@@ -297,12 +297,12 @@ exec "$EVERLINK_BIN" __bootstrap-parent-v1
             "user@alias",
             &target_port.to_string(),
             "--remote-bin",
-            "/home/appsmith/bin/everlink",
+            "/home/appsmith/bin/everssh",
             "--ssh-option",
             "-oConnectTimeout=4",
         ])
         .env("PATH", fake_path(&temp))
-        .env("EVERLINK_BIN", BIN)
+        .env("EVERSSH_BIN", BIN)
         .env("FAKE_CAPTURE", &capture)
         .env("PRESERVED_SENTINEL", "kept")
         .env(
@@ -328,7 +328,7 @@ exec "$EVERLINK_BIN" __bootstrap-parent-v1
     // bytes having flowed in both directions (design 3, 7).
     assert_eq!(
         fs::read_to_string(&status_file).unwrap(),
-        "everlink-status-v1 carrying\neverlink-status-v1 cause clean-close carried=1\n"
+        "everssh-status-v1 carrying\neverssh-status-v1 cause clean-close carried=1\n"
     );
     let argv = fs::read_to_string(capture).unwrap();
     assert_eq!(argv.matches("BEGIN\n").count(), 2);
@@ -337,7 +337,7 @@ exec "$EVERLINK_BIN" __bootstrap-parent-v1
     assert!(argv.contains("ControlMaster=no\n"));
     assert!(argv.contains("ForkAfterAuthentication=no\n"));
     assert!(argv.contains("StdinNull=yes\n"));
-    assert!(argv.contains("/home/appsmith/bin/everlink __bootstrap-parent-v1\n"));
+    assert!(argv.contains("/home/appsmith/bin/everssh __bootstrap-parent-v1\n"));
     assert!(!argv.contains("BatchMode"));
 }
 
@@ -380,10 +380,10 @@ fn server_requires_release_and_exposes_no_token_in_process_state() {
 fn server_rejects_every_release_shape_and_does_not_accept_before_eof() {
     for bad in [
         b"".as_slice(),
-        b"everlink-release v1",
-        b"everlink-release v2\n",
-        b"everlink-release v1\nextra",
-        b"everlink-release v1\r\n",
+        b"everssh-release v1",
+        b"everssh-release v2\n",
+        b"everssh-release v1\nextra",
+        b"everssh-release v1\r\n",
     ] {
         let target = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         target.set_nonblocking(true).unwrap();
@@ -405,7 +405,7 @@ fn server_rejects_every_release_shape_and_does_not_accept_before_eof() {
     target.set_nonblocking(true).unwrap();
     let (mut child, mut input, _record, udp_address) =
         spawn_explicit_server(target.local_addr().unwrap());
-    input.write_all(b"everlink-release v1\n").unwrap();
+    input.write_all(b"everssh-release v1\n").unwrap();
     input.flush().unwrap();
     thread::sleep(Duration::from_millis(150));
     assert!(child.try_wait().unwrap().is_none());
@@ -538,12 +538,12 @@ fn production_server_target_failure_closes_quic_and_udp() {
     let target_address = closed.local_addr().unwrap();
     drop(closed);
     let (child, mut input, record, udp_address) = spawn_explicit_server(target_address);
-    input.write_all(b"everlink-release v1\n").unwrap();
+    input.write_all(b"everssh-release v1\n").unwrap();
     input.flush().unwrap();
     drop(input);
 
     let limits = Limits::default();
-    let runtime = everlink::runtime::build().unwrap();
+    let runtime = everssh::runtime::build().unwrap();
     let client_address = runtime.block_on(async {
         let (client, client_address) = bind_client_endpoint_retrying_ephemeral_addr_in_use(
             SocketAddr::new(record.udp_endpoint, record.udp_port),
@@ -573,13 +573,13 @@ fn production_server_rejects_wrong_pin_token_and_selector_before_target() {
         Selector,
     }
 
-    let runtime = everlink::runtime::build().unwrap();
+    let runtime = everssh::runtime::build().unwrap();
     for case in [Case::Pin, Case::Token, Case::Selector] {
         let target = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         target.set_nonblocking(true).unwrap();
         let target_address = target.local_addr().unwrap();
         let (child, mut input, record, udp_address) = spawn_explicit_server(target_address);
-        input.write_all(b"everlink-release v1\n").unwrap();
+        input.write_all(b"everssh-release v1\n").unwrap();
         input.flush().unwrap();
         drop(input);
 
@@ -635,7 +635,7 @@ is_query=no
 for arg in "$@"; do [ "$arg" = "-G" ] && is_query=yes; done
 if [ "$is_query" = yes ]; then printf 'hostname fake\n'; exit 0; fi
 SSH_CONNECTION="$FAKE_CONN"; export SSH_CONNECTION
-exec "$EVERLINK_BIN" __bootstrap-parent-v1
+exec "$EVERSSH_BIN" __bootstrap-parent-v1
 "#,
     );
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
@@ -660,7 +660,7 @@ exec "$EVERLINK_BIN" __bootstrap-parent-v1
     let mut child = Command::new(BIN)
         .args(["ssh-proxy", "alias", &target_port.to_string()])
         .env("PATH", fake_path(&temp))
-        .env("EVERLINK_BIN", BIN)
+        .env("EVERSSH_BIN", BIN)
         .env(
             "FAKE_CONN",
             format!("{route_ip} 50000 {route_ip} {target_port}"),
@@ -711,7 +711,7 @@ is_query=no
 for arg in "$@"; do [ "$arg" = "-G" ] && is_query=yes; done
 if [ "$is_query" = yes ]; then printf 'hostname fake\n'; exit 0; fi
 SSH_CONNECTION="$FAKE_CONN"; export SSH_CONNECTION
-exec "$EVERLINK_BIN" __bootstrap-parent-v1
+exec "$EVERSSH_BIN" __bootstrap-parent-v1
 "#,
     );
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
@@ -741,7 +741,7 @@ exec "$EVERLINK_BIN" __bootstrap-parent-v1
     let mut child = Command::new(BIN)
         .args(["ssh-proxy", "alias", &target_port.to_string()])
         .env("PATH", fake_path(&temp))
-        .env("EVERLINK_BIN", BIN)
+        .env("EVERSSH_BIN", BIN)
         .env(
             "FAKE_CONN",
             format!("{route_ip} 50000 {route_ip} {target_port}"),
@@ -783,8 +783,8 @@ fn malformed_binary_edges_are_bounded_and_do_not_echo_arguments() {
 
     for start in [
         b"".as_slice(),
-        b"everlink-start v2 127.0.0.1 1 127.0.0.1 22 route\n",
-        b"everlink-start v1 127.0.0.1 1 127.0.0.1 22 route\nextra",
+        b"everssh-start v2 127.0.0.1 1 127.0.0.1 22 route\n",
+        b"everssh-start v1 127.0.0.1 1 127.0.0.1 22 route\nextra",
         &[b'x'; 513],
     ] {
         let mut child = Command::new(BIN)
@@ -846,8 +846,8 @@ fi
 case "$FAKE_MODE" in
   chatter) printf 'junk\njunk\n'; exit 0 ;;
   overflow) i=0; while [ "$i" -lt 5000 ]; do printf x; i=$((i + 1)); done; exit 0 ;;
-  truncated) printf 'everlink v1 '; exit 0 ;;
-  nonzero) printf 'everlink v1 127.0.0.1 4444 0000000000000000000000000000000000000000000000000000000000000000 0000000000000000000000000000000000000000000000000000000000000000 1\n'; exit 7 ;;
+  truncated) printf 'everssh v1 '; exit 0 ;;
+  nonzero) printf 'everssh v1 127.0.0.1 4444 0000000000000000000000000000000000000000000000000000000000000000 0000000000000000000000000000000000000000000000000000000000000000 1\n'; exit 7 ;;
   noisy) i=0; while [ "$i" -lt 20000 ]; do printf x >&2; i=$((i + 1)); done; exit 9 ;;
   empty) exit 0 ;;
   timeout) printf '%s' "$$" > "$FAKE_PID"; exec sleep 30 ;;
@@ -879,7 +879,7 @@ exit 10
             "{mode} diagnostics were not capped"
         );
         if mode == "overflow" {
-            assert_eq!(output.stderr, b"everlink: malformed bootstrap record\n");
+            assert_eq!(output.stderr, b"everssh: malformed bootstrap record\n");
         }
     }
 
@@ -904,7 +904,7 @@ exit 10
         if query_mode == "overflow" {
             assert_eq!(
                 output.stderr,
-                b"everlink: effective SSH proxy configuration is not permitted\n"
+                b"everssh: effective SSH proxy configuration is not permitted\n"
             );
         }
         assert_eq!(fs::read_to_string(calls).unwrap(), "query\n");

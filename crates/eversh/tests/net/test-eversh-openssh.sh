@@ -6,9 +6,9 @@ set -Eeuo pipefail
 # This drives the COMPLETE real chain, unprivileged, with no fakes:
 #   local `eversh connect` (real TTY via /usr/bin/script)
 #     -> real /usr/bin/ssh with eversh's injected ProxyCommand
-#     -> `eversh __everlink ssh-proxy` (real QUIC/UDP on an isolated address;
+#     -> `eversh __everssh ssh-proxy` (real QUIC/UDP on an isolated address;
 #        its inner bootstrap ssh reuses the SAME -F config and launches
-#        `eversh __everlink __bootstrap-parent-v1` on the isolated sshd)
+#        `eversh __everssh __bootstrap-parent-v1` on the isolated sshd)
 #     -> the outer ssh session (through the QUIC proxy, back to the SAME
 #        isolated sshd via its 127.0.0.1 listener), `-t` allocated, running
 #        `eversh __everpty v1 attach-or-create ...` against a REAL everpty
@@ -125,7 +125,7 @@ EXPECTED_ORIGIN=
 
 # ---------------------------------------------------------------------------
 # Identity-tuple process capture / validated reaping (capture_identity
-# pattern), generalized from crates/everlink/tests/net/test-openssh.sh.
+# pattern), generalized from crates/everssh/tests/net/test-openssh.sh.
 # ---------------------------------------------------------------------------
 
 capture_identity() {
@@ -330,13 +330,13 @@ proc_cmdline_has() {
     return 0
 }
 
-# Find the live `<eversh-bin> __everlink ssh-proxy` process descending from
+# Find the live `<eversh-bin> __everssh ssh-proxy` process descending from
 # the harness's own tracked ancestor pid (never trusting argv alone).
 find_ssh_proxy_pid() {
     local ancestor=$1 max_depth=$2 proc pid
     for proc in /proc/[0-9]*; do
         pid=${proc##*/}
-        proc_cmdline_has "$pid" __everlink ssh-proxy || continue
+        proc_cmdline_has "$pid" __everssh ssh-proxy || continue
         pid_is_descendant "$pid" "$ancestor" "$max_depth" || continue
         printf '%s\n' "$pid"
         return 0
@@ -376,7 +376,7 @@ run_bounded() {
 
 # ---------------------------------------------------------------------------
 # Isolated non-loopback address selection (mirrors
-# crates/everlink/tests/net/test-openssh.sh)
+# crates/everssh/tests/net/test-openssh.sh)
 # ---------------------------------------------------------------------------
 
 valid_ipv4_literal() {
@@ -1193,7 +1193,7 @@ scenario_auth_failure() {
         snap_content=$("$CAT_TOOL" "$snap_f")
         [[ -n $snap_content ]] || continue
         captured_final=1
-        [[ $snap_content == 'everlink-status-v1 cause clean-close carried=0' ]] \
+        [[ $snap_content == 'everssh-status-v1 cause clean-close carried=0' ]] \
             || die "scenario7: captured status record mismatch: '$snap_content'"
     done
     (( captured_final == 1 )) \

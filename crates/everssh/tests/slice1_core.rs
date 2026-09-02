@@ -1,13 +1,13 @@
 //! Direct contract tests for the M3 Slice 1 identity and authorization core.
 #![allow(clippy::unwrap_used)]
 
-use everlink::admission::AuthenticatedConnection;
-use everlink::bootstrap::{
+use everssh::admission::AuthenticatedConnection;
+use everssh::bootstrap::{
     decode_auth_frame, encode_auth_frame, try_encode_auth_frame, BootstrapRecord, SecretToken,
     AUTH_FRAME_LEN,
 };
-use everlink::identity::EphemeralIdentity;
-use everlink::limits::Limits;
+use everssh::identity::EphemeralIdentity;
+use everssh::limits::Limits;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 
 fn hex(bytes: &[u8]) -> String {
@@ -22,14 +22,14 @@ fn identity_is_ephemeral_spki_pinned_and_redacted() {
     let second_token = second.take_bootstrap_token().unwrap();
     assert!(matches!(
         first.take_bootstrap_token(),
-        Err(everlink::Error::IdentityUnavailable)
+        Err(everssh::Error::IdentityUnavailable)
     ));
 
-    let extracted = everlink::pinning::extract_spki(first.certificate_der()).unwrap();
-    assert_eq!(first.spki_sha256(), everlink::bootstrap::sha256(extracted));
+    let extracted = everssh::pinning::extract_spki(first.certificate_der()).unwrap();
+    assert_eq!(first.spki_sha256(), everssh::bootstrap::sha256(extracted));
     assert_ne!(
         first.spki_sha256(),
-        everlink::bootstrap::sha256(first.certificate_der().as_ref())
+        everssh::bootstrap::sha256(first.certificate_der().as_ref())
     );
     assert_ne!(first.spki_sha256(), second.spki_sha256());
     assert_ne!(first_token.as_bytes(), second_token.as_bytes());
@@ -77,7 +77,7 @@ fn auth_prefix_is_frozen_and_secret_owned() {
     assert!(!format!("{frame:?}").contains(&hex(token.as_bytes())));
     assert!(matches!(
         try_encode_auth_frame(&token, 0, &limits),
-        Err(everlink::Error::TargetUnauthorized)
+        Err(everssh::Error::TargetUnauthorized)
     ));
 }
 

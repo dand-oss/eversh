@@ -3,10 +3,10 @@
 use crate::error::Error;
 
 pub const SSH_PROGRAM: &str = "ssh";
-pub const REMOTE_BOOTSTRAP_COMMAND: &str = "everlink __bootstrap-parent-v1";
-/// The combined binary's everlink role marker. Defined here so the shared
+pub const REMOTE_BOOTSTRAP_COMMAND: &str = "everssh __bootstrap-parent-v1";
+/// The combined binary's everssh role marker. Defined here so the shared
 /// edge and the combined dispatcher agree on one spelling.
-pub const COMBINED_EVERLINK_ROLE: &str = "__everlink";
+pub const COMBINED_EVERSSH_ROLE: &str = "__everssh";
 const REMOTE_BOOTSTRAP_ROLE: &str = "__bootstrap-parent-v1";
 
 const SSH_ARGUMENT_MAX: usize = 4096;
@@ -114,7 +114,7 @@ impl SshPlan {
     }
 
     /// Select a multi-word remote invocation (a combined binary plus its role
-    /// marker) that everlink completes with its own bootstrap role word. The
+    /// marker) that everssh completes with its own bootstrap role word. The
     /// first word is a bare conservative command word or a canonical absolute
     /// path; later words are conservative role words. Every word remains a
     /// single injection-safe remote shell word.
@@ -244,7 +244,7 @@ fn validate_remote_word(value: &str) -> Result<(), Error> {
 
 /// Audit one command-line SSH option against the applicable allowlist
 /// (design 6.4). eversh uses this to vet options before passing them to both
-/// its outer SSH invocation and the everlink bootstrap.
+/// its outer SSH invocation and the everssh bootstrap.
 pub fn audit_ssh_option(option: &str) -> Result<(), Error> {
     validate_option(option)
 }
@@ -385,22 +385,22 @@ mod tests {
     fn explicit_remote_binary_is_absolute_canonical_and_shell_safe() {
         let plan = SshPlan::new("host".into(), "22".into(), vec![])
             .unwrap()
-            .with_remote_binary("/home/appsmith/bin/everlink".into())
+            .with_remote_binary("/home/appsmith/bin/everssh".into())
             .unwrap();
         assert_eq!(
             plan.bootstrap_args().last().unwrap(),
-            "/home/appsmith/bin/everlink __bootstrap-parent-v1"
+            "/home/appsmith/bin/everssh __bootstrap-parent-v1"
         );
 
         for rejected in [
             "",
-            "everlink",
-            "~/bin/everlink",
-            "$HOME/bin/everlink",
-            "/home/app smith/bin/everlink",
-            "/home/appsmith/bin/../everlink",
-            "/home//appsmith/bin/everlink",
-            "/home/appsmith/bin/everlink;false",
+            "everssh",
+            "~/bin/everssh",
+            "$HOME/bin/everssh",
+            "/home/app smith/bin/everssh",
+            "/home/appsmith/bin/../everssh",
+            "/home//appsmith/bin/everssh",
+            "/home/appsmith/bin/everssh;false",
         ] {
             assert!(
                 SshPlan::new("host".into(), "22".into(), vec![])
@@ -416,23 +416,20 @@ mod tests {
     fn remote_invocation_words_stay_single_shell_words() {
         let plan = SshPlan::new("host".into(), "22".into(), vec![])
             .unwrap()
-            .with_remote_invocation(vec!["eversh".into(), COMBINED_EVERLINK_ROLE.into()])
+            .with_remote_invocation(vec!["eversh".into(), COMBINED_EVERSSH_ROLE.into()])
             .unwrap();
         assert_eq!(
             plan.bootstrap_args().last().unwrap(),
-            "eversh __everlink __bootstrap-parent-v1"
+            "eversh __everssh __bootstrap-parent-v1"
         );
 
         let plan = SshPlan::new("host".into(), "22".into(), vec![])
             .unwrap()
-            .with_remote_invocation(vec![
-                "/opt/bin/eversh".into(),
-                COMBINED_EVERLINK_ROLE.into(),
-            ])
+            .with_remote_invocation(vec!["/opt/bin/eversh".into(), COMBINED_EVERSSH_ROLE.into()])
             .unwrap();
         assert_eq!(
             plan.bootstrap_args().last().unwrap(),
-            "/opt/bin/eversh __everlink __bootstrap-parent-v1"
+            "/opt/bin/eversh __everssh __bootstrap-parent-v1"
         );
 
         for rejected in [

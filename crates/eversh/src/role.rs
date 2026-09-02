@@ -2,9 +2,9 @@
 //!
 //! `select_role` chooses exactly one logical role from the argument vector
 //! BEFORE any runtime initialization. It is pure and total: no I/O, no
-//! environment, no process exit. Only the everlink role may construct the
+//! environment, no process exit. Only the everssh role may construct the
 //! single Tokio runtime; the runtime-construction counter in
-//! `everlink::runtime` stays at zero for every other role.
+//! `everssh::runtime` stays at zero for every other role.
 
 use crate::error::Error;
 use crate::limits::Limits;
@@ -12,9 +12,9 @@ use crate::remote::{base64url_decode, validate_name, ControlRequest};
 
 /// Combined-binary role marker for the everpty role.
 pub const EVERPTY_ROLE: &str = "__everpty";
-/// Combined-binary role marker for the everlink role. Must equal
-/// `everlink::ssh_policy::COMBINED_EVERLINK_ROLE` (cross-crate test).
-pub const EVERLINK_ROLE: &str = "__everlink";
+/// Combined-binary role marker for the everssh role. Must equal
+/// `everssh::ssh_policy::COMBINED_EVERSSH_ROLE` (cross-crate test).
+pub const EVERSSH_ROLE: &str = "__everssh";
 /// Version word of the private everpty-role remote grammar. Unknown versions
 /// fail closed with a diagnostic naming the component and version (design 8).
 pub const EVERPTY_ROLE_VERSION: &str = "v1";
@@ -25,9 +25,9 @@ pub enum Role {
     Supervisor,
     /// Private dispatch to the everpty broker/attach edge.
     Everpty,
-    /// Private dispatch to the everlink QUIC edge (the only role that may
+    /// Private dispatch to the everssh QUIC edge (the only role that may
     /// build the single Tokio runtime).
-    Everlink,
+    Everssh,
 }
 
 /// Select exactly one role from the process arguments (argv without argv[0]
@@ -36,7 +36,7 @@ pub enum Role {
 pub fn select_role<T: AsRef<str>>(args: &[T]) -> Role {
     match args.first().map(|a| a.as_ref()) {
         Some(EVERPTY_ROLE) => Role::Everpty,
-        Some(EVERLINK_ROLE) => Role::Everlink,
+        Some(EVERSSH_ROLE) => Role::Everssh,
         _ => Role::Supervisor,
     }
 }

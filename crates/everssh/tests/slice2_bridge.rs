@@ -1,11 +1,11 @@
 //! M3 Slice 2 integration coverage for the authenticated opaque-byte bridge.
 #![allow(clippy::unwrap_used)]
 
-use everlink::admission::{AuthenticatedConnection, ConnectedTarget};
-use everlink::error::LimitViolation;
-use everlink::identity::EphemeralIdentity;
-use everlink::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
-use everlink::{
+use everssh::admission::{AuthenticatedConnection, ConnectedTarget};
+use everssh::error::LimitViolation;
+use everssh::identity::EphemeralIdentity;
+use everssh::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
+use everssh::{
     CopyDirection, DrainStatus, Error, FinalizeStatus, Limits, Phase, Shutdown, TargetBridge,
     TerminalCause,
 };

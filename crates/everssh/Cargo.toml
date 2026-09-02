@@ -1,5 +1,5 @@
 [package]
-name = "everlink"
+name = "everssh"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -25,10 +25,10 @@ rcgen = { version = "=0.13.2", default-features = false, features = ["ring"] }
 tokio = { version = "1", features = ["test-util"] }
 
 [lib]
-name = "everlink"
+name = "everssh"
 
 [[bin]]
-name = "everlink"
+name = "everssh"
 required-features = ["cli"]
 
 [lints]

@@ -8,11 +8,11 @@
 #![cfg(target_os = "linux")]
 #![allow(clippy::unwrap_used)]
 
-use everlink::admission::{AuthenticatedConnection, ConnectedTarget};
-use everlink::bootstrap::SecretToken;
-use everlink::identity::EphemeralIdentity;
-use everlink::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
-use everlink::{
+use everssh::admission::{AuthenticatedConnection, ConnectedTarget};
+use everssh::bootstrap::SecretToken;
+use everssh::identity::EphemeralIdentity;
+use everssh::transport::{ClientEndpoint, ClientSession, ServerEndpoint, UdpBindPolicy};
+use everssh::{
     CopyDirection, CopyOperation, DeadlineKind, DrainStatus, FinalizeStatus, Limits, Phase,
     RequestStatus, Shutdown, TargetBridge, TerminalCause,
 };
@@ -785,7 +785,7 @@ async fn wrong_token_round(limits: Limits, baseline: &ProcessSample, peak: &mut 
     .await
     .expect("wrong-token server admission did not terminate")
     .unwrap();
-    assert!(matches!(server_result, Err(everlink::Error::AuthRejected)));
+    assert!(matches!(server_result, Err(everssh::Error::AuthRejected)));
     assert!(
         tokio::time::timeout(Duration::from_millis(50), listener.accept())
             .await
@@ -886,7 +886,7 @@ async fn concurrent_unauthenticated_attempts(
     .unwrap();
     assert!(matches!(
         server_result,
-        Err(everlink::Error::AuthRejected | everlink::Error::RetryLimitExceeded)
+        Err(everssh::Error::AuthRejected | everssh::Error::RetryLimitExceeded)
     ));
     for task in client_tasks {
         match tokio::time::timeout(limits.handshake_timeout() + Duration::from_secs(2), task)
@@ -973,7 +973,7 @@ async fn malformed_datagram_amplification(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn everlink_resource_bounds() {
+async fn everssh_resource_bounds() {
     let limits = gate_limits();
     limits.validate().unwrap();
     let ceilings = GateCeilings::from_limits(&limits);
@@ -1038,7 +1038,7 @@ async fn everlink_resource_bounds() {
     );
 
     println!(
-        "everlink-resource-bounds: PASS transfer_bytes={transferred} rss_baseline_kib={} rss_peak_kib={} rss_final_kib={}/{} rss_plateau_kib={rss_plateau}/{} fd_peak={}/{} thread_peak={}/{} transport_envelope_bytes={} stalled_tcp_bytes={stalled_tcp}/{} stalled_quic_bytes={stalled_quic}/{} idle_cpu_ns={idle_cpu_ns}/{idle_cpu_ceiling_ns} unauthenticated_attempts={unauthenticated_attempts} pending_handshake_peak={pending_handshake_peak}/{} amplification_bytes={amplification_received}/{amplification_sent} terminal_causes_finalized={cause_count}",
+        "everssh-resource-bounds: PASS transfer_bytes={transferred} rss_baseline_kib={} rss_peak_kib={} rss_final_kib={}/{} rss_plateau_kib={rss_plateau}/{} fd_peak={}/{} thread_peak={}/{} transport_envelope_bytes={} stalled_tcp_bytes={stalled_tcp}/{} stalled_quic_bytes={stalled_quic}/{} idle_cpu_ns={idle_cpu_ns}/{idle_cpu_ceiling_ns} unauthenticated_attempts={unauthenticated_attempts} pending_handshake_peak={pending_handshake_peak}/{} amplification_bytes={amplification_received}/{amplification_sent} terminal_causes_finalized={cause_count}",
         baseline.rss_kib,
         peak.rss_kib,
         final_sample.rss_kib,

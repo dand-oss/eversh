@@ -1,7 +1,7 @@
 #![no_main]
 
-use everlink::bootstrap::{decode_auth_frame, encode_auth_frame};
-use everlink::limits::Limits;
+use everssh::bootstrap::{decode_auth_frame, encode_auth_frame};
+use everssh::limits::Limits;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
