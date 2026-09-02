@@ -5,6 +5,7 @@ use crate::bridge::{DrainStatus, FinalizeStatus, StdioBridge, TargetBridge};
 use crate::error::Error;
 use crate::identity::EphemeralIdentity;
 use crate::limits::Limits;
+use crate::link_status::{self, StatusCause, TrackedReader, TrackedWriter};
 use crate::role_protocol::{
     validate_release, ServerStartRecord, StartUdpPolicy, RELEASE_RECORD, SERVER_START_MAX,
 };
@@ -18,6 +19,8 @@ use crate::transport::{ClientEndpoint, ServerEndpoint, UdpBindPolicy};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::process::{ChildStdin, Command};
 use tokio::time::Instant;
@@ -171,32 +174,89 @@ where
 }
 
 /// Run the public ProxyCommand edge after clap has produced typed values.
+/// `status_path`, when set (design 3, 7 — the caller reads it from
+/// [`link_status::STATUS_FILE_ENV`] at the edge; this typed library
+/// function never reads global environment itself), receives the local
+/// out-of-band status record on every exit path: a `carrying` line as soon
+/// as the QUIC stream first delivers a byte from the remote peer, and a
+/// terminal `cause ... carried=...` line no matter how this function
+/// returns — including a setup failure before any bridge ever started,
+/// which is always reported as an ordinary transport failure with nothing
+/// carried.
 pub async fn run_ssh_proxy<R, W>(
     plan: SshPlan,
     limits: Limits,
     stdin: R,
     stdout: W,
+    status_path: Option<PathBuf>,
 ) -> Result<(), Error>
 where
     R: AsyncRead + Send + Unpin + 'static,
     W: AsyncWrite + Send + Unpin + 'static,
 {
-    verify_effective_config(&plan, &limits).await?;
-    let record = acquire_bootstrap(&plan, &limits).await?;
-    let server = SocketAddr::new(record.udp_endpoint, record.udp_port);
-    let client = ClientEndpoint::bind(
-        server,
-        UdpBindPolicy::RouteSelected,
-        record.spki_sha256,
-        limits,
-    )?;
-    let session = client
-        .connect_and_authenticate(record.token(), plan.port())
-        .await?;
-    drop(record);
+    let established = async {
+        verify_effective_config(&plan, &limits).await?;
+        let record = acquire_bootstrap(&plan, &limits).await?;
+        let server = SocketAddr::new(record.udp_endpoint, record.udp_port);
+        let client = ClientEndpoint::bind(
+            server,
+            UdpBindPolicy::RouteSelected,
+            record.spki_sha256,
+            limits,
+        )?;
+        let session = client
+            .connect_and_authenticate(record.token(), plan.port())
+            .await?;
+        drop(record);
+        Ok::<_, Error>(session)
+    }
+    .await;
+    let session = match established {
+        Ok(session) => session,
+        Err(error) => {
+            if let Some(path) = &status_path {
+                link_status::write_cause(path, StatusCause::TransportFailure, false);
+            }
+            return Err(error);
+        }
+    };
+
     let shutdown = Shutdown::new();
-    let bridge = StdioBridge::try_new(session, stdin, stdout, limits, shutdown).await?;
-    require_clean_bridge(bridge.run().await)
+    let quic_to_peer_delivered = Arc::new(AtomicBool::new(false));
+    let peer_to_quic_delivered = Arc::new(AtomicBool::new(false));
+    let tracked_stdin = TrackedReader::new(stdin, Arc::clone(&peer_to_quic_delivered));
+    let tracked_stdout = TrackedWriter::new(
+        stdout,
+        Arc::clone(&quic_to_peer_delivered),
+        status_path.clone(),
+    );
+
+    let bridge = match StdioBridge::try_new(
+        session,
+        tracked_stdin,
+        tracked_stdout,
+        limits,
+        shutdown,
+    )
+    .await
+    {
+        Ok(bridge) => bridge,
+        Err(error) => {
+            if let Some(path) = &status_path {
+                link_status::write_cause(path, StatusCause::TransportFailure, false);
+            }
+            return Err(error);
+        }
+    };
+
+    let completion = bridge.run().await;
+    if let Some(path) = &status_path {
+        let cause = link_status::classify_cause(completion.cause);
+        let carried = quic_to_peer_delivered.load(Ordering::Acquire)
+            && peer_to_quic_delivered.load(Ordering::Acquire);
+        link_status::write_cause(path, cause, carried);
+    }
+    require_clean_bridge(completion)
 }
 
 fn convert_policy(policy: StartUdpPolicy) -> UdpBindPolicy {

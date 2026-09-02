@@ -70,20 +70,6 @@ pub enum EverptyRoleCommand {
     },
 }
 
-impl EverptyRoleCommand {
-    /// Whether this operation drives the remote status channel (design 3, 7):
-    /// the three session-carrying operations that call the blocking
-    /// `everpty::run` attach/attach-or-create/observe path emit
-    /// `eversh-status-v1` lines on stderr before and at the end of that call.
-    /// Batch operations (list/probe/detach/kill) never emit status lines.
-    pub fn uses_status_channel(&self) -> bool {
-        matches!(
-            self,
-            Self::AttachOrCreate { .. } | Self::Attach { .. } | Self::Observe { .. }
-        )
-    }
-}
-
 fn parsed_name(word: Option<&String>, limits: &Limits) -> Result<String, Error> {
     let name = word.ok_or(Error::RoleProtocol("missing session name"))?;
     if !validate_name(name, limits) {

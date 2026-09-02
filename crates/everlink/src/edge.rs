@@ -86,7 +86,7 @@ enum Command {
 }
 
 enum PreparedRole {
-    Proxy(SshPlan),
+    Proxy(SshPlan, Option<PathBuf>),
     BootstrapParent {
         authenticated: AuthenticatedConnection,
         self_exe: PathBuf,
@@ -113,7 +113,15 @@ fn prepare(command: Command) -> Result<PreparedRole, Error> {
                 (None, None) => plan,
                 (Some(_), Some(_)) => return Err(Error::InvalidSshArgument),
             };
-            Ok(PreparedRole::Proxy(plan))
+            // The sanctioned edge-only environment read (design 2): the
+            // typed `roles::run_ssh_proxy` library function never reads
+            // global environment itself. OpenSSH passes its own process
+            // environment to the ProxyCommand it launches, so this variable
+            // — set by eversh only for structured interactive operations
+            // and probes, never for raw `eversh ssh` — arrives here intact.
+            let status_path =
+                std::env::var_os(crate::link_status::STATUS_FILE_ENV).map(PathBuf::from);
+            Ok(PreparedRole::Proxy(plan, status_path))
         }
         Command::BootstrapParentV1 => {
             let value = std::env::var_os("SSH_CONNECTION")
@@ -167,10 +175,10 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
     let limits = Limits::default();
     let result = runtime.block_on(async move {
         match prepared {
-            PreparedRole::Proxy(plan) => {
+            PreparedRole::Proxy(plan, status_path) => {
                 let stdin = DirectPipeReader::stdin().map_err(Error::Io)?;
                 let stdout = DirectPipeWriter::stdout().map_err(Error::Io)?;
-                crate::roles::run_ssh_proxy(plan, limits, stdin, stdout).await
+                crate::roles::run_ssh_proxy(plan, limits, stdin, stdout, status_path).await
             }
             PreparedRole::BootstrapParent {
                 authenticated,

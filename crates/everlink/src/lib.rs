@@ -14,6 +14,7 @@ pub mod edge;
 pub mod error;
 pub mod identity;
 pub mod limits;
+pub mod link_status;
 pub mod pinning;
 pub mod role_protocol;
 pub mod roles;
