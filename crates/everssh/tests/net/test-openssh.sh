@@ -930,7 +930,7 @@ fi
 write_argv "$BOOTSTRAP_ARGV" "$@"
 set +e
 bootstrap_capture=$(
-    "$REAL_SSH" "$@" | "$HEAD_TOOL" -c 201
+    "$REAL_SSH" "$@" | "$HEAD_TOOL" -c 233
     printf '%s\n' "${PIPESTATUS[0]}"
 )
 capture_status=$?
@@ -939,7 +939,7 @@ set -e
 bootstrap_lines=()
 mapfile -t bootstrap_lines <<< "$bootstrap_capture"
 [[ ${#bootstrap_lines[@]} -eq 2 && ${bootstrap_lines[1]} == 0 ]] || exit 1
-pattern='^everssh v1 [^[:space:]]+ [0-9]+ [0-9a-f]{64} [0-9a-f]{64} [1-9][0-9]*$'
+pattern='^everssh v2 [^[:space:]]+ [0-9]+ [0-9a-f]{64} [0-9a-f]{64} [0-9a-f]{32} [1-9][0-9]*$'
 [[ ${bootstrap_lines[0]} =~ $pattern ]] || exit 1
 server_pid=${bootstrap_lines[0]##* }
 capture_server_identity "$server_pid"
