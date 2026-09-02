@@ -913,7 +913,7 @@ async fn client_reconnect_budget_ends_boundedly_without_dropping_association() {
     let client_identity = EphemeralClientIdentity::generate().unwrap();
     let (client_local, mut client_peer) = tokio::io::duplex(128);
     let (client_read, client_write) = tokio::io::split(client_local);
-    let client = ClientAssociation::new(
+    let mut client = ClientAssociation::new(
         &bootstrap,
         target_address.port(),
         client_identity,
@@ -926,6 +926,11 @@ async fn client_reconnect_budget_ends_boundedly_without_dropping_association() {
         client_write,
     )
     .unwrap();
+    let reconnects = std::sync::Arc::new(std::sync::Mutex::new(0usize));
+    let observed_reconnects = std::sync::Arc::clone(&reconnects);
+    client.set_reconnect_notifier(Some(std::sync::Arc::new(move || {
+        *observed_reconnects.lock().unwrap() += 1;
+    })));
     // Exceed the 256-byte replay queue: reads must stop (not drop) while the
     // association is down, and the writer must observe terminal failure.
     let stdin_writer = tokio::spawn(async move { client_peer.write_all(&[0x5a; 512]).await });
@@ -952,6 +957,7 @@ async fn client_reconnect_budget_ends_boundedly_without_dropping_association() {
         .expect("stdin writer was not released by the bounded terminal failure")
         .unwrap();
     assert!(stdin_result.is_err());
+    assert!(*reconnects.lock().unwrap() >= 1);
     endpoint.close().await.unwrap();
 }
 

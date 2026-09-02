@@ -11,6 +11,7 @@ use crate::resume::{
 };
 use crate::transport::{ClientEndpoint, ServerEndpoint, UdpBindPolicy};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
@@ -177,6 +178,7 @@ pub struct ClientAssociation<R, W> {
     identity: EphemeralClientIdentity,
     core: AssociationCore,
     limits: Limits,
+    reconnect_notifier: Option<Arc<dyn Fn() + Send + Sync>>,
     local_read: R,
     local_write: W,
 }
@@ -209,9 +211,16 @@ where
             identity,
             core: AssociationCore::new(config)?,
             limits,
+            reconnect_notifier: None,
             local_read,
             local_write,
         })
+    }
+
+    /// Observe each bounded reconnect window so the supervisor edge can
+    /// suppress fresh-SSH probes while this association remains live.
+    pub fn set_reconnect_notifier(&mut self, notifier: Option<Arc<dyn Fn() + Send + Sync>>) {
+        self.reconnect_notifier = notifier;
     }
 
     pub async fn run(mut self) -> Result<AssociationCompletion, ActorError> {
@@ -304,6 +313,9 @@ where
                         )
                     {
                         return Err(ActorError::Run(error));
+                    }
+                    if let Some(notify) = self.reconnect_notifier.as_ref() {
+                        notify();
                     }
                     continue;
                 }

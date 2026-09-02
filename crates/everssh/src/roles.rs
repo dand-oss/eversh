@@ -226,7 +226,7 @@ where
         Ok::<_, Error>(association)
     }
     .await;
-    let association = match established {
+    let mut association = match established {
         Ok(association) => association,
         Err(error) => {
             // Everything before bridge construction — effective-config
@@ -239,6 +239,11 @@ where
             return Err(error);
         }
     };
+    if let Some(path) = status_path.clone() {
+        association.set_reconnect_notifier(Some(Arc::new(move || {
+            link_status::write_reconnecting(&path);
+        })));
+    }
 
     let completion = association.run().await;
     if let Some(path) = &status_path {

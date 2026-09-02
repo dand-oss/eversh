@@ -266,10 +266,16 @@ start_target() {
 }
 
 start_proxy() {
-    local family=$1 port=$2 stem=$3
+    local family=$1 port=$2 stem=$3 status_file=${4-}
     PROXY_FIFO="$TMP/$stem.fifo"
     PROXY_OUTPUT="$TMP/$stem.out"
     PROXY_ERROR="$TMP/$stem.err"
+    PROXY_STATUS=${status_file:-}
+    local -a status_args=()
+    if [[ -n $status_file ]]; then
+        : >"$status_file"
+        status_args=(--status-file "$status_file")
+    fi
     mkfifo "$PROXY_FIFO"
     exec 9<>"$PROXY_FIFO"
     local ssh_connection
@@ -282,6 +288,7 @@ start_proxy() {
         PATH="$TMP:/usr/bin:/bin" EL_SERVER_NS="$CURRENT_S" \
         EL_SSH_CONNECTION="$ssh_connection" EL_BIN="$BIN" \
         "$BIN" ssh-proxy alias "$port" \
+        "${status_args[@]}" \
         <"$PROXY_FIFO" >"$PROXY_OUTPUT" 2>"$PROXY_ERROR" 9>&- &
     PROXY_PID=$!
     PID_ALL+=("$PROXY_PID")
@@ -474,11 +481,11 @@ run_loss() {
 
 run_total_loss_resume() {
     local family=$1 label=$2 port=$3
-    local stem="resume$family" frames="$TMP/resume$family.frames"
+    local stem="resume$family" frames="$TMP/resume$family.frames" status="$TMP/resume$family.status"
     setup_topology "$family" "$label"
     "$PY" "$TMP/frames.py" "$frames" 96 "$family"
     start_target "$family" "$port" "$stem" "$frames"
-    start_proxy "$family" "$port" "$stem"
+    start_proxy "$family" "$port" "$stem" "$status"
 
     write_frames "$frames" 0 24
     wait_bytes "$PROXY_OUTPUT" $((24 * 1024)) 8
@@ -496,6 +503,8 @@ run_total_loss_resume() {
     write_frames "$frames" 48 48
     wait_bytes "$PROXY_OUTPUT" $((96 * 1024)) 15
     finish_normal_proxy "$frames"
+    grep -q '^everssh-status-v1 reconnecting$' "$status"
+    grep -q '^everssh-status-v1 cause clean-close carried=1$' "$status"
     teardown_topology
     echo "everssh IPv$family production total-loss resume: PASS"
 }

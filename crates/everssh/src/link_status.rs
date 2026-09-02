@@ -45,6 +45,9 @@ pub enum StatusRecord {
     /// The QUIC stream has delivered at least one byte originating from the
     /// remote peer: a genuine round trip.
     Carrying,
+    /// The association lost its QUIC connection and a bounded reconnect is
+    /// in progress. This is transient: a terminal cause follows later.
+    Reconnecting,
     /// The terminal exit record, written on every exit path.
     Cause { cause: StatusCause, carried: bool },
 }
@@ -111,6 +114,9 @@ pub fn parse_line(line: &str) -> Option<StatusRecord> {
     if rest == "carrying" {
         return Some(StatusRecord::Carrying);
     }
+    if rest == "reconnecting" {
+        return Some(StatusRecord::Reconnecting);
+    }
     let rest = rest.strip_prefix("cause ")?;
     let (word, carried_part) = rest.split_once(' ')?;
     let cause = match word {
@@ -161,6 +167,13 @@ pub fn write_cause(path: &Path, cause: StatusCause, carried: bool) {
             u8::from(carried)
         ),
     );
+}
+
+/// Record that the live association is inside its bounded reconnect window.
+/// The supervisor must not start a fresh SSH writer while this record is the
+/// latest status line; a terminal cause is appended when the outcome is known.
+pub fn write_reconnecting(path: &Path) {
+    append_line(path, &format!("{STATUS_PREFIX} reconnecting\n"));
 }
 
 /// Wraps the peer-facing reader — bytes read here flow from the local peer
@@ -361,6 +374,10 @@ mod tests {
             Some(StatusRecord::Carrying)
         );
         assert_eq!(
+            parse_line("everssh-status-v1 reconnecting"),
+            Some(StatusRecord::Reconnecting)
+        );
+        assert_eq!(
             parse_line("everssh-status-v1 cause clean-close carried=1"),
             Some(StatusRecord::Cause {
                 cause: StatusCause::CleanClose,
@@ -395,12 +412,14 @@ mod tests {
         let path = dir.join("status");
         std::fs::write(&path, b"").unwrap();
         write_carrying(&path);
+        write_reconnecting(&path);
         write_cause(&path, StatusCause::TransportFailure, false);
         write_cause(&path, StatusCause::CleanClose, true);
         let content = std::fs::read_to_string(&path).unwrap();
         assert_eq!(
             content,
             "everssh-status-v1 carrying\n\
+             everssh-status-v1 reconnecting\n\
              everssh-status-v1 cause transport-failure carried=0\n\
              everssh-status-v1 cause clean-close carried=1\n"
         );
