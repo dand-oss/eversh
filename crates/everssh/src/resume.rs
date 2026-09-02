@@ -610,6 +610,10 @@ impl AssociationCore {
         self.outbound.last_assigned
     }
 
+    pub fn is_clean(&self) -> bool {
+        self.clean()
+    }
+
     pub async fn run_connection<LR, LW, RR, RW>(
         &mut self,
         local_read: &mut LR,

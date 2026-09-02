@@ -107,6 +107,10 @@ impl ServerAssociation {
                     return Ok(completion);
                 }
                 Err(error) if error.boundary == AssociationBoundary::Remote => {
+                    if self.core.is_clean() {
+                        let _ = self.endpoint.close().await;
+                        return Ok(AssociationCompletion::Clean);
+                    }
                     let (connection, peer_ack) = self
                         .endpoint
                         .accept_v2_resume(
@@ -225,7 +229,12 @@ where
 
             match result {
                 Ok(completion) => return Ok(completion),
-                Err(error) if error.boundary == AssociationBoundary::Remote => continue,
+                Err(error) if error.boundary == AssociationBoundary::Remote => {
+                    if self.core.is_clean() {
+                        return Ok(AssociationCompletion::Clean);
+                    }
+                    continue;
+                }
                 Err(error) => return Err(ActorError::Run(error)),
             }
         }

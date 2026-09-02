@@ -30,6 +30,7 @@ use noq::{
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV6, UdpSocket};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
+use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
@@ -1219,6 +1220,10 @@ async fn read_exact_v2(
 
 async fn write_all_v2(send: &mut SendStream, bytes: &[u8], deadline: Instant) -> Result<(), Error> {
     tokio::time::timeout_at(deadline, send.write_all(bytes))
+        .await
+        .map_err(|_| Error::DeadlineExpired(DeadlinePhase::Authentication))?
+        .map_err(|_| Error::StreamWrite)?;
+    tokio::time::timeout_at(deadline, send.flush())
         .await
         .map_err(|_| Error::DeadlineExpired(DeadlinePhase::Authentication))?
         .map_err(|_| Error::StreamWrite)
