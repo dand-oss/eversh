@@ -926,7 +926,9 @@ async fn client_reconnect_budget_ends_boundedly_without_dropping_association() {
         client_write,
     )
     .unwrap();
-    client_peer.write_all(b"must-not-vanish").await.unwrap();
+    // Exceed the 256-byte replay queue: reads must stop (not drop) while the
+    // association is down, and the writer must observe terminal failure.
+    let stdin_writer = tokio::spawn(async move { client_peer.write_all(&[0x5a; 512]).await });
     let client_task = tokio::spawn(client.run());
 
     // Accept the bootstrap connection but never read, acknowledge, or accept a
@@ -945,6 +947,11 @@ async fn client_reconnect_budget_ends_boundedly_without_dropping_association() {
             DeadlinePhase::Reconnect
         )))
     ));
+    let stdin_result = tokio::time::timeout(Duration::from_secs(1), stdin_writer)
+        .await
+        .expect("stdin writer was not released by the bounded terminal failure")
+        .unwrap();
+    assert!(stdin_result.is_err());
     endpoint.close().await.unwrap();
 }
 

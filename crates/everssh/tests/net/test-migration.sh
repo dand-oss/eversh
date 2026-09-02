@@ -244,6 +244,10 @@ teardown_topology() {
         for dev in c0 c1 s0 s1; do
             "$IP" netns exec "$ns" "$TC" qdisc del dev "$dev" root 2>/dev/null || true
         done
+        local deadline=$((SECONDS + 10))
+        while [[ -n $("$IP" netns pids "$ns" 2>/dev/null || true) ]] && ((SECONDS < deadline)); do
+            sleep 0.1
+        done
         assert_namespace_empty "$ns"
         "$IP" netns del "$ns"
     done
@@ -448,9 +452,13 @@ run_loss() {
         "$IP" -n "$CURRENT_C" link del c1
     fi
     write_frames "$frames" 8 32 || true
-    wait_process "$PROXY_PID" 35
+    # v2 resume permits bounded reconnect attempts after the 20s remote stall:
+    # 20s stall + 20s reconnect budget ends inside this 45s observer window.
+    wait_process "$PROXY_PID" 45
     exec 9>&-
-    wait_process "$TARGET_PID" 15
+    # The released server independently waits out its renewed 30s association
+    # lease before closing the target; observe that whole bounded window.
+    wait_process "$TARGET_PID" 35
     set +e
     wait "$PROXY_PID"
     local proxy_status=$?
@@ -462,6 +470,34 @@ run_loss() {
     grep -q '^accepts=1 ' "$TARGET_REPORT"
     teardown_topology
     echo "everssh $mode bounded shutdown: PASS"
+}
+
+run_total_loss_resume() {
+    local family=$1 label=$2 port=$3
+    local stem="resume$family" frames="$TMP/resume$family.frames"
+    setup_topology "$family" "$label"
+    "$PY" "$TMP/frames.py" "$frames" 96 "$family"
+    start_target "$family" "$port" "$stem" "$frames"
+    start_proxy "$family" "$port" "$stem"
+
+    write_frames "$frames" 0 24
+    wait_bytes "$PROXY_OUTPUT" $((24 * 1024)) 8
+
+    # Kill the only path after a healthy prefix. The 20s remote stall ends
+    # connection 1; frames written here remain queued for replay while the
+    # bounded client reconnect loop waits out total loss.
+    "$IP" netns exec "$CURRENT_C" "$TC" qdisc replace dev c0 root netem loss 100%
+    write_frames "$frames" 24 24
+    sleep 22
+    "$IP" netns exec "$CURRENT_C" "$TC" qdisc del dev c0 root
+
+    # The first reconnect attempt is still inside its handshake deadline when
+    # the path returns; replay plus new traffic must be byte-exact.
+    write_frames "$frames" 48 48
+    wait_bytes "$PROXY_OUTPUT" $((96 * 1024)) 15
+    finish_normal_proxy "$frames"
+    teardown_topology
+    echo "everssh IPv$family production total-loss resume: PASS"
 }
 
 run_fresh_no_replay() {
@@ -492,6 +528,8 @@ run_migration 4 a 22990
 run_migration 6 b 22991
 run_loss same-route c 22992
 run_loss total-loss d 22993
+run_total_loss_resume 4 e 22995
+run_total_loss_resume 6 f 22996
 run_fresh_no_replay
 
 echo "everssh Slice 4 production netns/veth gate: PASS"
