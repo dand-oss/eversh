@@ -91,6 +91,12 @@ pub enum Error {
     StreamWrite,
     BridgeAllocation,
     BridgeAdmissionClosed,
+    ResumeQueueFull,
+    ResumeFrameMalformed,
+    ResumeSequenceInvalid,
+    ResumeSequenceOverflow,
+    ResumeOperationInvalid,
+    ResumeLimitInvalid,
     DeadlineExpired(DeadlinePhase),
     TokenStateUnavailable,
     TargetConnect(std::io::Error),
@@ -217,6 +223,16 @@ impl std::fmt::Display for Error {
             Self::StreamWrite => f.write_str("QUIC authentication stream write failed"),
             Self::BridgeAllocation => f.write_str("fixed bridge buffer allocation failed"),
             Self::BridgeAdmissionClosed => f.write_str("bridge admission is no longer running"),
+            Self::ResumeQueueFull => f.write_str("bounded resume replay queue is full"),
+            Self::ResumeFrameMalformed => f.write_str("malformed resume frame"),
+            Self::ResumeSequenceInvalid => {
+                f.write_str("resume sequence is invalid for queue state")
+            }
+            Self::ResumeSequenceOverflow => f.write_str("resume sequence space is exhausted"),
+            Self::ResumeOperationInvalid => {
+                f.write_str("resume operation is invalid for receiver state")
+            }
+            Self::ResumeLimitInvalid => f.write_str("resume queue limits are invalid"),
             Self::DeadlineExpired(phase) => write!(f, "absolute {phase} deadline expired"),
             Self::TokenStateUnavailable => f.write_str("one-use token state unavailable"),
             Self::TargetConnect(source) => {

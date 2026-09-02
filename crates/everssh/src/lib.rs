@@ -16,6 +16,7 @@ pub mod identity;
 pub mod limits;
 pub mod link_status;
 pub mod pinning;
+pub mod resume;
 pub mod role_protocol;
 pub mod roles;
 pub mod runtime;
