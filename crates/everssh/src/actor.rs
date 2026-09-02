@@ -230,11 +230,15 @@ where
                 .apply_peer_ack(server_hello.delivered_ack())
                 .map_err(ActorError::Terminal)?;
 
-            let (endpoint, connection, send, recv) = session.into_remote_parts();
+            // Keep the route supervisor alive for this connection: it owns
+            // production source-address rebinds while the association runs.
+            let parts = session.into_parts();
+            let endpoint = parts.endpoint;
+            let supervisor = parts.supervisor;
             let mut remote = RemoteConnection {
-                connection,
-                send,
-                recv,
+                connection: parts.connection,
+                send: parts.send,
+                recv: parts.recv,
             };
             let result = self
                 .core
@@ -248,6 +252,7 @@ where
             let peer_terminal = matches!(&result, Err(error) if error.boundary == AssociationBoundary::Remote)
                 && peer_sent_terminal_close(&remote).await;
             close_remote(remote).await;
+            drop(supervisor);
             drop(endpoint);
 
             match result {
