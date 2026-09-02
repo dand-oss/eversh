@@ -605,11 +605,25 @@ async fn bound_remote<F, T>(future: F, stall_timeout: Duration) -> std::io::Resu
 where
     F: std::future::Future<Output = std::io::Result<T>>,
 {
+    bound_io(future, stall_timeout).await
+}
+
+async fn bound_local<F, T>(future: F, stall_timeout: Duration) -> std::io::Result<T>
+where
+    F: std::future::Future<Output = std::io::Result<T>>,
+{
+    bound_io(future, stall_timeout).await
+}
+
+async fn bound_io<F, T>(future: F, stall_timeout: Duration) -> std::io::Result<T>
+where
+    F: std::future::Future<Output = std::io::Result<T>>,
+{
     match tokio::time::timeout(stall_timeout, future).await {
         Ok(result) => result,
         Err(_) => Err(std::io::Error::new(
             std::io::ErrorKind::TimedOut,
-            "remote association operation stalled",
+            "association operation stalled",
         )),
     }
 }
@@ -857,23 +871,29 @@ impl AssociationCore {
             .map_err(AssociationRunError::protocol)?
         {
             ResumeDelivery::Data(bytes) => {
-                local_write
-                    .write_all(bytes.as_slice())
+                bound_local(
+                    local_write.write_all(bytes.as_slice()),
+                    self.config.stall_timeout,
+                )
+                .await
+                .map_err(|source| AssociationRunError::io(AssociationBoundary::Local, source))?;
+                bound_local(local_write.flush(), self.config.stall_timeout)
                     .await
                     .map_err(|source| {
                         AssociationRunError::io(AssociationBoundary::Local, source)
                     })?;
-                local_write.flush().await.map_err(|source| {
-                    AssociationRunError::io(AssociationBoundary::Local, source)
-                })?;
             }
             ResumeDelivery::Fin => {
-                local_write.flush().await.map_err(|source| {
-                    AssociationRunError::io(AssociationBoundary::Local, source)
-                })?;
-                local_write.shutdown().await.map_err(|source| {
-                    AssociationRunError::io(AssociationBoundary::Local, source)
-                })?;
+                bound_local(local_write.flush(), self.config.stall_timeout)
+                    .await
+                    .map_err(|source| {
+                        AssociationRunError::io(AssociationBoundary::Local, source)
+                    })?;
+                bound_local(local_write.shutdown(), self.config.stall_timeout)
+                    .await
+                    .map_err(|source| {
+                        AssociationRunError::io(AssociationBoundary::Local, source)
+                    })?;
                 self.remote_eof = true;
             }
             ResumeDelivery::Duplicate => {}
