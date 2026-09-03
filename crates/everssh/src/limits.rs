@@ -26,6 +26,9 @@ pub struct Limits {
     pub receive_window: u64,
     /// One-shot server lease before an authenticated client must arrive.
     pub server_lease_ms: u64,
+    /// How long a released v2 association remains resumable after its
+    /// previous QUIC connection dies.
+    pub association_lease_ms: u64,
     /// QUIC handshake deadline including Retry.
     pub handshake_timeout_ms: u64,
     /// Idle deadline after which the connection is torn down.
@@ -65,6 +68,7 @@ impl Default for Limits {
             send_window: 384 * 1024,
             receive_window: 384 * 1024,
             server_lease_ms: 30_000,
+            association_lease_ms: 360_000,
             handshake_timeout_ms: 10_000,
             idle_timeout_ms: 30_000,
             stall_timeout_ms: 20_000,
@@ -98,6 +102,7 @@ impl Limits {
             self.send_window,
             self.receive_window,
             self.server_lease_ms,
+            self.association_lease_ms,
             self.handshake_timeout_ms,
             self.idle_timeout_ms,
             self.stall_timeout_ms,
@@ -153,6 +158,10 @@ impl Limits {
 
     pub fn server_lease(&self) -> Duration {
         Duration::from_millis(self.server_lease_ms)
+    }
+
+    pub fn association_lease(&self) -> Duration {
+        Duration::from_millis(self.association_lease_ms)
     }
 
     pub fn handshake_timeout(&self) -> Duration {

@@ -23,11 +23,12 @@ fn slice2_public_types_have_owned_thread_safe_boundaries() {
 #[test]
 fn runtime_limits_are_provisional() {
     let l = everssh::Limits::default();
-    let named: [(&str, u64); 17] = [
+    let named: [(&str, u64); 18] = [
         ("copy_buf", l.copy_buf as u64),
         ("send_window", l.send_window),
         ("receive_window", l.receive_window),
         ("server_lease_ms", l.server_lease_ms),
+        ("association_lease_ms", l.association_lease_ms),
         ("handshake_timeout_ms", l.handshake_timeout_ms),
         ("idle_timeout_ms", l.idle_timeout_ms),
         ("stall_timeout_ms", l.stall_timeout_ms),

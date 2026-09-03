@@ -1040,7 +1040,7 @@ impl ServerEndpoint {
         last_assigned: u64,
     ) -> Result<(AssociationConnection, u64), Error> {
         let renewed_lease = Instant::now()
-            .checked_add(self.limits.server_lease())
+            .checked_add(self.limits.association_lease())
             .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
         let mut raw = self.accept_v2_transport_until(renewed_lease).await?;
         let error_connection = raw.connection.clone();

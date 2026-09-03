@@ -882,6 +882,7 @@ async fn v2_resume_lease_renews_after_the_bootstrap_lease_expires() {
 async fn client_reconnect_budget_ends_boundedly_without_dropping_association() {
     let mut short_budget = limits();
     short_budget.server_lease_ms = 3_000;
+    short_budget.association_lease_ms = 3_000;
     short_budget.handshake_timeout_ms = 2_750;
 
     let target_listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();

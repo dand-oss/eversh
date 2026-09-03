@@ -70,6 +70,10 @@ fn reconnect_is_retryable(error: &Error) -> bool {
     )
 }
 
+fn reconnect_bind_is_retryable(error: &Error) -> bool {
+    matches!(error, Error::RouteSelection(_) | Error::UdpBind(_))
+}
+
 pub struct ServerAssociation {
     endpoint: ServerEndpoint,
     core: AssociationCore,
@@ -227,14 +231,22 @@ where
         let mut initial = true;
         let mut reconnect_deadline: Option<Instant> = None;
         loop {
-            let endpoint = ClientEndpoint::bind(
+            let endpoint = match ClientEndpoint::bind(
                 self.server,
                 UdpBindPolicy::RouteSelected,
                 self.spki_sha256,
                 &self.identity,
                 self.limits,
-            )
-            .map_err(ActorError::Terminal)?;
+            ) {
+                Ok(endpoint) => endpoint,
+                // A reconnect can begin while every route is gone; the next
+                // fresh bind succeeds once the path returns.
+                Err(error) if !initial && reconnect_bind_is_retryable(&error) => {
+                    tokio::time::sleep(RECONNECT_BACKOFF).await;
+                    continue;
+                }
+                Err(error) => return Err(ActorError::Terminal(error)),
+            };
             let hello = if initial {
                 self.initial_hello.take().ok_or(Error::TokenReuse)?
             } else {
@@ -268,7 +280,9 @@ where
                     tokio::time::sleep(RECONNECT_BACKOFF).await;
                     continue;
                 }
-                Err(error) => return Err(ActorError::Terminal(error)),
+                Err(error) => {
+                    return Err(ActorError::Terminal(error));
+                }
             };
             initial = false;
             self.core
@@ -328,7 +342,7 @@ where
     /// association lease, so it can never outlive the accepting endpoint.
     fn reconnect_budget(&self) -> Duration {
         self.limits
-            .server_lease()
+            .association_lease()
             .saturating_sub(self.limits.handshake_timeout())
     }
 }
