@@ -32,7 +32,10 @@ them.
 | 13 | Status-file argv-only policy | Fake | `status_file_argument_on_structured_ops_only_never_raw_ssh_or_env` | structured-only argument, never environment/raw | PASS at `b6d2d3e` |
 | 14 | Link-status classification incl. `reconnecting` | Fake | `crates/eversh/src/supervisor.rs` unit tests | transient records defer bounded phase; only terminal cause classifies | PASS at `b6d2d3e` |
 
-Receipt locations: real-gate receipts under
-`target/qualification/eversh-composed-m4-*.log` with the producing short SHA;
-fake-suite receipts from the workspace test run bound by the M5 aggregator's
-exact-SHA receipt.
+Receipt locations: durable real-gate receipts are tracked under
+`docs/release-evidence/20260903-m4/` (composed B1 at `7b23c7d`, B2 timeline
+at `7c2c563`, standalone artifacts at `9c762a0`, and the composed final at
+`9d2c5a8`), with SHA-256 bindings in `docs/release-evidence/SHA256SUMS`.
+Earlier raw run logs remain under `target/qualification/eversh-composed-*`
+with the producing short SHA; fake-suite receipts from the workspace test
+run are bound by the M5 aggregator's exact-SHA receipt.
