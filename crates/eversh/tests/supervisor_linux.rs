@@ -127,6 +127,12 @@ if [ "$mode" = fail255 ]; then
   status_cause clean-close 0
   exit 255
 fi
+if [ "$mode" = terminalcarried ]; then
+  if [ "$is_probe" -eq 1 ]; then exit 0; fi
+  status_cause transport-failure 1
+  printf %s run > "$FAKE_SSH_MODE_FILE" 2>/dev/null || true
+  exit 255
+fi
 if [ "$mode" = hang ]; then
   exec sleep 600
 fi
@@ -1430,6 +1436,105 @@ fn reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating() {
     run_isolated("reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating");
 }
 
+#[test]
+fn carried_terminal_failure_waits_association_drain_before_probing() {
+    if is_isolated_worker("carried_terminal_failure_waits_association_drain_before_probing") {
+        carried_terminal_failure_waits_association_drain_before_probing_worker();
+        return;
+    }
+    run_isolated("carried_terminal_failure_waits_association_drain_before_probing");
+}
+
+fn carried_terminal_failure_waits_association_drain_before_probing_worker() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let mut setup = spawn_interactive(
+        &fixture,
+        "drain-setup",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "drain1",
+            "--",
+            "/bin/sh",
+            "-c",
+            TICK_SCRIPT,
+        ],
+    );
+    let mut seen = Vec::new();
+    read_until(&mut setup.master, &mut seen, b"READY", "drain setup ready");
+    let detached = fixture
+        .command()
+        .args(["detach", "testhost", "drain1"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        detached.status.code(),
+        Some(0),
+        "setup detach failed: {}",
+        String::from_utf8_lossy(&detached.stderr)
+    );
+    let status = wait_bounded(&mut setup.child, "drain setup after detach");
+    assert_eq!(status.code(), Some(1));
+
+    fixture.set_mode("terminalcarried");
+    std::env::set_var("EVERSH_STATE_DIR", &fixture.state);
+    std::env::set_var("FAKE_CAPTURE_DIR", &fixture.capture);
+    std::env::set_var("FAKE_SSH_MODE_FILE", &fixture.mode_file);
+    let _stdin_guard = BlockingStdin::install();
+    let limits = eversh::Limits {
+        association_drain_ms: 300,
+        retry_deadline_ms: 5_000,
+        retry_backoff_base_ms: 10,
+        retry_backoff_cap_ms: 20,
+        ..eversh::Limits::default()
+    };
+    let config = library_config(&fixture, limits);
+    let count_probes = |fixture: &Fixture| {
+        fixture
+            .captures("ssh")
+            .into_iter()
+            .filter(|(_, argv)| argv.iter().any(|argument| argument == "probe"))
+            .count()
+    };
+    let before = count_probes(&fixture);
+    let handle = std::thread::spawn(move || {
+        let mut notifier = SilentNotifier;
+        eversh::supervisor::attach(&config, "testhost", "drain1", false, &[], &mut notifier)
+    });
+
+    let drain_deadline = Instant::now() + Duration::from_millis(200);
+    while Instant::now() < drain_deadline {
+        assert!(
+            count_probes(&fixture) == before,
+            "probe ran before association drain"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let probe_deadline = Instant::now() + Duration::from_secs(3);
+    while count_probes(&fixture) == before {
+        assert!(
+            Instant::now() < probe_deadline,
+            "probe did not run after drain"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let killed = fixture
+        .command()
+        .args(["kill", "testhost", "drain1"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        killed.status.code(),
+        Some(0),
+        "kill failed: {}",
+        String::from_utf8_lossy(&killed.stderr)
+    );
+    let end = handle.join().unwrap().unwrap();
+    assert_eq!(end, SessionEnd::Remote(41));
+}
+
 fn reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating_worker() {
     // Finding 1: a reattach that persistently reports Busy is retried
     // against the episode's OWN deadline, never the attempt budget and
@@ -1440,6 +1545,7 @@ fn reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating_worker
 
     let limits = eversh::Limits {
         retry_deadline_ms: 5_000,
+        association_drain_ms: 10,
         retry_backoff_base_ms: 50,
         retry_backoff_cap_ms: 100,
         ..eversh::Limits::default()
@@ -1525,6 +1631,7 @@ fn busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases_worke
     let limits = eversh::Limits {
         // Generous deadline: the release must land well inside it.
         retry_deadline_ms: 30_000,
+        association_drain_ms: 10,
         retry_backoff_base_ms: 50,
         retry_backoff_cap_ms: 100,
         ..eversh::Limits::default()
@@ -2052,6 +2159,7 @@ fn reconnect_deadline_bounds_a_hung_probe_worker() {
 
     let limits = eversh::Limits {
         retry_deadline_ms: 2_500,
+        association_drain_ms: 10,
         retry_backoff_base_ms: 50,
         retry_backoff_cap_ms: 100,
         retry_attempts_max: 10,
@@ -2307,6 +2415,7 @@ fn episode_restarts_after_a_carrying_reattach_dies_again_worker() {
         // it happens fast — under heavy parallel test-suite load, process
         // spawn overhead alone can dominate a tight deadline/backoff.
         retry_deadline_ms: 120_000,
+        association_drain_ms: 10,
         retry_backoff_base_ms: 50,
         retry_backoff_cap_ms: 100,
         retry_attempts_max: 1,

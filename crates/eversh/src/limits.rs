@@ -34,6 +34,10 @@ pub struct Limits {
     pub retry_backoff_cap_ms: u64,
     /// Overall reconnect deadline in milliseconds.
     pub retry_deadline_ms: u64,
+    /// Wait after a carried terminal association failure before spending
+    /// any probe attempt, so the released everssh server can close the old
+    /// target/writer slot first.
+    pub association_drain_ms: u64,
     /// Invocation-wide cap on reconnect-episode restarts: a reattach that
     /// genuinely carried the session before dying again starts a fresh
     /// episode, but never more than this many times — past the cap the
@@ -62,6 +66,10 @@ impl Default for Limits {
             // transport failure: ~20s everssh remote stall + 360s renewed
             // association lease + 5s finalize, plus observation slack.
             retry_deadline_ms: 420_000,
+            // The client budget stops one handshake short of the server's
+            // renewed lease; this covers that overlap plus finalize and
+            // observer slack before the first fresh probe.
+            association_drain_ms: 30_000,
             episode_restarts_max: 3,
             list_output_max: 1024 * 1024,
             resume_sessions_max: 64,
@@ -82,6 +90,7 @@ impl Limits {
             || self.retry_backoff_base_ms == 0
             || self.retry_backoff_cap_ms < self.retry_backoff_base_ms
             || self.retry_deadline_ms == 0
+            || self.association_drain_ms == 0
             || self.episode_restarts_max == 0
             || self.list_output_max == 0
             || self.resume_sessions_max == 0

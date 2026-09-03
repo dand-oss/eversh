@@ -628,6 +628,7 @@ fn spawn_link_tracked(
 }
 
 /// The terminal meaning of one link-tracked spawn (findings 1-3).
+#[derive(Clone, Copy)]
 enum SpawnOutcome {
     Remote(u8),
     SshSignaled(i32),
@@ -790,7 +791,8 @@ fn run_with_reconnect(
             }
         }
     };
-    if let Some(end) = spawn_outcome_to_session_end(classify_status_spawn(exit, status)) {
+    let classified_spawn = classify_status_spawn(exit, status);
+    if let Some(end) = spawn_outcome_to_session_end(classified_spawn) {
         if matches!(end, SessionEnd::SshFailed) {
             notifier.notify(Event::SshFailed);
         }
@@ -804,8 +806,12 @@ fn run_with_reconnect(
     // visible ordinary failure once `episode_restarts_max` is reached,
     // never a silent infinite loop.
     let mut restarts: u32 = 0;
+    let drain_old_association = matches!(
+        classified_spawn,
+        SpawnOutcome::TransportAfterFailure { carried: true }
+    );
     loop {
-        match reconnect(config, run, notifier)? {
+        match reconnect(config, run, notifier, drain_old_association)? {
             ReconnectOutcome::Terminal(end) => return Ok(end),
             ReconnectOutcome::RestartEpisode => {
                 restarts += 1;
@@ -843,8 +849,12 @@ fn reconnect(
     config: &Config,
     run: SessionRun<'_>,
     notifier: &mut dyn Notifier,
+    drain_old_association: bool,
 ) -> Result<ReconnectOutcome, Error> {
     let limits = &config.limits;
+    if drain_old_association {
+        std::thread::sleep(Duration::from_millis(limits.association_drain_ms));
+    }
     let deadline = Instant::now() + Duration::from_millis(limits.retry_deadline_ms);
     let mut attempt: u32 = 0;
     // Whether the most recent retry cause was a reattach reporting Busy,
