@@ -962,6 +962,113 @@ async fn client_reconnect_budget_ends_boundedly_without_dropping_association() {
     endpoint.close().await.unwrap();
 }
 
+#[tokio::test]
+async fn second_outage_receives_a_fresh_reconnect_budget() {
+    let mut epoch_limits = limits();
+    epoch_limits.association_lease_ms = 8_000;
+    epoch_limits.handshake_timeout_ms = 3_000;
+
+    let target_listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+    let target_address = target_listener.local_addr().unwrap();
+    let _target_peer = tokio::spawn(async move {
+        let (_stream, _) = target_listener.accept().await.unwrap();
+    });
+    let ip = selected_non_loopback(SocketAddr::from(([192, 0, 2, 94], 9))).unwrap();
+    let server_address = reserve_udp(ip);
+    let authenticated =
+        AuthenticatedConnection::new(SocketAddr::from(([192, 0, 2, 95], 50_005)), target_address)
+            .unwrap();
+    let identity = EphemeralIdentity::generate().unwrap();
+    let token = identity.take_bootstrap_token().unwrap();
+    let endpoint = ServerEndpoint::bind(
+        authenticated,
+        UdpBindPolicy::Explicit(server_address),
+        &identity,
+        epoch_limits,
+    )
+    .unwrap();
+    let bootstrap = BootstrapRecord::new(
+        endpoint.local_addr().ip(),
+        endpoint.local_addr().port(),
+        identity.spki_sha256(),
+        token,
+        endpoint.association_id(),
+        std::process::id(),
+    )
+    .unwrap();
+
+    let client_identity = EphemeralClientIdentity::generate().unwrap();
+    let (client_local, _client_peer) = tokio::io::duplex(128);
+    let (client_read, client_write) = tokio::io::split(client_local);
+    let mut client = ClientAssociation::new(
+        &bootstrap,
+        target_address.port(),
+        client_identity,
+        ResumeAssociationConfig::new(256, 16, 64)
+            .unwrap()
+            .with_stall_timeout(Duration::from_millis(50))
+            .unwrap(),
+        epoch_limits,
+        client_read,
+        client_write,
+    )
+    .unwrap();
+    let reconnects = std::sync::Arc::new(std::sync::Mutex::new(Vec::<tokio::time::Instant>::new()));
+    let observed_reconnects = std::sync::Arc::clone(&reconnects);
+    client.set_reconnect_notifier(Some(std::sync::Arc::new(move || {
+        observed_reconnects
+            .lock()
+            .unwrap()
+            .push(tokio::time::Instant::now());
+    })));
+    let client_task = tokio::spawn(client.run());
+
+    let initial = endpoint.accept_v2_initial().await.unwrap();
+    let authorization = initial.connection().authorization();
+    let (_initial_connection, _initial_target) = initial.into_parts();
+    // Let the client consume the server hello before the held connection is
+    // dropped; dropping the server streams is the epoch-one fault injection.
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    drop(_initial_connection);
+    drop(_initial_target);
+
+    // Consume roughly half of epoch one while the client retries.
+    tokio::time::sleep(Duration::from_millis(2_300)).await;
+    let resume = endpoint
+        .accept_v2_resume(authorization, 0, 0)
+        .await
+        .expect("first resume must succeed");
+    let (resume_connection, _) = resume;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    drop(resume_connection);
+
+    // No further resume is accepted. Epoch two must receive a full fresh
+    // 5s budget; the roughly 2.7s already spent would have expired a
+    // cumulative deadline far earlier.
+    let result = tokio::time::timeout(Duration::from_secs(12), client_task)
+        .await
+        .expect("second outage was not bounded")
+        .unwrap();
+    let reconnects = reconnects.lock().unwrap().clone();
+    assert!(
+        reconnects.len() >= 2,
+        "expected two outage epochs, got {reconnects:?}"
+    );
+    let second_epoch_start = reconnects[reconnects.len() - 1];
+    assert!(matches!(
+        result,
+        Err(ActorError::Terminal(Error::DeadlineExpired(
+            DeadlinePhase::Reconnect
+        )))
+    ));
+    let elapsed = second_epoch_start.elapsed();
+    assert!(
+        elapsed >= Duration::from_millis(4_000),
+        "second outage ended after {elapsed:?}; budget was not reset"
+    );
+    endpoint.close().await.unwrap();
+}
+
 fn bind_v2_client(
     server: SocketAddr,
     pin: [u8; 32],
