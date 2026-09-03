@@ -18,6 +18,7 @@ use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::time::Instant;
 
 const CLOSE_CODE: noq::VarInt = noq::VarInt::from_u32(0x4556);
+const RESUME_CLOSE_CODE: noq::VarInt = noq::VarInt::from_u32(0x4552);
 const RECONNECT_BACKOFF: Duration = Duration::from_millis(50);
 
 #[derive(Debug)]
@@ -52,6 +53,39 @@ mod tests {
             assert!(!reconnect_is_retryable(&error), "{error}");
         }
     }
+
+    #[test]
+    fn only_nonterminal_remote_connection_deaths_are_resumable() {
+        let remote_stall = Err(AssociationRunError {
+            boundary: AssociationBoundary::Remote,
+            source: Error::Io(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "association operation stalled",
+            )),
+        });
+        assert!(connection_is_resumable(&remote_stall, false));
+        assert!(!connection_is_resumable(&remote_stall, true));
+        let truncation = Err(AssociationRunError {
+            boundary: AssociationBoundary::Remote,
+            source: Error::Io(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "remote stream ended before association FIN",
+            )),
+        });
+        assert!(!connection_is_resumable(&truncation, false));
+        let local = Err(AssociationRunError {
+            boundary: AssociationBoundary::Local,
+            source: Error::Io(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "local operation stalled",
+            )),
+        });
+        assert!(!connection_is_resumable(&local, false));
+        assert!(!connection_is_resumable(
+            &Ok(AssociationCompletion::Clean),
+            false
+        ));
+    }
 }
 
 impl From<Error> for ActorError {
@@ -73,9 +107,15 @@ struct RemoteConnection {
 }
 
 async fn close_remote(remote: RemoteConnection) {
-    remote
-        .connection
-        .close(CLOSE_CODE, b"association connection ended");
+    close_remote_with(remote, CLOSE_CODE, b"association terminal failure").await;
+}
+
+async fn close_resumable_remote(remote: RemoteConnection) {
+    close_remote_with(remote, RESUME_CLOSE_CODE, b"association connection ended").await;
+}
+
+async fn close_remote_with(remote: RemoteConnection, code: noq::VarInt, reason: &'static [u8]) {
+    remote.connection.close(code, reason);
     drop(remote.send);
     drop(remote.recv);
     let _ = tokio::time::timeout(Duration::from_secs(5), remote.connection.closed()).await;
@@ -105,6 +145,22 @@ fn reconnect_is_retryable(error: &Error) -> bool {
 
 fn reconnect_bind_is_retryable(error: &Error) -> bool {
     matches!(error, Error::RouteSelection(_) | Error::UdpBind(_))
+}
+
+fn connection_is_resumable(
+    result: &Result<AssociationCompletion, AssociationRunError>,
+    peer_terminal: bool,
+) -> bool {
+    match result {
+        Err(error) if error.boundary == AssociationBoundary::Remote => {
+            !peer_terminal
+                && !matches!(
+                    &error.source,
+                    Error::Io(source) if source.kind() == std::io::ErrorKind::UnexpectedEof
+                )
+        }
+        _ => false,
+    }
 }
 
 pub struct ServerAssociation {
@@ -158,7 +214,11 @@ impl ServerAssociation {
                 .await;
             let peer_terminal = matches!(&result, Err(error) if error.boundary == AssociationBoundary::Remote)
                 && peer_sent_terminal_close(&remote).await;
-            close_remote(remote).await;
+            if connection_is_resumable(&result, peer_terminal) {
+                close_resumable_remote(remote).await;
+            } else {
+                close_remote(remote).await;
+            }
 
             match result {
                 Ok(completion) => {
@@ -346,7 +406,11 @@ where
                 .await;
             let peer_terminal = matches!(&result, Err(error) if error.boundary == AssociationBoundary::Remote)
                 && peer_sent_terminal_close(&remote).await;
-            close_remote(remote).await;
+            if connection_is_resumable(&result, peer_terminal) {
+                close_resumable_remote(remote).await;
+            } else {
+                close_remote(remote).await;
+            }
             drop(supervisor);
             drop(endpoint);
 
