@@ -1271,6 +1271,59 @@ scenario_concurrent_connect() {
 }
 
 # ---------------------------------------------------------------------------
+# Scenario 9: explicit takeover — old writer survives as observer
+# ---------------------------------------------------------------------------
+
+scenario_explicit_takeover() {
+    local name=m5s3takeover
+    local holder_wrapper="$TMP_ROOT/s9.holder.wrap.sh" holder_log="$TMP_ROOT/s9.holder.log"
+    local takeover_wrapper="$TMP_ROOT/s9.takeover.wrap.sh" takeover_log="$TMP_ROOT/s9.takeover.log"
+    local listout="$TMP_ROOT/s9.list.json" listerr="$TMP_ROOT/s9.list.err"
+    local killout="$TMP_ROOT/s9.kill.out" killerr="$TMP_ROOT/s9.kill.err"
+    local -a holder_argv=(
+        "$EVERSH_BIN" connect "$ALIAS" --session "$name"
+        --remote-eversh "$EVERSH_BIN" --ssh-option -F"$CLIENT_CONFIG"
+        -- /bin/sh -c "$TICK_SCRIPT"
+    )
+    write_exec_wrapper "$holder_wrapper" "${holder_argv[@]}"
+    launch_interactive "$holder_wrapper" "$holder_log" \
+        || die "scenario9: failed to launch holder"
+    local holder_pid=$BG_PID
+    wait_for_tick_count "$holder_log" 4 "$TICK_WAIT_SECONDS" \
+        || die "scenario9: holder never carried ticks"
+
+    local -a takeover_argv=(
+        "$EVERSH_BIN" attach "$ALIAS" "$name" --take-over
+        --remote-eversh "$EVERSH_BIN" --ssh-option -F"$CLIENT_CONFIG"
+    )
+    write_exec_wrapper "$takeover_wrapper" "${takeover_argv[@]}"
+    launch_interactive "$takeover_wrapper" "$takeover_log" \
+        || die "scenario9: failed to launch takeover attach"
+    local takeover_pid=$BG_PID
+    wait_for_tick_count "$takeover_log" 4 "$TICK_WAIT_SECONDS" \
+        || die "scenario9: takeover attach never acquired the writer"
+    kill -0 "$holder_pid" 2>/dev/null \
+        || die "scenario9: prior writer exited instead of becoming observer"
+
+    run_list_json "$listout" "$listerr" || die "scenario9: list failed"
+    json_has_name "$listout" "$name" || die "scenario9: session missing"
+    local count
+    count=$("$GREP_TOOL" -oE '"name":"'"$name"'"' "$listout" | "$GREP_TOOL" -c .)
+    [[ $count -eq 1 ]] || die "scenario9: duplicate session records ($count)"
+
+    if ! run_batch "$KILL_TIMEOUT_SECONDS" "$killout" "$killerr" kill "$ALIAS" "$name"; then
+        die "scenario9: kill failed"
+    fi
+    local holder_status=0 takeover_status=0
+    builtin wait "$holder_pid" 2>/dev/null || holder_status=$?
+    builtin wait "$takeover_pid" 2>/dev/null || takeover_status=$?
+    [[ $holder_status -eq 41 ]] \
+        || die "scenario9: holder wrapped exit=$holder_status (want 41)"
+    [[ $takeover_status -eq 41 ]] \
+        || die "scenario9: takeover wrapped exit=$takeover_status (want 41)"
+}
+
+# ---------------------------------------------------------------------------
 # Scenario 6: cleanup + health
 # ---------------------------------------------------------------------------
 
@@ -1411,6 +1464,7 @@ scenario_busy_visible
 scenario_list_detach
 scenario_auth_failure
 scenario_concurrent_connect
+scenario_explicit_takeover
 scenario_cleanup_health
 
 exit 0
