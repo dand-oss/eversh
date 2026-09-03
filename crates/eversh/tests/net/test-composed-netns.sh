@@ -569,6 +569,12 @@ else
     FIRST_FRESH_DELTA=$((FIRST_FRESH - T_BUDGET))
     RELEASE_AFTER_LOSS_DELTA=$((T_RELEASE - T_LOSS))
     LEASE_START_UPPER=$((T_RELEASE - 360000))
+    # Loss is the earliest possible resume-acceptance entry; the observed
+    # release minus the configured lease is the latest. The client's death
+    # DETECTION may lag the server's entry, so it must not be the lower
+    # bound.
+    (( T_LOSS <= LEASE_START_UPPER )) \
+        || die 'b2 renewed-lease bound inverted: release preceded the configured lease'
     "$MKDIR" -p -- "$ROOT/target/qualification"
     B2_RECEIPT="$ROOT/target/qualification/eversh-composed-b2-latest-events.tsv"
     {
@@ -581,7 +587,7 @@ else
         "$PRINTF" 't_client_budget_exhaustion_ms\t%d\n' "$T_BUDGET"
         # The server's private resume-acceptance entry is not exposed on
         # its process boundary; these monotonic observations bound it.
-        "$PRINTF" 'renewed_lease_start_bound_ms\t%d..%d\n' "$T_DEATH" "$LEASE_START_UPPER"
+        "$PRINTF" 'renewed_lease_start_bound_ms\t%d..%d\n' "$T_LOSS" "$LEASE_START_UPPER"
         "$PRINTF" 't_server_association_release_ms\t%d\n' "$T_RELEASE"
         "$PRINTF" 't_restore_ms\t%d\n' "$T_RESTORE"
         "$PRINTF" 't_post_drain_backoff_ms\t%d\n' "$T_BACKOFF"
