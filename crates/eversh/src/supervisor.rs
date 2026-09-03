@@ -1340,6 +1340,7 @@ pub fn resume_all(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 

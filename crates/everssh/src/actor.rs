@@ -27,67 +27,6 @@ pub enum ActorError {
     Run(AssociationRunError),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn reconnect_retries_transport_failures_but_not_protocol_rejections() {
-        for error in [
-            Error::DeadlineExpired(DeadlinePhase::ClientConnect),
-            Error::QuicConnect,
-            Error::QuicConnection,
-            Error::EndpointClosed,
-            Error::StreamRead,
-            Error::StreamWrite,
-        ] {
-            assert!(reconnect_is_retryable(&error), "{error}");
-        }
-        for error in [
-            Error::AuthRejected,
-            Error::TokenReuse,
-            Error::HandshakeMalformed,
-            Error::VersionUnsupported,
-            Error::ResumeSequenceInvalid,
-        ] {
-            assert!(!reconnect_is_retryable(&error), "{error}");
-        }
-    }
-
-    #[test]
-    fn only_nonterminal_remote_connection_deaths_are_resumable() {
-        let remote_stall = Err(AssociationRunError {
-            boundary: AssociationBoundary::Remote,
-            source: Error::Io(std::io::Error::new(
-                std::io::ErrorKind::TimedOut,
-                "association operation stalled",
-            )),
-        });
-        assert!(connection_is_resumable(&remote_stall, false));
-        assert!(!connection_is_resumable(&remote_stall, true));
-        let truncation = Err(AssociationRunError {
-            boundary: AssociationBoundary::Remote,
-            source: Error::Io(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof,
-                "remote stream ended before association FIN",
-            )),
-        });
-        assert!(!connection_is_resumable(&truncation, false));
-        let local = Err(AssociationRunError {
-            boundary: AssociationBoundary::Local,
-            source: Error::Io(std::io::Error::new(
-                std::io::ErrorKind::TimedOut,
-                "local operation stalled",
-            )),
-        });
-        assert!(!connection_is_resumable(&local, false));
-        assert!(!connection_is_resumable(
-            &Ok(AssociationCompletion::Clean),
-            false
-        ));
-    }
-}
-
 impl From<Error> for ActorError {
     fn from(source: Error) -> Self {
         Self::Terminal(source)
@@ -444,5 +383,66 @@ where
         self.limits
             .association_lease()
             .saturating_sub(self.limits.handshake_timeout())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reconnect_retries_transport_failures_but_not_protocol_rejections() {
+        for error in [
+            Error::DeadlineExpired(DeadlinePhase::ClientConnect),
+            Error::QuicConnect,
+            Error::QuicConnection,
+            Error::EndpointClosed,
+            Error::StreamRead,
+            Error::StreamWrite,
+        ] {
+            assert!(reconnect_is_retryable(&error), "{error}");
+        }
+        for error in [
+            Error::AuthRejected,
+            Error::TokenReuse,
+            Error::HandshakeMalformed,
+            Error::VersionUnsupported,
+            Error::ResumeSequenceInvalid,
+        ] {
+            assert!(!reconnect_is_retryable(&error), "{error}");
+        }
+    }
+
+    #[test]
+    fn only_nonterminal_remote_connection_deaths_are_resumable() {
+        let remote_stall = Err(AssociationRunError {
+            boundary: AssociationBoundary::Remote,
+            source: Error::Io(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "association operation stalled",
+            )),
+        });
+        assert!(connection_is_resumable(&remote_stall, false));
+        assert!(!connection_is_resumable(&remote_stall, true));
+        let truncation = Err(AssociationRunError {
+            boundary: AssociationBoundary::Remote,
+            source: Error::Io(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "remote stream ended before association FIN",
+            )),
+        });
+        assert!(!connection_is_resumable(&truncation, false));
+        let local = Err(AssociationRunError {
+            boundary: AssociationBoundary::Local,
+            source: Error::Io(std::io::Error::new(
+                std::io::ErrorKind::TimedOut,
+                "local operation stalled",
+            )),
+        });
+        assert!(!connection_is_resumable(&local, false));
+        assert!(!connection_is_resumable(
+            &Ok(AssociationCompletion::Clean),
+            false
+        ));
     }
 }

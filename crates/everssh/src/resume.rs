@@ -696,7 +696,7 @@ impl AssociationCore {
         // flow control and carry peer acknowledgements in the other direction.
         let mut wire: Vec<u8> = Vec::new();
         let mut wire_offset = 0usize;
-        for frame in self.outbound.frames().cloned() {
+        for frame in self.outbound.frames() {
             frame
                 .encode_into(&mut wire)
                 .map_err(AssociationRunError::protocol)?;
