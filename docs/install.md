@@ -114,5 +114,24 @@ is decided by wire protocol versions, not file names (design section 8):
 - The private eversh remote-role grammar is versioned (`v1`); a version
   mismatch names the component and version and exits without side effects.
 
+### Coordinated upgrade across the pre-v2 product
+
+The pinned pre-v2 product (commit `43e80cc`, binary `everlink`, bootstrap
+prefix `everlink v1`, ALPN `eversh-link/1`) is not wire-compatible with the
+current `everssh v2` product. Both whole-product directions fail closed
+before carrying traffic:
+
+- a v2 client that receives an `everlink v1` bootstrap record reports
+  `unsupported protocol version; coordinated everssh upgrade required`;
+- a pre-v2 client that receives an `everssh v2` record rejects it at its
+  bootstrap boundary;
+- renamed role markers (`__everlink` versus `__everssh`) fail before
+  protocol negotiation.
+
+These paths are covered by `crates/everssh/tests/version_skew.rs` and
+`crates/everssh/tests/net/test-version-skew.sh`. Install matching versions
+on both endpoints in one maintenance action; v1 never falls back, uploads a
+remote binary, or negotiates an old protocol automatically.
+
 Upgrade the remote host with the same operator mechanism you use for any
 remote binary; there is no self-update or upgrade agent in v1.

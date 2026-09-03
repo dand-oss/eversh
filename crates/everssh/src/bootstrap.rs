@@ -184,8 +184,16 @@ impl BootstrapRecord {
             return Err(Error::BootstrapMalformed);
         }
         let mut parts = line.split(' ');
-        match (parts.next(), parts.next()) {
+        let component = parts.next();
+        let version = parts.next();
+        match (component, version) {
             (Some("everssh"), Some("v2")) => {}
+            // A recognizable pre-v2 peer is a version-skew failure, not
+            // corruption: the operator must upgrade both endpoints in
+            // coordination rather than retry or fall back.
+            (Some("everlink"), _) | (Some("everssh"), Some("v1")) => {
+                return Err(Error::VersionUnsupported)
+            }
             _ => return Err(Error::BootstrapMalformed),
         }
         let udp_endpoint: IpAddr = parts

@@ -192,7 +192,9 @@ impl std::fmt::Display for Error {
             Self::PinMismatch => {
                 f.write_str("server SPKI does not match the authenticated bootstrap pin")
             }
-            Self::VersionUnsupported => f.write_str("unsupported protocol version"),
+            Self::VersionUnsupported => {
+                f.write_str("unsupported protocol version; coordinated everssh upgrade required")
+            }
             Self::TokenReuse => f.write_str("one-use token already consumed"),
             Self::TargetUnauthorized => f.write_str("target not authorized by bootstrap"),
             Self::LeaseExpired => f.write_str("one-shot server lease expired"),

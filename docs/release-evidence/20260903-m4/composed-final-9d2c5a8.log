@@ -1,0 +1,2 @@
+scenario7: status file not captured in final state; content assert skipped
+eversh M5 production OpenSSH path: PASS

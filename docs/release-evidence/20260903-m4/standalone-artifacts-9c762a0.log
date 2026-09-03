@@ -1,0 +1,22 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running tests/cli.rs (target/debug/deps/cli-0e6aa98886f79f06)
+
+running 13 tests
+test real_start_propagates_child_exit_and_restores_outer_termios ... ok
+test post_hello_exec_failure_is_operational_and_cleans_state ... ok
+test exact_grammar_usage_codes_and_read_only_empty_discovery ... ok
+test real_start_reraises_attached_child_signal ... ok
+test start_without_command_executes_the_captured_default_shell_directly ... ok
+test start_rejects_non_tty_and_each_zero_initial_dimension ... ok
+test simultaneous_start_creates_exactly_one_broker ... ok
+test attach_stdout_epipe_is_operational_failure_after_termios_restore ... ok
+test writer_stdin_eof_detaches_while_real_broker_child_remains_alive ... ok
+test tstp_restores_and_cont_reenters_raw_and_resizes ... ok
+test live_commands_cover_busy_detach_kill_list_and_current ... ok
+test list_filters_live_dead_and_corrupt_state_and_renders_exact_sorted_json ... ok
+test attach_fatal_signals_propagate_after_termios_restoration ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 20.13s
+
+EverSSH Slice 5A production OpenSSH path: PASS
+STANDALONE_EXIT=0:0

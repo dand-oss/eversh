@@ -4,8 +4,8 @@
 # isolated toolchain installed by `fuzz/qualify-m3.sh setup` (including the
 # nightly toolchain and cargo-fuzz); runs the full deterministic gate set,
 # three supervisor_linux stability rounds, the eversh resource-bounds test,
-# the production OpenSSH end-to-end gate, all eight protocol fuzz targets,
-# and reproducible release packaging.
+# the production OpenSSH end-to-end gate, the whole-product version-skew
+# gate, all eight protocol fuzz targets, and reproducible release packaging.
 set -Eeuo pipefail
 
 umask 077
@@ -79,8 +79,9 @@ Usage: fuzz/qualify-m5.sh [run] [--json]
   run     Require a clean commit, then run the full M5 release qualification:
           deterministic gates, three supervisor_linux stability rounds, the
           eversh resource-bounds test, the production OpenSSH end-to-end
-          gate, dependency/licence audits, all eight protocol fuzz targets
-          (build + 61s campaign each), and reproducible release packaging.
+          gate, the whole-product version-skew gate, dependency/licence
+          audits, all eight protocol fuzz targets (build + 61s campaign
+          each), and reproducible release packaging.
   --json  Print the sanitized JSON receipt instead of the one-line summary.
 
 verify-receipts RECEIPT
@@ -297,6 +298,7 @@ required_subreceipts() {
         eversh-e2e-openssh \
         everssh-migration-netns \
         everssh-openssh-slice5a \
+        everssh-version-skew \
         everssh-composed-netns-b1 \
         everssh-composed-netns-b2 \
         documentation-compat \
@@ -549,6 +551,14 @@ run_qualification() {
     [[ $openssh_tail == 'EverSSH Slice 5A production OpenSSH path: PASS' ]] \
         || fail everssh-openssh-slice5a-receipt 1 "$openssh_log"
 
+    skew_script="$ROOT/crates/everssh/tests/net/test-version-skew.sh"
+    skew_log="$gate_dir/everssh-version-skew.log"
+    run_logged everssh-version-skew "$skew_log" "$ROOT" \
+        /usr/bin/bash "$skew_script"
+    skew_tail=$(/usr/bin/tail -n 1 "$skew_log")
+    [[ $skew_tail == 'everssh version-skew whole-product gate: PASS'* ]] \
+        || fail everssh-version-skew-receipt 1 "$skew_log"
+
     composed_netns_script="$ROOT/crates/eversh/tests/net/test-composed-netns.sh"
     for composed_mode in b1 b2; do
         composed_log="$gate_dir/everssh-composed-netns-$composed_mode.log"
@@ -730,7 +740,8 @@ run_qualification() {
                 "git-diff-check", "root-fmt", "root-check", "root-clippy",
                 "root-test", "eversh-supervisor-x3", "eversh-resource-bounds",
                 "eversh-e2e-openssh", "everssh-migration-netns",
-                "everssh-openssh-slice5a", "everssh-composed-netns-b1",
+                "everssh-openssh-slice5a", "everssh-version-skew",
+                "everssh-composed-netns-b1",
                 "everssh-composed-netns-b2", "documentation-compat",
                 "root-no-default-libs", "msrv-check", "aarch64-check",
                 "cargo-deny-root", "cargo-deny-fuzz", "fuzz-fmt", "fuzz-check",
