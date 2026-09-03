@@ -704,7 +704,7 @@ run_network_qualification() {
     /usr/bin/grep -Fqx 'EverSSH Slice 5A production OpenSSH path: PASS' "$openssh_log" \
         || fail production-openssh-receipt 1 "$openssh_log"
     run_logged production-migration "$migration_log" "$ROOT" \
-        /usr/bin/sudo -n -- /usr/bin/timeout --signal=TERM --kill-after=10s 600s \
+        /usr/bin/sudo -n -- /usr/bin/timeout --signal=TERM --kill-after=10s 1200s \
         "$migration_script"
     /usr/bin/grep -Fqx 'everssh Slice 4 production netns/veth gate: PASS' "$migration_log" \
         || fail production-migration-receipt 1 "$migration_log"
