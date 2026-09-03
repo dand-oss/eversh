@@ -440,10 +440,11 @@ fn link_status_final(path: &Path) -> LinkOutcome {
     }
 }
 
-/// Whether the status file already has ANY recognized record (`carrying`
-/// or a terminal `cause`) — used only to end the bounded phase of a
-/// reattach spawn early; the final classification always uses
-/// [`link_status_final`], never this.
+/// Whether the status file already has ANY recognized record (`carrying`,
+/// transient `reconnecting`, or a terminal `cause`) — used only to end the
+/// bounded phase of a reattach spawn early. A `reconnecting` association
+/// hands the deadline to everssh's own bounded transport budget; the final
+/// classification always uses [`link_status_final`], never this.
 fn link_status_settled(path: &Path) -> bool {
     let Ok(content) = std::fs::read_to_string(path) else {
         return false;
@@ -566,14 +567,16 @@ enum StatusSpawn {
 /// return path from the allocating scope, including the error paths below.
 ///
 /// `deadline`, when set, bounds the wait ONLY until the status file shows
-/// `carrying` (or a terminal record has already arrived): a hung
-/// pre-`carrying` child (a reattach that never reconnects) is killed and
-/// reaped at the deadline, with the outer terminal's termios restored
-/// first if this process's ssh child put it mid-transition. Once
-/// carrying — or when `deadline` is `None`, as for the very first spawn of
-/// an invocation, which is never part of a bounded reconnect episode — the
-/// wait is unbounded: an ongoing session is never killed by the reconnect
-/// deadline (design 7, finding 3).
+/// `carrying`, `reconnecting`, or a terminal record: `reconnecting` means
+/// the v2 association is alive inside everssh's bounded reconnect budget,
+/// so this supervisor defers to that transport deadline instead of racing
+/// it with a local kill. A hung child with no recognized record is killed
+/// and reaped at this deadline, with the outer terminal's termios restored
+/// first if this process's ssh child put it mid-transition. Once carrying
+/// or reconnecting — or when `deadline` is `None`, as for the very first
+/// spawn of an invocation, which is never part of a bounded reconnect
+/// episode — the wait is unbounded: an ongoing session is never killed by
+/// the reconnect deadline (design 7, finding 3).
 fn spawn_link_tracked(
     config: &Config,
     args: &[OsString],
@@ -1323,4 +1326,46 @@ pub fn resume_all(
         }
     }
     Ok(report)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn link_status_classification_ignores_transient_records() {
+        assert_eq!(
+            parse_link_status("everssh-status-v1 carrying\neverssh-status-v1 reconnecting\n"),
+            None
+        );
+        assert_eq!(
+            parse_link_status(
+                "everssh-status-v1 reconnecting\n\
+                 everssh-status-v1 cause clean-close carried=1\n"
+            ),
+            Some(LinkOutcome::CleanClose)
+        );
+        assert_eq!(
+            parse_link_status(
+                "everssh-status-v1 carrying\n\
+                 everssh-status-v1 reconnecting\n\
+                 everssh-status-v1 cause transport-failure carried=1\n"
+            ),
+            Some(LinkOutcome::TransportFailure { carried: true })
+        );
+    }
+
+    #[test]
+    fn reconnecting_status_defers_the_bounded_phase_to_the_transport() {
+        let dir = std::env::temp_dir().join(format!("eversh-supervisor-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("status-reconnecting");
+        std::fs::write(
+            &path,
+            "everssh-status-v1 carrying\neverssh-status-v1 reconnecting\n",
+        )
+        .unwrap();
+        assert!(link_status_settled(&path));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
