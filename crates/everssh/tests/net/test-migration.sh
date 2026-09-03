@@ -120,7 +120,7 @@ s.listen(1)
 with open(ready, "w", encoding="ascii") as out:
     out.write("ready\n")
 c, _ = s.accept()
-c.settimeout(50)
+c.settimeout(400)
 data = bytearray()
 while True:
     try:
@@ -310,8 +310,14 @@ finish_normal_proxy() {
     [[ $proxy_status -eq 0 ]] || { cat "$PROXY_ERROR" >&2; echo "proxy failed: $proxy_status" >&2; return 1; }
     [[ $target_status -eq 0 ]] || { echo "target failed: $target_status" >&2; return 1; }
     [[ ! -s "$PROXY_ERROR" ]] || { cat "$PROXY_ERROR" >&2; return 1; }
-    /usr/bin/cmp "$frames" "$PROXY_OUTPUT"
-    grep -q 'accepts=1 .* match=True' "$TARGET_REPORT"
+    /usr/bin/cmp "$frames" "$PROXY_OUTPUT" || {
+        echo "resume output mismatch: expected=$(stat -c %s "$frames") actual=$(stat -c %s "$PROXY_OUTPUT")" >&2
+        return 1
+    }
+    grep -q 'accepts=1 .* match=True' "$TARGET_REPORT" || {
+        echo "resume target report mismatch: $(cat "$TARGET_REPORT")" >&2
+        return 1
+    }
 }
 
 run_api_source_migration() {
@@ -441,11 +447,11 @@ run_migration() {
 
 run_loss() {
     local mode=$1 label=$2 port=$3
-    local stem=$mode frames="$TMP/$mode.frames"
+    local stem=$mode frames="$TMP/$mode.frames" status="$TMP/$mode.status"
     setup_topology 4 "$label"
     "$PY" "$TMP/frames.py" "$frames" 64 77
     start_target 4 "$port" "$stem" -
-    start_proxy 4 "$port" "$stem"
+    start_proxy 4 "$port" "$stem" "$status"
     write_frames "$frames" 0 8
     wait_bytes "$PROXY_OUTPUT" $((8 * 1024)) 8
 
@@ -459,28 +465,45 @@ run_loss() {
         "$IP" -n "$CURRENT_C" link del c1
     fi
     write_frames "$frames" 8 32 || true
-    # v2 resume permits bounded reconnect attempts after the 20s remote stall:
-    # 20s stall + 20s reconnect budget ends inside this 45s observer window.
-    wait_process "$PROXY_PID" 45
-    exec 9>&-
-    # The released server independently waits out its renewed 30s association
-    # lease before closing the target; observe that whole bounded window.
-    wait_process "$TARGET_PID" 35
+    # v2 semantics revise the old one-shot contract: sustained loss no longer
+    # ends a live association quickly. The proxy must still be reconnecting
+    # well past the former 45s termination window; lease-bounded failure is
+    # proven at actor scale with tiny configured leases.
+    local held_deadline=$((SECONDS + 50))
+    while (( SECONDS < held_deadline )); do
+        kill -0 "$PROXY_PID" 2>/dev/null || {
+            echo "$mode association did not hold through loss" >&2
+            cat "$PROXY_ERROR" >&2 || true
+            return 1
+        }
+        sleep 1
+    done
+    grep -q '^everssh-status-v1 reconnecting$' "$status" || {
+        echo "$mode did not publish its reconnecting state" >&2
+        return 1
+    }
+    # The user gives up: end the local association, then the released server,
+    # which would otherwise correctly wait out its long renewed lease.
+    kill -TERM "$PROXY_PID" 2>/dev/null || true
+    wait_process "$PROXY_PID" 10
+    local server_pid
+    for server_pid in $("$IP" netns pids "$CURRENT_S" 2>/dev/null); do
+        [[ $(cat "/proc/$server_pid/comm" 2>/dev/null) == everssh ]] || continue
+        kill -TERM "$server_pid" 2>/dev/null || true
+    done
+    wait_process "$TARGET_PID" 15
     set +e
-    wait "$PROXY_PID"
-    local proxy_status=$?
     wait "$TARGET_PID"
     local target_status=$?
     set -e
-    [[ $proxy_status -ne 0 ]] || { echo "$mode unexpectedly exited successfully" >&2; return 1; }
     [[ $target_status -eq 0 ]] || { echo "$mode target failed: $target_status" >&2; return 1; }
     grep -q '^accepts=1 ' "$TARGET_REPORT"
     teardown_topology
-    echo "everssh $mode bounded shutdown: PASS"
+    echo "everssh $mode sustained association hold: PASS"
 }
 
 run_total_loss_resume() {
-    local family=$1 label=$2 port=$3
+    local family=$1 label=$2 port=$3 outage_seconds=${4:-22}
     local stem="resume$family" frames="$TMP/resume$family.frames" status="$TMP/resume$family.status"
     setup_topology "$family" "$label"
     "$PY" "$TMP/frames.py" "$frames" 96 "$family"
@@ -495,7 +518,19 @@ run_total_loss_resume() {
     # bounded client reconnect loop waits out total loss.
     "$IP" netns exec "$CURRENT_C" "$TC" qdisc replace dev c0 root netem loss 100%
     write_frames "$frames" 24 24
-    sleep 22
+    local outage_deadline=$((SECONDS + outage_seconds))
+    while (( SECONDS < outage_deadline )); do
+        kill -0 "$PROXY_PID" 2>/dev/null || {
+            echo "IPv$family association died during the ${outage_seconds}s outage" >&2
+            cat "$PROXY_ERROR" >&2 || true
+            return 1
+        }
+        sleep 1
+    done
+    grep -q '^everssh-status-v1 reconnecting$' "$status" || {
+        echo "IPv$family did not publish reconnecting during the outage" >&2
+        return 1
+    }
     "$IP" netns exec "$CURRENT_C" "$TC" qdisc del dev c0 root
 
     # The first reconnect attempt is still inside its handshake deadline when
@@ -503,8 +538,14 @@ run_total_loss_resume() {
     write_frames "$frames" 48 48
     wait_bytes "$PROXY_OUTPUT" $((96 * 1024)) 15
     finish_normal_proxy "$frames"
-    grep -q '^everssh-status-v1 reconnecting$' "$status"
-    grep -q '^everssh-status-v1 cause clean-close carried=1$' "$status"
+    grep -q '^everssh-status-v1 reconnecting$' "$status" || {
+        echo "resume status missing reconnecting: $(cat "$status")" >&2
+        return 1
+    }
+    grep -q '^everssh-status-v1 cause clean-close carried=1$' "$status" || {
+        echo "resume status missing clean close: $(cat "$status")" >&2
+        return 1
+    }
     teardown_topology
     echo "everssh IPv$family production total-loss resume: PASS"
 }
@@ -537,7 +578,7 @@ run_migration 4 a 22990
 run_migration 6 b 22991
 run_loss same-route c 22992
 run_loss total-loss d 22993
-run_total_loss_resume 4 e 22995
+run_total_loss_resume 4 e 22995 302
 run_total_loss_resume 6 f 22996
 run_fresh_no_replay
 
