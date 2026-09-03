@@ -441,9 +441,31 @@ transfers while terminal expiry is credited to the M3 network gate. The
 conditional supervisor grace is now covered by direct unit tests and derived
 from everssh's finalize limit.
 
-Revision 8 execution receipts are the clean-commit B1/B2 event ledgers and
-logs retained under `docs/release-evidence/20260903-m4/`; closure requires
-those exact-SHA runs plus a fresh zero-blocker/major Sol verification.
+Review receipt — 2026-09-03 Sol max verification of revision 7 (first
+execution): **FAIL**, high confidence; 3 blockers (timestamp-annotator
+process leak; non-monotonic/incomplete B2 timeline and receipt arithmetic
+contradicting documented deltas; M4 closed before review without an
+exact-SHA receipt), 1 major (Slice 5A overstated as proving interrupted
+SFTP/SCP terminal failure), and 2 minors (missing direct
+`link_status_final` grace tests; watchdog shorter than the nested success
+path). Revision 8 repaired every finding, and M4 was reopened until the
+fresh verdict below.
+
+Review receipt — 2026-09-03 Sol max verification of revision 8 and the
+repaired execution: **PASS**, high confidence; zero blockers and zero
+majors. Sol verified the qualified product tree as exactly `cd7d00d`
+(tree `8cd004f5`), checked evidence hashes and ledger arithmetic, confirmed
+annotator extinction, recomputed every timeline delta (death after loss
+21.620 s, budget after death 351.800 s, release after budget 7.930 s,
+restore after release 10.060 s, backoff 30.000 s, first fresh SSH
+30.370 s), confirmed the corrected SFTP/SCP attribution, and verified all
+supervisor tests. Four non-blocking minors were then repaired at `0ab05ce`:
+watchdog raised to 800 s, clock labels corrected to monotonic boot uptime,
+the prompt-bound test now asserts both bounds, and every future ledger
+records the everssh binary SHA-256. Revision 8 closure receipts are the
+clean-commit B1/B2 event ledgers and logs retained under
+`docs/release-evidence/20260903-m4/`, followed by the full exact-SHA M5
+PASS receipt at `0ab05ce` under `docs/release-evidence/20260903-m5/`.
 
 ## 9. Explicitly out of scope
 
