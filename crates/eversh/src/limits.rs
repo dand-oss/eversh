@@ -58,7 +58,10 @@ impl Default for Limits {
             retry_attempts_max: 5,
             retry_backoff_base_ms: 250,
             retry_backoff_cap_ms: 5_000,
-            retry_deadline_ms: 60_000,
+            // Spans the full old-association drain after a terminal
+            // transport failure: ~20s everssh remote stall + 360s renewed
+            // association lease + 5s finalize, plus observation slack.
+            retry_deadline_ms: 420_000,
             episode_restarts_max: 3,
             list_output_max: 1024 * 1024,
             resume_sessions_max: 64,

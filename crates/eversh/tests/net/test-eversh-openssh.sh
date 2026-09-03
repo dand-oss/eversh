@@ -65,10 +65,9 @@ done
 
 # The whole run (sshd startup, seven scenarios, health checks, cleanup) must
 # fit well under the watchdog; the watchdog is a hard outer safety net, not
-# the expected duration. Sized for the r3 reconnect budget: scenario 2's
-# Busy-retry is now deadline-governed, so its reattach legitimately lands
-# ~t+30s (remote QUIC idle timeout) rather than ~t+12s.
-readonly WATCHDOG_SECONDS=240
+# the expected duration. Scenario 2 spans the released v2 association's
+# bounded drain: ~20s remote stall + 360s renewed lease + finalize slack.
+readonly WATCHDOG_SECONDS=900
 readonly READINESS_POLL_ATTEMPTS=100
 readonly POLL_SECONDS=5
 readonly BATCH_TIMEOUT_SECONDS=10
@@ -77,7 +76,7 @@ readonly SCENARIO1_TIMEOUT_SECONDS=20
 readonly AUTH_FAIL_TIMEOUT_SECONDS=20
 readonly TICK_WAIT_SECONDS=15
 readonly KILL_POLL_SECONDS=6
-readonly REATTACH_WAIT_SECONDS=40
+readonly REATTACH_WAIT_SECONDS=420
 readonly SETTLE_SECONDS_MS=350
 readonly ATTACH_BUSY_TIMEOUT_SECONDS=15
 readonly BG_READY_ATTEMPTS=60
