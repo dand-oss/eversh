@@ -43,13 +43,14 @@ readonly -a FUZZ_TARGETS=(
     fuzz_frame
     fuzz_bootstrap_record
     fuzz_auth_frame
+    fuzz_resume_handshake
     fuzz_remote_control
     fuzz_metadata
     fuzz_proc_stat
     fuzz_everssh_close_sequence
     fuzz_everssh_stream_boundary
 )
-readonly -a FUZZ_MAX_LENGTHS=(4096 4096 4096 4096 4096 4096 256 4096)
+readonly -a FUZZ_MAX_LENGTHS=(4096 4096 4096 4096 4096 4096 4096 256 4096)
 readonly -a RELEASE_BINARIES=(everpty everssh eversh)
 # All three release binaries are feature-gated behind their crate's `cli`
 # feature (eversh/cli enables everssh/cli but not everpty/cli), so every
@@ -415,6 +416,15 @@ run_qualification() {
         "$gate_dir" "$build_target" "$release_dir" "$release_b_dir"
     started=$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)
 
+    # The netns gate needs root while Slice 5A refuses it: this aggregator
+    # stays unprivileged and requires passwordless sudo for exactly that
+    # subreceipt. Unavailable privilege is a FAIL, never a skip.
+    /usr/bin/sudo -n true 2>/dev/null || {
+        /usr/bin/mkdir -p -- "$QUAL_ROOT/runs"
+        RECEIPT_PATH="$QUAL_ROOT/runs/sudo-required.json"
+        fail sudo-for-netns-required 1 ''
+    }
+
     export RUSTUP_HOME CARGO_HOME
     export PATH="$CARGO_BIN:/usr/bin:/bin"
     export CARGO_NET_OFFLINE=true
@@ -453,6 +463,22 @@ run_qualification() {
     e2e_tail=$(/usr/bin/tail -n 1 "$e2e_log")
     [[ $e2e_tail == 'eversh M5 production OpenSSH path: PASS'* ]] \
         || fail eversh-e2e-openssh-receipt 1 "$e2e_log"
+
+    migration_script="$ROOT/crates/everssh/tests/net/test-migration.sh"
+    migration_log="$gate_dir/everssh-migration-netns.log"
+    run_logged everssh-migration-netns "$migration_log" "$ROOT" \
+        /usr/bin/sudo -n /usr/bin/bash "$migration_script"
+    migration_tail=$(/usr/bin/tail -n 1 "$migration_log")
+    [[ $migration_tail == 'everssh Slice 4 production netns/veth gate: PASS' ]] \
+        || fail everssh-migration-netns-receipt 1 "$migration_log"
+
+    openssh_script="$ROOT/crates/everssh/tests/net/test-openssh.sh"
+    openssh_log="$gate_dir/everssh-openssh-slice5a.log"
+    run_logged everssh-openssh-slice5a "$openssh_log" "$ROOT" \
+        /usr/bin/bash "$openssh_script"
+    openssh_tail=$(/usr/bin/tail -n 1 "$openssh_log")
+    [[ $openssh_tail == 'EverSSH Slice 5A production OpenSSH path: PASS' ]] \
+        || fail everssh-openssh-slice5a-receipt 1 "$openssh_log"
 
     run_logged root-no-default-libs "$gate_dir/root-no-default-libs.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" check --workspace --no-default-features --lib --locked
@@ -601,10 +627,11 @@ run_qualification() {
             deterministic_gates: [
                 "git-diff-check", "root-fmt", "root-check", "root-clippy",
                 "root-test", "eversh-supervisor-x3", "eversh-resource-bounds",
-                "eversh-e2e-openssh", "root-no-default-libs", "msrv-check",
-                "aarch64-check", "cargo-deny-root", "cargo-deny-fuzz",
-                "fuzz-fmt", "fuzz-check", "fuzz-clippy", "eight-fuzz-builds",
-                "release-packaging"
+                "eversh-e2e-openssh", "everssh-migration-netns",
+                "everssh-openssh-slice5a", "root-no-default-libs",
+                "msrv-check", "aarch64-check", "cargo-deny-root",
+                "cargo-deny-fuzz", "fuzz-fmt", "fuzz-check", "fuzz-clippy",
+                "nine-fuzz-builds", "release-packaging"
             ],
             supervisor_stability_rounds: $stability_rounds,
             resource_metrics: $resource_metrics,
