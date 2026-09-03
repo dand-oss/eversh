@@ -1,1 +1,1 @@
-everssh composed B2 terminal fallback: PASS (budget=1788466651979ms release=1788466659187ms backoff=1788466681296ms first-fresh=1788466681591ms attempts=1/1 invocations=9/9)
+everssh composed B2 terminal fallback: PASS (release-after-loss=381350ms drain-backoff=30000ms first-fresh=30370ms attempts=1/1 invocations=9/9 events=/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh-composed-b2-latest-events.tsv)

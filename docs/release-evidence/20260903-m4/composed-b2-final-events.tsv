@@ -1,0 +1,19 @@
+clock	/proc/uptime (CLOCK_MONOTONIC-derived)
+head_sha	cd7d00dfde037416ec462b5f5df604c752b6b28b
+tree_sha	8cd004f5ac1e34f592337bd187c10a9c0d79aed0
+tree_dirty	false
+t_loss_ms	1067179920
+t_connection_death_detection_ms	1067201540
+t_client_budget_exhaustion_ms	1067553340
+renewed_lease_start_bound_ms	1067179920..1067201270
+t_server_association_release_ms	1067561270
+t_restore_ms	1067571330
+t_post_drain_backoff_ms	1067583340
+t_first_fresh_ssh_ms	1067583710
+delta_release_after_loss_ms	381350
+delta_drain_backoff_ms	30000
+delta_first_fresh_ms	30370
+drain_window_attempts	0
+probe_attempts	1
+reattach_attempts	1
+ssh_invocations	9..9
