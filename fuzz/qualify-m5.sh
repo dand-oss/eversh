@@ -297,6 +297,8 @@ required_subreceipts() {
         eversh-e2e-openssh \
         everssh-migration-netns \
         everssh-openssh-slice5a \
+        everssh-composed-netns-b1 \
+        everssh-composed-netns-b2 \
         documentation-compat \
         root-no-default-libs \
         msrv-check \
@@ -547,6 +549,19 @@ run_qualification() {
     [[ $openssh_tail == 'EverSSH Slice 5A production OpenSSH path: PASS' ]] \
         || fail everssh-openssh-slice5a-receipt 1 "$openssh_log"
 
+    composed_netns_script="$ROOT/crates/eversh/tests/net/test-composed-netns.sh"
+    for composed_mode in b1 b2; do
+        composed_log="$gate_dir/everssh-composed-netns-$composed_mode.log"
+        run_logged "everssh-composed-netns-$composed_mode" "$composed_log" "$ROOT" \
+            /usr/bin/sudo -n /usr/bin/bash "$composed_netns_script" "$composed_mode"
+        composed_tail=$(/usr/bin/tail -n 1 "$composed_log")
+        case $composed_mode in
+            b1) [[ $composed_tail == 'eversh composed B1 outage continuity: PASS' ]] ;;
+            b2) [[ $composed_tail == 'eversh composed B2 terminal fallback: PASS' ]] ;;
+        esac \
+            || fail "everssh-composed-netns-$composed_mode-receipt" 1 "$composed_log"
+    done
+
     doc_compat_log="$gate_dir/documentation-compat.log"
     : >"$doc_compat_log"
     doc_compat_status=0
@@ -715,7 +730,8 @@ run_qualification() {
                 "git-diff-check", "root-fmt", "root-check", "root-clippy",
                 "root-test", "eversh-supervisor-x3", "eversh-resource-bounds",
                 "eversh-e2e-openssh", "everssh-migration-netns",
-                "everssh-openssh-slice5a", "documentation-compat",
+                "everssh-openssh-slice5a", "everssh-composed-netns-b1",
+                "everssh-composed-netns-b2", "documentation-compat",
                 "root-no-default-libs", "msrv-check", "aarch64-check",
                 "cargo-deny-root", "cargo-deny-fuzz", "fuzz-fmt", "fuzz-check",
                 "fuzz-clippy", "nine-fuzz-builds", "release-packaging"
