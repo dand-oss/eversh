@@ -26,6 +26,34 @@ pub enum ActorError {
     Run(AssociationRunError),
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reconnect_retries_transport_failures_but_not_protocol_rejections() {
+        for error in [
+            Error::DeadlineExpired(DeadlinePhase::ClientConnect),
+            Error::QuicConnect,
+            Error::QuicConnection,
+            Error::EndpointClosed,
+            Error::StreamRead,
+            Error::StreamWrite,
+        ] {
+            assert!(reconnect_is_retryable(&error), "{error}");
+        }
+        for error in [
+            Error::AuthRejected,
+            Error::TokenReuse,
+            Error::HandshakeMalformed,
+            Error::VersionUnsupported,
+            Error::ResumeSequenceInvalid,
+        ] {
+            assert!(!reconnect_is_retryable(&error), "{error}");
+        }
+    }
+}
+
 impl From<Error> for ActorError {
     fn from(source: Error) -> Self {
         Self::Terminal(source)
@@ -66,7 +94,12 @@ async fn peer_sent_terminal_close(remote: &RemoteConnection) -> bool {
 fn reconnect_is_retryable(error: &Error) -> bool {
     matches!(
         error,
-        Error::DeadlineExpired(DeadlinePhase::ClientConnect) | Error::QuicConnect
+        Error::DeadlineExpired(DeadlinePhase::ClientConnect)
+            | Error::QuicConnect
+            | Error::QuicConnection
+            | Error::EndpointClosed
+            | Error::StreamRead
+            | Error::StreamWrite
     )
 }
 
