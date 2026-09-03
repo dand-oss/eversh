@@ -27,6 +27,7 @@ set -Eeuo pipefail
 readonly AWK_TOOL=/usr/bin/awk
 readonly BASH_TOOL=/usr/bin/bash
 readonly CAT_TOOL=/usr/bin/cat
+readonly PYTHON3=/usr/bin/python3
 readonly CHMOD_TOOL=/usr/bin/chmod
 readonly CUT_TOOL=/usr/bin/cut
 readonly GREP_TOOL=/usr/bin/grep
@@ -516,7 +517,8 @@ prepare_isolated_sshd() {
         'X11Forwarding no' \
         'AllowAgentForwarding no' \
         'PermitTunnel no' \
-        'AllowTcpForwarding no' \
+        'AllowTcpForwarding yes' \
+        'PermitOpen 127.0.0.1:*' \
         'GatewayPorts no' \
         'UseDNS no' \
         'PermitUserEnvironment no' \
@@ -1410,6 +1412,106 @@ scenario_raw_ssh_never_replaced() {
 }
 
 # ---------------------------------------------------------------------------
+# Scenario 11: raw local forwarding is never replaced after transport kill
+# ---------------------------------------------------------------------------
+
+scenario_forward_never_replaced() {
+    local s11_bin="$TMP_ROOT/s11.bin"
+    local s11_ssh="$s11_bin/ssh"
+    local count_file="$TMP_ROOT/s11.ssh-count"
+    local pid_file="$TMP_ROOT/s11.eversh-pid"
+    local wrapper="$TMP_ROOT/s11.wrap.sh" log="$TMP_ROOT/s11.log"
+    local status proxy_pid proxy_start proxy_exe proxy_pgrp
+
+    "$MKDIR_TOOL" -m 700 -- "$s11_bin" || die "scenario11: shim dir creation failed"
+    {
+        printf '#!/usr/bin/bash\n'
+        printf 'echo "$PPID" >> %q\n' "$count_file"
+        printf 'exec %q "$@"\n' "$SSH_TOOL"
+    } > "$s11_ssh"
+    "$CHMOD_TOOL" 700 -- "$s11_ssh" || die "scenario11: ssh shim creation failed"
+    : > "$count_file"
+    "$CHMOD_TOOL" 600 -- "$count_file"
+
+    # Forward the isolated sshd back to a random local port, then keep the
+    # raw forwarding session alive without a remote command.
+    local forward_port
+    forward_port=$("$PYTHON3" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()' 2>/dev/null || true)
+    [[ $forward_port =~ ^[0-9]+$ ]] || die "scenario11: no free local port"
+    {
+        printf '#!/usr/bin/bash\nset -Eeuo pipefail\n'
+        printf 'export PATH=%q:"$PATH"\n' "$s11_bin"
+        printf 'echo "$$" > %q\n' "$pid_file"
+        printf 'exec'
+        local a
+        for a in "$EVERSH_BIN" ssh "$ALIAS" \
+            --remote-eversh "$EVERSH_BIN" \
+            -- "-F$CLIENT_CONFIG" -o ClearAllForwardings=no \
+            "-L127.0.0.1:$forward_port:127.0.0.1:$ISOLATED_PORT" -N; do
+            printf ' %q' "$a"
+        done
+        printf '\n'
+    } > "$wrapper"
+    "$CHMOD_TOOL" 700 -- "$wrapper" || die "scenario11: wrapper creation failed"
+
+    launch_interactive "$wrapper" "$log" \
+        || die "scenario11: failed to launch forwarding wrapper"
+    local forward_pid=$BG_PID
+    local deadline=$((SECONDS + 10)) probe_ok=0
+    while (( SECONDS < deadline )); do
+        if run_bounded "$BASH_TOOL" -c \
+            'exec 3<>/dev/tcp/127.0.0.1/$1; IFS= read -r -n 4 banner <&3; [[ $banner == SSH- ]]' \
+            probe "$forward_port" >/dev/null 2>&1; then
+            probe_ok=1
+            break
+        fi
+        "$SLEEP_TOOL" 0.2
+    done
+    if (( probe_ok != 1 )); then
+        "$SS_TOOL" -ltnp "sport = :$forward_port" >&2 || :
+        ps -p "$forward_pid" -o pid,stat,args >&2 || :
+        cat "$log" >&2 || :
+        die "scenario11: forwarded sshd never answered"
+    fi
+
+    local eversh_pid
+    eversh_pid=$("$CAT_TOOL" "$pid_file")
+    [[ $eversh_pid =~ ^[0-9]+$ ]] || die "scenario11: bad eversh pid"
+    proxy_pid=$(find_ssh_proxy_pid "$forward_pid" 10) \
+        || die "scenario11: could not locate forwarding proxy"
+    capture_identity "$proxy_pid" || die "scenario11: proxy identity vanished"
+    proxy_start=$CAP_START proxy_exe=$CAP_EXE proxy_pgrp=$CAP_PGRP
+    builtin kill -KILL "$proxy_pid" 2>/dev/null || die "scenario11: proxy kill failed"
+    poll_owned_gone "$proxy_pid" "$proxy_start" "$proxy_exe" "$proxy_pgrp" "$KILL_POLL_SECONDS" \
+        || die "scenario11: proxy did not disappear"
+
+    status=0
+    builtin wait "$forward_pid" 2>/dev/null || status=$?
+    (( status != 0 )) || die "scenario11: forwarding session unexpectedly succeeded"
+    if run_bounded "$BASH_TOOL" -c \
+        'exec 3<>/dev/tcp/127.0.0.1/$1; IFS= read -r -n 4 banner <&3; [[ $banner == SSH- ]]' \
+        probe "$forward_port" >/dev/null 2>&1; then
+        die "scenario11: forwarded listener survived terminal transport kill"
+    fi
+
+    local supervisor_ssh=0 total_ssh=0 line
+    while IFS= read -r line; do
+        [[ -n $line ]] || continue
+        total_ssh=$((total_ssh + 1))
+        [[ $line == "$eversh_pid" ]] && supervisor_ssh=$((supervisor_ssh + 1))
+    done < "$count_file"
+    (( supervisor_ssh == 1 )) || die \
+"scenario11: supervisor spawned ssh $supervisor_ssh times (want exactly 1)"
+    (( total_ssh == 3 )) || die \
+"scenario11: unexpected ssh invocations: $total_ssh (want outer + query + bootstrap = 3)"
+    "$GREP_TOOL" -q -F -- 'probing' "$log" \
+        && die "scenario11: forwarding unexpectedly probed"
+    "$GREP_TOOL" -q -F -- 'reattaching' "$log" \
+        && die "scenario11: forwarding unexpectedly reattached"
+    return 0
+}
+
+# ---------------------------------------------------------------------------
 # Scenario 6: cleanup + health
 # ---------------------------------------------------------------------------
 
@@ -1552,6 +1654,7 @@ scenario_auth_failure
 scenario_concurrent_connect
 scenario_explicit_takeover
 scenario_raw_ssh_never_replaced
+scenario_forward_never_replaced
 scenario_cleanup_health
 
 exit 0
