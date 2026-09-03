@@ -502,6 +502,54 @@ run_loss() {
     echo "everssh $mode sustained association hold: PASS"
 }
 
+run_terminal_expiry() {
+    local mode=$1 label=$2 port=$3
+    local stem="expire-$mode" frames="$TMP/expire-$mode.frames" status="$TMP/expire-$mode.status"
+    setup_topology 4 "$label"
+    "$PY" "$TMP/frames.py" "$frames" 32 177
+    start_target 4 "$port" "$stem" -
+    start_proxy 4 "$port" "$stem" "$status"
+    write_frames "$frames" 0 8
+    wait_bytes "$PROXY_OUTPUT" $((8 * 1024)) 8
+
+    if [[ $mode = same-route ]]; then
+        "$IP" netns exec "$CURRENT_C" "$TC" qdisc replace dev c0 root netem loss 100%
+        "$IP" -n "$CURRENT_C" route get 10.241.0.1 | grep -q 'dev c0 .*src 10.241.0.2'
+    else
+        "$IP" -n "$CURRENT_C" link del c0
+        "$IP" -n "$CURRENT_C" link del c1
+    fi
+    write_frames "$frames" 8 24 || true
+
+    # Default-bound expiry: 20s remote stall + 350s reconnect budget, plus
+    # close/finalize and observer slack. The proxy must terminate itself.
+    wait_process "$PROXY_PID" 400
+    exec 9>&-
+    # The released server independently waits out its 360s renewed lease from
+    # the start of resume acceptance; cover that whole bounded window.
+    wait_process "$TARGET_PID" 45
+    set +e
+    wait "$PROXY_PID"
+    local proxy_status=$?
+    wait "$TARGET_PID"
+    local target_status=$?
+    set -e
+    [[ $proxy_status -ne 0 ]] || { echo "$mode unexpectedly exited successfully" >&2; return 1; }
+    [[ $target_status -eq 0 ]] || { echo "$mode target failed: $target_status" >&2; return 1; }
+    grep -q '^everssh-status-v1 reconnecting$' "$status" || {
+        echo "$mode did not publish reconnecting before expiry" >&2
+        return 1
+    }
+    grep -q '^everssh-status-v1 cause transport-failure carried=1$' "$status" || {
+        echo "$mode did not publish its terminal association failure" >&2
+        cat "$status" >&2
+        return 1
+    }
+    grep -q '^accepts=1 ' "$TARGET_REPORT"
+    teardown_topology
+    echo "everssh $mode default-bound terminal expiry: PASS"
+}
+
 run_total_loss_resume() {
     local family=$1 label=$2 port=$3 outage_seconds=${4:-22}
     local stem="resume$family" frames="$TMP/resume$family.frames" status="$TMP/resume$family.status"
@@ -578,6 +626,8 @@ run_migration 4 a 22990
 run_migration 6 b 22991
 run_loss same-route c 22992
 run_loss total-loss d 22993
+run_terminal_expiry same-route g 22997
+run_terminal_expiry total-loss h 22998
 run_total_loss_resume 4 e 22995 302
 run_total_loss_resume 6 f 22996
 run_fresh_no_replay
