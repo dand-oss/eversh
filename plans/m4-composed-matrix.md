@@ -20,7 +20,7 @@ them.
 | 5 | Clean child exit returns real status | Fake | `child_exit_returns_status_without_any_retry` | exact status, no probe | PASS at `b6d2d3e` |
 | 5a | Clean child exit through real composition | Real | `test-eversh-openssh.sh` scenario 1 | wrapped exit 43 and marker round-trip | PASS at `b6d2d3e` |
 | 6 | Raw SSH: exactly one outer OpenSSH, never restarted | Fake | `raw_ssh_passes_through_and_never_retries`, `raw_ssh_forwards_a_remote_command_after_inner_separator` | one spawn; exact passthrough | PASS at `b6d2d3e` |
-| 6a | Raw SSH real process count | Real | TO ADD | one `ssh` process per raw invocation after transport failure; no second spawn | EMPTY |
+| 6a | Raw SSH real process count | Real | `test-eversh-openssh.sh` scenario 10 `scenario_raw_ssh_never_replaced` | after proxy SIGKILL: nonzero exit, exactly one supervisor-spawned outer ssh, exactly three total invocations (outer + proxy `ssh -G` + bootstrap), no probe/reattach text, zero post-kill ticks | PASS (see receipt below) |
 | 7 | Forwarding/SFTP/SCP never receive a replacement OpenSSH operation | Real | TO ADD | terminal transport failure exits once; no second ssh process; no duplicated application work | EMPTY |
 | 8 | Kitty launcher contract | Fake | `argv.rs` Kitty argv test; `list_filters_by_origin_and_resume_all_reports_partial_failure` | exact argv, one reconnect per matching window, failed window preserved, partial results reported | PASS at `b6d2d3e` |
 | 8a | Real Kitty smoke | Optional diagnostic | WHEN REAL SOCKET EXISTS | not release-blocking; recorded separately if run | N/A |

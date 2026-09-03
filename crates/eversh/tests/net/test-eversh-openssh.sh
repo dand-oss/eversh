@@ -1324,6 +1324,92 @@ scenario_explicit_takeover() {
 }
 
 # ---------------------------------------------------------------------------
+# Scenario 10: raw ssh transport kill — one outer OpenSSH, never replaced
+# ---------------------------------------------------------------------------
+
+scenario_raw_ssh_never_replaced() {
+    local s10_bin="$TMP_ROOT/s10.bin"
+    local s10_ssh="$s10_bin/ssh"
+    local count_file="$TMP_ROOT/s10.ssh-count"
+    local pid_file="$TMP_ROOT/s10.eversh-pid"
+    local wrapper="$TMP_ROOT/s10.wrap.sh" log="$TMP_ROOT/s10.log"
+    local status proxy_pid proxy_start proxy_exe proxy_pgrp max_pre
+
+    "$MKDIR_TOOL" -m 700 -- "$s10_bin" || die "scenario10: shim dir creation failed"
+    {
+        printf '#!/usr/bin/bash\n'
+        printf 'echo "$PPID" >> %q\n' "$count_file"
+        printf 'exec %q "$@"\n' "$SSH_TOOL"
+    } > "$s10_ssh"
+    "$CHMOD_TOOL" 700 -- "$s10_ssh" || die "scenario10: ssh shim creation failed"
+    : > "$count_file"
+    "$CHMOD_TOOL" 600 -- "$count_file"
+
+    {
+        printf '#!/usr/bin/bash\nset -Eeuo pipefail\n'
+        printf 'export PATH=%q:"$PATH"\n' "$s10_bin"
+        printf 'echo "$$" > %q\n' "$pid_file"
+        printf '%q rows 24 cols 80 -echo -echoctl 2>/dev/null || :\n' "$STTY_TOOL"
+        printf 'exec'
+        local a
+        for a in "$EVERSH_BIN" ssh "$ALIAS" \
+            --remote-eversh "$EVERSH_BIN" \
+            -- "-F$CLIENT_CONFIG" -- /bin/sh -c "$TICK_SCRIPT"; do
+            printf ' %q' "$a"
+        done
+        printf '\n'
+    } > "$wrapper"
+    "$CHMOD_TOOL" 700 -- "$wrapper" || die "scenario10: wrapper creation failed"
+
+    launch_interactive "$wrapper" "$log" \
+        || die "scenario10: failed to launch raw ssh wrapper"
+    local raw_pid=$BG_PID
+    wait_for_tick_count "$log" 4 "$TICK_WAIT_SECONDS" \
+        || die "scenario10: raw ssh never carried ticks"
+    local eversh_pid
+    eversh_pid=$("$CAT_TOOL" "$pid_file")
+    [[ $eversh_pid =~ ^[0-9]+$ ]] || die "scenario10: bad eversh pid '$eversh_pid'"
+
+    proxy_pid=$(find_ssh_proxy_pid "$raw_pid" 10) \
+        || die "scenario10: could not locate raw ssh-proxy"
+    capture_identity "$proxy_pid" || die "scenario10: proxy identity vanished"
+    proxy_start=$CAP_START proxy_exe=$CAP_EXE proxy_pgrp=$CAP_PGRP
+    builtin kill -KILL "$proxy_pid" 2>/dev/null || die "scenario10: proxy kill failed"
+    poll_owned_gone "$proxy_pid" "$proxy_start" "$proxy_exe" "$proxy_pgrp" "$KILL_POLL_SECONDS" \
+        || die "scenario10: proxy did not disappear"
+    max_pre=$(last_tick "$log")
+    [[ $max_pre =~ ^[0-9]+$ ]] || die "scenario10: no pre-kill tick"
+
+    status=0
+    builtin wait "$raw_pid" 2>/dev/null || status=$?
+    (( status != 0 )) || die "scenario10: raw ssh unexpectedly succeeded after transport kill"
+
+    local supervisor_ssh=0 total_ssh=0 line
+    while IFS= read -r line; do
+        [[ -n $line ]] || continue
+        total_ssh=$((total_ssh + 1))
+        [[ $line == "$eversh_pid" ]] && supervisor_ssh=$((supervisor_ssh + 1))
+    done < "$count_file"
+    (( supervisor_ssh == 1 )) || die \
+"scenario10: supervisor spawned ssh $supervisor_ssh times (want exactly 1)"
+    # Exactly three invocations are the correct raw-mode process shape: the
+    # supervisor's one outer ssh, plus the proxy's effective-config `ssh -G`
+    # query and one bootstrap ssh. Any fourth spawn would be a replacement
+    # operation after the terminal transport kill.
+    (( total_ssh == 3 )) || die \
+"scenario10: unexpected ssh invocations: $total_ssh (want outer + query + bootstrap = 3)"
+    "$GREP_TOOL" -q -F -- 'probing' "$log" \
+        && die "scenario10: raw ssh unexpectedly probed"
+    "$GREP_TOOL" -q -F -- 'reattaching' "$log" \
+        && die "scenario10: raw ssh unexpectedly reattached"
+    local after_ticks
+    after_ticks=$(extract_ticks "$log" | "$AWK_TOOL" -v max="$max_pre" \
+        '$1 + 0 > max { n++ } END { print n + 0 }')
+    [[ $after_ticks -eq 0 ]] \
+        || die "scenario10: output arrived after terminal transport kill ($after_ticks)"
+}
+
+# ---------------------------------------------------------------------------
 # Scenario 6: cleanup + health
 # ---------------------------------------------------------------------------
 
@@ -1465,6 +1551,7 @@ scenario_list_detach
 scenario_auth_failure
 scenario_concurrent_connect
 scenario_explicit_takeover
+scenario_raw_ssh_never_replaced
 scenario_cleanup_health
 
 exit 0
