@@ -103,8 +103,14 @@ is decided by wire protocol versions, not file names (design section 8):
 - A running everpty broker survives an on-disk binary replacement; later
   clients must speak the broker's live protocol version and fail closed with
   a clear diagnostic otherwise, without disturbing the broker.
-- everssh's bootstrap record and QUIC application protocol
-  (`eversh-link/1`) are versioned; mismatches fail closed on stderr.
+- everssh's bootstrap record (`everssh v2`) and QUIC application protocol
+  (`everssh-link/2`) are versioned; mismatches fail closed on stderr and
+  require coordinated endpoint upgrade — there is no automatic old-protocol
+  fallback. A compatible association survives connection loss for its
+  configured 360-second lease, retransmitting only bounded opaque frames
+  retained until cumulatively acknowledged; after terminal association
+  failure, the interactive eversh supervisor uses its bounded fresh-SSH
+  reattach path.
 - The private eversh remote-role grammar is versioned (`v1`); a version
   mismatch names the component and version and exits without side effects.
 

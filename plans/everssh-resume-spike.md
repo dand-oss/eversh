@@ -1,6 +1,30 @@
 # everssh StableSSH-style resume spike
 
-Status: architecture spike and bounded state prototype | Date: 2026-09-02
+Status: implemented-result record (revision 2026-09-03) | Original spike:
+2026-09-02
+
+This document began as the proposal for the v2 association revision. Its
+original 24-hour lease, older-remote fallback, and raw-operation opt-out ideas
+were superseded by implementation evidence. The implemented and qualified
+contract is:
+
+- protocol: bootstrap `everssh v2`, ALPN `everssh-link/2`;
+- association lease: configured 360 s on the server clock from entry into
+  resume acceptance (observed production recovery: 302 s IPv4, 22 s IPv6;
+  production-scale terminal expiry proven in the netns gate);
+- client budget: one per-outage epoch of lease minus one handshake timeout,
+  created before its first route/bind attempt and cleared after successful
+  resume;
+- replay: per-direction 4 MiB / 1,024 frame bounds; frames retained until
+  cumulatively acknowledged and retransmitted on resume; delivered duplicates
+  suppressed;
+- compatibility: mismatched protocol versions fail closed with a coordinated
+  upgrade diagnostic — no automatic old-protocol fallback;
+- supervisor: `reconnecting` defers probes; only terminal association failure
+  enters the existing bounded fresh-SSH path.
+
+Normative details now live in `plans/design.md` revision 2. The sections below
+are retained as the spike's reasoning record, not as release promises.
 
 ## Decision
 
@@ -13,9 +37,9 @@ OpenSSH byte stream across fresh QUIC connections using bounded per-direction
 replay queues. It does not parse terminal output, predict input, reconstruct a
 screen, or make an expired QUIC connection itself continue.
 
-This document proposes a design revision to v1's one-shot/no-replay contract.
-It does not by itself change the qualified v1 release or claim production
-resume behavior.
+That design revision was adopted, implemented, and qualified; production
+resume behavior is now claimed only through the gates named in the result
+record above.
 
 ## Current v1 boundary
 
@@ -154,8 +178,9 @@ queue stops reads from its local source. It never silently drops SSH bytes.
 
 If the queue remains full beyond the association lease or an explicit
 configuration deadline, the association fails terminally and reports queue
-exhaustion. The proposed default association lease is 24 hours, not one week.
-Both values must be selected from measured idle/resource gates before release.
+exhaustion. The original 24-hour lease proposal was rejected by the measured
+bounds described in the result record; 360 seconds is the configured value
+pending the M5 idle/resource soak.
 
 ### FIN and terminal completion
 
@@ -174,12 +199,11 @@ and child. Association ownership does not permit detached tasks.
 
 With association resume, a temporary QUIC loss does not close the ProxyCommand
 stdio and therefore does not end the outer SSH process. Eversh's current probe
-and fresh-SSH reconnect path remains as a fallback for:
-
-- an older remote everssh;
-- terminal association failure;
-- queue exhaustion;
-- non-interactive/raw operations that intentionally opt out of resume.
+and fresh-SSH reconnect path runs only after terminal association failure or
+queue exhaustion. An older remote fails closed at its protocol boundary and
+requires coordinated upgrade; raw operations never receive a second OpenSSH
+operation, although their live association retains the same bounded
+retransmission behavior.
 
 The link-status file must distinguish:
 

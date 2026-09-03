@@ -80,11 +80,12 @@
 //!
 //! A reattach reporting Busy (a writer is already attached) is retried
 //! against the episode's OWN deadline, never the attempt budget and never
-//! `--take-over`: after a path death the remote writer slot can stay
-//! legitimately held for up to everssh's idle timeout (~30s), because the
-//! remote bridge only learns of the loss when its QUIC endpoint expires —
-//! a small attempt count would give up long before the broker could
-//! possibly revoke the slot. Other in-episode failures (an unreachable
+//! `--take-over`: after a terminal path death the remote writer slot can
+//! stay legitimately held through everssh's renewed association lease
+//! (configured 360s from resume acceptance), so a small attempt count
+//! would give up long before the broker could possibly revoke the slot.
+//! A published `reconnecting` record defers this episode entirely while
+//! the association retries on its own. Other in-episode failures (an unreachable
 //! host, a reattach that dies again without carrying) keep the finite
 //! attempt budget: they give up fast by design rather than hammering a
 //! down host.
@@ -103,8 +104,8 @@
 //! `ssh-proxy` ProxyCommand child, if it is mid-handshake): eversh never
 //! waits on it. Residual documented limitation: once a reattach is
 //! carrying, a wedge on that now-live transport is bounded by everssh's
-//! own contractual timeouts (idle/stall/handshake/lease deadlines are all
-//! finite and measured in single-digit to low tens of seconds — design 4,
+//! own contractual timeouts (idle/stall/handshake deadlines in single- to
+//! low-tens of seconds; association lease configured at 360s — design 4,
 //! 6.3), not by `retry_deadline_ms`. A user who needs a tighter bound on
 //! THAT window can layer
 //! `ServerAliveCountMax`/`ServerAliveInterval`/`ConnectTimeout` via

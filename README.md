@@ -27,9 +27,9 @@ eversh does not provide terminal prediction or local echo. QUIC is a reliable or
 
 `everssh` is a reusable Rust QUIC byte-link library and standalone executable. In its primary mode it is an OpenSSH `ProxyCommand`: the client side reads and writes standard I/O, the server side connects to the authorized loopback `sshd`, and one ordered QUIC stream carries the opaque OpenSSH byte stream in both directions.
 
-V1 uses exactly one Tokio runtime for `everssh`, `noq` with its reviewed rustls path, TLS 1.3, one authenticated reliable bidirectional stream, standard QUIC migration, and bounded flow control. `everssh` does not parse SSH or terminal data, implement SSH authentication, own PTYs, predict input, or replay bytes across a hard reconnect.
+V1 uses exactly one Tokio runtime for `everssh`, `noq` with its reviewed rustls path, TLS 1.3, one authenticated reliable bidirectional stream, standard QUIC migration, and bounded flow control. `everssh` does not parse SSH or terminal data, implement SSH authentication, own PTYs, or predict input. If a QUIC connection dies, its v2 association opens one bounded reconnect epoch and retransmits opaque frames retained until cumulatively acknowledged; already-delivered duplicates are suppressed. The configured association lease is 360 seconds, the client reconnect budget is one per-outage epoch of lease minus one handshake timeout, and each direction retains at most 4 MiB / 1,024 frames. Observed production recovery is 302 seconds on IPv4 and 22 seconds on IPv6; production-scale terminal expiry is proven in the root netns gate.
 
-The QUIC server is launched through an already authenticated OpenSSH bootstrap. The bootstrap delivers an ephemeral certificate pin and one-use token. A failed QUIC connection causes the inner SSH connection to end; a fresh SSH connection is required. Quinn is retained only as a documented Rust fallback if the bounded noq feasibility gate cannot pass the required standard migration tests.
+The QUIC server is launched through an already authenticated OpenSSH bootstrap. The bootstrap delivers an ephemeral certificate pin, one-use token, and association identity. A failed QUIC connection enters the bounded association epoch above; terminal association failure, lease/budget expiry, or queue exhaustion ends the inner SSH connection and requires a fresh SSH connection. Protocol-version mismatches fail closed with a coordinated-upgrade diagnostic. Quinn is retained only as a documented Rust fallback if the bounded noq feasibility gate cannot pass the required standard migration tests.
 
 ### `eversh`
 
@@ -105,7 +105,7 @@ Closing a connection detaches it; the child continues running. There is no speci
 
 ## V1 scope
 
-V1 targets Linux and directly reachable UDP, including ZeroTier or Tailscale overlay addresses. It supports standard QUIC migration, real OpenSSH compatibility, exactly three physical executables, named PTY sessions, hard reconnect into the same session, and no retained or replay output history.
+V1 targets Linux and directly reachable UDP, including ZeroTier or Tailscale overlay addresses. It supports standard QUIC migration, bounded association resume, real OpenSSH compatibility, exactly three physical executables, named PTY sessions, terminal-failure reconnect into the same session, and no retained or replay output history.
 
 V1 does not include public relays, rendezvous services, accounts, custom NAT traversal, QAD, negotiated multipath, QNT, 0-RTT, Windows support, browser clients, or arbitrary public proxy targets. The bounded candidates and permanent non-goals for later work are in [plans/v2.md](plans/v2.md).
 

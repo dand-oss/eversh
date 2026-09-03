@@ -2,6 +2,10 @@
 
 Status: evidence inventory supporting the locked Rust design | Last updated: 2026-08-30
 
+Historical record: statements about the former `everlink` name or the
+superseded one-shot/no-replay transport describe their era. The current
+contract is `plans/design.md` revision 2 with bounded association resume.
+
 This document records reviewed projects, source snapshots, protocol evidence, and licence decisions for `everpty`, `everlink`, and `eversh`. A reference is not automatically a dependency or source of code. The normative contract is [design.md](design.md); this file records why its boundaries were selected.
 
 ## Governing contract

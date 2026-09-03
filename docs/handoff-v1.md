@@ -2,7 +2,9 @@
 
 Accepted release head: `43e80ccbf8db031ead34e702028f8f6559232c91` (tree
 `7df2ca620fbecfc9948e03c0c3264721f3d5f375`). This document is
-post-acceptance operational material only: it records where the release's
+historical and post-acceptance operational material for the former
+one-shot release: it does not describe the qualified v2 association resume
+contract in `plans/design.md` revision 2. It records where the release's
 evidence lives and how to re-verify or change it, and it does not alter the
 qualified release. Everything under `target/qualification/` is gitignored
 retained evidence on the qualification host, not part of the git tree.
