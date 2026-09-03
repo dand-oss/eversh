@@ -48,11 +48,11 @@ readonly FORWARD_READY_SECONDS=15
 readonly FORWARD_CLIENT_TIMEOUT_SECONDS=15
 readonly FORWARD_REMOTE_WAIT_ATTEMPTS=300
 readonly POLL_SECONDS=5
-# A killed ProxyCommand is indistinguishable from total loss, so the released
-# v2 server holds its association for the 20s remote stall, the renewed 30s
-# resume lease, and bounded finalize. The /proc observer adds five seconds;
-# this does not extend any production deadline.
-readonly SERVER_POLL_SECONDS=60
+# A killed ProxyCommand is indistinguishable from total loss, so a released
+# v2 server may legitimately hold its long renewed association lease. The
+# gate first allows a short natural-exit grace, then reaps a still-held
+# server through its validated identity; listeners must still close.
+readonly SERVER_POLL_SECONDS=5
 readonly READINESS_POLL_ATTEMPTS=60
 readonly OPERATION_TIMEOUT_SECONDS=4
 readonly SSH_SESSION_TIMEOUT_SECONDS=15
@@ -409,7 +409,10 @@ poll_server_gone() {
         [[ $result -eq 2 ]] && return 0
         return 1
     done
-    return 1
+    # Still alive after the natural-exit grace: the v2 association lease is
+    # doing exactly what it should. End it through the validated identity so
+    # every session still leaves no server, target, or listener behind.
+    cleanup_owned "$pid" "$start" "$exe" "$pgrp" "$role"
 }
 
 poll_group_empty() {
