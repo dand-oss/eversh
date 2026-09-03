@@ -567,7 +567,7 @@ run_qualification() {
         composed_tail=$(/usr/bin/tail -n 1 "$composed_log")
         case $composed_mode in
             b1) [[ $composed_tail == 'eversh composed B1 outage continuity: PASS' ]] ;;
-            b2) [[ $composed_tail == 'eversh composed B2 terminal fallback: PASS' ]] ;;
+            b2) [[ $composed_tail == 'everssh composed B2 terminal fallback: PASS'* ]] ;;
         esac \
             || fail "everssh-composed-netns-$composed_mode-receipt" 1 "$composed_log"
     done

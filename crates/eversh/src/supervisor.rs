@@ -390,6 +390,14 @@ fn restore_termios(termios: &everpty::sys::TerminalAttributes) {
 /// never risks a hang; it only reduces spurious "unparseable" fallbacks
 /// from a legitimate race between the two processes' exits.
 const LINK_STATUS_GRACE: Duration = Duration::from_millis(300);
+// A file that already published `reconnecting` belongs to an association
+// inside everssh's bounded transport budget: the outer ssh can observe
+// remote close and exit before the proxy finishes Request->Drain->Finalize
+// and appends `cause ... carried=...`. everssh's finalize deadline is five
+// seconds, so only those files get the longer grace. Files with no
+// reconnecting record keep the prompt 300 ms bound so reconnect deadlines
+// remain tightly enforced.
+const CARRYING_STATUS_GRACE: Duration = Duration::from_millis(5_000);
 
 /// The classified outcome of reading the link-status file after a spawn
 /// exits, or its absence (design 3, 7).
@@ -426,7 +434,8 @@ fn parse_link_status(content: &str) -> Option<LinkOutcome> {
 /// unreadable file, or an unparseable one, resolves to the safe default —
 /// the same defense in depth that covers a record lost after the spawn.
 fn link_status_final(path: &Path) -> LinkOutcome {
-    let deadline = Instant::now() + LINK_STATUS_GRACE;
+    let prompt_deadline = Instant::now() + LINK_STATUS_GRACE;
+    let mut carrying_deadline: Option<Instant> = None;
     loop {
         let Ok(content) = std::fs::read_to_string(path) else {
             return LinkOutcome::TransportFailure { carried: false };
@@ -434,6 +443,16 @@ fn link_status_final(path: &Path) -> LinkOutcome {
         if let Some(outcome) = parse_link_status(&content) {
             return outcome;
         }
+        let deadline = if content.lines().any(|line| {
+            matches!(
+                link_status::parse_line(line),
+                Some(link_status::StatusRecord::Reconnecting)
+            )
+        }) {
+            *carrying_deadline.get_or_insert_with(|| Instant::now() + CARRYING_STATUS_GRACE)
+        } else {
+            prompt_deadline
+        };
         if Instant::now() >= deadline {
             return LinkOutcome::TransportFailure { carried: false };
         }

@@ -1,6 +1,7 @@
 # v1 finish and everudp roadmap plan
 
-Status: Revision 6 — Sol max review PASS | Owners: `eversh-chl`,
+Status: Revision 7 — B2 observed-timeline and SFTP/SCP split-contract
+repairs | Owners: `eversh-chl`,
 `eversh-chl.4`, `eversh-chl.5`, `eversh-chl.6`, new everudp spike bead |
 Updated: 2026-09-03
 
@@ -154,8 +155,13 @@ receipt location. Required real-composition rows include:
 - Missing/exited/hard-failed broker: probe distinguishes each; a gone broker
   is never restarted; clean child exit returns the real status.
 - Raw SSH failure: exactly one outer OpenSSH process; no supervisor restart.
-- Forwarding/SFTP/SCP: no replacement operation across terminal transport
-  failure; each reports its own ordinary failure.
+- Forwarding/SFTP/SCP: forwarding through the composed raw surface never
+  receives a replacement OpenSSH operation after terminal transport failure.
+  SFTP and SCP are OpenSSH subsystem clients of the everssh ProxyCommand
+  transport (not distinct `eversh` verbs): their real compatibility and
+  ordinary terminal-failure behavior are qualified by the standalone
+  everssh Slice 5A gate, while the single composed raw-ssh surface proves
+  the supervisor never replaces them.
 - Kitty: `KITTY_LISTEN_ON` honored, one reconnect per matching window, failed
   windows preserved, cleanly ended tabs closed, partial results aggregated.
   The fake-launcher row is the required release contract; a real-Kitty smoke
@@ -405,6 +411,31 @@ structure. Three editorial minors (C1's physical placement, two stale
 introductory labels, and overstated bead-preservation wording) were repaired
 in revision 6; the reviewed revision-5 SHA-256 was
 `48e52a5fae8cb5c55769ba4347502b102f7a990c0a640aa363731f544952fa11`.
+
+Revision 7 (2026-09-03) repairs the two implementation-review findings that
+remained after the M3/M4 evidence work: (1) the composed B2 gate now records
+observed client-budget exhaustion and server-association release instead of
+a fixed 405 s constant, restores at least ten seconds after observed release,
+asserts zero ssh attempts during the configured 30 s drain, requires the
+first fresh attempt after that drain, and permits only one first-attempt
+probe/reattach pair; (2) the Forwarding/SFTP/SCP row now states the actual
+architecture honestly — forwarding is proven through the composed raw
+surface, while SFTP/SCP are OpenSSH subsystem clients of the everssh
+ProxyCommand transport and are qualified by the real Slice 5A gate plus the
+single raw-mode no-replacement policy. This revision requires fresh Sol
+verification before M4/M5 closure.
+
+Revision 7 execution receipts: all 29 supervisor_linux tests pass; the
+observed-timeline B2 gate PASS records client budget, server release,
+post-drain backoff (+30.0 s), first fresh attempt (+30.3 s), exactly one
+first-attempt probe/reattach pair, and nine bounded ssh invocations
+(`docs/release-evidence/20260903-m4/composed-b2-final.log`); the reworked
+timestamped B1 gate PASS is retained beside it. The repair also found and
+fixed a real supervisor race: a status file that already published
+`reconnecting` now receives a five-second (everssh finalize-bound)
+classification grace so a long association's terminal `carried=1` cause is
+not deleted before it is read; files without a reconnecting record keep the
+prompt 300 ms deadline so bounded episodes remain tight.
 
 ## 9. Explicitly out of scope
 

@@ -42,9 +42,10 @@ SLEEP=/usr/bin/sleep
 STAT=/usr/bin/stat
 STTY=/usr/bin/stty
 AWK=/usr/bin/awk
+TAIL=/usr/bin/tail
 for tool in "$IP" "$TC" "$SSH" "$SSHD" "$SSHKEYGEN" "$SSHKEYSCAN" \
     "$SCRIPT" "$TIMEOUT" "$BASH" "$CAT" "$CHMOD" "$GREP" "$MKDIR" \
-    "$MKTEMP" "$PRINTF" "$SLEEP" "$STAT" "$STTY" "$AWK"; do
+    "$MKTEMP" "$PRINTF" "$SLEEP" "$STAT" "$STTY" "$AWK" "$TAIL"; do
     [[ -x $tool ]] || { printf 'missing tool: %s\n' "$tool" >&2; exit 1; }
 done
 [[ -x $EVERSH_BIN ]] || { printf 'missing eversh binary\n' >&2; exit 1; }
@@ -197,7 +198,7 @@ done
 SSH_SHIM="$TMP/bin/ssh"
 {
     printf '#!/usr/bin/bash\n'
-    printf 'printf %%s\\\\n "$PPID" >> %q\n' "$COUNT"
+    printf 'printf "%%s %%s %%s\\\\n" "$EPOCHREALTIME" "$PPID" "$$" >> %q\n' "$COUNT"
     printf 'exec %q "$@"\n' "$SSH"
 } >"$SSH_SHIM"
 "$CHMOD" 700 "$SSH_SHIM"
@@ -219,6 +220,15 @@ exec 9<>"$FIFO"
 FD9=1
 : >"$LOG"
 "$CHMOD" 600 "$LOG"
+LOG_TS="$TMP/session.log.ts"
+: >"$LOG_TS"
+(
+    "$TAIL" -n +1 -f "$LOG" | while IFS= read -r line; do
+        "$PRINTF" '%s %s\n' "${EPOCHREALTIME}" "$line"
+    done >"$LOG_TS"
+) &
+LOG_TS_PID=$!
+PID_ALL+=("$LOG_TS_PID")
 
 "$IP" netns exec "$CLIENT_NS" "$SCRIPT" -qefc "$WRAPPER" /dev/null <"$FIFO" >"$LOG" 2>&1 &
 SESSION_PID=$!
@@ -240,6 +250,55 @@ wait_log() {
 }
 
 count_lines() { "$CAT" "$COUNT" | "$AWK" 'END { print NR + 0 }'; }
+ms_from_epoch() {
+    local value=$1 seconds fraction
+    seconds=${value%%.*}
+    fraction=${value#*.}
+    fraction=${fraction:0:3}
+    while ((${#fraction} < 3)); do
+        fraction="${fraction}0"
+    done
+    "$PRINTF" '%s%s\n' "$seconds" "$fraction"
+}
+now_ms() {
+    ms_from_epoch "${EPOCHREALTIME}"
+}
+first_ssh_after_ms() {
+    local threshold=$1 line timestamp_ms min=0
+    while read -r timestamp_ms _; do
+        [[ $timestamp_ms =~ ^[0-9]+\.?[0-9]*$ ]] || continue
+        timestamp_ms=$(ms_from_epoch "$timestamp_ms")
+        if ((timestamp_ms >= threshold && (min == 0 || timestamp_ms < min))); then
+            min=$timestamp_ms
+        fi
+    done <"$COUNT"
+    "$PRINTF" '%d\n' "$min"
+}
+ssh_count_between_ms() {
+    local start=$1 end=$2 line timestamp_ms count=0
+    while read -r timestamp_ms _; do
+        [[ $timestamp_ms =~ ^[0-9]+\.?[0-9]*$ ]] || continue
+        timestamp_ms=$(ms_from_epoch "$timestamp_ms")
+        ((timestamp_ms >= start && timestamp_ms < end)) && count=$((count + 1))
+    done <"$COUNT"
+    "$PRINTF" '%d\n' "$count"
+}
+composed_server_alive() {
+    local pid
+    for pid in $("$IP" netns pids "$SERVER_NS" 2>/dev/null); do
+        if "$GREP" -aq -- '__server-v1' "/proc/$pid/cmdline" 2>/dev/null; then
+            return 0
+        fi
+    done
+    return 1
+}
+timestamped_line_ms() {
+    local needle=$1
+    local line
+    line=$("$GREP" -F -m1 -- "$needle" "$LOG_TS" 2>/dev/null || true)
+    [[ -n $line ]] || return 0
+    ms_from_epoch "${line%% *}"
+}
 broker_pid() {
     local output
     output=$("$IP" netns exec "$CLIENT_NS" "$SSH" -F "$CLIENT_CONFIG" -- \
@@ -260,14 +319,29 @@ broker_pid >"$TMP/broker-before.json.raw" || :
 BROKER_BEFORE=$("$CAT" "$TMP/broker-before.json.raw")
 [[ $BROKER_BEFORE =~ ^[0-9]+$ ]] || die 'could not read pre-outage broker pid'
 
+# Snapshot link-status files every second: the supervisor legitimately
+# deletes each per-spawn file after classification, so snapshots preserve
+# the terminal record for gate diagnostics.
+SNAP_DIR="$TMP/status-snapshots"
+"$MKDIR" -m 700 -- "$SNAP_DIR"
+(
+    while :; do
+        for status_file in "$STATUS_ROOT"/*.status; do
+            [[ -e $status_file ]] || continue
+            "$CAT" "$status_file" \
+                >"$SNAP_DIR/$(basename "$status_file").snap" 2>/dev/null || :
+        done
+        "$SLEEP" 1
+    done
+) &
+SNAP_PID=$!
+PID_ALL+=("$SNAP_PID")
+
 "$IP" netns exec "$CLIENT_NS" "$TC" qdisc replace dev c0 root netem loss 100%
 "$PRINTF" '%s\n' "$([[ $MODE == b1 ]] && printf QUEUED || printf OLD)" >&9
 
-OUTAGE_SECONDS=95
-if [[ $MODE == b2 ]]; then OUTAGE_SECONDS=405; fi
-DEADLINE=$((SECONDS + OUTAGE_SECONDS))
 RECONNECTING=0
-while (( SECONDS < DEADLINE )); do
+loss_guard() {
     kill -0 "$SESSION_PID" 2>/dev/null || {
         "$CAT" "$LOG" >&2
         die "$MODE session exited during path loss"
@@ -281,8 +355,48 @@ while (( SECONDS < DEADLINE )); do
         "$CAT" "$LOG" >&2
         die "$MODE spawned ssh during association outage ($BASELINE -> $NOW_LINES)"
     }
-    "$SLEEP" 1
-done
+}
+
+T_BUDGET=0
+T_RELEASE=0
+if [[ $MODE == b1 ]]; then
+    DEADLINE=$((SECONDS + 95))
+    while (( SECONDS < DEADLINE )); do
+        loss_guard
+        "$SLEEP" 1
+    done
+else
+    composed_server_alive \
+        || die 'b2 everssh server role was not live before loss'
+    BUDGET_SEEN=0
+    RELEASE_SEEN=0
+    DEADLINE=$((SECONDS + 520))
+    while (( SECONDS < DEADLINE )); do
+        loss_guard
+        # The timestamped transcript observes the outer ssh's own terminal
+        # line (its stderr marker can be interleaved mid-word, so the ssh
+        # close line is the durable budget-exhaustion oracle).
+        if (( ! BUDGET_SEEN )) && "$GREP" -q -F -- \
+            'Connection to 10.241.0.1 closed.' "$LOG_TS" 2>/dev/null; then
+            BUDGET_SEEN=1
+            T_BUDGET=$(now_ms)
+        fi
+        if (( ! RELEASE_SEEN )) && ! composed_server_alive; then
+            RELEASE_SEEN=1
+            T_RELEASE=$(now_ms)
+        fi
+        (( BUDGET_SEEN && RELEASE_SEEN )) && break
+        "$SLEEP" 1
+    done
+    (( BUDGET_SEEN )) || die 'b2 never observed client budget exhaustion'
+    (( RELEASE_SEEN )) || die 'b2 never observed server association release'
+    # B2 restores only at least ten seconds after the OBSERVED release, not
+    # at a predicted constant.
+    RESTORE_AT=$((T_RELEASE + 10000))
+    while (( $(now_ms) < RESTORE_AT )); do
+        "$SLEEP" 1
+    done
+fi
 (( RECONNECTING == 1 )) || {
     find "$TMP/client-state" -type f -maxdepth 3 -print -exec "$CAT" {} \; >&2
     die "$MODE never published reconnecting"
@@ -317,6 +431,45 @@ if [[ $MODE == b1 ]]; then
     "$PRINTF" 'eversh composed B1 outage continuity: PASS\n'
 else
     "$GREP" -q -F -- 'R:OLD' "$LOG" && die 'b2 delivered old input before terminal transition'
+    # Observed-timeline contract: the supervisor must spend no ssh attempt
+    # during the configured 30 s association drain, and its first fresh
+    # attempt must wait that drain out. One polling-second tolerance is
+    # allowed on the observed lower bound.
+    FIRST_FRESH=0
+    deadline=$((SECONDS + 60))
+    while (( SECONDS < deadline )); do
+        FIRST_FRESH=$(first_ssh_after_ms "$T_BUDGET")
+        [[ $FIRST_FRESH =~ ^[1-9][0-9]*$ ]] && break
+        "$SLEEP" 1
+    done
+    [[ $FIRST_FRESH =~ ^[1-9][0-9]*$ ]] || {
+        "$CAT" "$COUNT" >&2
+        find "$TMP/client-state" -type f -maxdepth 3 -print -exec "$CAT" {} \; >&2
+        "$CAT" "$LOG" >&2
+        die 'b2 supervisor never spent a fresh ssh attempt'
+    }
+    # The wait above proves the full drain window has elapsed; only now is
+    # the zero-attempt observation complete.
+    DRAIN_INVOCATIONS=$(ssh_count_between_ms "$T_BUDGET" "$((T_BUDGET + 29000))")
+    (( DRAIN_INVOCATIONS == 0 )) || {
+        "$CAT" "$COUNT" >&2
+        die "b2 spent $DRAIN_INVOCATIONS ssh attempts during the association drain"
+    }
+    (( FIRST_FRESH - T_BUDGET >= 29000 )) || {
+        "$CAT" "$COUNT" >&2
+        find "$TMP/client-state" -type f -maxdepth 3 -print -exec "$CAT" {} \; >&2
+        "$CAT" "$LOG" >&2
+        die "b2 first fresh attempt preceded the drain (budget=$T_BUDGET first=$FIRST_FRESH)"
+    }
+    T_BACKOFF=$(timestamped_line_ms 'reconnect attempt 1 in')
+    [[ $T_BACKOFF =~ ^[1-9][0-9]*$ ]] || {
+        "$CAT" "$LOG_TS" >&2
+        die 'b2 supervisor never published its post-drain reconnect attempt'
+    }
+    (( T_BACKOFF - T_BUDGET >= 29000 )) || {
+        "$CAT" "$LOG_TS" >&2
+        die "b2 supervisor skipped the association drain (budget=$T_BUDGET backoff=$T_BACKOFF)"
+    }
     "$PRINTF" 'NEW1\n' >&9
     deadline=$((SECONDS + 90))
     while (( SECONDS < deadline )); do
@@ -331,14 +484,30 @@ else
     (( OLD_COUNT == 0 )) || die 'b2 delivered an old-association byte after terminal transition'
     kill -0 "$SESSION_PID" 2>/dev/null || die 'b2 local terminal process changed'
     "$GREP" -q -F -- 'R:PRE1' "$LOG" || die 'b2 local scrollback was not preserved'
+    PROBE_COUNT=$("$GREP" -c -F -- \
+        "probing session 'outage' (attempt 1)" "$LOG" || :)
+    REATTACH_COUNT=$("$GREP" -c -F -- \
+        "reattaching session 'outage' (attempt 1)" "$LOG" || :)
+    (( PROBE_COUNT == 1 )) || {
+        "$CAT" "$LOG" >&2
+        die "b2 expected exactly one first-attempt probe, observed $PROBE_COUNT"
+    }
+    (( REATTACH_COUNT == 1 )) || {
+        "$CAT" "$LOG" >&2
+        die "b2 expected exactly one first-attempt reattach, observed $REATTACH_COUNT"
+    }
     BROKER_AFTER=$(broker_pid)
     [[ $BROKER_AFTER == "$BROKER_BEFORE" ]] \
         || die "b2 broker changed ($BROKER_BEFORE -> $BROKER_AFTER)"
     FINAL_LINES=$(count_lines)
+    # The bounded fresh path is one probe plus one reattach; each structured
+    # spawn contributes its outer ssh, effective-config query, and bootstrap
+    # ssh, so at most six entries may follow the baseline.
     (( FINAL_LINES > BASELINE && FINAL_LINES <= BASELINE + 6 )) || {
         die "b2 unexpected ssh invocation count ($BASELINE -> $FINAL_LINES)"
     }
     kill -TERM "$SESSION_PID" 2>/dev/null || :
     "$TIMEOUT" 15s "$BASH" -c 'while kill -0 "$1" 2>/dev/null; do sleep 0.1; done' _ "$SESSION_PID"
-    "$PRINTF" 'everssh composed B2 terminal fallback: PASS\n'
+    "$PRINTF" 'everssh composed B2 terminal fallback: PASS (budget=%dms release=%dms backoff=%dms first-fresh=%dms attempts=1/1 invocations=%d/%d)\n' \
+        "$T_BUDGET" "$T_RELEASE" "$T_BACKOFF" "$FIRST_FRESH" "$FINAL_LINES" "$((BASELINE + 6))"
 fi
