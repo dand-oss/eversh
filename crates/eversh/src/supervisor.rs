@@ -393,11 +393,13 @@ const LINK_STATUS_GRACE: Duration = Duration::from_millis(300);
 // A file that already published `reconnecting` belongs to an association
 // inside everssh's bounded transport budget: the outer ssh can observe
 // remote close and exit before the proxy finishes Request->Drain->Finalize
-// and appends `cause ... carried=...`. everssh's finalize deadline is five
-// seconds, so only those files get the longer grace. Files with no
-// reconnecting record keep the prompt 300 ms bound so reconnect deadlines
-// remain tightly enforced.
-const CARRYING_STATUS_GRACE: Duration = Duration::from_millis(5_000);
+// and appends `cause ... carried=...`. The grace is derived from the same
+// everssh finalize limit rather than duplicated so the two bounds cannot
+// drift. Files with no reconnecting record keep the prompt 300 ms bound so
+// reconnect deadlines remain tightly enforced.
+fn carrying_status_grace() -> Duration {
+    Duration::from_millis(everssh::Limits::default().finalize_timeout_ms)
+}
 
 /// The classified outcome of reading the link-status file after a spawn
 /// exits, or its absence (design 3, 7).
@@ -449,7 +451,7 @@ fn link_status_final(path: &Path) -> LinkOutcome {
                 Some(link_status::StatusRecord::Reconnecting)
             )
         }) {
-            *carrying_deadline.get_or_insert_with(|| Instant::now() + CARRYING_STATUS_GRACE)
+            *carrying_deadline.get_or_insert_with(|| Instant::now() + carrying_status_grace())
         } else {
             prompt_deadline
         };
@@ -1362,6 +1364,7 @@ pub fn resume_all(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     #[test]
     fn link_status_classification_ignores_transient_records() {
@@ -1383,6 +1386,69 @@ mod tests {
                  everssh-status-v1 cause transport-failure carried=1\n"
             ),
             Some(LinkOutcome::TransportFailure { carried: true })
+        );
+    }
+
+    #[test]
+    fn reconnecting_status_waits_for_delayed_terminal_cause() {
+        let path = std::env::temp_dir().join(format!(
+            "eversh-status-grace-{}-{}.test",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&path, "everssh-status-v1 reconnecting\n").unwrap();
+        let writer_path = path.clone();
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(600));
+            let mut file = std::fs::OpenOptions::new()
+                .append(true)
+                .open(&writer_path)
+                .unwrap();
+            file.write_all(b"everssh-status-v1 cause transport-failure carried=1\n")
+                .unwrap();
+        });
+        let started = Instant::now();
+        let outcome = link_status_final(&path);
+        let elapsed = started.elapsed();
+        writer.join().unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(
+            outcome,
+            LinkOutcome::TransportFailure { carried: true },
+            "delayed reconnecting cause must be observed"
+        );
+        assert!(
+            elapsed >= Duration::from_millis(500),
+            "classification returned before the delayed cause: {elapsed:?}"
+        );
+    }
+
+    #[test]
+    fn non_reconnecting_status_keeps_the_prompt_bound() {
+        let path = std::env::temp_dir().join(format!(
+            "eversh-status-prompt-{}-{}.test",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&path, "everssh-status-v1 carrying\n").unwrap();
+        let started = Instant::now();
+        let outcome = link_status_final(&path);
+        let elapsed = started.elapsed();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(
+            outcome,
+            LinkOutcome::TransportFailure { carried: false },
+            "a never-reconnecting file must fail toward the prompt default"
+        );
+        assert!(
+            elapsed < carrying_status_grace(),
+            "non-reconnecting file consumed the carrying grace: {elapsed:?}"
         );
     }
 

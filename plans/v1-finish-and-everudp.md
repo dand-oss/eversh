@@ -1,7 +1,7 @@
 # v1 finish and everudp roadmap plan
 
-Status: Revision 7 — B2 observed-timeline and SFTP/SCP split-contract
-repairs | Owners: `eversh-chl`,
+Status: Revision 8 — monotonic B2 ledger, annotator cleanup, and exact-SHA
+closure repairs | Owners: `eversh-chl`,
 `eversh-chl.4`, `eversh-chl.5`, `eversh-chl.6`, new everudp spike bead |
 Updated: 2026-09-03
 
@@ -158,10 +158,12 @@ receipt location. Required real-composition rows include:
 - Forwarding/SFTP/SCP: forwarding through the composed raw surface never
   receives a replacement OpenSSH operation after terminal transport failure.
   SFTP and SCP are OpenSSH subsystem clients of the everssh ProxyCommand
-  transport (not distinct `eversh` verbs): their real compatibility and
-  ordinary terminal-failure behavior are qualified by the standalone
-  everssh Slice 5A gate, while the single composed raw-ssh surface proves
-  the supervisor never replaces them.
+  transport (not distinct `eversh` verbs). Evidence is split honestly:
+  successful byte-exact SFTP/SCP transfers are qualified by the standalone
+  everssh Slice 5A gate; payload-independent terminal expiry and bounded
+  cleanup are qualified by the M3 network gate; and the single composed
+  raw-ssh surface proves the supervisor never replaces them. Slice 5A does
+  not itself interrupt an in-progress transfer, and no claim says it does.
 - Kitty: `KITTY_LISTEN_ON` honored, one reconnect per matching window, failed
   windows preserved, cleanly ended tabs closed, partial results aggregated.
   The fake-launcher row is the required release contract; a real-Kitty smoke
@@ -423,19 +425,25 @@ architecture honestly — forwarding is proven through the composed raw
 surface, while SFTP/SCP are OpenSSH subsystem clients of the everssh
 ProxyCommand transport and are qualified by the real Slice 5A gate plus the
 single raw-mode no-replacement policy. This revision requires fresh Sol
-verification before M4/M5 closure.
+verification before M4/M5 closure. Revision 7's first execution revealed
+three further defects found by review: the transcript annotator leaked its
+`tail`/reader children, the timeline used wall-clock time with incomplete
+events, and the SFTP/SCP evidence attribution overstated Slice 5A. Revision
+8 completes those repairs: the annotator runs in a killable process group
+and every gate run asserts its extinction; every event timestamp derives
+from `/proc/uptime` (CLOCK_MONOTONIC); the ledger records loss,
+connection-death detection, client-budget exhaustion (from the terminal
+transcript line's own monotonic stamp), a bounded renewed-lease-start
+interval, server release, restore, post-drain backoff, and first fresh
+attempt, with deltas computed from those recorded values and head/tree
+identity embedded; Slice 5A is credited only with successful byte-exact
+transfers while terminal expiry is credited to the M3 network gate. The
+conditional supervisor grace is now covered by direct unit tests and derived
+from everssh's finalize limit.
 
-Revision 7 execution receipts: all 29 supervisor_linux tests pass; the
-observed-timeline B2 gate PASS records client budget, server release,
-post-drain backoff (+30.0 s), first fresh attempt (+30.3 s), exactly one
-first-attempt probe/reattach pair, and nine bounded ssh invocations
-(`docs/release-evidence/20260903-m4/composed-b2-final.log`); the reworked
-timestamped B1 gate PASS is retained beside it. The repair also found and
-fixed a real supervisor race: a status file that already published
-`reconnecting` now receives a five-second (everssh finalize-bound)
-classification grace so a long association's terminal `carried=1` cause is
-not deleted before it is read; files without a reconnecting record keep the
-prompt 300 ms deadline so bounded episodes remain tight.
+Revision 8 execution receipts are the clean-commit B1/B2 event ledgers and
+logs retained under `docs/release-evidence/20260903-m4/`; closure requires
+those exact-SHA runs plus a fresh zero-blocker/major Sol verification.
 
 ## 9. Explicitly out of scope
 

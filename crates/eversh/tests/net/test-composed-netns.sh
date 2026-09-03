@@ -9,7 +9,7 @@ if [[ ${1-} != b1 && ${1-} != b2 ]]; then
 fi
 MODE=$1
 TIMEOUT=/usr/bin/timeout
-WATCHDOG_SECONDS=600
+WATCHDOG_SECONDS=700
 SCRIPT_PATH=$(readlink -f -- "${BASH_SOURCE[0]}") || exit 1
 if [[ ${2-} != --watchdog-child ]]; then
     exec "$TIMEOUT" --signal=TERM --kill-after=3s \
@@ -43,7 +43,8 @@ STAT=/usr/bin/stat
 STTY=/usr/bin/stty
 AWK=/usr/bin/awk
 TAIL=/usr/bin/tail
-for tool in "$IP" "$TC" "$SSH" "$SSHD" "$SSHKEYGEN" "$SSHKEYSCAN" \
+GIT=/usr/bin/git
+for tool in "$IP" "$TC" "$SSH" "$SSHD" "$SSHKEYGEN" "$SSHKEYSCAN" "$GIT" \
     "$SCRIPT" "$TIMEOUT" "$BASH" "$CAT" "$CHMOD" "$GREP" "$MKDIR" \
     "$MKTEMP" "$PRINTF" "$SLEEP" "$STAT" "$STTY" "$AWK" "$TAIL"; do
     [[ -x $tool ]] || { printf 'missing tool: %s\n' "$tool" >&2; exit 1; }
@@ -67,6 +68,12 @@ cleanup() {
     [[ -z $FD9 ]] || exec 9>&-
     local pid ns
     for pid in "${PID_ALL[@]}"; do kill -KILL "$pid" 2>/dev/null || :; done
+    # The transcript annotator owns a private session because `tail -f`
+    # and its reader never exit when the pipeline leader is killed. Kill
+    # the whole process group so no diagnostic follower outlives the gate.
+    if [[ -n ${LOG_TS_PID:-} ]]; then
+        kill -KILL -- -"$LOG_TS_PID" 2>/dev/null || :
+    fi
     for ns in "$CLIENT_NS" "$SERVER_NS"; do
         [[ -n $ns ]] || continue
         "$IP" netns exec "$ns" "$TC" qdisc del dev c0 root 2>/dev/null || :
@@ -198,7 +205,8 @@ done
 SSH_SHIM="$TMP/bin/ssh"
 {
     printf '#!/usr/bin/bash\n'
-    printf 'printf "%%s %%s %%s\\\\n" "$EPOCHREALTIME" "$PPID" "$$" >> %q\n' "$COUNT"
+    printf 'read -r uptime_now _ < /proc/uptime\n'
+    printf 'printf "%%s %%s %%s\\\\n" "$uptime_now" "$PPID" "$$" >> %q\n' "$COUNT"
     printf 'exec %q "$@"\n' "$SSH"
 } >"$SSH_SHIM"
 "$CHMOD" 700 "$SSH_SHIM"
@@ -222,11 +230,12 @@ FD9=1
 "$CHMOD" 600 "$LOG"
 LOG_TS="$TMP/session.log.ts"
 : >"$LOG_TS"
-(
-    "$TAIL" -n +1 -f "$LOG" | while IFS= read -r line; do
-        "$PRINTF" '%s %s\n' "${EPOCHREALTIME}" "$line"
-    done >"$LOG_TS"
-) &
+setsid "$BASH" -c '
+    "$3" -n +1 -f "$1" | while IFS= read -r line; do
+        read -r stamp_now _ < /proc/uptime
+        printf "%s %s\n" "$stamp_now" "$line"
+    done >"$2"
+' gate-transcript "$LOG" "$LOG_TS" "$TAIL" &
 LOG_TS_PID=$!
 PID_ALL+=("$LOG_TS_PID")
 
@@ -250,6 +259,13 @@ wait_log() {
 }
 
 count_lines() { "$CAT" "$COUNT" | "$AWK" 'END { print NR + 0 }'; }
+HEAD_SHA=$("$GIT" -C "$ROOT" rev-parse HEAD)
+TREE_SHA=$("$GIT" -C "$ROOT" rev-parse 'HEAD^{tree}')
+if [[ -z $("$GIT" -C "$ROOT" status --porcelain) ]]; then
+    TREE_DIRTY=false
+else
+    TREE_DIRTY=true
+fi
 ms_from_epoch() {
     local value=$1 seconds fraction
     seconds=${value%%.*}
@@ -261,7 +277,9 @@ ms_from_epoch() {
     "$PRINTF" '%s%s\n' "$seconds" "$fraction"
 }
 now_ms() {
-    ms_from_epoch "${EPOCHREALTIME}"
+    local value
+    read -r value _ < /proc/uptime
+    ms_from_epoch "$value"
 }
 first_ssh_after_ms() {
     local threshold=$1 line timestamp_ms min=0
@@ -338,6 +356,7 @@ SNAP_PID=$!
 PID_ALL+=("$SNAP_PID")
 
 "$IP" netns exec "$CLIENT_NS" "$TC" qdisc replace dev c0 root netem loss 100%
+T_LOSS=$(now_ms)
 "$PRINTF" '%s\n' "$([[ $MODE == b1 ]] && printf QUEUED || printf OLD)" >&9
 
 RECONNECTING=0
@@ -357,8 +376,24 @@ loss_guard() {
     }
 }
 
+stop_transcript_annotator() {
+    [[ -n ${LOG_TS_PID:-} ]] || return 0
+    kill -TERM -- -"$LOG_TS_PID" 2>/dev/null || :
+    local attempt
+    for attempt in $(seq 1 50); do
+        kill -0 -- -"$LOG_TS_PID" 2>/dev/null || return 0
+        "$SLEEP" 0.1
+    done
+    kill -KILL -- -"$LOG_TS_PID" 2>/dev/null || :
+    "$SLEEP" 0.2
+    kill -0 -- -"$LOG_TS_PID" 2>/dev/null \
+        && die 'transcript annotator process group leaked'
+}
+
 T_BUDGET=0
+T_DEATH=0
 T_RELEASE=0
+T_RESTORE=0
 if [[ $MODE == b1 ]]; then
     DEADLINE=$((SECONDS + 95))
     while (( SECONDS < DEADLINE )); do
@@ -369,17 +404,26 @@ else
     composed_server_alive \
         || die 'b2 everssh server role was not live before loss'
     BUDGET_SEEN=0
+    DEATH_SEEN=0
     RELEASE_SEEN=0
     DEADLINE=$((SECONDS + 520))
     while (( SECONDS < DEADLINE )); do
         loss_guard
         # The timestamped transcript observes the outer ssh's own terminal
         # line (its stderr marker can be interleaved mid-word, so the ssh
-        # close line is the durable budget-exhaustion oracle).
+        # close line is the durable budget-exhaustion oracle). The event
+        # time comes from the transcript annotator's own monotonic stamp,
+        # not from when this poll first notices the line.
         if (( ! BUDGET_SEEN )) && "$GREP" -q -F -- \
             'Connection to 10.241.0.1 closed.' "$LOG_TS" 2>/dev/null; then
             BUDGET_SEEN=1
-            T_BUDGET=$(now_ms)
+            T_BUDGET=$(timestamped_line_ms 'Connection to 10.241.0.1 closed.')
+            [[ $T_BUDGET =~ ^[1-9][0-9]*$ ]] \
+                || die 'b2 terminal transcript line lacked its monotonic stamp'
+        fi
+        if (( ! DEATH_SEEN )) && (( RECONNECTING == 1 )); then
+            DEATH_SEEN=1
+            T_DEATH=$(now_ms)
         fi
         if (( ! RELEASE_SEEN )) && ! composed_server_alive; then
             RELEASE_SEEN=1
@@ -389,6 +433,7 @@ else
         "$SLEEP" 1
     done
     (( BUDGET_SEEN )) || die 'b2 never observed client budget exhaustion'
+    (( DEATH_SEEN )) || die 'b2 never observed connection-death detection'
     (( RELEASE_SEEN )) || die 'b2 never observed server association release'
     # B2 restores only at least ten seconds after the OBSERVED release, not
     # at a predicted constant.
@@ -403,6 +448,7 @@ fi
 }
 
 "$IP" netns exec "$CLIENT_NS" "$TC" qdisc del dev c0 root
+T_RESTORE=$(now_ms)
 if [[ $MODE == b1 ]]; then
     "$GREP" -q -F -- 'R:QUEUED' "$LOG" && die 'b1 delivered queued input through total loss'
     "$PRINTF" 'AFTER1\n' >&9
@@ -428,6 +474,17 @@ if [[ $MODE == b1 ]]; then
         || die "b1 broker changed ($BROKER_BEFORE -> $BROKER_AFTER)"
     kill -TERM "$SESSION_PID" 2>/dev/null || :
     "$TIMEOUT" 15s "$BASH" -c 'while kill -0 "$1" 2>/dev/null; do sleep 0.1; done' _ "$SESSION_PID"
+    stop_transcript_annotator
+    "$MKDIR" -p -- "$ROOT/target/qualification"
+    {
+        "$PRINTF" 'clock\t/proc/uptime (CLOCK_MONOTONIC-derived)\n'
+        "$PRINTF" 'head_sha\t%s\n' "$HEAD_SHA"
+        "$PRINTF" 'tree_sha\t%s\n' "$TREE_SHA"
+        "$PRINTF" 'tree_dirty\t%s\n' "$TREE_DIRTY"
+        "$PRINTF" 't_loss_ms\t%d\n' "$T_LOSS"
+        "$PRINTF" 't_restore_ms\t%d\n' "$T_RESTORE"
+        "$PRINTF" 'ssh_invocations\t%d\n' "$(count_lines)"
+    } >"$ROOT/target/qualification/eversh-composed-b1-latest-events.tsv"
     "$PRINTF" 'eversh composed B1 outage continuity: PASS\n'
 else
     "$GREP" -q -F -- 'R:OLD' "$LOG" && die 'b2 delivered old input before terminal transition'
@@ -508,6 +565,36 @@ else
     }
     kill -TERM "$SESSION_PID" 2>/dev/null || :
     "$TIMEOUT" 15s "$BASH" -c 'while kill -0 "$1" 2>/dev/null; do sleep 0.1; done' _ "$SESSION_PID"
-    "$PRINTF" 'everssh composed B2 terminal fallback: PASS (budget=%dms release=%dms backoff=%dms first-fresh=%dms attempts=1/1 invocations=%d/%d)\n' \
-        "$T_BUDGET" "$T_RELEASE" "$T_BACKOFF" "$FIRST_FRESH" "$FINAL_LINES" "$((BASELINE + 6))"
+    DRAIN_BACKOFF_DELTA=$((T_BACKOFF - T_BUDGET))
+    FIRST_FRESH_DELTA=$((FIRST_FRESH - T_BUDGET))
+    RELEASE_AFTER_LOSS_DELTA=$((T_RELEASE - T_LOSS))
+    LEASE_START_UPPER=$((T_RELEASE - 360000))
+    "$MKDIR" -p -- "$ROOT/target/qualification"
+    B2_RECEIPT="$ROOT/target/qualification/eversh-composed-b2-latest-events.tsv"
+    {
+        "$PRINTF" 'clock\t/proc/uptime (CLOCK_MONOTONIC-derived)\n'
+        "$PRINTF" 'head_sha\t%s\n' "$HEAD_SHA"
+        "$PRINTF" 'tree_sha\t%s\n' "$TREE_SHA"
+        "$PRINTF" 'tree_dirty\t%s\n' "$TREE_DIRTY"
+        "$PRINTF" 't_loss_ms\t%d\n' "$T_LOSS"
+        "$PRINTF" 't_connection_death_detection_ms\t%d\n' "$T_DEATH"
+        "$PRINTF" 't_client_budget_exhaustion_ms\t%d\n' "$T_BUDGET"
+        # The server's private resume-acceptance entry is not exposed on
+        # its process boundary; these monotonic observations bound it.
+        "$PRINTF" 'renewed_lease_start_bound_ms\t%d..%d\n' "$T_DEATH" "$LEASE_START_UPPER"
+        "$PRINTF" 't_server_association_release_ms\t%d\n' "$T_RELEASE"
+        "$PRINTF" 't_restore_ms\t%d\n' "$T_RESTORE"
+        "$PRINTF" 't_post_drain_backoff_ms\t%d\n' "$T_BACKOFF"
+        "$PRINTF" 't_first_fresh_ssh_ms\t%d\n' "$FIRST_FRESH"
+        "$PRINTF" 'delta_release_after_loss_ms\t%d\n' "$RELEASE_AFTER_LOSS_DELTA"
+        "$PRINTF" 'delta_drain_backoff_ms\t%d\n' "$DRAIN_BACKOFF_DELTA"
+        "$PRINTF" 'delta_first_fresh_ms\t%d\n' "$FIRST_FRESH_DELTA"
+        "$PRINTF" 'drain_window_attempts\t0\n'
+        "$PRINTF" 'probe_attempts\t1\nreattach_attempts\t1\n'
+        "$PRINTF" 'ssh_invocations\t%d..%d\n' "$FINAL_LINES" "$((BASELINE + 6))"
+    } >"$B2_RECEIPT"
+    stop_transcript_annotator
+    "$PRINTF" 'everssh composed B2 terminal fallback: PASS (release-after-loss=%dms drain-backoff=%dms first-fresh=%dms attempts=1/1 invocations=%d/%d events=%s)\n' \
+        "$RELEASE_AFTER_LOSS_DELTA" "$DRAIN_BACKOFF_DELTA" "$FIRST_FRESH_DELTA" \
+        "$FINAL_LINES" "$((BASELINE + 6))" "$B2_RECEIPT"
 fi
