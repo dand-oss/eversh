@@ -1200,6 +1200,77 @@ scenario_auth_failure() {
 }
 
 # ---------------------------------------------------------------------------
+# Scenario 8: concurrent connect atomicity — exactly one broker/child
+# ---------------------------------------------------------------------------
+
+scenario_concurrent_connect() {
+    local name=m5s3atomic
+    local first_wrapper="$TMP_ROOT/s8.first.wrap.sh" first_log="$TMP_ROOT/s8.first.log"
+    local second_wrapper="$TMP_ROOT/s8.second.wrap.sh" second_log="$TMP_ROOT/s8.second.log"
+    local listout="$TMP_ROOT/s8.list.json" listerr="$TMP_ROOT/s8.list.err"
+    local killout="$TMP_ROOT/s8.kill.out" killerr="$TMP_ROOT/s8.kill.err"
+    local -a argv=(
+        "$EVERSH_BIN" connect "$ALIAS" --session "$name"
+        --remote-eversh "$EVERSH_BIN" --ssh-option -F"$CLIENT_CONFIG"
+        -- /bin/sh -c "$TICK_SCRIPT"
+    )
+    write_exec_wrapper "$first_wrapper" "${argv[@]}"
+    write_exec_wrapper "$second_wrapper" "${argv[@]}"
+    launch_interactive "$first_wrapper" "$first_log" \
+        || die "scenario8: failed to launch first connect"
+    local first_pid=$BG_PID
+    launch_interactive "$second_wrapper" "$second_log" \
+        || die "scenario8: failed to launch second connect"
+    local second_pid=$BG_PID
+
+    # Exactly one competitor may own the writer; the other must terminate
+    # visibly with Busy rather than silently attaching or creating a child.
+    local deadline=$((SECONDS + TICK_WAIT_SECONDS)) winner= loser_pid=
+    while (( SECONDS < deadline )); do
+        if ! kill -0 "$first_pid" 2>/dev/null; then
+            winner=second loser_pid=$first_pid
+            break
+        fi
+        if ! kill -0 "$second_pid" 2>/dev/null; then
+            winner=first loser_pid=$second_pid
+            break
+        fi
+        "$SLEEP_TOOL" 0.1
+    done
+    [[ -n $winner ]] || die "scenario8: neither concurrent connect resolved as Busy"
+    local winner_log winner_pid loser_log
+    if [[ $winner == first ]]; then
+        winner_log=$first_log winner_pid=$first_pid loser_log=$second_log
+    else
+        winner_log=$second_log winner_pid=$second_pid loser_log=$first_log
+    fi
+    wait_for_tick_count "$winner_log" 4 "$TICK_WAIT_SECONDS" \
+        || die "scenario8: winning connect never carried ticks"
+    local loser_status=0
+    builtin wait "$loser_pid" 2>/dev/null || loser_status=$?
+    [[ $loser_status -eq 3 ]] \
+        || die "scenario8: loser exit=$loser_status (want 3, Busy)"
+    local loser_ticks
+    loser_ticks=$(extract_ticks "$loser_log" | "$AWK_TOOL" 'END { print NR + 0 }')
+    [[ $loser_ticks -eq 0 ]] || die "scenario8: Busy loser emitted $loser_ticks ticks"
+
+    run_list_json "$listout" "$listerr" || die "scenario8: list failed"
+    json_has_name "$listout" "$name" || die "scenario8: session missing after race"
+    local broker count
+    broker=$(broker_pid_for "$listout" "$name")
+    [[ $broker =~ ^[0-9]+$ ]] || die "scenario8: missing broker pid"
+    count=$("$GREP_TOOL" -oE '"name":"'"$name"'"' "$listout" | "$GREP_TOOL" -c .)
+    [[ $count -eq 1 ]] || die "scenario8: duplicate session records ($count)"
+
+    if ! run_batch "$KILL_TIMEOUT_SECONDS" "$killout" "$killerr" kill "$ALIAS" "$name"; then
+        die "scenario8: kill failed"
+    fi
+    local status=0
+    builtin wait "$winner_pid" 2>/dev/null || status=$?
+    [[ $status -eq 41 ]] || die "scenario8: winner wrapped exit=$status (want 41)"
+}
+
+# ---------------------------------------------------------------------------
 # Scenario 6: cleanup + health
 # ---------------------------------------------------------------------------
 
@@ -1339,6 +1410,7 @@ scenario_session_gone
 scenario_busy_visible
 scenario_list_detach
 scenario_auth_failure
+scenario_concurrent_connect
 scenario_cleanup_health
 
 exit 0

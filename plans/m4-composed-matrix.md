@@ -12,7 +12,7 @@ them.
 
 | # | Criterion | Tier | Test | Pass assertion | Receipt |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Atomic named connect: concurrent connects create exactly one child; loser sees Busy or attaches per policy | Real | TO ADD | one broker PID after two concurrent connects; no duplicate child | EMPTY |
+| 1 | Atomic named connect: concurrent connects create exactly one child; loser sees Busy or attaches per policy | Real | `test-eversh-openssh.sh` scenario 8 `scenario_concurrent_connect` | exactly one session record/broker PID; loser exits 3 (Busy) with zero ticks; winner carries monotonic ticks and exits 41 after kill | PASS (see receipt below) |
 | 2 | Implicit attach never revokes writer | Real | `crates/eversh/tests/net/test-eversh-openssh.sh` scenario 4 | second attach exits `Busy`; original tick stream continues | PASS at `b6d2d3e` |
 | 3 | Explicit takeover revokes old owner visibly | Real | TO ADD | `--take-over` attach acquires writer; prior writer receives visible revocation; no duplicate writers | EMPTY |
 | 4 | Missing vs exited vs hard-failed broker distinction | Fake | `crates/eversh/tests/supervisor_linux.rs::busy_and_missing_sessions_are_visible_and_never_retried`, `gone_session_is_not_restarted_after_transport_failure` | distinct visible outcomes; gone broker never restarted | PASS (28-test suite at `b6d2d3e`) |
