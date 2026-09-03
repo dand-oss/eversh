@@ -83,6 +83,15 @@ Usage: fuzz/qualify-m5.sh [run] [--json]
           (build + 61s campaign each), and reproducible release packaging.
   --json  Print the sanitized JSON receipt instead of the one-line summary.
 
+verify-receipts RECEIPT
+        Fail unless the receipt is a PASS receipt binding every required
+        subreceipt log by SHA-256 and every listed log still exists with
+        exactly that hash.
+
+self-test
+        Prove verify-receipts accepts a valid receipt and rejects missing,
+        tampered, or incomplete subreceipt bindings without running M5.
+
 Requires the isolated toolchain from `fuzz/qualify-m3.sh setup`, including
 the nightly toolchain and cargo-fuzz. No raw tool output reaches stdout or
 stderr; logs, corpora, artifacts, and receipts stay under
@@ -111,7 +120,7 @@ parse_arguments() {
         shift
     done
     case $COMMAND in
-        run) ;;
+        run | verify-receipts | self-test) ;;
         *)
             printf 'eversh M5 qualification: invalid command\n' >&2
             usage >&2
@@ -275,6 +284,63 @@ verify_final_identity() {
     dirty=$(/usr/bin/git -C "$ROOT" status --porcelain=v1 --untracked-files=all)
     [[ $current_head == "$HEAD_SHA" && $current_tree == "$TREE_SHA" && -z $dirty ]] \
         || fail "$stage" 1 "$log_path"
+}
+
+required_subreceipts() {
+    /usr/bin/printf '%s\n' \
+        git-diff-check \
+        root-fmt \
+        root-check \
+        root-clippy \
+        root-test \
+        eversh-resource-bounds \
+        eversh-e2e-openssh \
+        everssh-migration-netns \
+        everssh-openssh-slice5a \
+        root-no-default-libs \
+        msrv-check \
+        aarch64-check \
+        cargo-deny-root \
+        cargo-deny-fuzz \
+        fuzz-fmt \
+        fuzz-check \
+        fuzz-clippy \
+        release-build \
+        release-build-reproducibility
+}
+
+verify_receipts() {
+    local receipt=$1 name path expected actual verdict
+    [[ -f $receipt ]] || return 1
+    verdict=$(/usr/bin/jq -r '.verdict // ""' "$receipt")
+    [[ $verdict == PASS ]] || return 1
+    while IFS= read -r name; do
+        path=$(/usr/bin/jq -r --arg name "$name" \
+            '.subreceipts[$name].log // ""' "$receipt")
+        expected=$(/usr/bin/jq -r --arg name "$name" \
+            '.subreceipts[$name].sha256 // ""' "$receipt")
+        [[ -n $path && -n $expected && $expected =~ ^[0-9a-f]{64}$ ]] || return 1
+        [[ -f $path ]] || return 1
+        actual=$(/usr/bin/sha256sum "$path")
+        actual=${actual%% *}
+        [[ $actual == "$expected" ]] || return 1
+    done < <(required_subreceipts)
+    return 0
+}
+
+build_subreceipt_json() {
+    local gate_dir=$1 name path hash
+    local tsv="$gate_dir/subreceipts.tsv"
+    : >"$tsv"
+    while IFS= read -r name; do
+        path="$gate_dir/$name.log"
+        [[ -f $path ]] || fail "subreceipt-missing-$name" 1 "$path"
+        hash=$(/usr/bin/sha256sum "$path")
+        hash=${hash%% *}
+        /usr/bin/printf '%s\t%s\t%s\n' "$name" "$path" "$hash" >>"$tsv"
+    done < <(required_subreceipts)
+    /usr/bin/jq -R -s 'split("\n") | map(select(length > 0) | split("\t"))
+        | map({(.[0]): {log: .[1], sha256: .[2]}}) | add' "$tsv"
 }
 
 extract_stat() {
@@ -582,6 +648,8 @@ run_qualification() {
     /usr/bin/jq -s '.' "$release_dir"/*.json >"$release_binaries_json.tmp"
     /usr/bin/mv -f -- "$release_binaries_json.tmp" "$release_binaries_json"
 
+    subreceipts_json=$(build_subreceipt_json "$gate_dir")
+
     verify_final_identity final-identity "$gate_dir/git-diff-check.log"
     completed=$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)
     temporary="$RECEIPT_PATH.tmp"
@@ -604,6 +672,7 @@ run_qualification() {
         --argjson stability_rounds "$SUPERVISOR_STABILITY_ROUNDS" \
         --slurpfile campaigns "$campaigns_json" \
         --slurpfile release_binaries "$release_binaries_json" \
+        --argjson subreceipts "$subreceipts_json" \
         '{
             schema_version: 1,
             verdict: "PASS",
@@ -634,6 +703,7 @@ run_qualification() {
                 "nine-fuzz-builds", "release-packaging"
             ],
             supervisor_stability_rounds: $stability_rounds,
+            subreceipts: $subreceipts,
             resource_metrics: $resource_metrics,
             e2e_openssh_log: $e2e_openssh_log,
             campaigns: $campaigns[0],
@@ -650,8 +720,77 @@ run_qualification() {
     emit_receipt PASS "$RECEIPT_PATH"
 }
 
+self_test() {
+    local root
+    root=$(/usr/bin/mktemp -d /tmp/eversh-m5-self-test.XXXXXX)
+    local gate_dir="$root/gates"
+    /usr/bin/mkdir -p -- "$gate_dir"
+    local name path hash
+    : >"$gate_dir/subreceipts.tsv"
+    while IFS= read -r name; do
+        path="$gate_dir/$name.log"
+        /usr/bin/printf 'PASS %s\n' "$name" >"$path"
+        hash=$(/usr/bin/sha256sum "$path")
+        hash=${hash%% *}
+        /usr/bin/printf '%s\t%s\t%s\n' "$name" "$path" "$hash" >>"$gate_dir/subreceipts.tsv"
+    done < <(required_subreceipts)
+    /usr/bin/jq -R -s 'split("\n") | map(select(length > 0) | split("\t"))
+        | map({(.[0]): {log: .[1], sha256: .[2]}}) | add
+        | {schema_version: 1, verdict: "PASS", subreceipts: .}' \
+        "$gate_dir/subreceipts.tsv" >"$root/good.json"
+    verify_receipts "$root/good.json" \
+        || { /usr/bin/rm -rf -- "$root"; return 1; }
+
+    /usr/bin/jq '.subreceipts["root-check"].sha256 = "0"' \
+        "$root/good.json" >"$root/mismatched.json"
+    if verify_receipts "$root/mismatched.json"; then
+        /usr/bin/rm -rf -- "$root"
+        return 1
+    fi
+
+    /usr/bin/jq 'del(.subreceipts["everssh-migration-netns"])' \
+        "$root/good.json" >"$root/missing.json"
+    if verify_receipts "$root/missing.json"; then
+        /usr/bin/rm -rf -- "$root"
+        return 1
+    fi
+
+    /usr/bin/printf 'tampered\n' >>"$gate_dir/root-clippy.log"
+    if verify_receipts "$root/good.json"; then
+        /usr/bin/rm -rf -- "$root"
+        return 1
+    fi
+
+    /usr/bin/jq '.verdict = "FAIL"' "$root/good.json" >"$root/failed.json"
+    if verify_receipts "$root/failed.json"; then
+        /usr/bin/rm -rf -- "$root"
+        return 1
+    fi
+
+    /usr/bin/rm -rf -- "$root"
+    /usr/bin/printf 'eversh M5 qualification self-test: PASS\n'
+}
+
 main() {
     parse_arguments "$@"
+    case $COMMAND in
+        verify-receipts)
+            (($# == 1)) || {
+                /usr/bin/printf 'verify-receipts requires one receipt path\n' >&2
+                exit 2
+            }
+            verify_receipts "$1" && {
+                /usr/bin/printf 'eversh M5 subreceipts: PASS\n'
+                exit 0
+            }
+            /usr/bin/printf 'eversh M5 subreceipts: FAIL\n' >&2
+            exit 1
+            ;;
+        self-test)
+            self_test
+            exit $?
+            ;;
+    esac
     require_fixed_tools
     /usr/bin/mkdir -p -- "$QUAL_ROOT"
     exec 9>"$QUAL_ROOT/qualification.lock"
