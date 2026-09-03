@@ -9,7 +9,10 @@ if [[ ${1-} != b1 && ${1-} != b2 ]]; then
 fi
 MODE=$1
 TIMEOUT=/usr/bin/timeout
-WATCHDOG_SECONDS=700
+# Startup plus B2's 520 s expiry loop, 10 s post-release slack, 60 s
+# fresh-attempt wait, 90 s output wait, shutdown, and annotator reaping
+# can approach 755 s; the watchdog must dominate that successful path.
+WATCHDOG_SECONDS=800
 SCRIPT_PATH=$(readlink -f -- "${BASH_SOURCE[0]}") || exit 1
 if [[ ${2-} != --watchdog-child ]]; then
     exec "$TIMEOUT" --signal=TERM --kill-after=3s \
@@ -44,9 +47,10 @@ STTY=/usr/bin/stty
 AWK=/usr/bin/awk
 TAIL=/usr/bin/tail
 GIT=/usr/bin/git
+SHA256SUM=/usr/bin/sha256sum
 for tool in "$IP" "$TC" "$SSH" "$SSHD" "$SSHKEYGEN" "$SSHKEYSCAN" "$GIT" \
     "$SCRIPT" "$TIMEOUT" "$BASH" "$CAT" "$CHMOD" "$GREP" "$MKDIR" \
-    "$MKTEMP" "$PRINTF" "$SLEEP" "$STAT" "$STTY" "$AWK" "$TAIL"; do
+    "$MKTEMP" "$PRINTF" "$SLEEP" "$STAT" "$STTY" "$AWK" "$TAIL" "$SHA256SUM"; do
     [[ -x $tool ]] || { printf 'missing tool: %s\n' "$tool" >&2; exit 1; }
 done
 [[ -x $EVERSH_BIN ]] || { printf 'missing eversh binary\n' >&2; exit 1; }
@@ -261,6 +265,7 @@ wait_log() {
 count_lines() { "$CAT" "$COUNT" | "$AWK" 'END { print NR + 0 }'; }
 HEAD_SHA=$("$GIT" -C "$ROOT" rev-parse HEAD)
 TREE_SHA=$("$GIT" -C "$ROOT" rev-parse 'HEAD^{tree}')
+EVERSH_SHA256=$("$SHA256SUM" "$EVERSH_BIN" | "$AWK" '{ print $1 }')
 if [[ -z $("$GIT" -C "$ROOT" status --porcelain) ]]; then
     TREE_DIRTY=false
 else
@@ -477,9 +482,10 @@ if [[ $MODE == b1 ]]; then
     stop_transcript_annotator
     "$MKDIR" -p -- "$ROOT/target/qualification"
     {
-        "$PRINTF" 'clock\t/proc/uptime (CLOCK_MONOTONIC-derived)\n'
+        "$PRINTF" 'clock\tmonotonic boot uptime (/proc/uptime)\n'
         "$PRINTF" 'head_sha\t%s\n' "$HEAD_SHA"
         "$PRINTF" 'tree_sha\t%s\n' "$TREE_SHA"
+        "$PRINTF" 'eversh_sha256\t%s\n' "$EVERSH_SHA256"
         "$PRINTF" 'tree_dirty\t%s\n' "$TREE_DIRTY"
         "$PRINTF" 't_loss_ms\t%d\n' "$T_LOSS"
         "$PRINTF" 't_restore_ms\t%d\n' "$T_RESTORE"
@@ -578,9 +584,10 @@ else
     "$MKDIR" -p -- "$ROOT/target/qualification"
     B2_RECEIPT="$ROOT/target/qualification/eversh-composed-b2-latest-events.tsv"
     {
-        "$PRINTF" 'clock\t/proc/uptime (CLOCK_MONOTONIC-derived)\n'
+        "$PRINTF" 'clock\tmonotonic boot uptime (/proc/uptime)\n'
         "$PRINTF" 'head_sha\t%s\n' "$HEAD_SHA"
         "$PRINTF" 'tree_sha\t%s\n' "$TREE_SHA"
+        "$PRINTF" 'eversh_sha256\t%s\n' "$EVERSH_SHA256"
         "$PRINTF" 'tree_dirty\t%s\n' "$TREE_DIRTY"
         "$PRINTF" 't_loss_ms\t%d\n' "$T_LOSS"
         "$PRINTF" 't_connection_death_detection_ms\t%d\n' "$T_DEATH"

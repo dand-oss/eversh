@@ -431,7 +431,7 @@ three further defects found by review: the transcript annotator leaked its
 events, and the SFTP/SCP evidence attribution overstated Slice 5A. Revision
 8 completes those repairs: the annotator runs in a killable process group
 and every gate run asserts its extinction; every event timestamp derives
-from `/proc/uptime` (CLOCK_MONOTONIC); the ledger records loss,
+from `/proc/uptime` (monotonic boot uptime); the ledger records loss,
 connection-death detection, client-budget exhaustion (from the terminal
 transcript line's own monotonic stamp), a bounded renewed-lease-start
 interval, server release, restore, post-drain backoff, and first fresh

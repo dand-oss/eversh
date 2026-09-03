@@ -1447,7 +1447,11 @@ mod tests {
             "a never-reconnecting file must fail toward the prompt default"
         );
         assert!(
-            elapsed < carrying_status_grace(),
+            elapsed >= LINK_STATUS_GRACE,
+            "non-reconnecting file returned before the prompt bound: {elapsed:?}"
+        );
+        assert!(
+            elapsed < LINK_STATUS_GRACE + Duration::from_millis(700),
             "non-reconnecting file consumed the carrying grace: {elapsed:?}"
         );
     }

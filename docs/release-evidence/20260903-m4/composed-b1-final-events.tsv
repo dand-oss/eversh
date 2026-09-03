@@ -1,6 +1,7 @@
-clock	/proc/uptime (CLOCK_MONOTONIC-derived)
+clock	monotonic boot uptime (/proc/uptime)
 head_sha	cd7d00dfde037416ec462b5f5df604c752b6b28b
 tree_sha	8cd004f5ac1e34f592337bd187c10a9c0d79aed0
+eversh_sha256	9d69a18a13833d9668c281ab68fd8262cbe5ffee9f7396cdfa8115e526c074f5
 tree_dirty	false
 t_loss_ms	1067080790
 t_restore_ms	1067175650
