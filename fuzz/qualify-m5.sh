@@ -297,6 +297,7 @@ required_subreceipts() {
         eversh-e2e-openssh \
         everssh-migration-netns \
         everssh-openssh-slice5a \
+        documentation-compat \
         root-no-default-libs \
         msrv-check \
         aarch64-check \
@@ -546,6 +547,23 @@ run_qualification() {
     [[ $openssh_tail == 'EverSSH Slice 5A production OpenSSH path: PASS' ]] \
         || fail everssh-openssh-slice5a-receipt 1 "$openssh_log"
 
+    doc_compat_log="$gate_dir/documentation-compat.log"
+    : >"$doc_compat_log"
+    doc_compat_status=0
+    if /usr/bin/grep -R -n 'everssh-link/1' \
+        "$ROOT/README.md" "$ROOT/docs/install.md" >>"$doc_compat_log" 2>&1; then
+        /usr/bin/printf 'stale v1 ALPN remains in live documentation\n' >>"$doc_compat_log"
+        doc_compat_status=1
+    fi
+    if /usr/bin/grep -R -n 'does not retry\|no replay\|never replay' \
+        "$ROOT/README.md" "$ROOT/docs/install.md" >>"$doc_compat_log" 2>&1; then
+        /usr/bin/printf 'stale one-shot transport claims remain in live documentation\n' \
+            >>"$doc_compat_log"
+        doc_compat_status=1
+    fi
+    ((doc_compat_status == 0)) || fail documentation-compat 1 "$doc_compat_log"
+    /usr/bin/printf 'live documentation compatibility: PASS\n' >>"$doc_compat_log"
+
     run_logged root-no-default-libs "$gate_dir/root-no-default-libs.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" check --workspace --no-default-features --lib --locked
     run_logged msrv-check "$gate_dir/msrv-check.log" "$ROOT" \
@@ -697,10 +715,10 @@ run_qualification() {
                 "git-diff-check", "root-fmt", "root-check", "root-clippy",
                 "root-test", "eversh-supervisor-x3", "eversh-resource-bounds",
                 "eversh-e2e-openssh", "everssh-migration-netns",
-                "everssh-openssh-slice5a", "root-no-default-libs",
-                "msrv-check", "aarch64-check", "cargo-deny-root",
-                "cargo-deny-fuzz", "fuzz-fmt", "fuzz-check", "fuzz-clippy",
-                "nine-fuzz-builds", "release-packaging"
+                "everssh-openssh-slice5a", "documentation-compat",
+                "root-no-default-libs", "msrv-check", "aarch64-check",
+                "cargo-deny-root", "cargo-deny-fuzz", "fuzz-fmt", "fuzz-check",
+                "fuzz-clippy", "nine-fuzz-builds", "release-packaging"
             ],
             supervisor_stability_rounds: $stability_rounds,
             subreceipts: $subreceipts,
