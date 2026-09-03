@@ -231,6 +231,25 @@ where
         let mut initial = true;
         let mut reconnect_deadline: Option<Instant> = None;
         loop {
+            if !initial {
+                if reconnect_deadline.is_none() {
+                    reconnect_deadline = Some(
+                        Instant::now()
+                            .checked_add(self.reconnect_budget())
+                            .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?,
+                    );
+                }
+                let deadline = reconnect_deadline
+                    .expect("reconnect deadline was just initialized when absent");
+                let attempt_ends = Instant::now()
+                    .checked_add(self.limits.handshake_timeout())
+                    .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
+                if attempt_ends > deadline {
+                    return Err(ActorError::Terminal(Error::DeadlineExpired(
+                        DeadlinePhase::Reconnect,
+                    )));
+                }
+            }
             let endpoint = match ClientEndpoint::bind(
                 self.server,
                 UdpBindPolicy::RouteSelected,
@@ -252,25 +271,6 @@ where
             } else {
                 ClientHello::resume(self.association_id, self.core.delivered_ack())?
             };
-            if !initial {
-                if reconnect_deadline.is_none() {
-                    reconnect_deadline = Some(
-                        Instant::now()
-                            .checked_add(self.reconnect_budget())
-                            .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?,
-                    );
-                }
-                let deadline = reconnect_deadline
-                    .expect("reconnect deadline was just initialized when absent");
-                let attempt_ends = Instant::now()
-                    .checked_add(self.limits.handshake_timeout())
-                    .ok_or(Error::InvalidLimits(LimitViolation::DeadlineOverflow))?;
-                if attempt_ends > deadline {
-                    return Err(ActorError::Terminal(Error::DeadlineExpired(
-                        DeadlinePhase::Reconnect,
-                    )));
-                }
-            }
             let (session, server_hello) = match endpoint.connect_v2_association(hello).await {
                 Ok(session) => session,
                 // A live association survives transient path loss: reconnect
@@ -284,6 +284,9 @@ where
                     return Err(ActorError::Terminal(error));
                 }
             };
+            // A successful resume closes this outage epoch; the next one gets
+            // a fresh bounded budget.
+            reconnect_deadline = None;
             initial = false;
             self.core
                 .apply_peer_ack(server_hello.delivered_ack())
