@@ -1,0 +1,8 @@
+Preparing worktree (detached HEAD 43e80cc)
+   Compiling tokio v1.53.1
+   Compiling tokio-util v0.7.19
+   Compiling tokio-stream v0.1.19
+   Compiling noq v1.1.1
+   Compiling everssh v0.1.0 (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/crates/everssh)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.36s
+everssh version-skew whole-product gate: PASS (old=43e80cc new-client=3 old-client=3 role=2/2)

@@ -10,3 +10,8 @@ a2c076825d80eb6dbb64adfa12dd062f549a7580db6ca1af99160e1ff1c43d0a  docs/release-e
 0d7d17043c45cab3a8de7fd01dbe3164d8c201becfda24a7a61e50c4fdbc63ef  docs/release-evidence/20260903-m4/composed-b2-final.log
 9d01d239c1a9aaf9207d9137a0bf397204e57f25d99df1533428b5851f474beb  docs/release-evidence/20260903-m4/composed-final-9d2c5a8.log
 45341971df6b9ce24b9a5d1d5aa91c00e9348afa8dd216e9d5185d4188f061de  docs/release-evidence/20260903-m4/standalone-artifacts-9c762a0.log
+602cbde430f9392d9690e631631ad334e69b53f56a00ec7b7eda70b1bfaa048c  docs/release-evidence/20260903-m5/campaigns.json
+a2c076825d80eb6dbb64adfa12dd062f549a7580db6ca1af99160e1ff1c43d0a  docs/release-evidence/20260903-m5/everssh-composed-netns-b1.log
+891058f07260e147f565853962465242bc02c91e64a7a776841b95769d56c8da  docs/release-evidence/20260903-m5/everssh-composed-netns-b2.log
+d9986eec8e7ed54fad17473f088ad2c26ae7749887229bdab5fad5ee421641d5  docs/release-evidence/20260903-m5/everssh-version-skew.log
+b831b8dafc40b3698ee5e5d78dd2246d02ba1e3eba277169b2f6ea8dc8d746ca  docs/release-evidence/20260903-m5/receipt.json

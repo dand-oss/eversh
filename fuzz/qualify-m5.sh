@@ -61,6 +61,7 @@ COMMAND=run
 JSON_OUTPUT=0
 RUN_ROOT=
 RECEIPT_PATH=
+VERIFY_RECEIPT=
 CURRENT_STAGE=startup
 CURRENT_LOG=
 ACTIVE_PID=0
@@ -103,6 +104,15 @@ EOF
 parse_arguments() {
     if (($# > 0)) && [[ $1 != --* ]]; then
         COMMAND=$1
+        shift
+    fi
+    if [[ $COMMAND == verify-receipts ]]; then
+        (( $# == 1 )) || {
+            printf 'eversh M5 qualification: verify-receipts requires one receipt path\n' >&2
+            usage >&2
+            exit 2
+        }
+        VERIFY_RECEIPT=$1
         shift
     fi
     while (($# > 0)); do
@@ -820,11 +830,7 @@ main() {
     parse_arguments "$@"
     case $COMMAND in
         verify-receipts)
-            (($# == 1)) || {
-                /usr/bin/printf 'verify-receipts requires one receipt path\n' >&2
-                exit 2
-            }
-            verify_receipts "$1" && {
+            verify_receipts "$VERIFY_RECEIPT" && {
                 /usr/bin/printf 'eversh M5 subreceipts: PASS\n'
                 exit 0
             }
