@@ -5,6 +5,7 @@ use crate::aead::{Role, SessionSubstrate, BOOTSTRAP_SECRET_LEN};
 use crate::frame::{decode, Echo, Frame, Input, MAX_PAYLOAD, MTU_CEILING};
 use crate::handshake::{AmplificationBudget, ClientHandshake, HandshakeError, ServerHandshake};
 use crate::state::{EchoPolicy, PredictionState, Reconciliation};
+use std::collections::BTreeMap;
 use std::net::SocketAddr;
 use std::process::Stdio;
 use std::time::Duration;
@@ -19,8 +20,53 @@ pub const INTER_TRIAL: Duration = Duration::from_millis(100);
 pub const EPOCH: u32 = 1;
 pub const AMPLIFICATION_CEILING: usize = MTU_CEILING * 4;
 const SESSION_AAD: &[u8] = b"everudp-spike-v2";
+const SERVER_ECHO_CACHE_LIMIT: usize = 64;
 
 pub type BootstrapSecret = [u8; BOOTSTRAP_SECRET_LEN];
+
+enum ServerInputAction {
+    Execute,
+    Replay(Vec<u8>),
+    Reject,
+}
+
+#[derive(Default)]
+struct ServerEchoCache {
+    epoch: Option<u32>,
+    last_executed: Option<u64>,
+    echoes: BTreeMap<u64, Vec<u8>>,
+}
+
+impl ServerEchoCache {
+    fn classify(&self, epoch: u32, seq: u64) -> ServerInputAction {
+        if epoch == 0 {
+            return ServerInputAction::Reject;
+        }
+        if let Some(current_epoch) = self.epoch {
+            if epoch != current_epoch {
+                return ServerInputAction::Reject;
+            }
+        }
+        if let Some(bytes) = self.echoes.get(&seq) {
+            return ServerInputAction::Replay(bytes.clone());
+        }
+        let expected = self.last_executed.map_or(0, |last| last.saturating_add(1));
+        if seq != expected {
+            return ServerInputAction::Reject;
+        }
+        ServerInputAction::Execute
+    }
+
+    fn record(&mut self, epoch: u32, seq: u64, bytes: &[u8]) {
+        self.epoch.get_or_insert(epoch);
+        self.last_executed = Some(seq);
+        self.echoes.insert(seq, bytes.to_vec());
+        while self.echoes.len() > SERVER_ECHO_CACHE_LIMIT {
+            let oldest = self.echoes.keys().next().copied().expect("nonempty cache");
+            self.echoes.remove(&oldest);
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Trial {
@@ -165,6 +211,7 @@ pub async fn udp_server_on_socket(
     let mut packet = [0u8; MTU_CEILING];
     let mut server = accept_server_session(&socket, &secret, &mut packet).await?;
     let mut wire = Vec::with_capacity(MTU_CEILING);
+    let mut echo_cache = ServerEchoCache::default();
     loop {
         let (len, from) = socket.recv_from(&mut packet).await?;
         let Some(plaintext) = server.receive(&socket, &packet[..len], from).await? else {
@@ -174,10 +221,22 @@ pub async fn udp_server_on_socket(
             Ok(frame) => frame,
             Err(_) => continue,
         };
-        let Frame::Input(Input { seq, bytes, .. }) = frame else {
+        let Frame::Input(Input { epoch, seq, bytes }) = frame else {
             continue;
         };
-        Echo { ack: seq, bytes }.encode(&mut wire);
+        let authoritative = match echo_cache.classify(epoch, seq) {
+            ServerInputAction::Execute => {
+                echo_cache.record(epoch, seq, &bytes);
+                bytes
+            }
+            ServerInputAction::Replay(bytes) => bytes,
+            ServerInputAction::Reject => continue,
+        };
+        Echo {
+            ack: seq,
+            bytes: authoritative,
+        }
+        .encode(&mut wire);
         server.send(&socket, &wire).await?;
     }
 }
@@ -200,6 +259,7 @@ pub async fn udp_pty_server(
     let mut scratch = [0u8; MAX_PAYLOAD];
     let timing = std::env::var_os("EVERUDP_TIMING").is_some();
     let mut server = accept_server_session(&socket, &secret, &mut packet).await?;
+    let mut echo_cache = ServerEchoCache::default();
     loop {
         let (len, from) = socket.recv_from(&mut packet).await?;
         let t_received = Instant::now();
@@ -210,9 +270,18 @@ pub async fn udp_pty_server(
             Ok(frame) => frame,
             Err(_) => continue,
         };
-        let Frame::Input(Input { seq, bytes, .. }) = frame else {
+        let Frame::Input(Input { epoch, seq, bytes }) = frame else {
             continue;
         };
+        match echo_cache.classify(epoch, seq) {
+            ServerInputAction::Replay(bytes) => {
+                Echo { ack: seq, bytes }.encode(&mut wire);
+                server.send(&socket, &wire).await?;
+                continue;
+            }
+            ServerInputAction::Reject => continue,
+            ServerInputAction::Execute => {}
+        }
         let t_decoded = Instant::now();
         // Try to restart the authoritative program if it exited; a dead
         // child is a benchmark failure, never a silent reflection.
@@ -237,6 +306,7 @@ pub async fn udp_pty_server(
             }
             echoed.extend_from_slice(&scratch[..read]);
         }
+        echo_cache.record(epoch, seq, &echoed);
         let t_echo = Instant::now();
         Echo {
             ack: seq,
@@ -485,4 +555,49 @@ pub fn summarize(trials: &[Trial]) -> (u128, u128, u128, f64) {
 
 pub fn max_payload_check(bytes: &[u8]) -> bool {
     bytes.len() <= MAX_PAYLOAD
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ServerEchoCache, ServerInputAction, SERVER_ECHO_CACHE_LIMIT};
+
+    #[test]
+    fn echo_cache_executes_only_the_next_input() {
+        let cache = ServerEchoCache::default();
+
+        assert!(matches!(cache.classify(7, 0), ServerInputAction::Execute));
+        assert!(matches!(cache.classify(0, 0), ServerInputAction::Reject));
+        assert!(matches!(cache.classify(7, 1), ServerInputAction::Reject));
+    }
+
+    #[test]
+    fn echo_cache_replays_duplicates_without_executing_them() {
+        let mut cache = ServerEchoCache::default();
+        cache.record(7, 0, b"x");
+
+        match cache.classify(7, 0) {
+            ServerInputAction::Replay(bytes) => assert_eq!(bytes, b"x"),
+            _ => panic!("duplicate input must replay its cached echo"),
+        }
+        assert!(matches!(cache.classify(7, 1), ServerInputAction::Execute));
+        assert!(matches!(cache.classify(8, 1), ServerInputAction::Reject));
+    }
+
+    #[test]
+    fn echo_cache_is_bounded_and_old_duplicates_are_rejected() {
+        let mut cache = ServerEchoCache::default();
+        for seq in 0..=(SERVER_ECHO_CACHE_LIMIT as u64) {
+            assert!(matches!(cache.classify(7, seq), ServerInputAction::Execute));
+            cache.record(7, seq, &[seq as u8]);
+        }
+
+        assert_eq!(cache.echoes.len(), SERVER_ECHO_CACHE_LIMIT);
+        assert!(matches!(cache.classify(7, 0), ServerInputAction::Reject));
+        match cache.classify(7, SERVER_ECHO_CACHE_LIMIT as u64) {
+            ServerInputAction::Replay(bytes) => {
+                assert_eq!(bytes, vec![SERVER_ECHO_CACHE_LIMIT as u8]);
+            }
+            _ => panic!("recent duplicate must remain replayable"),
+        }
+    }
 }
