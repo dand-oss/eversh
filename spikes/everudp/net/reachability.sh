@@ -180,7 +180,7 @@ run_attempts direct-ipv4 "$DIRECT_CLIENT" "$DIRECT_SERVER" 10.242.0.1 60300 19
 run_attempts direct-ipv6 "$DIRECT_CLIENT" "$DIRECT_SERVER" fd42:242::1 60301 19
 
 # A blocked path must produce the exact bounded UDP diagnostic on all attempts.
-"$IP" netns exec "$DIRECT_CLIENT" "$IPTABLES" -I OUTPUT -o c0 -p udp --dport 60302 -j DROP
+"$IP" netns exec "$DIRECT_SERVER" "$IPTABLES" -I INPUT -i s0 -p udp --dport 60302 -j DROP
 start_server "$DIRECT_SERVER" 10.242.0.1 60302 "$OUTDIR/udp-blocked-server.log"
 sleep 0.05
 blocked_failures=0
@@ -201,7 +201,7 @@ for ((attempt = 1; attempt <= ATTEMPTS; attempt++)); do
     fi
 done
 stop_server
-"$IP" netns exec "$DIRECT_CLIENT" "$IPTABLES" -D OUTPUT -o c0 -p udp --dport 60302 -j DROP
+"$IP" netns exec "$DIRECT_SERVER" "$IPTABLES" -D INPUT -i s0 -p udp --dport 60302 -j DROP
 blocked_verdict=FAIL
 (( blocked_failures == ATTEMPTS )) && blocked_verdict=PASS
 record_row udp-blocked "$blocked_failures" "$ATTEMPTS" "$ATTEMPTS" "$blocked_verdict" \
