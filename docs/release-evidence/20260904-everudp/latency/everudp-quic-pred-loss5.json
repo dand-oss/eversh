@@ -1,0 +1,1 @@
+{"transport":"quic","prediction":true,"trials":30,"median_us":1448,"p95_us":3137,"max_us":22573,"mean_us":2169.633,"retransmits":1}

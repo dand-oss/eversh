@@ -7,6 +7,15 @@ SPIKE=$ROOT/spikes/everudp
 TRIALS=${1:?trials}
 LOSS=${2:-0}
 OUTDIR=${3:-$ROOT/target/qualification/everudp}
+DELAY_MS=${4:-0}
+REORDER_PCT=${5:-0}
+SUFFIX="-loss${LOSS}"
+if (( DELAY_MS > 0 )); then
+    SUFFIX="$SUFFIX-jitter${DELAY_MS}"
+fi
+if (( REORDER_PCT > 0 )); then
+    SUFFIX="$SUFFIX-reorder${REORDER_PCT}"
+fi
 mkdir -p "$OUTDIR"
 TAG=u$((RANDOM & 32767))
 SERVER_NS=${TAG}s
@@ -47,8 +56,23 @@ $IP -n "$SERVER_NS" link set s0 up
 $IP -n "$CLIENT_NS" link set c0 up
 
 if (( LOSS > 0 )); then
-    $IP netns exec "$CLIENT_NS" $TC qdisc replace dev c0 root netem loss "${LOSS}%"
-    $IP netns exec "$SERVER_NS" $TC qdisc replace dev s0 root netem loss "${LOSS}%"
+    delay_arg=()
+    if (( DELAY_MS > 0 )); then
+        delay_arg=(delay "${DELAY_MS}ms" 5ms)
+    elif (( REORDER_PCT > 0 )); then
+        delay_arg=(delay 1ms)
+    fi
+    reorder_arg=()
+    if (( REORDER_PCT > 0 )); then
+        reorder_arg=(reorder "${REORDER_PCT}%")
+    fi
+    if (( DELAY_MS > 0 )); then
+        $IP netns exec "$CLIENT_NS" $TC qdisc replace dev c0 root netem loss "${LOSS}%" "${delay_arg[@]}" "${reorder_arg[@]}"
+        $IP netns exec "$SERVER_NS" $TC qdisc replace dev s0 root netem loss "${LOSS}%" "${delay_arg[@]}" "${reorder_arg[@]}"
+    else
+        $IP netns exec "$CLIENT_NS" $TC qdisc replace dev c0 root netem loss "${LOSS}%" "${delay_arg[@]}" "${reorder_arg[@]}"
+        $IP netns exec "$SERVER_NS" $TC qdisc replace dev s0 root netem loss "${LOSS}%" "${delay_arg[@]}" "${reorder_arg[@]}"
+    fi
 fi
 
 ssh-keygen -q -t ed25519 -N '' -f "$TMP/host" >/dev/null
@@ -75,7 +99,7 @@ EOF
 $IP netns exec "$SERVER_NS" /usr/sbin/sshd -D -e -f "$TMP/sshd_config" 2>"$TMP/sshd.err" &
 SERVER_PID=$!
 for _ in $(seq 1 50); do
-    $IP netns exec "$CLIENT_NS" /usr/bin/ssh-keyscan -T 1 -p "$PORT" 10.241.0.1 >"$TMP/known" 2>/dev/null
+    $IP netns exec "$CLIENT_NS" /usr/bin/ssh-keyscan -T 1 -p "$PORT" 10.241.0.1 >"$TMP/known" 2>/dev/null || true
     grep -q ssh-ed25519 "$TMP/known" && break
     sleep 0.1
 done
@@ -108,10 +132,10 @@ run_ssh_control() {
         proxy=(-o "ProxyCommand=$ROOT/target/release/everssh ssh-proxy 10.241.0.1 $PORT --remote-eversh $ROOT/target/release/eversh --ssh-option -F$TMP/client_config --status-file $TMP/status-$mode")
     fi
     $IP netns exec "$CLIENT_NS" /usr/bin/env "${debug_env[@]}" /usr/bin/python3 "$NET/drive-ssh.py" \
-        "$OUTDIR/${mode}-loss${LOSS}.json" "$TRIALS" 0.15 \
+        "$OUTDIR/${mode}-${SUFFIX}.json" "$TRIALS" 0.15 \
         ssh -F "$TMP/client_config" "${proxy[@]}" -tt bench \
-        "/bin/sh -c 'stty raw -echo; exec /usr/bin/python3 -u $NET/echo1.py'"
-    python3 - "$OUTDIR/${mode}-loss${LOSS}.json" <<'PY'
+        "/bin/sh -c 'printf EVERUDP_READY; stty raw -echo; exec /usr/bin/python3 -u $NET/echo1.py'"
+    python3 - "$OUTDIR/${mode}-${SUFFIX}.json" <<'PY'
 import json, sys
 path = sys.argv[1]
 try:
@@ -145,7 +169,7 @@ run_ssh_strace() {
 
 run_everudp_udp() {
     local prediction=$1
-    local name="everudp-udp-$([[ $prediction == on ]] && echo pred || echo nopred)-loss${LOSS}"
+    local name="everudp-udp-$([[ $prediction == on ]] && echo pred || echo nopred)${SUFFIX}"
     $IP netns exec "$SERVER_NS" "$SPIKE/target/debug/everudp-spike" udp-server \
         --bind 10.241.0.1:60200 --key-hex 0707070707070707 \
         >"$TMP/udp-server.log" 2>&1 &
@@ -159,7 +183,7 @@ run_everudp_udp() {
 
 run_everudp_quic() {
     local prediction=$1
-    local name="everudp-quic-$([[ $prediction == on ]] && echo pred || echo nopred)-loss${LOSS}"
+    local name="everudp-quic-$([[ $prediction == on ]] && echo pred || echo nopred)${SUFFIX}"
     $IP netns exec "$SERVER_NS" "$SPIKE/target/debug/everudp-spike" quic-server \
         --bind 10.241.0.1:60201 >"$TMP/quic-server.log" 2>&1 &
     local quic_server=$!
@@ -178,7 +202,7 @@ run_everudp_quic() {
 }
 
 run_mosh() {
-    local out="$OUTDIR/mosh-loss${LOSS}.json"
+    local out="$OUTDIR/mosh-${SUFFIX}.json"
     local port=60100
     local mosh_output
     mosh_output=$($IP netns exec "$SERVER_NS" mosh-server new -p $port \

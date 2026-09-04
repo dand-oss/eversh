@@ -87,7 +87,7 @@ if [[ $MODE == everssh ]]; then
 fi
 python3 "$NET/drive-ssh.py" "$OUT" "$TRIALS" 0.15 \
     ssh "${SSH_OPTS[@]}" -p "$PORT" "$HOST_ADDR" \
-    /bin/sh -c "stty raw -echo; exec /usr/bin/python3 -u '$NET/echo1.py'"
+    /bin/sh -c "printf EVERUDP_READY; stty raw -echo; exec /usr/bin/python3 -u '$NET/echo1.py'"
 python3 - "$OUT" <<'PY'
 import json, sys
 with open(sys.argv[1]) as f:

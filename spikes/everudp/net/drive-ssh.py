@@ -20,6 +20,20 @@ def drain(stdout, seconds):
     return False
 
 
+def wait_for(stdout, needle, seconds):
+    buffer = b""
+    deadline = time.time() + seconds
+    while time.time() < deadline:
+        readable, _, _ = select.select([stdout], [], [], 0)
+        if not readable:
+            continue
+        data = os.read(stdout, 4096)
+        buffer += data
+        if needle in buffer:
+            return True
+    return False
+
+
 def main() -> int:
     output, trials = sys.argv[1], int(sys.argv[2])
     gap = float(sys.argv[3]) if len(sys.argv) > 3 else 0.15
@@ -32,14 +46,10 @@ def main() -> int:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
-    # Remote `stty raw -echo` may print settings before the reader starts;
-    # a newline proves the remote echo path is live.
-    time.sleep(2.0)
-    try:
-        os.write(proc.stdin.fileno(), b"\n")
-    except BrokenPipeError:
-        pass
-    if not drain(proc.stdout.fileno(), 5):
+    # The remote banner proves the session is established AND remote output
+    # flows; only then do single-keystroke trials measure the network path
+    # rather than the local canonical-mode echo.
+    if not wait_for(proc.stdout.fileno(), b"EVERUDP_READY", 15):
         proc.kill()
         proc.wait()
         print("ssh remote echo never became ready", file=sys.stderr)
