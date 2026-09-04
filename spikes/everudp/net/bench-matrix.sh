@@ -221,11 +221,58 @@ run_mosh() {
     pkill -f "mosh-server new -p $actual_port" 2>/dev/null || true
 }
 
+run_zmosh() {
+    local out="$OUTDIR/zmosh-${SUFFIX}.json"
+    local zdir="$TMP/zmx"
+    mkdir -p "$zdir"
+    $IP netns exec "$SERVER_NS" /usr/bin/env \
+        -u ZMX_SESSION TERM=xterm-256color ZMX_DIR="$zdir" \
+        /tmp/zmosh-059-out/bin/zmosh run everudp-zmosh \
+        /usr/bin/python3 -u "$NET/echo1.py" >/dev/null
+    sleep 0.3
+    $IP netns exec "$SERVER_NS" /usr/bin/env \
+        -u ZMX_SESSION TERM=xterm-256color ZMX_DIR="$zdir" \
+        /tmp/zmosh-059-out/bin/zmosh serve everudp-zmosh \
+        >"$TMP/zmosh-connect.txt" 2>"$TMP/zmosh-serve.err" &
+    local zserve=$!
+    for _ in $(seq 1 50); do
+        grep -q '^ZMX_CONNECT' "$TMP/zmosh-connect.txt" && break
+        sleep 0.1
+    done
+    read -r _ _ zport zkey <"$TMP/zmosh-connect.txt"
+    [[ -n $zkey ]] || { cat "$TMP/zmosh-serve.err" >&2; exit 1; }
+    local samples
+    samples=$($IP netns exec "$CLIENT_NS" /tmp/zmosh-bench 10.241.0.1 "$zport" "$zkey" "$TRIALS" 150)
+    kill "$zserve" 2>/dev/null || true
+    python3 - "$out" "$samples" "$TRIALS" <<'PY'
+import json, sys
+out, raw, trials = sys.argv[1], sys.argv[2], int(sys.argv[3])
+samples = json.loads(raw)
+ordered = sorted(value for value in samples if value > 0)
+def pick(q):
+    return ordered[round((len(ordered) - 1) * q)] if ordered else 0
+json.dump({
+    "summary": {
+        "trials": trials,
+        "nonzero": len(ordered),
+        "median_us": pick(0.5),
+        "p95_us": pick(0.95),
+        "max_us": ordered[-1] if ordered else 0,
+    },
+    "samples": samples,
+}, open(out, "w"))
+print(open(out).read())
+PY
+    $IP netns exec "$SERVER_NS" /usr/bin/env -u ZMX_SESSION ZMX_DIR="$zdir" \
+        /tmp/zmosh-059-out/bin/zmosh kill everudp-zmosh >/dev/null 2>&1 || true
+}
+
 run_ssh_control ssh
 run_ssh_control everssh || true
 run_ssh_strace
 cp "$TMP/everssh.strace" "$OUTDIR/everssh.strace" 2>/dev/null || true
 run_mosh
+run_zmosh
 run_everudp_udp on
 run_everudp_udp off
 run_everudp_quic on

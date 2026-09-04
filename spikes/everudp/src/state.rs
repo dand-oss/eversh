@@ -32,6 +32,7 @@ pub struct PredictionState {
 pub enum Reconciliation {
     Confirmed { predicted: bool },
     Corrected,
+    Duplicate,
 }
 
 impl PredictionState {
@@ -59,6 +60,13 @@ impl PredictionState {
     }
 
     pub fn reconcile(&mut self, ack: u64, bytes: &[u8]) -> Reconciliation {
+        // Retransmitted echoes must not append authoritative bytes twice.
+        if ack <= self.acknowledged && !self.predicted.contains_key(&ack) {
+            return Reconciliation::Duplicate;
+        }
+        // Compare this acknowledgement's prediction before cumulative-ACK
+        // cleanup removes it; otherwise every mismatch would be accepted.
+        let prediction = self.predicted.remove(&ack);
         self.acknowledged = self.acknowledged.max(ack);
         while let Some(first) = self.predicted.keys().next().copied() {
             if first > self.acknowledged {
@@ -66,10 +74,7 @@ impl PredictionState {
             }
             self.predicted.remove(&first);
         }
-        let predicted = self
-            .predicted
-            .remove(&ack)
-            .unwrap_or_else(|| bytes.to_vec());
+        let predicted = prediction.unwrap_or_else(|| bytes.to_vec());
         if predicted == bytes {
             self.confirmed_bytes.extend_from_slice(bytes);
             Reconciliation::Confirmed { predicted: true }
@@ -91,4 +96,58 @@ impl PredictionState {
 
 fn is_echo_safe(byte: &u8) -> bool {
     matches!(byte, b' '..=b'~')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn confirmed_prediction_does_not_append_twice() {
+        let mut state = PredictionState::new(1, EchoPolicy::Predict);
+        let (seq, displayed) = state.send(b"k");
+        assert!(displayed);
+        assert_eq!(
+            state.reconcile(seq, b"k"),
+            Reconciliation::Confirmed { predicted: true }
+        );
+        assert_eq!(state.reconcile(seq, b"k"), Reconciliation::Duplicate);
+        assert_eq!(state.confirmed_bytes, b"k");
+        assert_eq!(state.corrections, 0);
+    }
+
+    #[test]
+    fn mismatch_is_corrected_not_silently_accepted() {
+        let mut state = PredictionState::new(1, EchoPolicy::Predict);
+        let (seq, _) = state.send(b"x");
+        assert_eq!(state.reconcile(seq, b"y"), Reconciliation::Corrected);
+        assert_eq!(state.confirmed_bytes, b"y");
+        assert_eq!(state.corrections, 1);
+    }
+
+    #[test]
+    fn no_echo_never_displays_predictions() {
+        let mut state = PredictionState::new(1, EchoPolicy::NoEcho);
+        let (seq, displayed) = state.send(b"secret");
+        assert!(!displayed);
+        assert_eq!(
+            state.reconcile(seq, b"secret"),
+            Reconciliation::Confirmed { predicted: true }
+        );
+        assert_eq!(state.predicted_echo_displays, 0);
+    }
+
+    #[test]
+    fn epoch_reset_clears_prediction_but_not_authority() {
+        let mut state = PredictionState::new(1, EchoPolicy::Predict);
+        let (seq, _) = state.send(b"a");
+        assert_eq!(
+            state.reconcile(seq, b"a"),
+            Reconciliation::Confirmed { predicted: true }
+        );
+        state.reset(2);
+        assert!(state.predicted.is_empty());
+        assert_eq!(state.epoch, 2);
+        assert_eq!(state.confirmed_bytes, b"a");
+    }
 }
