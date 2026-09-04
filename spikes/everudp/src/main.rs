@@ -54,7 +54,9 @@ fn half_key(hex: &str) -> [u8; 8] {
 }
 
 fn main() {
-    let runtime = tokio::runtime::Builder::new_multi_thread()
+    // Each spike process owns one socket and one PTY. A current-thread
+    // reactor avoids cross-worker wakeups on the latency-critical path.
+    let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("tokio runtime");
