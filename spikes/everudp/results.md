@@ -1,6 +1,6 @@
 # everudp Stage D spike result
 
-Status: partially repaired after FAIL review; bead remains open |
+Status: latency and authenticated-substrate repairs pass; bead remains open |
 Owner: `eversh-2zq` | Preregistration:
 frozen in the bead before implementation.
 
@@ -10,9 +10,10 @@ Available evidence does not meet the full preregistered BUILD rule. The
 optimized spike now proves end-to-end PTY latency parity with zmosh under
 the frozen 5% loss condition, including a conservative bootstrap
 equivalence bound. Production remains NOT-BUILD because the substrate is
-not security-equivalent to the QUIC control, its terminal oracle is not
-independent, its reachability matrix is only a smoke test, and the decisive
-everssh comparison remains unavailable:
+not production-equivalent to the QUIC control, its terminal oracle is not
+independent, its reachability matrix is only a smoke test, resource and
+congestion behavior are not qualified, and the decisive everssh comparison
+remains unavailable:
 
 1. The everssh-v2 latency comparison is UNAVAILABLE in this harness: the
    outer-ssh PTY driver initially timed local canonical-mode echo (invalid
@@ -79,7 +80,7 @@ paired harness now alternates candidate order, uses equal workloads and
 pacing, resets seeded netem before each candidate, retains raw samples and
 hashes, and requires a clean source commit before a parity verdict.
 
-### Clean paired equivalence campaign (authoritative latency result)
+### Initial clean paired equivalence campaign (historical pre-hardening result)
 
 Six alternating-order blocks of 100 trials per candidate ran from clean
 source commit `1a1029cbe115f909a8bcadc6f36ebd3f760a7d61` and tree
@@ -101,11 +102,42 @@ stratified nonparametric bootstrap produced a p50 ratio 95% interval of
 The probability that a randomly selected everudp observation is faster
 than a randomly selected zmosh observation is 0.562.
 
-This proves the narrow claim requested by the spike: **the current
+This first clean campaign established the measurement method, but its source
+preceded authenticated session establishment and its qdisc receipts captured
+configuration before the run rather than hash-bound before/after counters. It
+is therefore retained as historical evidence and superseded by the hardened
+campaign below.
+
+### Hardened clean paired equivalence campaign (authoritative latency result)
+
+Six fresh alternating-order blocks of 100 trials per candidate ran from clean
+source commit `c986ce339faeec8671f6d5c9b549965b3ee776b9` and tree
+`de23b70951f2a472ffc8b9b779798a5ee2bed6f6`. This source includes the
+authenticated handshake, directional HKDF-derived traffic roots, rotating
+AEAD epochs, authentication-before-replay mutation, authenticated address
+roaming, bounded amplification, retransmission deduplication, and fail-closed
+encrypted MTU limits. Every block hash-binds qdisc counters captured before
+and after each candidate; positive packet-drop deltas were observed on both
+egress paths in all 12 candidate runs.
+
+| Pooled result (600 trials each) | everudp | zmosh 0.5.9 | ratio |
+| --- | ---: | ---: | ---: |
+| p50 | 457 us | 467 us | 0.979 |
+| p95 | 21,483 us | 60,836 us | 0.353 |
+
+The 20,000-replicate stratified bootstrap produced a p50 ratio 95% interval
+of 0.930-1.020 (one-sided upper 95% bound 1.013) and a p95 ratio interval of
+0.350-0.427 (upper bound 0.426). Both upper bounds remain below the frozen
+1.10/1.15 equivalence limits. Exact-SHA, observed-loss, point-rule, and
+conservative equivalence verdicts all pass. The probability that a randomly
+selected everudp observation is faster than a randomly selected zmosh
+observation is 0.565.
+
+This proves the narrow claim requested by the spike: **the authenticated
 everudp prototype is at least as fast as zmosh 0.5.9 on the matched direct
 5%-loss end-to-end PTY workload**. It does not erase the independent
-security, terminal-correctness, reachability, and everssh-control blockers
-that keep the production decision at NOT-BUILD.
+terminal-correctness, reachability, resource, congestion, provisioning, and
+everssh-control blockers that keep the production decision at NOT-BUILD.
 
 ## Frozen benchmark execution
 
@@ -169,17 +201,22 @@ B1 gate, not by this disposable spike.
 
 ## Substrate equivalence record
 
-- NOT equivalent: the bench repeats an eight-byte constant into a 32-byte
-  key, uses a constant session prefix with process-reset counters, performs
-  no KDF/authenticated key establishment/peer binding/key rotation, and
-  updates its replay window before AEAD tag verification. A forged high
-  counter could therefore displace legitimate traffic. These are spike
-  shortcuts, not a production substrate.
-- Positive-but-insufficient pieces: AES-256-GCM per packet; disjoint
-  client/server nonce counter half-spaces within one process; 64-packet
-  replay window shape; MTU ceiling and 1:1 echo cap.
-- MTU: 1,200-byte ceiling and 1,024-byte payload cap.
-- Amplification: 1:1 echo only.
+- Repaired authenticated core: a full 32-byte bootstrap secret authenticates
+  one random nonzero association ID and fresh client/server randomness. HKDF
+  derives separate client-to-server and server-to-client roots; per-epoch
+  AES-256-GCM keys and nonce prefixes rotate every 1,048,576 packets.
+- Replay and roaming: the 64-packet replay window mutates only after valid
+  authentication. Only a packet carrying the association traffic key may move
+  the server's peer address. Unit and loopback integration gates cover forged
+  hellos/tags/high counters, duplicate packets, rotation-boundary reordering,
+  authenticated roaming, and exactly-once PTY execution after retransmission.
+- MTU: encoders fail closed above the 1,024-byte payload cap, and maximum
+  encrypted request and response frames fit the 1,200-byte ceiling.
+- Amplification: the server accounts received and sent bytes with a bounded
+  per-association budget; the echo workload cannot send unearned bytes.
+- Remaining production gap: the executable still uses a public benchmark
+  fixture instead of a real one-use secret provisioning channel and serves one
+  disposable association rather than a managed multi-user service.
 - Recovery: 20 ms fixed stop-and-wait retransmission in this spike; noq
   retains its own loss-recovery machinery. This is the dominant documented
   substrate difference and the most likely production-hardening cost.
@@ -197,6 +234,8 @@ the spike's minimal line model.
 
 Sanitized JSON/TSV receipts are tracked under
 `docs/release-evidence/20260904-everudp/`. The authoritative parity
-aggregate is `parity/analysis.json`; its six block manifests bind source,
-tree, candidate binaries, seeded topology, result hashes, and raw samples.
+aggregate is `parity-hardened/analysis.json`; its six block manifests bind
+source, tree, candidate binaries, seeded topology, raw samples, result hashes,
+and before/after qdisc counters. `parity/analysis.json` retains the earlier
+pre-hardening campaign.
 Other raw logs remain under ignored `target/qualification/everudp/`.
