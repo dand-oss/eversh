@@ -30,6 +30,21 @@ def load_block(path):
         actual = hashlib.sha256(result_path.read_bytes()).hexdigest()
         if actual != manifest["results"][name]:
             raise ValueError(f"{path}: {name} hash does not match manifest")
+    if manifest.get("schema_version", 1) >= 2:
+        netem_receipts = manifest.get("netem_receipts", {})
+        if len(netem_receipts) != 8:
+            raise ValueError(f"{path}: expected eight netem counter receipts")
+        for name, expected_hash in netem_receipts.items():
+            actual_hash = hashlib.sha256((path / name).read_bytes()).hexdigest()
+            if actual_hash != expected_hash:
+                raise ValueError(f"{path}: {name} hash does not match manifest")
+        observed = manifest["loss"]["observed_drop_delta"]
+        if any(
+            count <= 0
+            for candidate in observed.values()
+            for count in candidate.values()
+        ):
+            raise ValueError(f"{path}: candidate path did not observe configured loss")
     everudp = json.loads(result_paths["everudp.json"].read_text(encoding="utf-8"))
     zmosh = json.loads(result_paths["zmosh.json"].read_text(encoding="utf-8"))
     ev_samples = everudp["samples"]
@@ -111,7 +126,10 @@ def main():
     point_pass = pooled["p50_ratio"] <= 1.10 and pooled["p95_ratio"] <= 1.15
     artifact_sha256 = next(iter(artifact_sets))
     exact_sha_evidence_pass = not any(dirty)
-    equivalence_pass = exact_sha_evidence_pass and (
+    observed_loss_evidence_pass = all(
+        block[0].get("schema_version", 1) >= 2 for block in blocks
+    )
+    equivalence_pass = exact_sha_evidence_pass and observed_loss_evidence_pass and (
         uncertainty["p50_ratio_upper95"] <= 1.10
         and uncertainty["p95_ratio_upper95"] <= 1.15
     )
@@ -134,6 +152,7 @@ def main():
         "method": {
             "quantile": "empirical nearest-rank ceil(p*n)-1, applied identically to both candidates",
             "uncertainty": "stratified independent nonparametric bootstrap within each run block",
+            "loss_evidence": "hash-bound before/after qdisc counters with positive drop deltas on both egress paths",
             "thresholds": {"p50_ratio_max": 1.10, "p95_ratio_max": 1.15},
         },
         "blocks": [
@@ -156,6 +175,7 @@ def main():
         "verdict": {
             "preregistered_point_rule_pass": point_pass,
             "exact_sha_evidence_pass": exact_sha_evidence_pass,
+            "observed_loss_evidence_pass": observed_loss_evidence_pass,
             "conservative_upper95_equivalence_pass": equivalence_pass,
         },
     }

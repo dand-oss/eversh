@@ -118,8 +118,32 @@ reset_netem() {
         loss random "${LOSS_PCT}%" seed "$CLIENT_SEED"
     $IP netns exec "$SERVER_NS" $TC qdisc replace dev s0 root netem \
         loss random "${LOSS_PCT}%" seed "$SERVER_SEED"
-    $IP netns exec "$CLIENT_NS" $TC -s qdisc show dev c0 >"$OUTDIR/netem-$label-client.txt"
-    $IP netns exec "$SERVER_NS" $TC -s qdisc show dev s0 >"$OUTDIR/netem-$label-server.txt"
+    $IP netns exec "$CLIENT_NS" $TC -s qdisc show dev c0 >"$OUTDIR/netem-$label-client-before.txt"
+    $IP netns exec "$SERVER_NS" $TC -s qdisc show dev s0 >"$OUTDIR/netem-$label-server-before.txt"
+}
+
+record_netem_after() {
+    local label=$1
+    $IP netns exec "$CLIENT_NS" $TC -s qdisc show dev c0 >"$OUTDIR/netem-$label-client-after.txt"
+    $IP netns exec "$SERVER_NS" $TC -s qdisc show dev s0 >"$OUTDIR/netem-$label-server-after.txt"
+}
+
+netem_drops() {
+    local file=$1
+    local drops
+    drops=$(sed -n 's/.*dropped \([0-9][0-9]*\).*/\1/p' "$file" | head -1)
+    [[ $drops =~ ^[0-9]+$ ]] || { echo "cannot read netem drop counter: $file" >&2; exit 1; }
+    echo "$drops"
+}
+
+drop_delta() {
+    local label=$1
+    local direction=$2
+    local before after
+    before=$(netem_drops "$OUTDIR/netem-$label-$direction-before.txt")
+    after=$(netem_drops "$OUTDIR/netem-$label-$direction-after.txt")
+    (( after >= before )) || { echo "netem counter regressed for $label $direction" >&2; exit 1; }
+    echo $((after - before))
 }
 
 run_everudp() {
@@ -134,6 +158,7 @@ run_everudp() {
         --transport udp --prediction on --trials "$TRIALS" \
         --server 10.242.0.1:60200 >"$OUTDIR/everudp.json" \
         2>"$OUTDIR/everudp.stderr"
+    record_netem_after everudp
     kill "$SERVER_PID" 2>/dev/null || true
     wait "$SERVER_PID" 2>/dev/null || true
     SERVER_PID=
@@ -158,6 +183,7 @@ run_zmosh() {
     local samples
     samples=$($IP netns exec "$CLIENT_NS" "$TMP/zmosh-bench" \
         10.242.0.1 "$zport" "$zkey" "$TRIALS" "$GAP_MS")
+    record_netem_after zmosh
     /usr/bin/python3 - "$OUTDIR/zmosh.json" "$samples" "$TRIALS" <<'PY'
 import json
 import math
@@ -203,11 +229,27 @@ else
 fi
 FINISHED_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
+EVERUDP_CLIENT_DROPS=$(drop_delta everudp client)
+EVERUDP_SERVER_DROPS=$(drop_delta everudp server)
+ZMOSH_CLIENT_DROPS=$(drop_delta zmosh client)
+ZMOSH_SERVER_DROPS=$(drop_delta zmosh server)
+for observed in "$EVERUDP_CLIENT_DROPS" "$EVERUDP_SERVER_DROPS" "$ZMOSH_CLIENT_DROPS" "$ZMOSH_SERVER_DROPS"; do
+    (( observed > 0 )) || { echo "candidate path observed no configured packet loss" >&2; exit 1; }
+done
+
 EVERUDP_SHA=$(sha256sum "$EVERUDP_BIN" | awk '{print $1}')
 ZMOSH_SHA=$(sha256sum "$ZMOSH_BIN" | awk '{print $1}')
 ZMOSH_BENCH_SHA=$(sha256sum "$TMP/zmosh-bench" | awk '{print $1}')
 EVERUDP_RESULT_SHA=$(sha256sum "$OUTDIR/everudp.json" | awk '{print $1}')
 ZMOSH_RESULT_SHA=$(sha256sum "$OUTDIR/zmosh.json" | awk '{print $1}')
+EVERUDP_CLIENT_BEFORE_SHA=$(sha256sum "$OUTDIR/netem-everudp-client-before.txt" | awk '{print $1}')
+EVERUDP_CLIENT_AFTER_SHA=$(sha256sum "$OUTDIR/netem-everudp-client-after.txt" | awk '{print $1}')
+EVERUDP_SERVER_BEFORE_SHA=$(sha256sum "$OUTDIR/netem-everudp-server-before.txt" | awk '{print $1}')
+EVERUDP_SERVER_AFTER_SHA=$(sha256sum "$OUTDIR/netem-everudp-server-after.txt" | awk '{print $1}')
+ZMOSH_CLIENT_BEFORE_SHA=$(sha256sum "$OUTDIR/netem-zmosh-client-before.txt" | awk '{print $1}')
+ZMOSH_CLIENT_AFTER_SHA=$(sha256sum "$OUTDIR/netem-zmosh-client-after.txt" | awk '{print $1}')
+ZMOSH_SERVER_BEFORE_SHA=$(sha256sum "$OUTDIR/netem-zmosh-server-before.txt" | awk '{print $1}')
+ZMOSH_SERVER_AFTER_SHA=$(sha256sum "$OUTDIR/netem-zmosh-server-after.txt" | awk '{print $1}')
 KERNEL=$(uname -srmo)
 CPU_MODEL=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1)
 
@@ -215,7 +257,7 @@ CPU_MODEL=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1)
 import json
 
 manifest = {
-    "schema_version": 1,
+    "schema_version": 2,
     "source": {
         "head_sha": "$HEAD_SHA",
         "tree_sha": "$TREE_SHA",
@@ -234,6 +276,10 @@ manifest = {
         "client_seed": $CLIENT_SEED,
         "server_seed": $SERVER_SEED,
         "reset_before_each_candidate": True,
+        "observed_drop_delta": {
+            "everudp": {"client_egress": $EVERUDP_CLIENT_DROPS, "server_egress": $EVERUDP_SERVER_DROPS},
+            "zmosh": {"client_egress": $ZMOSH_CLIENT_DROPS, "server_egress": $ZMOSH_SERVER_DROPS},
+        },
     },
     "order": "$ORDER",
     "host": {"kernel": "$KERNEL", "cpu_model": "$CPU_MODEL"},
@@ -250,6 +296,16 @@ manifest = {
     "results": {
         "everudp.json": "$EVERUDP_RESULT_SHA",
         "zmosh.json": "$ZMOSH_RESULT_SHA",
+    },
+    "netem_receipts": {
+        "netem-everudp-client-before.txt": "$EVERUDP_CLIENT_BEFORE_SHA",
+        "netem-everudp-client-after.txt": "$EVERUDP_CLIENT_AFTER_SHA",
+        "netem-everudp-server-before.txt": "$EVERUDP_SERVER_BEFORE_SHA",
+        "netem-everudp-server-after.txt": "$EVERUDP_SERVER_AFTER_SHA",
+        "netem-zmosh-client-before.txt": "$ZMOSH_CLIENT_BEFORE_SHA",
+        "netem-zmosh-client-after.txt": "$ZMOSH_CLIENT_AFTER_SHA",
+        "netem-zmosh-server-before.txt": "$ZMOSH_SERVER_BEFORE_SHA",
+        "netem-zmosh-server-after.txt": "$ZMOSH_SERVER_AFTER_SHA",
     },
 }
 with open("$OUTDIR/manifest.json", "w", encoding="utf-8") as stream:
