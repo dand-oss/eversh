@@ -10,10 +10,9 @@ Available evidence does not meet the full preregistered BUILD rule. The
 optimized spike now proves end-to-end PTY latency parity with zmosh under
 the frozen 5% loss condition, including a conservative bootstrap
 equivalence bound. Production remains NOT-BUILD because the substrate is
-not production-equivalent to the QUIC control, its terminal oracle is not
-independent, its reachability matrix is only a smoke test, resource and
-congestion behavior are not qualified, and the decisive everssh comparison
-remains unavailable:
+not production-equivalent to the QUIC control, its reachability matrix is only
+a smoke test, resource and congestion behavior are not qualified, and the
+decisive everssh comparison remains unavailable:
 
 1. The everssh-v2 latency comparison is UNAVAILABLE in this harness: the
    outer-ssh PTY driver initially timed local canonical-mode echo (invalid
@@ -166,12 +165,20 @@ only as an upper-bound transport comparison.
 
 ## Correctness oracle
 
-After the review repair, the state model explicitly distinguishes confirmed
-predictions, corrections, and duplicate echoes; focused tests cover all
-three plus no-echo safety and epoch reset. The CLI oracle checks opaque
-byte equality on echo/resize/full-screen/tmux workloads. This is still NOT
-the preregistered independent terminal-grid oracle and supports no
-terminal-state correctness claim.
+The opaque byte self-comparison has been replaced. The exact-SHA gate at
+8a806a15955b838c98add5a7b74a1e813f8b9494 ran 30 complete matrices
+through real PTYs, including a real tmux 3.7c client. Authoritative PTY output
+and the predicted/reconciled stream were rendered by separate instances of
+the pinned MIT-licensed vt100 0.16.2 terminal model. The oracle compares
+dimensions, cursor, every cell, foreground/background and text attributes,
+wide cells, wrapped rows, alternate-screen state, and cursor visibility.
+
+All 30 echo, mismatch-correction, duplicate/reorder, full-screen, resize,
+tmux, no-echo, and epoch-reset/resync matrices matched. Correction convergence
+p95 was 5 us against the frozen 300,000 us ceiling, and password prediction
+displays were zero. The state model now buffers future acknowledgements,
+commits authoritative output in sequence, rejects unsent acknowledgements,
+suppresses duplicates, and clears the old generation on epoch reset.
 
 ## Reachability
 
@@ -237,5 +244,6 @@ Sanitized JSON/TSV receipts are tracked under
 aggregate is `parity-hardened/analysis.json`; its six block manifests bind
 source, tree, candidate binaries, seeded topology, raw samples, result hashes,
 and before/after qdisc counters. `parity/analysis.json` retains the earlier
-pre-hardening campaign.
+pre-hardening campaign. `oracle.json` is the exact-SHA 30-run terminal-grid
+receipt.
 Other raw logs remain under ignored `target/qualification/everudp/`.
