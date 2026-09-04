@@ -21,7 +21,10 @@ def percentile(ordered, probability):
 
 
 def load_block(path):
-    manifest = json.loads((path / "manifest.json").read_text(encoding="utf-8"))
+    manifest_path = path / "manifest.json"
+    manifest_bytes = manifest_path.read_bytes()
+    manifest = json.loads(manifest_bytes)
+    manifest["receipt_sha256"] = hashlib.sha256(manifest_bytes).hexdigest()
     result_paths = {name: path / name for name in ("everudp.json", "zmosh.json")}
     for name, result_path in result_paths.items():
         actual = hashlib.sha256(result_path.read_bytes()).hexdigest()
@@ -106,6 +109,7 @@ def main():
     pooled = metrics(everudp, zmosh)
     uncertainty = bootstrap(blocks, args.bootstrap, args.seed)
     point_pass = pooled["p50_ratio"] <= 1.10 and pooled["p95_ratio"] <= 1.15
+    artifact_sha256 = next(iter(artifact_sets))
     exact_sha_evidence_pass = not any(dirty)
     equivalence_pass = exact_sha_evidence_pass and (
         uncertainty["p50_ratio_upper95"] <= 1.10
@@ -121,7 +125,11 @@ def main():
             "head_sha": next(iter(heads)),
             "tree_sha": next(iter(trees)),
             "all_blocks_clean": exact_sha_evidence_pass,
-            "artifact_sha256": list(next(iter(artifact_sets))),
+            "artifact_sha256": {
+                "everudp": artifact_sha256[0],
+                "zmosh": artifact_sha256[1],
+                "zmosh_bench": artifact_sha256[2],
+            },
         },
         "method": {
             "quantile": "empirical nearest-rank ceil(p*n)-1, applied identically to both candidates",
@@ -131,6 +139,7 @@ def main():
         "blocks": [
             {
                 "path": str(path),
+                "manifest_sha256": manifest["receipt_sha256"],
                 "seed": manifest["loss"]["client_seed"],
                 "order": manifest["order"],
                 **metrics(ev_block, zm_block),
