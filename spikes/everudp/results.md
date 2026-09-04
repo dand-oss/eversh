@@ -59,6 +59,25 @@ is lower in aggregate because its 20 ms retransmit recovers sooner than
 zmosh's long-tail stalls, but the preregistered parity rule gates on p50
 and p95 together, so parity is not met.
 
+### Exploratory release-mode rerun (not closure evidence)
+
+Removing a redundant per-input server timer and benchmarking optimized
+release binaries materially changed the result. Six additional 30-trial
+runs produced 180 observations per candidate. With one common empirical
+nearest-rank estimator, pooled everudp/zmosh p50 was 521/494 us (ratio
+1.055) and p95 was 21,558/61,669 us (ratio 0.350). The frozen point rule
+therefore passed on the pooled observations, while only four of six small
+run blocks passed separately. A stratified bootstrap put the one-sided 95%
+upper bound for the p50 ratio near 1.20, outside the 1.10 parity margin.
+
+These files (`end-to-end/*-rel7.json` through `*-rel12.json`) came from an
+in-progress dirty tree and used the older always-zmosh-first harness. They
+show that the earlier three-run disproof is no longer decisive, but they do
+not prove equivalence and are not exact-SHA closure evidence. The dedicated
+paired harness now alternates candidate order, uses equal workloads and
+pacing, resets seeded netem before each candidate, retains raw samples and
+hashes, and requires a clean source commit before a parity verdict.
+
 ## Frozen benchmark execution
 
 All latency cells ran 30 stop-and-wait keystroke-to-authoritative-echo
