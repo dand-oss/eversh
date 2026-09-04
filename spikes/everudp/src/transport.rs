@@ -251,6 +251,14 @@ pub async fn udp_pty_server(
 ) -> std::io::Result<()> {
     let socket = UdpSocket::bind(bind).await?;
     eprintln!("everudp-spike udp-pty-server {}", socket.local_addr()?);
+    udp_pty_server_on_socket(socket, secret, command).await
+}
+
+pub async fn udp_pty_server_on_socket(
+    socket: UdpSocket,
+    secret: BootstrapSecret,
+    command: String,
+) -> std::io::Result<()> {
     let mut child = spawn_echo_child(&command).await?;
     let mut stdin = child.stdin.take().expect("echo child stdin");
     let mut stdout = child.stdout.take().expect("echo child stdout");
@@ -559,7 +567,46 @@ pub fn max_payload_check(bytes: &[u8]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{ServerEchoCache, ServerInputAction, SERVER_ECHO_CACHE_LIMIT};
+    use super::*;
+    use crate::frame::KEEPALIVE;
+    use tokio::time::timeout;
+
+    const SECRET: BootstrapSecret = [0x41; BOOTSTRAP_SECRET_LEN];
+    const OTHER_SECRET: BootstrapSecret = [0x42; BOOTSTRAP_SECRET_LEN];
+
+    async fn client_session(server_addr: SocketAddr) -> (UdpSocket, SessionSubstrate) {
+        let socket = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        socket.connect(server_addr).await.unwrap();
+        let crypto = establish_client_session(&socket, &SECRET).await.unwrap();
+        (socket, crypto)
+    }
+
+    async fn exchange(
+        socket: &UdpSocket,
+        crypto: &mut SessionSubstrate,
+        epoch: u32,
+        seq: u64,
+        bytes: &[u8],
+    ) -> Echo {
+        let mut wire = Vec::new();
+        Input {
+            epoch,
+            seq,
+            bytes: bytes.to_vec(),
+        }
+        .encode(&mut wire);
+        socket.send(&crypto.seal(&wire, SESSION_AAD)).await.unwrap();
+        let mut packet = [0u8; MTU_CEILING];
+        let len = timeout(Duration::from_secs(1), socket.recv(&mut packet))
+            .await
+            .expect("server echo timed out")
+            .unwrap();
+        let plaintext = crypto.open(&packet[..len], SESSION_AAD).unwrap();
+        match decode(&plaintext).unwrap() {
+            Frame::Echo(echo) => echo,
+            frame => panic!("expected echo, got {frame:?}"),
+        }
+    }
 
     #[test]
     fn echo_cache_executes_only_the_next_input() {
@@ -599,5 +646,96 @@ mod tests {
             }
             _ => panic!("recent duplicate must remain replayable"),
         }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn hostile_hello_gets_no_reply_and_does_not_consume_association() {
+        let server_socket = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = server_socket.local_addr().unwrap();
+        let server = tokio::spawn(udp_server_on_socket(server_socket, SECRET));
+
+        let attacker = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        attacker.connect(server_addr).await.unwrap();
+        let forged = ClientHandshake::begin(&OTHER_SECRET).unwrap();
+        attacker.send(forged.wire()).await.unwrap();
+        let mut reply = [0u8; MTU_CEILING];
+        assert!(
+            timeout(Duration::from_millis(50), attacker.recv(&mut reply))
+                .await
+                .is_err()
+        );
+
+        let trials = udp_bench(server_addr, SECRET, false, 1).await.unwrap();
+        assert_eq!(trials.len(), 1);
+        server.abort();
+        let _ = server.await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn authenticated_data_roams_but_forged_data_does_not_move_peer() {
+        let server_socket = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = server_socket.local_addr().unwrap();
+        let first_socket = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let first_addr = first_socket.local_addr().unwrap();
+        let handshake = ClientHandshake::begin(&SECRET).unwrap();
+        first_socket
+            .send_to(handshake.wire(), server_addr)
+            .await
+            .unwrap();
+        let mut packet = [0u8; MTU_CEILING];
+        let mut server = accept_server_session(&server_socket, &SECRET, &mut packet)
+            .await
+            .unwrap();
+        assert_eq!(server.peer, first_addr);
+
+        let (reply_len, _) = first_socket.recv_from(&mut packet).await.unwrap();
+        let roots = handshake.finish(&SECRET, &packet[..reply_len]).unwrap();
+        let mut client_crypto = roots.for_role(Role::Client);
+
+        let roaming_socket = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let roaming_addr = roaming_socket.local_addr().unwrap();
+        let sealed = client_crypto.seal(&[KEEPALIVE], SESSION_AAD);
+        roaming_socket.send_to(&sealed, server_addr).await.unwrap();
+        let (len, from) = server_socket.recv_from(&mut packet).await.unwrap();
+        assert_eq!(
+            server
+                .receive(&server_socket, &packet[..len], from)
+                .await
+                .unwrap(),
+            Some(vec![KEEPALIVE])
+        );
+        assert_eq!(server.peer, roaming_addr);
+
+        let attacker = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        attacker.send_to(&sealed, server_addr).await.unwrap();
+        let (len, from) = server_socket.recv_from(&mut packet).await.unwrap();
+        assert!(server
+            .receive(&server_socket, &packet[..len], from)
+            .await
+            .unwrap()
+            .is_none());
+        assert_eq!(server.peer, roaming_addr);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn retransmitted_input_is_executed_once_through_the_pty() {
+        let server_socket = UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = server_socket.local_addr().unwrap();
+        let command = "/usr/bin/python3 -u -c 'import os\nfor n, _ in enumerate(iter(lambda: os.read(0, 1), b\"\"), 1):\n os.write(1, bytes([n]))'";
+        let server = tokio::spawn(udp_pty_server_on_socket(
+            server_socket,
+            SECRET,
+            command.to_string(),
+        ));
+        let (socket, mut crypto) = client_session(server_addr).await;
+        // `script` configures the child PTY asynchronously after spawn.
+        sleep(Duration::from_millis(100)).await;
+
+        assert_eq!(exchange(&socket, &mut crypto, 1, 0, b"x").await.bytes, [1]);
+        assert_eq!(exchange(&socket, &mut crypto, 1, 0, b"x").await.bytes, [1]);
+        assert_eq!(exchange(&socket, &mut crypto, 1, 1, b"y").await.bytes, [2]);
+
+        server.abort();
+        let _ = server.await;
     }
 }
