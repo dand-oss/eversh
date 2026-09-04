@@ -16,6 +16,7 @@ TIMEOUT=/usr/bin/timeout
 NAT_PROBE=$ROOT/spikes/everudp/net/nat-probe.py
 TAG=r$((RANDOM % 9000 + 1000))
 RUN_USER=${SUDO_USER:-$(stat -c %U "$ROOT")}
+CALLER_SSH_AUTH_SOCK=${SSH_AUTH_SOCK:-}
 TMP=$(mktemp -d)
 ROWS=$TMP/rows.tsv
 NAMESPACE_WORDS=
@@ -39,7 +40,12 @@ done
 [[ -f $NAT_PROBE ]] || { echo "missing NAT probe: $NAT_PROBE" >&2; exit 1; }
 
 run_user() {
-    /usr/bin/sudo -n -H -u "$RUN_USER" "$@"
+    if [[ -n $CALLER_SSH_AUTH_SOCK ]]; then
+        /usr/bin/sudo -n -H -u "$RUN_USER" /usr/bin/env \
+            SSH_AUTH_SOCK="$CALLER_SSH_AUTH_SOCK" "$@"
+    else
+        /usr/bin/sudo -n -H -u "$RUN_USER" "$@"
+    fi
 }
 
 remote() {
