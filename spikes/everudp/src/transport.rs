@@ -414,7 +414,7 @@ pub async fn udp_bench(
                         continue;
                     }
                     let reconciliation = state.reconcile(echo.ack, &echo.bytes);
-                    debug_assert_eq!(reconciliation, Reconciliation::Confirmed { predicted: true });
+                    debug_assert_eq!(reconciliation, Reconciliation::Confirmed { predicted });
                     break started.elapsed().as_micros();
                 }
                 _ = sleep_until(next_retransmit) => {
@@ -518,7 +518,7 @@ pub async fn quic_bench(
                         continue;
                     }
                     let reconciliation = state.reconcile(echo.ack, &echo.bytes);
-                    debug_assert_eq!(reconciliation, Reconciliation::Confirmed { predicted: true });
+                    debug_assert_eq!(reconciliation, Reconciliation::Confirmed { predicted });
                     break started.elapsed().as_micros();
                 }
                 _ = sleep_until(next_retransmit) => {

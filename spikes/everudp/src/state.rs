@@ -24,8 +24,16 @@ pub struct PredictionState {
     pub confirmed_bytes: Vec<u8>,
     pub predicted_echo_displays: u64,
     pub corrections: u64,
-    predicted: BTreeMap<u64, Vec<u8>>,
+    next_ack: u64,
+    predicted: BTreeMap<u64, PendingPrediction>,
+    received: BTreeMap<u64, Vec<u8>>,
     policy: EchoPolicy,
+}
+
+#[derive(Debug)]
+struct PendingPrediction {
+    bytes: Vec<u8>,
+    displayed: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,6 +41,8 @@ pub enum Reconciliation {
     Confirmed { predicted: bool },
     Corrected,
     Duplicate,
+    Buffered,
+    Unexpected,
 }
 
 impl PredictionState {
@@ -55,34 +65,48 @@ impl PredictionState {
             self.predicted
                 .remove(&self.predicted.keys().next().copied().unwrap_or(0));
         }
-        self.predicted.insert(seq, bytes.to_vec());
+        self.predicted.insert(
+            seq,
+            PendingPrediction {
+                bytes: bytes.to_vec(),
+                displayed,
+            },
+        );
         (seq, displayed)
     }
 
     pub fn reconcile(&mut self, ack: u64, bytes: &[u8]) -> Reconciliation {
-        // Retransmitted echoes must not append authoritative bytes twice.
-        if ack <= self.acknowledged && !self.predicted.contains_key(&ack) {
+        if ack < self.next_ack || self.received.contains_key(&ack) {
             return Reconciliation::Duplicate;
         }
-        // Compare this acknowledgement's prediction before cumulative-ACK
-        // cleanup removes it; otherwise every mismatch would be accepted.
-        let prediction = self.predicted.remove(&ack);
-        self.acknowledged = self.acknowledged.max(ack);
-        while let Some(first) = self.predicted.keys().next().copied() {
-            if first > self.acknowledged {
-                break;
-            }
-            self.predicted.remove(&first);
+        if ack >= self.next_seq || !self.predicted.contains_key(&ack) {
+            return Reconciliation::Unexpected;
         }
-        let predicted = prediction.unwrap_or_else(|| bytes.to_vec());
-        if predicted == bytes {
-            self.confirmed_bytes.extend_from_slice(bytes);
-            Reconciliation::Confirmed { predicted: true }
-        } else {
-            self.corrections += 1;
-            self.confirmed_bytes.extend_from_slice(bytes);
-            Reconciliation::Corrected
+        self.received.insert(ack, bytes.to_vec());
+        if ack != self.next_ack {
+            return Reconciliation::Buffered;
         }
+
+        let mut first_result = None;
+        while let Some(authoritative) = self.received.remove(&self.next_ack) {
+            let prediction = self
+                .predicted
+                .remove(&self.next_ack)
+                .expect("received acknowledgement has a pending input");
+            let result = if prediction.bytes == authoritative {
+                Reconciliation::Confirmed {
+                    predicted: prediction.displayed,
+                }
+            } else {
+                self.corrections = self.corrections.saturating_add(1);
+                Reconciliation::Corrected
+            };
+            first_result.get_or_insert(result);
+            self.confirmed_bytes.extend_from_slice(&authoritative);
+            self.acknowledged = self.next_ack;
+            self.next_ack = self.next_ack.saturating_add(1);
+        }
+        first_result.expect("current acknowledgement is ready")
     }
 
     pub fn reset(&mut self, epoch: u32) {
@@ -90,7 +114,29 @@ impl PredictionState {
             panic!("everudp spike: unsafe epoch transition");
         }
         self.epoch = epoch;
+        self.next_seq = 0;
+        self.next_ack = 0;
+        self.acknowledged = 0;
+        self.confirmed_bytes.clear();
         self.predicted.clear();
+        self.received.clear();
+    }
+
+    pub fn rendered_bytes(&self) -> Vec<u8> {
+        let predicted_len = self
+            .predicted
+            .values()
+            .filter(|prediction| prediction.displayed)
+            .map(|prediction| prediction.bytes.len())
+            .sum::<usize>();
+        let mut rendered = Vec::with_capacity(self.confirmed_bytes.len() + predicted_len);
+        rendered.extend_from_slice(&self.confirmed_bytes);
+        for prediction in self.predicted.values() {
+            if prediction.displayed {
+                rendered.extend_from_slice(&prediction.bytes);
+            }
+        }
+        rendered
     }
 }
 
@@ -132,13 +178,13 @@ mod tests {
         assert!(!displayed);
         assert_eq!(
             state.reconcile(seq, b"secret"),
-            Reconciliation::Confirmed { predicted: true }
+            Reconciliation::Confirmed { predicted: false }
         );
         assert_eq!(state.predicted_echo_displays, 0);
     }
 
     #[test]
-    fn epoch_reset_clears_prediction_but_not_authority() {
+    fn epoch_reset_discards_old_generation_and_restarts_sequences() {
         let mut state = PredictionState::new(1, EchoPolicy::Predict);
         let (seq, _) = state.send(b"a");
         assert_eq!(
@@ -148,6 +194,31 @@ mod tests {
         state.reset(2);
         assert!(state.predicted.is_empty());
         assert_eq!(state.epoch, 2);
-        assert_eq!(state.confirmed_bytes, b"a");
+        assert!(state.confirmed_bytes.is_empty());
+        assert_eq!(state.send(b"b").0, 0);
+    }
+
+    #[test]
+    fn out_of_order_ack_is_buffered_then_committed_in_sequence() {
+        let mut state = PredictionState::new(1, EchoPolicy::Predict);
+        let (first, _) = state.send(b"a");
+        let (second, _) = state.send(b"b");
+
+        assert_eq!(state.reconcile(second, b"b"), Reconciliation::Buffered);
+        assert!(state.confirmed_bytes.is_empty());
+        assert_eq!(
+            state.reconcile(first, b"a"),
+            Reconciliation::Confirmed { predicted: true }
+        );
+        assert_eq!(state.confirmed_bytes, b"ab");
+        assert_eq!(state.reconcile(second, b"b"), Reconciliation::Duplicate);
+    }
+
+    #[test]
+    fn acknowledgement_for_unsent_input_is_rejected_without_mutation() {
+        let mut state = PredictionState::new(1, EchoPolicy::Predict);
+        assert_eq!(state.reconcile(0, b"x"), Reconciliation::Unexpected);
+        assert!(state.confirmed_bytes.is_empty());
+        assert_eq!(state.corrections, 0);
     }
 }
