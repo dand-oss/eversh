@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
 NET=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-SPIKE=$ROOT/spikes/everudp
+SPIKE=$ROOT/spikes/everudp/target/release
 TRIALS=${1:?trials}
 LOSS=${2:-0}
 OUTDIR=${3:-$ROOT/target/qualification/everudp}
@@ -170,13 +170,13 @@ run_ssh_strace() {
 run_everudp_udp() {
     local prediction=$1
     local name="everudp-udp-$([[ $prediction == on ]] && echo pred || echo nopred)${SUFFIX}"
-    $IP netns exec "$SERVER_NS" "$SPIKE/target/debug/everudp-spike" udp-pty-server \
+    $IP netns exec "$SERVER_NS" "$SPIKE/everudp-spike" udp-pty-server \
         --bind 10.241.0.1:60200 --key-hex 0707070707070707 \
         --echo-command "/usr/bin/python3 -u $NET/echo1.py" \
         >"$TMP/udp-server.log" 2>&1 &
     local udp_server=$!
     sleep 0.3
-    $IP netns exec "$CLIENT_NS" "$SPIKE/target/debug/everudp-spike" bench \
+    $IP netns exec "$CLIENT_NS" "$SPIKE/everudp-spike" bench \
         --transport udp --prediction "$prediction" --trials "$TRIALS" \
         --server 10.241.0.1:60200 >"$OUTDIR/$name.json" 2>"$OUTDIR/$name.err"
     kill "$udp_server" 2>/dev/null || true
@@ -185,7 +185,7 @@ run_everudp_udp() {
 run_everudp_quic() {
     local prediction=$1
     local name="everudp-quic-$([[ $prediction == on ]] && echo pred || echo nopred)${SUFFIX}"
-    $IP netns exec "$SERVER_NS" "$SPIKE/target/debug/everudp-spike" quic-server \
+    $IP netns exec "$SERVER_NS" "$SPIKE/everudp-spike" quic-server \
         --bind 10.241.0.1:60201 >"$TMP/quic-server.log" 2>&1 &
     local quic_server=$!
     for _ in $(seq 1 30); do
@@ -195,7 +195,7 @@ run_everudp_quic() {
     local spki
     spki=$(sed -n 's/^spki=//p' "$TMP/quic-server.log")
     [[ ${#spki} == 64 ]] || { cat "$TMP/quic-server.log" >&2; exit 1; }
-    $IP netns exec "$CLIENT_NS" "$SPIKE/target/debug/everudp-spike" bench \
+    $IP netns exec "$CLIENT_NS" "$SPIKE/everudp-spike" bench \
         --transport quic --prediction "$prediction" --trials "$TRIALS" \
         --server 10.241.0.1:60201 --spki-hex "$spki" \
         >"$OUTDIR/$name.json" 2>"$OUTDIR/$name.err"

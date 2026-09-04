@@ -2,7 +2,7 @@
 # One preregistered 5 s outage-recovery observation for the UDP substrate.
 set -Eeuo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
-SPIKE=$ROOT/spikes/everudp/target/debug/everudp-spike
+SPIKE=$ROOT/spikes/everudp/target/release/everudp-spike
 OUT=${1:-/tmp/everudp-outage.txt}
 IP=/usr/bin/ip
 TC=/usr/sbin/tc

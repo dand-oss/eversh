@@ -3,7 +3,7 @@
 # named environment, plus bounded UDP-blocked diagnosis.
 set -Eeuo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
-SPIKE=$ROOT/spikes/everudp/target/debug/everudp-spike
+SPIKE=$ROOT/spikes/everudp/target/release/everudp-spike
 OUT=${1:-$ROOT/target/qualification/everudp/reachability.json}
 ATTEMPTS=${2:-20}
 IP=/usr/bin/ip
