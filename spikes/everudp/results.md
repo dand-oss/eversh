@@ -1,6 +1,7 @@
 # everudp Stage D spike result
 
-Status: latency and authenticated-substrate repairs pass; bead remains open |
+Status: latency, authenticated-substrate, terminal-oracle, and
+available-environment reachability repairs pass; bead remains open |
 Owner: `eversh-2zq` | Preregistration:
 frozen in the bead before implementation.
 
@@ -10,8 +11,8 @@ Available evidence does not meet the full preregistered BUILD rule. The
 optimized spike now proves end-to-end PTY latency parity with zmosh under
 the frozen 5% loss condition, including a conservative bootstrap
 equivalence bound. Production remains NOT-BUILD because the substrate is
-not production-equivalent to the QUIC control, its reachability matrix is only
-a smoke test, resource and congestion behavior are not qualified, and the
+not production-equivalent to the QUIC control, Tailscale is unavailable on
+the test fleet, resource and congestion behavior are not qualified, and the
 decisive everssh comparison remains unavailable:
 
 1. The everssh-v2 latency comparison is UNAVAILABLE in this harness: the
@@ -135,7 +136,7 @@ observation is 0.565.
 This proves the narrow claim requested by the spike: **the authenticated
 everudp prototype is at least as fast as zmosh 0.5.9 on the matched direct
 5%-loss end-to-end PTY workload**. It does not erase the independent
-terminal-correctness, reachability, resource, congestion, provisioning, and
+Tailscale-availability, resource, congestion, provisioning, and
 everssh-control blockers that keep the production decision at NOT-BUILD.
 
 ## Frozen benchmark execution
@@ -182,24 +183,39 @@ suppresses duplicates, and clears the old generation on epoch reset.
 
 ## Reachability
 
-Twenty one-flow UDP attempts per environment. Post-review classification:
-the NAT rows are transport smoke tests over one shared MASQUERADE base with
-model-specific additions, not proofs of the four RFC NAT semantics; the
-ZeroTier row binds and connects on one host and therefore exercises local
-routing, not an overlay peer; the blocked row proves bounded exit-code
-failure without checking the diagnostic or the everssh fallback transition.
+The repaired gate ran from clean source commit
+`9a9e56b281a2e52c20aa6f12cfffb5f2d4087e19` and tree
+`227261f6e9751cd633d198bbd71efafbe4e1cce4`. Each available UDP environment
+ran twenty independent one-association client/server processes. The four
+Linux namespace NATs have distinct mapping/filter rules plus behavioral
+probes: full cone accepted the same endpoint, another port on the same host,
+and another host; restricted cone rejected the other host; port-restricted
+cone accepted only the opened endpoint; symmetric NAT assigned the two
+destinations external ports in disjoint 40001-45000 and 50001-55000 ranges.
 
 | Environment | Result | Frozen threshold |
 | --- | --- | --- |
-| direct IPv4 | 20/20 | smoke PASS |
-| direct IPv6 | 20/20 | smoke PASS |
-| full-cone NAT | 20/20 | smoke only |
-| restricted-cone NAT | 20/20 | smoke only |
-| port-restricted-cone NAT | 20/20 | smoke only |
-| symmetric NAT | 20/20 | smoke only |
-| ZeroTier (one host) | 20/20 | local-route only |
-| UDP blocked | 20/20 nonzero exits | bounded-failure smoke only |
-| Tailscale | UNAVAILABLE: no daemon/interface | no claim |
+| direct IPv4 | 20/20 PASS | >=19/20 |
+| direct IPv6 | 20/20 PASS | >=19/20 |
+| full-cone NAT | behavior PASS; 20/20 flows | >=19/20 |
+| restricted-cone NAT | behavior PASS; 20/20 flows | >=19/20 |
+| port-restricted-cone NAT | behavior PASS; 20/20 flows | >=19/20 |
+| symmetric NAT | destination-specific mapping PASS; 20/20 flows | >=18/20 |
+| ZeroTier, badger to bugger | 20/20 PASS | >=18/20 |
+| UDP black hole | 20/20 exact diagnosed failures in 2,012-2,020 ms | 20/20 below 3,000 ms |
+| everssh fallback after blocked UDP | exactly 1 invocation, 1/1 PASS | exactly one successful transition |
+| Tailscale fleet inventory | UNAVAILABLE: missing on badger/bagger, stopped on bugger | no comparison claim |
+
+The ZeroTier row used separate hosts and matching spike-binary hashes over
+their `zt3middjio` interfaces. The blocked path drops at the server input
+boundary, so client sends succeed and the exact
+`everudp-spike: UDP association handshake timed out` diagnostic comes from
+the bounded authenticated-handshake retry loop. It is followed by one, and
+only one, successful invocation of the existing everssh fallback to bugger.
+Raw attempt ledgers, namespace addresses/routes, firewall rules, behavioral
+probe output, peer identities, binary hashes, fleet inventory, aggregate
+receipt, and a verified `SHA256SUMS` manifest are archived under
+`docs/release-evidence/20260904-everudp/reachability-repaired/`.
 
 The one 5 s outage observation produced bounded failures throughout loss
 and recovered a new flow 138 ms after path restoration. Session-level
