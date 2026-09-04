@@ -5,8 +5,11 @@ use crate::aead::Substrate;
 use crate::frame::{decode, Echo, Frame, Input, MAX_PAYLOAD, MTU_CEILING};
 use crate::state::{EchoPolicy, PredictionState, Reconciliation};
 use std::net::SocketAddr;
+use std::process::Stdio;
 use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::UdpSocket;
+use tokio::process::{Child, Command};
 use tokio::time::{sleep, sleep_until, Instant};
 
 pub const RETRANSMIT: Duration = Duration::from_millis(20);
@@ -71,6 +74,83 @@ pub async fn udp_server(bind: SocketAddr, key: [u8; 8]) -> std::io::Result<()> {
         let sealed = server.seal(&wire, b"everudp-spike-v1");
         socket.send_to(&sealed, from).await?;
     }
+}
+
+/// PTY-backed echo server: each authoritative reply comes from the real
+/// echo program's stdout (through `script`, so the program owns a PTY),
+/// making the everudp latency path end-to-end like zmosh's session path.
+pub async fn udp_pty_server(
+    bind: SocketAddr,
+    key: [u8; 8],
+    command: String,
+) -> std::io::Result<()> {
+    let socket = UdpSocket::bind(bind).await?;
+    eprintln!("everudp-spike udp-pty-server {}", socket.local_addr()?);
+    let mut server = Substrate::new(key_from_half(key), SESSION_PREFIX, SERVER_COUNTER_BASE);
+    let mut child = spawn_echo_child(&command).await?;
+    let mut stdin = child.stdin.take().expect("echo child stdin");
+    let mut stdout = child.stdout.take().expect("echo child stdout");
+    let mut packet = [0u8; MTU_CEILING];
+    let mut wire = Vec::with_capacity(MTU_CEILING);
+    let mut scratch = [0u8; MAX_PAYLOAD];
+    loop {
+        let (len, from) = socket.recv_from(&mut packet).await?;
+        let plaintext = match server.open(&packet[..len], b"everudp-spike-v1") {
+            Ok(plaintext) => plaintext,
+            Err(_) => continue,
+        };
+        let frame = match decode(&plaintext) {
+            Ok(frame) => frame,
+            Err(_) => continue,
+        };
+        let Frame::Input(Input { seq, bytes, .. }) = frame else {
+            continue;
+        };
+        // Try to restart the authoritative program if it exited; a dead
+        // child is a benchmark failure, never a silent reflection.
+        if let Some(status) = child.try_wait()? {
+            return Err(std::io::Error::other(format!(
+                "echo child exited before input: {status}"
+            )));
+        }
+        stdin.write_all(&bytes).await?;
+        stdin.flush().await?;
+        let mut echoed = Vec::with_capacity(bytes.len());
+        let deadline = Instant::now() + Duration::from_millis(500);
+        while echoed.len() < bytes.len() {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            let want = (bytes.len() - echoed.len()).min(scratch.len());
+            let read = tokio::time::timeout(
+                remaining,
+                stdout.read(&mut scratch[..want]),
+            )
+            .await
+            .map_err(|_| std::io::Error::other("echo child timeout"))??;
+            if read == 0 {
+                return Err(std::io::Error::other("echo child EOF"));
+            }
+            echoed.extend_from_slice(&scratch[..read]);
+        }
+        Echo {
+            ack: seq,
+            bytes: echoed,
+        }
+        .encode(&mut wire);
+        let sealed = server.seal(&wire, b"everudp-spike-v1");
+        socket.send_to(&sealed, from).await?;
+    }
+}
+
+async fn spawn_echo_child(command: &str) -> std::io::Result<Child> {
+    Command::new("/usr/bin/script")
+        .arg("-qefc")
+        .arg(format!("stty raw -echo; exec {command}"))
+        .arg("/dev/null")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true)
+        .spawn()
 }
 
 pub async fn udp_bench(

@@ -4,12 +4,13 @@ Status: partially repaired after FAIL review; bead remains open |
 Owner: `eversh-2zq` | Preregistration:
 frozen in the bead before implementation.
 
-## Decision: NOT-BUILD production everudp now
+## Decision: NOT-BUILD production everudp now (confirmed by end-to-end disproof)
 
-Available evidence does not meet the preregistered BUILD rule. The spike
-substrate achieved direct median parity with pinned zmosh 0.5.9, but it is
-not security-equivalent to the QUIC control, its terminal oracle is not
-independent, and the decisive everssh comparison remains unavailable:
+Available evidence does not meet the preregistered BUILD rule. On
+equivalent end-to-end PTY paths the spike substrate is NOT as fast as
+zmosh at the median, it is not security-equivalent to the QUIC control,
+its terminal oracle is not independent, and the decisive everssh comparison
+remains unavailable:
 
 1. The everssh-v2 latency comparison is UNAVAILABLE in this harness: the
    outer-ssh PTY driver initially timed local canonical-mode echo (invalid
@@ -28,25 +29,35 @@ independent, and the decisive everssh comparison remains unavailable:
 ## Direct zmosh 0.5.9 head-to-head (updated decision evidence)
 
 Three independent 30-trial cells at 5% symmetric loss measured everudp-UDP
-and pinned zmosh 0.5.9 on the identical netns/veth topology. Both clients
-measure keystroke-to-authoritative-echo at their client edge; everudp uses
-its in-process timestamp and zmosh uses its C `output_cb`.
+and pinned zmosh 0.5.9 on the identical netns/veth topology. These first
+cells were transport-layer only (everudp reflected datagrams; zmosh ran a
+real session PTY) and are retained only to document the harness mistake.
 
-| Run | everudp median/p95 µs | zmosh median/p95 µs |
+| Run | everudp transport-only median/p95 µs | zmosh median/p95 µs |
 | --- | --- | --- |
 | 1 | 522 / 21,703 | 581 / 61,090 |
 | 2 | 496 / 22,102 | 492 / 810 |
 | 3 | 434 / 21,971 | 469 / 61,050 |
 
-Median parity holds in every run under the frozen rule (`everudp p50 <=
-zmosh p50 * 1.10`): 522<=639, 496<=541, and 434<=516 µs. Aggregate medians
-are statistically tied (496 vs 492 µs). p95 is bimodal in both systems
-because a single recovered loss dominates the tail; on aggregate medians
-everudp is lower (21,971 vs 61,050 µs), but run 2 violates the per-run p95
-multiplier because zmosh happened to lose no tail packets. The defensible
-claim is median parity, not p95 dominance. This satisfies the user's
-"as fast as zmosh" question at the median while leaving production BUILD
-unsupported by the everssh comparison below.
+### End-to-end correction (authoritative)
+
+After the review identified the path mismatch, the everudp server was
+upgraded to drive `echo1.py` through `script` (real PTY, `stty raw
+-echo`), matching zmosh's authoritative session path:
+
+| Run | everudp end-to-end median/p95 µs | zmosh median/p95 µs |
+| --- | --- | --- |
+| 1 | 840 / 22,042 | 583 / 445,110 |
+| 2 | 953 / 21,947 | 531 / 929 |
+| 3 | 750 / 21,959 | 515 / 121,295 |
+
+everudp is roughly 1.58x slower at the median (aggregate 840 µs versus
+531 µs) and fails the frozen `p50 <= zmosh p50 * 1.10` rule in every run.
+The transport-only "parity" was a harness artifact and is withdrawn. The
+honest answer to "is everudp as fast as zmosh?" is **no**. everudp's p95
+is lower in aggregate because its 20 ms retransmit recovers sooner than
+zmosh's long-tail stalls, but the preregistered parity rule gates on p50
+and p95 together, so parity is not met.
 
 ## Frozen benchmark execution
 

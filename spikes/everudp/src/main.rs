@@ -14,6 +14,7 @@ fn usage() -> ! {
          roles:\n\
            bench --transport udp|quic --prediction on|off --trials N [--host HOST]\n\
            udp-server --bind ADDR --key-hex 16HEX\n\
+           udp-pty-server --bind ADDR --key-hex 16HEX --echo-command CMD\n\
            quic-server --bind ADDR\n\
            reach --transport udp|quic --host HOST [--key-hex 16HEX]\n\
            oracle"
@@ -65,6 +66,14 @@ fn main() {
                 let bind = addr(&arg("--bind"));
                 let key = half_key(&arg("--key-hex"));
                 udp_server(bind, key).await.map_err(|e| e.to_string())
+            }
+            "udp-pty-server" => {
+                let bind = addr(&arg("--bind"));
+                let key = half_key(&arg("--key-hex"));
+                let command = arg("--echo-command");
+                transport::udp_pty_server(bind, key, command)
+                    .await
+                    .map_err(|e| e.to_string())
             }
             "quic-server" => {
                 let bind = addr(&arg("--bind"));

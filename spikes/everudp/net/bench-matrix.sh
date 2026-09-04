@@ -170,8 +170,9 @@ run_ssh_strace() {
 run_everudp_udp() {
     local prediction=$1
     local name="everudp-udp-$([[ $prediction == on ]] && echo pred || echo nopred)${SUFFIX}"
-    $IP netns exec "$SERVER_NS" "$SPIKE/target/debug/everudp-spike" udp-server \
+    $IP netns exec "$SERVER_NS" "$SPIKE/target/debug/everudp-spike" udp-pty-server \
         --bind 10.241.0.1:60200 --key-hex 0707070707070707 \
+        --echo-command "/usr/bin/python3 -u $NET/echo1.py" \
         >"$TMP/udp-server.log" 2>&1 &
     local udp_server=$!
     sleep 0.3
