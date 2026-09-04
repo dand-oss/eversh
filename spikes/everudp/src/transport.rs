@@ -384,7 +384,9 @@ pub async fn udp_bench(
     let mut wire = Vec::with_capacity(MTU_CEILING);
     for trial in 0..trials {
         let byte = b'a' + (trial % 26) as u8;
-        let (seq, predicted) = state.send(&[byte]);
+        let (seq, predicted) = state
+            .send(&[byte])
+            .map_err(|error| BenchError(error.to_string()))?;
         Input {
             epoch: EPOCH,
             seq,
@@ -410,10 +412,14 @@ pub async fn udp_bench(
                         .map_err(|_| BenchError("bad server frame".into()))?;
                     let Frame::Echo(echo) = frame else { continue };
                     if echo.ack != seq {
-                        state.reconcile(echo.ack, &echo.bytes);
+                        state
+                            .reconcile(echo.ack, &echo.bytes)
+                            .map_err(|error| BenchError(error.to_string()))?;
                         continue;
                     }
-                    let reconciliation = state.reconcile(echo.ack, &echo.bytes);
+                    let reconciliation = state
+                        .reconcile(echo.ack, &echo.bytes)
+                        .map_err(|error| BenchError(error.to_string()))?;
                     debug_assert_eq!(reconciliation, Reconciliation::Confirmed { predicted });
                     break started.elapsed().as_micros();
                 }
@@ -495,7 +501,9 @@ pub async fn quic_bench(
     let mut wire = Vec::with_capacity(MTU_CEILING);
     for trial in 0..trials {
         let byte = b'a' + (trial % 26) as u8;
-        let (seq, predicted) = state.send(&[byte]);
+        let (seq, predicted) = state
+            .send(&[byte])
+            .map_err(|error| BenchError(error.to_string()))?;
         Input {
             epoch: EPOCH,
             seq,
@@ -514,10 +522,14 @@ pub async fn quic_bench(
                     let datagram = datagram.map_err(|e| BenchError(e.to_string()))?;
                     let Some(Frame::Echo(echo)) = decode(&datagram).ok() else { continue };
                     if echo.ack != seq {
-                        state.reconcile(echo.ack, &echo.bytes);
+                        state
+                            .reconcile(echo.ack, &echo.bytes)
+                            .map_err(|error| BenchError(error.to_string()))?;
                         continue;
                     }
-                    let reconciliation = state.reconcile(echo.ack, &echo.bytes);
+                    let reconciliation = state
+                        .reconcile(echo.ack, &echo.bytes)
+                        .map_err(|error| BenchError(error.to_string()))?;
                     debug_assert_eq!(reconciliation, Reconciliation::Confirmed { predicted });
                     break started.elapsed().as_micros();
                 }

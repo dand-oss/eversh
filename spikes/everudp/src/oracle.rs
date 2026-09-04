@@ -1,6 +1,6 @@
 //! Independent terminal-grid oracle backed by the vt100 terminal model.
 
-use crate::state::{EchoPolicy, PredictionState, Reconciliation};
+use crate::state::{EchoPolicy, PredictionState, Reconciliation, StateError};
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -227,9 +227,17 @@ fn split_once<'a>(bytes: &'a [u8], marker: &[u8]) -> Result<(&'a [u8], &'a [u8])
     Ok((&bytes[..index], &bytes[index + marker.len()..]))
 }
 
-fn reconcile_one(state: &mut PredictionState, input: &[u8], output: &[u8]) -> Reconciliation {
-    let (seq, _) = state.send(input);
-    state.reconcile(seq, output)
+fn state_result<T>(result: Result<T, StateError>) -> Result<T, String> {
+    result.map_err(|error| format!("prediction state: {error}"))
+}
+
+fn reconcile_one(
+    state: &mut PredictionState,
+    input: &[u8],
+    output: &[u8],
+) -> Result<Reconciliation, String> {
+    let (seq, _) = state_result(state.send(input))?;
+    state_result(state.reconcile(seq, output))
 }
 
 pub fn run() -> Result<OracleReport, String> {
@@ -238,9 +246,10 @@ pub fn run() -> Result<OracleReport, String> {
     let echo_input = b"hello everudp";
     let echo_output = capture_python("echo", Some(echo_input.len()), echo_input)?;
     let mut echo = PredictionState::new(1, EchoPolicy::Predict);
-    let (echo_seq, echo_displayed) = echo.send(echo_input);
+    let (echo_seq, echo_displayed) = state_result(echo.send(echo_input))?;
     if !echo_displayed
-        || echo.reconcile(echo_seq, &echo_output) != (Reconciliation::Confirmed { predicted: true })
+        || state_result(echo.reconcile(echo_seq, &echo_output))?
+            != (Reconciliation::Confirmed { predicted: true })
     {
         return Err("echo: matching printable input was not confirmed as predicted".into());
     }
@@ -253,12 +262,14 @@ pub fn run() -> Result<OracleReport, String> {
 
     let mismatch_output = capture_python("mismatch", None, b"x")?;
     let mut mismatch = PredictionState::new(1, EchoPolicy::Predict);
-    let (mismatch_seq, displayed) = mismatch.send(b"x");
+    let (mismatch_seq, displayed) = state_result(mismatch.send(b"x"))?;
     if !displayed {
         return Err("mismatch: printable input was not predicted".into());
     }
     let correction_started = Instant::now();
-    if mismatch.reconcile(mismatch_seq, &mismatch_output) != Reconciliation::Corrected {
+    if state_result(mismatch.reconcile(mismatch_seq, &mismatch_output))?
+        != Reconciliation::Corrected
+    {
         return Err("mismatch: divergent authority was not corrected".into());
     }
     let correction_us = correction_started.elapsed().as_micros();
@@ -280,14 +291,16 @@ pub fn run() -> Result<OracleReport, String> {
         ));
     }
     let mut reordered = PredictionState::new(1, EchoPolicy::Predict);
-    let (first, _) = reordered.send(&reorder_output[..1]);
-    let (second, _) = reordered.send(&reorder_output[1..]);
-    if reordered.reconcile(second, &reorder_output[1..]) != Reconciliation::Buffered {
+    let (first, _) = state_result(reordered.send(&reorder_output[..1]))?;
+    let (second, _) = state_result(reordered.send(&reorder_output[1..]))?;
+    if state_result(reordered.reconcile(second, &reorder_output[1..]))? != Reconciliation::Buffered
+    {
         return Err("duplicate/reorder: future acknowledgement was not buffered".into());
     }
-    if reordered.reconcile(first, &reorder_output[..1])
+    if state_result(reordered.reconcile(first, &reorder_output[..1]))?
         != (Reconciliation::Confirmed { predicted: true })
-        || reordered.reconcile(second, &reorder_output[1..]) != Reconciliation::Duplicate
+        || state_result(reordered.reconcile(second, &reorder_output[1..]))?
+            != Reconciliation::Duplicate
     {
         return Err("duplicate/reorder: convergence or duplicate suppression failed".into());
     }
@@ -300,7 +313,7 @@ pub fn run() -> Result<OracleReport, String> {
 
     let full_screen_output = capture_python("full-screen", None, &[])?;
     let mut full_screen = PredictionState::new(1, EchoPolicy::Predict);
-    if reconcile_one(&mut full_screen, b"f", &full_screen_output) != Reconciliation::Corrected {
+    if reconcile_one(&mut full_screen, b"f", &full_screen_output)? != Reconciliation::Corrected {
         return Err("full-screen: trigger prediction was not replaced by authority".into());
     }
     let full_grid = require_same_grid(
@@ -316,8 +329,8 @@ pub fn run() -> Result<OracleReport, String> {
     let resize_output = capture_python("resize", None, b"r")?;
     let (before_resize, after_resize) = split_once(&resize_output, RESIZE_MARKER)?;
     let mut resized = PredictionState::new(1, EchoPolicy::Predict);
-    if reconcile_one(&mut resized, b"s", before_resize) != Reconciliation::Corrected
-        || reconcile_one(&mut resized, b"r", after_resize) != Reconciliation::Corrected
+    if reconcile_one(&mut resized, b"s", before_resize)? != Reconciliation::Corrected
+        || reconcile_one(&mut resized, b"r", after_resize)? != Reconciliation::Corrected
     {
         return Err("resize: authoritative redraw did not replace predictions".into());
     }
@@ -343,7 +356,7 @@ pub fn run() -> Result<OracleReport, String> {
         return Err("tmux: real tmux stream omitted pane fixture".into());
     }
     let mut tmux = PredictionState::new(1, EchoPolicy::Predict);
-    if reconcile_one(&mut tmux, b"t", &tmux_output) != Reconciliation::Corrected {
+    if reconcile_one(&mut tmux, b"t", &tmux_output)? != Reconciliation::Corrected {
         return Err("tmux: authoritative stream did not replace prediction".into());
     }
     require_same_grid(
@@ -356,9 +369,10 @@ pub fn run() -> Result<OracleReport, String> {
     let password_input = b"secret";
     let password_output = capture_python("no-echo", Some(password_input.len()), password_input)?;
     let mut password = PredictionState::new(1, EchoPolicy::NoEcho);
-    let (password_seq, password_displayed) = password.send(password_input);
+    let (password_seq, password_displayed) = state_result(password.send(password_input))?;
     if password_displayed
-        || password.reconcile(password_seq, &password_output) != Reconciliation::Corrected
+        || state_result(password.reconcile(password_seq, &password_output))?
+            != Reconciliation::Corrected
         || password.predicted_echo_displays != 0
     {
         return Err("no-echo: password prediction policy failed".into());
@@ -378,9 +392,9 @@ pub fn run() -> Result<OracleReport, String> {
     workloads.push("no-echo");
 
     let mut resync = PredictionState::new(1, EchoPolicy::Predict);
-    reconcile_one(&mut resync, b"stale", b"stale");
+    reconcile_one(&mut resync, b"stale", b"stale")?;
     resync.reset(2);
-    if reconcile_one(&mut resync, b"\x0c", &full_screen_output) != Reconciliation::Corrected
+    if reconcile_one(&mut resync, b"\x0c", &full_screen_output)? != Reconciliation::Corrected
         || resync
             .rendered_bytes()
             .windows(5)
