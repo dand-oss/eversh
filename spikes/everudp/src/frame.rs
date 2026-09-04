@@ -32,8 +32,11 @@ pub enum Frame {
 pub struct FrameError;
 
 impl Input {
-    pub fn encode(&self, out: &mut Vec<u8>) {
+    pub fn encode(&self, out: &mut Vec<u8>) -> Result<(), FrameError> {
         out.clear();
+        if self.bytes.len() > MAX_PAYLOAD || 15 + self.bytes.len() > MTU_CEILING {
+            return Err(FrameError);
+        }
         out.reserve(1 + 4 + 8 + 2 + self.bytes.len());
         out.push(INPUT);
         out.extend_from_slice(&self.epoch.to_be_bytes());
@@ -41,18 +44,23 @@ impl Input {
         out.push((self.bytes.len() >> 8) as u8);
         out.push(self.bytes.len() as u8);
         out.extend_from_slice(&self.bytes);
+        Ok(())
     }
 }
 
 impl Echo {
-    pub fn encode(&self, out: &mut Vec<u8>) {
+    pub fn encode(&self, out: &mut Vec<u8>) -> Result<(), FrameError> {
         out.clear();
+        if self.bytes.len() > MAX_PAYLOAD || 11 + self.bytes.len() > MTU_CEILING {
+            return Err(FrameError);
+        }
         out.reserve(1 + 8 + 2 + self.bytes.len());
         out.push(ECHO);
         out.extend_from_slice(&self.ack.to_be_bytes());
         out.push((self.bytes.len() >> 8) as u8);
         out.push(self.bytes.len() as u8);
         out.extend_from_slice(&self.bytes);
+        Ok(())
     }
 }
 
@@ -95,5 +103,55 @@ pub fn decode(bytes: &[u8]) -> Result<Frame, FrameError> {
         }
         KEEPALIVE if rest.is_empty() => Ok(Frame::Keepalive),
         _ => Err(FrameError),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn encoders_accept_the_payload_limit_within_the_mtu() {
+        let mut wire = Vec::new();
+        Input {
+            epoch: 1,
+            seq: 0,
+            bytes: vec![0x61; MAX_PAYLOAD],
+        }
+        .encode(&mut wire)
+        .unwrap();
+        assert!(wire.len() <= MTU_CEILING);
+        assert!(matches!(decode(&wire), Ok(Frame::Input(_))));
+
+        Echo {
+            ack: 0,
+            bytes: vec![0x61; MAX_PAYLOAD],
+        }
+        .encode(&mut wire)
+        .unwrap();
+        assert!(wire.len() <= MTU_CEILING);
+        assert!(matches!(decode(&wire), Ok(Frame::Echo(_))));
+    }
+
+    #[test]
+    fn encoders_fail_closed_above_the_payload_limit() {
+        let mut wire = vec![0xff];
+        assert!(Input {
+            epoch: 1,
+            seq: 0,
+            bytes: vec![0x61; MAX_PAYLOAD + 1],
+        }
+        .encode(&mut wire)
+        .is_err());
+        assert!(wire.is_empty());
+
+        wire.push(0xff);
+        assert!(Echo {
+            ack: 0,
+            bytes: vec![0x61; MAX_PAYLOAD + 1],
+        }
+        .encode(&mut wire)
+        .is_err());
+        assert!(wire.is_empty());
     }
 }

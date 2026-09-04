@@ -236,7 +236,8 @@ pub async fn udp_server_on_socket(
             ack: seq,
             bytes: authoritative,
         }
-        .encode(&mut wire);
+        .encode(&mut wire)
+        .map_err(|_| std::io::Error::other("authoritative echo exceeds frame limit"))?;
         server.send(&socket, &wire).await?;
     }
 }
@@ -283,7 +284,9 @@ pub async fn udp_pty_server_on_socket(
         };
         match echo_cache.classify(epoch, seq) {
             ServerInputAction::Replay(bytes) => {
-                Echo { ack: seq, bytes }.encode(&mut wire);
+                Echo { ack: seq, bytes }
+                    .encode(&mut wire)
+                    .map_err(|_| std::io::Error::other("cached echo exceeds frame limit"))?;
                 server.send(&socket, &wire).await?;
                 continue;
             }
@@ -320,7 +323,8 @@ pub async fn udp_pty_server_on_socket(
             ack: seq,
             bytes: echoed,
         }
-        .encode(&mut wire);
+        .encode(&mut wire)
+        .map_err(|_| std::io::Error::other("PTY echo exceeds frame limit"))?;
         server.send(&socket, &wire).await?;
         if timing {
             let t_sent = Instant::now();
@@ -386,7 +390,8 @@ pub async fn udp_bench(
             seq,
             bytes: vec![byte],
         }
-        .encode(&mut wire);
+        .encode(&mut wire)
+        .map_err(|_| BenchError("input exceeds frame limit".into()))?;
         let started = Instant::now();
         socket
             .send(&client.seal(&wire, SESSION_AAD))
@@ -459,7 +464,9 @@ pub async fn quic_server_endpoint_loop(endpoint: noq::Endpoint) -> Result<(), Be
             let Frame::Input(Input { seq, bytes, .. }) = frame else {
                 continue;
             };
-            Echo { ack: seq, bytes }.encode(&mut wire);
+            Echo { ack: seq, bytes }
+                .encode(&mut wire)
+                .map_err(|_| BenchError("QUIC echo exceeds frame limit".into()))?;
             let _ = conn.send_datagram(wire.clone().into());
         }
     }
@@ -494,7 +501,8 @@ pub async fn quic_bench(
             seq,
             bytes: vec![byte],
         }
-        .encode(&mut wire);
+        .encode(&mut wire)
+        .map_err(|_| BenchError("QUIC input exceeds frame limit".into()))?;
         conn.send_datagram(wire.clone().into())
             .map_err(|e| BenchError(e.to_string()))?;
         let started = Instant::now();
@@ -594,7 +602,8 @@ mod tests {
             seq,
             bytes: bytes.to_vec(),
         }
-        .encode(&mut wire);
+        .encode(&mut wire)
+        .unwrap();
         socket.send(&crypto.seal(&wire, SESSION_AAD)).await.unwrap();
         let mut packet = [0u8; MTU_CEILING];
         let len = timeout(Duration::from_secs(1), socket.recv(&mut packet))
@@ -646,6 +655,45 @@ mod tests {
             }
             _ => panic!("recent duplicate must remain replayable"),
         }
+    }
+
+    #[test]
+    fn maximum_frames_fit_the_encrypted_datagram_mtu() {
+        let client_handshake = ClientHandshake::begin(&SECRET).unwrap();
+        let server_handshake = ServerHandshake::accept(&SECRET, client_handshake.wire()).unwrap();
+        let roots = client_handshake
+            .finish(&SECRET, server_handshake.reply())
+            .unwrap();
+        let mut client = roots.for_role(Role::Client);
+        let mut server = server_handshake.roots().for_role(Role::Server);
+        let mut wire = Vec::new();
+
+        Input {
+            epoch: 1,
+            seq: 0,
+            bytes: vec![0x61; MAX_PAYLOAD],
+        }
+        .encode(&mut wire)
+        .unwrap();
+        let request = client.seal(&wire, SESSION_AAD);
+        assert!(request.len() <= MTU_CEILING);
+        assert!(matches!(
+            decode(&server.open(&request, SESSION_AAD).unwrap()),
+            Ok(Frame::Input(_))
+        ));
+
+        Echo {
+            ack: 0,
+            bytes: vec![0x61; MAX_PAYLOAD],
+        }
+        .encode(&mut wire)
+        .unwrap();
+        let response = server.seal(&wire, SESSION_AAD);
+        assert!(response.len() <= MTU_CEILING);
+        assert!(matches!(
+            decode(&client.open(&response, SESSION_AAD).unwrap()),
+            Ok(Frame::Echo(_))
+        ));
     }
 
     #[tokio::test(flavor = "current_thread")]
