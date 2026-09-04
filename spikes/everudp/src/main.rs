@@ -178,12 +178,13 @@ async fn bench() -> Result<(), String> {
 
 fn report(transport_name: &str, prediction: bool, trials: Vec<transport::Trial>) {
     let (median, p95, max, mean) = summarize(&trials);
+    let samples: Vec<u128> = trials.iter().map(|trial| trial.correct_render_us).collect();
     println!(
-        "{{\"transport\":\"{transport_name}\",\"prediction\":{prediction},\"trials\":{},\"median_us\":{median},\"p95_us\":{p95},\"max_us\":{max},\"mean_us\":{mean:.3},\"retransmits\":{}}}",
+        "{{\"transport\":\"{transport_name}\",\"prediction\":{prediction},\"trials\":{},\"median_us\":{median},\"p95_us\":{p95},\"max_us\":{max},\"mean_us\":{mean:.3},\"retransmits\":{},\"samples\":{samples:?}}}",
         trials.len(),
-        trials.iter().map(|t| t.retransmits).sum::<u32>()
+        trials.iter().map(|t| t.retransmits).sum::<u32>(),
+        samples = samples
     );
-    let _ = transport_name;
 }
 
 async fn spawn_udp_server(bind: SocketAddr, key: [u8; 8]) -> Result<SocketAddr, String> {
