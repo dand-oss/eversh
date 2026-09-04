@@ -93,8 +93,10 @@ pub async fn udp_pty_server(
     let mut packet = [0u8; MTU_CEILING];
     let mut wire = Vec::with_capacity(MTU_CEILING);
     let mut scratch = [0u8; MAX_PAYLOAD];
+    let timing = std::env::var_os("EVERUDP_TIMING").is_some();
     loop {
         let (len, from) = socket.recv_from(&mut packet).await?;
+        let t_received = Instant::now();
         let plaintext = match server.open(&packet[..len], b"everudp-spike-v1") {
             Ok(plaintext) => plaintext,
             Err(_) => continue,
@@ -106,6 +108,7 @@ pub async fn udp_pty_server(
         let Frame::Input(Input { seq, bytes, .. }) = frame else {
             continue;
         };
+        let t_decoded = Instant::now();
         // Try to restart the authoritative program if it exited; a dead
         // child is a benchmark failure, never a silent reflection.
         if let Some(status) = child.try_wait()? {
@@ -115,22 +118,21 @@ pub async fn udp_pty_server(
         }
         stdin.write_all(&bytes).await?;
         stdin.flush().await?;
+        let t_written = Instant::now();
         let mut echoed = Vec::with_capacity(bytes.len());
-        let deadline = Instant::now() + Duration::from_millis(500);
         while echoed.len() < bytes.len() {
-            let remaining = deadline.saturating_duration_since(Instant::now());
             let want = (bytes.len() - echoed.len()).min(scratch.len());
-            let read = tokio::time::timeout(
-                remaining,
-                stdout.read(&mut scratch[..want]),
-            )
-            .await
-            .map_err(|_| std::io::Error::other("echo child timeout"))??;
+            // The authoritative echo program owes exactly the bytes it
+            // received; the benchmark client's trial timeout bounds a dead
+            // child. Avoiding a per-keystroke timer future removes 10s of
+            // microseconds of timer churn from the measured path.
+            let read = stdout.read(&mut scratch[..want]).await?;
             if read == 0 {
                 return Err(std::io::Error::other("echo child EOF"));
             }
             echoed.extend_from_slice(&scratch[..read]);
         }
+        let t_echo = Instant::now();
         Echo {
             ack: seq,
             bytes: echoed,
@@ -138,6 +140,17 @@ pub async fn udp_pty_server(
         .encode(&mut wire);
         let sealed = server.seal(&wire, b"everudp-spike-v1");
         socket.send_to(&sealed, from).await?;
+        if timing {
+            let t_sent = Instant::now();
+            eprintln!(
+                "TIMING seq={seq} decode_us={} write_us={} echo_us={} seal_send_us={} service_us={}",
+                (t_decoded - t_received).as_micros(),
+                (t_written - t_decoded).as_micros(),
+                (t_echo - t_written).as_micros(),
+                (t_sent - t_echo).as_micros(),
+                (t_sent - t_received).as_micros(),
+            );
+        }
     }
 }
 
