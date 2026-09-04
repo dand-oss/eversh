@@ -294,31 +294,9 @@ pub async fn udp_pty_server_on_socket(
             ServerInputAction::Execute => {}
         }
         let t_decoded = Instant::now();
-        // Try to restart the authoritative program if it exited; a dead
-        // child is a benchmark failure, never a silent reflection.
-        if let Some(status) = child.try_wait()? {
-            return Err(std::io::Error::other(format!(
-                "echo child exited before input: {status}"
-            )));
-        }
-        stdin.write_all(&bytes).await?;
-        stdin.flush().await?;
-        let t_written = Instant::now();
-        let mut echoed = Vec::with_capacity(bytes.len());
-        while echoed.len() < bytes.len() {
-            let want = (bytes.len() - echoed.len()).min(scratch.len());
-            // The authoritative echo program owes exactly the bytes it
-            // received; the benchmark client's trial timeout bounds a dead
-            // child. Avoiding a per-keystroke timer future removes 10s of
-            // microseconds of timer churn from the measured path.
-            let read = stdout.read(&mut scratch[..want]).await?;
-            if read == 0 {
-                return Err(std::io::Error::other("echo child EOF"));
-            }
-            echoed.extend_from_slice(&scratch[..read]);
-        }
+        let (echoed, t_written, t_echo) =
+            authoritative_echo(&mut child, &mut stdin, &mut stdout, &mut scratch, &bytes).await?;
         echo_cache.record(epoch, seq, &echoed);
-        let t_echo = Instant::now();
         Echo {
             ack: seq,
             bytes: echoed,
@@ -350,6 +328,38 @@ async fn spawn_echo_child(command: &str) -> std::io::Result<Child> {
         .stderr(Stdio::null())
         .kill_on_drop(true)
         .spawn()
+}
+
+async fn authoritative_echo(
+    child: &mut Child,
+    stdin: &mut tokio::process::ChildStdin,
+    stdout: &mut tokio::process::ChildStdout,
+    scratch: &mut [u8],
+    bytes: &[u8],
+) -> std::io::Result<(Vec<u8>, Instant, Instant)> {
+    // A dead endpoint is a benchmark failure, never a silent reflection.
+    if let Some(status) = child.try_wait()? {
+        return Err(std::io::Error::other(format!(
+            "echo child exited before input: {status}"
+        )));
+    }
+    stdin.write_all(bytes).await?;
+    stdin.flush().await?;
+    let written = Instant::now();
+    let mut echoed = Vec::with_capacity(bytes.len());
+    while echoed.len() < bytes.len() {
+        let want = (bytes.len() - echoed.len()).min(scratch.len());
+        // The authoritative program owes exactly the bytes it received. The
+        // client trial timeout bounds a dead child without a per-key timer on
+        // this latency-critical server path.
+        let read = stdout.read(&mut scratch[..want]).await?;
+        if read == 0 {
+            return Err(std::io::Error::other("echo child EOF"));
+        }
+        echoed.extend_from_slice(&scratch[..read]);
+    }
+    let echoed_at = Instant::now();
+    Ok((echoed, written, echoed_at))
 }
 
 pub async fn udp_bench(
@@ -474,6 +484,66 @@ pub async fn quic_server_endpoint_loop(endpoint: noq::Endpoint) -> Result<(), Be
                 .encode(&mut wire)
                 .map_err(|_| BenchError("QUIC echo exceeds frame limit".into()))?;
             let _ = conn.send_datagram(wire.clone().into());
+        }
+    }
+}
+
+/// QUIC control with the same real-PTY authoritative endpoint as encrypted
+/// UDP. Keeping state and endpoint work identical isolates transport cost.
+pub async fn quic_pty_server_endpoint_loop(
+    endpoint: noq::Endpoint,
+    command: String,
+) -> Result<(), BenchError> {
+    loop {
+        let incoming = endpoint
+            .accept()
+            .await
+            .ok_or_else(|| BenchError("endpoint closed".into()))?;
+        let conn = incoming
+            .accept()
+            .map_err(|error| BenchError(error.to_string()))?
+            .await
+            .map_err(|error| BenchError(error.to_string()))?;
+        let mut child = spawn_echo_child(&command)
+            .await
+            .map_err(|error| BenchError(error.to_string()))?;
+        let mut stdin = child.stdin.take().expect("echo child stdin");
+        let mut stdout = child.stdout.take().expect("echo child stdout");
+        let mut scratch = [0u8; MAX_PAYLOAD];
+        let mut wire = Vec::with_capacity(MTU_CEILING);
+        let mut echo_cache = ServerEchoCache::default();
+        while let Ok(datagram) = conn.read_datagram().await {
+            let Some(frame) = decode(&datagram).ok() else {
+                continue;
+            };
+            let Frame::Input(Input { epoch, seq, bytes }) = frame else {
+                continue;
+            };
+            let authoritative = match echo_cache.classify(epoch, seq) {
+                ServerInputAction::Replay(bytes) => bytes,
+                ServerInputAction::Reject => continue,
+                ServerInputAction::Execute => {
+                    let (echoed, _, _) = authoritative_echo(
+                        &mut child,
+                        &mut stdin,
+                        &mut stdout,
+                        &mut scratch,
+                        &bytes,
+                    )
+                    .await
+                    .map_err(|error| BenchError(error.to_string()))?;
+                    echo_cache.record(epoch, seq, &echoed);
+                    echoed
+                }
+            };
+            Echo {
+                ack: seq,
+                bytes: authoritative,
+            }
+            .encode(&mut wire)
+            .map_err(|_| BenchError("QUIC PTY echo exceeds frame limit".into()))?;
+            conn.send_datagram(wire.clone().into())
+                .map_err(|error| BenchError(error.to_string()))?;
         }
     }
 }
@@ -794,6 +864,47 @@ mod tests {
         assert_eq!(exchange(&socket, &mut crypto, 1, 0, b"x").await.bytes, [1]);
         assert_eq!(exchange(&socket, &mut crypto, 1, 0, b"x").await.bytes, [1]);
         assert_eq!(exchange(&socket, &mut crypto, 1, 1, b"y").await.bytes, [2]);
+
+        server.abort();
+        let _ = server.await;
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn quic_control_uses_authoritative_pty_output() {
+        let identity = crate::quic::generate_identity();
+        let endpoint =
+            crate::quic::server_endpoint(&identity, "127.0.0.1:0".parse().unwrap()).unwrap();
+        let server_addr = endpoint.local_addr().unwrap();
+        let command = "/usr/bin/python3 -u -c 'import os\nwhile data := os.read(0, 1):\n os.write(1, data.upper())'";
+        let server = tokio::spawn(quic_pty_server_endpoint_loop(endpoint, command.to_string()));
+        let client =
+            crate::quic::client_endpoint(identity.spki_sha256, "127.0.0.1:0".parse().unwrap())
+                .unwrap();
+        let connection = client
+            .connect(server_addr, "localhost")
+            .unwrap()
+            .await
+            .unwrap();
+        // `script` applies raw/no-echo terminal settings after the QUIC
+        // connection causes the server to spawn the authoritative child.
+        sleep(Duration::from_millis(100)).await;
+        let mut input = Vec::new();
+        Input {
+            epoch: 1,
+            seq: 0,
+            bytes: b"x".to_vec(),
+        }
+        .encode(&mut input)
+        .unwrap();
+        connection.send_datagram(input.into()).unwrap();
+        let reply = timeout(Duration::from_secs(1), connection.read_datagram())
+            .await
+            .expect("QUIC PTY reply timed out")
+            .unwrap();
+        match decode(&reply).unwrap() {
+            Frame::Echo(echo) => assert_eq!(echo.bytes, b"X"),
+            frame => panic!("expected PTY echo, got {frame:?}"),
+        }
 
         server.abort();
         let _ = server.await;

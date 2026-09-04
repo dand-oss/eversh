@@ -2,7 +2,8 @@
 
 use everudp_spike::quic;
 use everudp_spike::transport::{
-    self, quic_bench, quic_server_endpoint_loop, summarize, udp_bench, udp_server, BootstrapSecret,
+    self, quic_bench, quic_pty_server_endpoint_loop, quic_server_endpoint_loop, summarize,
+    udp_bench, udp_server, BootstrapSecret,
 };
 use std::net::SocketAddr;
 
@@ -17,6 +18,7 @@ fn usage() -> ! {
            udp-server --bind ADDR --key-hex 64HEX\n\
            udp-pty-server --bind ADDR --key-hex 64HEX --echo-command CMD\n\
            quic-server --bind ADDR\n\
+           quic-pty-server --bind ADDR --echo-command CMD\n\
            reach --transport udp|quic --host HOST [--key-hex 64HEX]\n\
            oracle"
     );
@@ -91,6 +93,23 @@ fn main() {
                 );
                 let endpoint = quic::server_endpoint(&identity, bind).map_err(|e| e.to_string())?;
                 quic_server_endpoint_loop(endpoint)
+                    .await
+                    .map_err(|e| e.to_string())
+            }
+            "quic-pty-server" => {
+                let bind = addr(&arg("--bind"));
+                let command = arg("--echo-command");
+                let identity = quic::generate_identity();
+                println!(
+                    "spki={}",
+                    identity
+                        .spki_sha256
+                        .iter()
+                        .map(|b| format!("{b:02x}"))
+                        .collect::<String>()
+                );
+                let endpoint = quic::server_endpoint(&identity, bind).map_err(|e| e.to_string())?;
+                quic_pty_server_endpoint_loop(endpoint, command)
                     .await
                     .map_err(|e| e.to_string())
             }

@@ -23,6 +23,7 @@ CLIENT_NS=${TAG}c
 IP=/usr/bin/ip
 TC=/usr/sbin/tc
 TMP=$(mktemp -d)
+chmod 755 "$TMP"
 SERVER_PID=
 cleaned=0
 cleanup() {
@@ -78,10 +79,16 @@ fi
 ssh-keygen -q -t ed25519 -N '' -f "$TMP/host" >/dev/null
 ssh-keygen -q -t ed25519 -N '' -f "$TMP/client" >/dev/null
 cp "$TMP/client.pub" "$TMP/authorized_keys"
-PORT=2201
+chmod 644 "$TMP/authorized_keys"
+PORT=${EVERUDP_SSH_PORT:-22}
+[[ $PORT =~ ^[0-9]+$ ]] && (( PORT > 0 && PORT <= 65535 )) || {
+    echo "invalid EVERUDP_SSH_PORT" >&2
+    exit 2
+}
 cat >"$TMP/sshd_config" <<EOF
 Port $PORT
 ListenAddress 10.241.0.1
+ListenAddress 127.0.0.1
 HostKey $TMP/host
 AuthorizedKeysFile $TMP/authorized_keys
 PasswordAuthentication no
@@ -93,6 +100,7 @@ AllowAgentForwarding no
 AllowTcpForwarding no
 UseDNS no
 PermitUserEnvironment no
+PermitUserRC no
 AcceptEnv EVERSSH_DEBUG_SERVER
 LogLevel ERROR
 EOF
@@ -114,10 +122,24 @@ Host bench 10.241.0.1
     UserKnownHostsFile $TMP/known
     GlobalKnownHostsFile /dev/null
     StrictHostKeyChecking yes
+    HostKeyAlgorithms ssh-ed25519
     BatchMode yes
+    PubkeyAuthentication yes
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    PreferredAuthentications publickey
+    ConnectTimeout 5
+    ConnectionAttempts 1
+    ControlMaster no
+    ControlPath none
+    ControlPersist no
     ClearAllForwardings yes
+    ForwardAgent no
+    ForwardX11 no
+    Tunnel no
     ServerAliveInterval 60
     ServerAliveCountMax 12
+    UpdateHostKeys no
     ProxyCommand none
     ProxyJump none
     RequestTTY auto
@@ -126,15 +148,18 @@ EOF
 
 run_ssh_control() {
     local mode=$1
-    local proxy=()
-    local debug_env=(EVERSSH_DEBUG_SERVER=1)
+    local remote_command="/bin/sh -c 'printf EVERUDP_READY; stty raw -echo; exec /usr/bin/python3 -u $NET/echo1.py'"
+    local command=(ssh -F "$TMP/client_config" -tt bench "$remote_command")
     if [[ $mode == everssh ]]; then
-        proxy=(-o "ProxyCommand=$ROOT/target/release/everssh ssh-proxy 10.241.0.1 $PORT --remote-eversh $ROOT/target/release/eversh --ssh-option -F$TMP/client_config --status-file $TMP/status-$mode")
+        command=(
+            "$ROOT/target/release/eversh" ssh
+            --remote-eversh "$ROOT/target/release/eversh"
+            bench -- "-F$TMP/client_config" -tt -- "$remote_command"
+        )
     fi
-    $IP netns exec "$CLIENT_NS" /usr/bin/env "${debug_env[@]}" /usr/bin/python3 "$NET/drive-ssh.py" \
+    $IP netns exec "$CLIENT_NS" /usr/bin/python3 "$NET/drive-ssh.py" \
         "$OUTDIR/${mode}-${SUFFIX}.json" "$TRIALS" 0.15 \
-        ssh -F "$TMP/client_config" "${proxy[@]}" -tt bench \
-        "/bin/sh -c 'printf EVERUDP_READY; stty raw -echo; exec /usr/bin/python3 -u $NET/echo1.py'"
+        "${command[@]}"
     python3 - "$OUTDIR/${mode}-${SUFFIX}.json" <<'PY'
 import json, sys
 path = sys.argv[1]
@@ -185,8 +210,10 @@ run_everudp_udp() {
 run_everudp_quic() {
     local prediction=$1
     local name="everudp-quic-$([[ $prediction == on ]] && echo pred || echo nopred)${SUFFIX}"
-    $IP netns exec "$SERVER_NS" "$SPIKE/everudp-spike" quic-server \
-        --bind 10.241.0.1:60201 >"$TMP/quic-server.log" 2>&1 &
+    $IP netns exec "$SERVER_NS" "$SPIKE/everudp-spike" quic-pty-server \
+        --bind 10.241.0.1:60201 \
+        --echo-command "/usr/bin/python3 -u $NET/echo1.py" \
+        >"$TMP/quic-server.log" 2>&1 &
     local quic_server=$!
     for _ in $(seq 1 30); do
         grep -q '^spki=' "$TMP/quic-server.log" && break
