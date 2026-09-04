@@ -1,7 +1,6 @@
 //! everudp spike CLI. Private research roles only.
 
 use everudp_spike::quic;
-use everudp_spike::state::{EchoPolicy, PredictionState};
 use everudp_spike::transport::{
     self, quic_bench, quic_server_endpoint_loop, summarize, udp_bench, udp_server, BootstrapSecret,
 };
@@ -249,33 +248,13 @@ async fn reach() -> Result<(), String> {
 }
 
 fn oracle() -> Result<(), String> {
-    let workloads: [(&str, &[u8]); 4] = [
-        ("echo", b"hello everudp\n"),
-        ("resize", b"\x1b[8;24;80tready\x1b[8;30;100tafter\n"),
-        ("full-screen", b"\x1b[2J\x1b[Htitle\r\nrow-a\r\nrow-b\x1b[H"),
-        ("tmux", b"\x1b]0;tmux\x07\x1b[?1049hpane-1\r\n\x1b[?1049l"),
-    ];
-    for (name, bytes) in workloads {
-        let mut state = PredictionState::new(1, EchoPolicy::Predict);
-        let (seq, _) = state.send(bytes);
-        let reconciliation = state.reconcile(seq, bytes);
-        if state.confirmed_bytes != bytes {
-            return Err(format!("{name}: authoritative state mismatch"));
-        }
-        if format!("{reconciliation:?}").contains("Corrected") {
-            return Err(format!("{name}: false correction"));
-        }
-    }
-    let mut password = PredictionState::new(1, EchoPolicy::NoEcho);
-    let (seq, displayed) = password.send(b"secret");
-    if displayed || password.predicted_echo_displays != 0 {
-        return Err("no-echo workload displayed a prediction".into());
-    }
-    password.reconcile(seq, b"secret");
-    if password.predicted_echo_displays != 0 {
-        return Err("no-echo reconciliation displayed a prediction".into());
-    }
-    println!("oracle: PASS echo/resize/full-screen/tmux/no-echo");
+    let report = everudp_spike::oracle::run()?;
+    println!(
+        "oracle: PASS workloads={} correction_us={} password_prediction_displays={}",
+        report.workloads.join(","),
+        report.correction_us,
+        report.password_prediction_displays,
+    );
     Ok(())
 }
 

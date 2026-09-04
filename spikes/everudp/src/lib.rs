@@ -9,6 +9,7 @@
 pub mod aead;
 pub mod frame;
 pub mod handshake;
+pub mod oracle;
 pub mod quic;
 pub mod state;
 pub mod transport;

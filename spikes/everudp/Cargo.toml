@@ -13,5 +13,6 @@ noq = { version = "=1.1.1", default-features = false, features = ["runtime-tokio
 rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"] }
 ring = "0.17"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "io-util", "process"] }
+vt100 = "=0.16.2"
 
 [workspace]
