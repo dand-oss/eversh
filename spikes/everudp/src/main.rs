@@ -106,12 +106,42 @@ async fn bench() -> Result<(), String> {
     let trials = match transport_name.as_str() {
         "udp" => {
             let key = [7u8; 8];
-            let server_addr = spawn_udp_server(host_addr, key).await?;
+            let server_addr = if std::env::args().any(|a| a == "--server") {
+                arg("--server").parse().unwrap_or_else(|_| usage())
+            } else {
+                spawn_udp_server(host_addr, key).await?
+            };
             udp_bench(server_addr, key, prediction, trials)
                 .await
                 .map_err(|e| e.to_string())?
         }
         "quic" => {
+            if std::env::args().any(|a| a == "--server") {
+                let server_addr: SocketAddr = arg("--server").parse().unwrap_or_else(|_| usage());
+                let spki = opt_arg("--spki-hex", "");
+                let mut pin = [0u8; 32];
+                if spki.len() == 64 {
+                    for i in 0..32 {
+                        pin[i] = u8::from_str_radix(&spki[i * 2..i * 2 + 2], 16)
+                            .map_err(|_| "bad spki hex".to_string())?;
+                    }
+                } else {
+                    usage();
+                }
+                let bind: SocketAddr = if server_addr.is_ipv4() {
+                    "0.0.0.0:0"
+                } else {
+                    "[::]:0"
+                }
+                .parse()
+                .unwrap();
+                let client = quic::client_endpoint(pin, bind).map_err(|e| e.to_string())?;
+                let result = quic_bench(&client, server_addr, prediction, trials)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                report(&transport_name, prediction, result);
+                return Ok(());
+            }
             let bind: SocketAddr = if host_addr.is_ipv4() {
                 "127.0.0.1:0"
             } else {
@@ -133,13 +163,18 @@ async fn bench() -> Result<(), String> {
         }
         _ => usage(),
     };
+    report(&transport_name, prediction, trials);
+    Ok(())
+}
+
+fn report(transport_name: &str, prediction: bool, trials: Vec<transport::Trial>) {
     let (median, p95, max, mean) = summarize(&trials);
     println!(
         "{{\"transport\":\"{transport_name}\",\"prediction\":{prediction},\"trials\":{},\"median_us\":{median},\"p95_us\":{p95},\"max_us\":{max},\"mean_us\":{mean:.3},\"retransmits\":{}}}",
         trials.len(),
         trials.iter().map(|t| t.retransmits).sum::<u32>()
     );
-    Ok(())
+    let _ = transport_name;
 }
 
 async fn spawn_udp_server(bind: SocketAddr, key: [u8; 8]) -> Result<SocketAddr, String> {

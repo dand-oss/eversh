@@ -108,10 +108,9 @@ pub async fn udp_bench(
             bytes: vec![byte],
         }
         .encode(&mut wire);
-        let sealed = client.seal(&wire, b"everudp-spike-v1");
         let started = Instant::now();
         socket
-            .send_to(&sealed, server_addr)
+            .send_to(&client.seal(&wire, b"everudp-spike-v1"), server_addr)
             .await
             .map_err(|e| BenchError(e.to_string()))?;
         let mut retransmits = 0u32;
@@ -140,8 +139,11 @@ pub async fn udp_bench(
                     }
                     retransmits += 1;
                     next_retransmit = Instant::now() + RETRANSMIT;
+                    // Every transmission needs a fresh AEAD nonce: the
+                    // server's anti-replay window correctly drops a repeated
+                    // nonce, so re-sealing is part of retransmission.
                     socket
-                        .send_to(&sealed, server_addr)
+                        .send_to(&client.seal(&wire, b"everudp-spike-v1"), server_addr)
                         .await
                         .map_err(|e| BenchError(e.to_string()))?;
                 }
