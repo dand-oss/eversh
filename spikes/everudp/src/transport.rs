@@ -1,8 +1,9 @@
 //! UDP-substrate and noq-datagram echo transports plus the frozen
 //! stop-and-wait benchmark loop.
 
-use crate::aead::Substrate;
+use crate::aead::{Role, SessionSubstrate, BOOTSTRAP_SECRET_LEN};
 use crate::frame::{decode, Echo, Frame, Input, MAX_PAYLOAD, MTU_CEILING};
+use crate::handshake::{AmplificationBudget, ClientHandshake, HandshakeError, ServerHandshake};
 use crate::state::{EchoPolicy, PredictionState, Reconciliation};
 use std::net::SocketAddr;
 use std::process::Stdio;
@@ -16,6 +17,10 @@ pub const RETRANSMIT: Duration = Duration::from_millis(20);
 pub const TRIAL_TIMEOUT: Duration = Duration::from_secs(2);
 pub const INTER_TRIAL: Duration = Duration::from_millis(100);
 pub const EPOCH: u32 = 1;
+pub const AMPLIFICATION_CEILING: usize = MTU_CEILING * 4;
+const SESSION_AAD: &[u8] = b"everudp-spike-v2";
+
+pub type BootstrapSecret = [u8; BOOTSTRAP_SECRET_LEN];
 
 #[derive(Debug, Clone)]
 pub struct Trial {
@@ -36,32 +41,134 @@ impl std::fmt::Display for BenchError {
 }
 impl std::error::Error for BenchError {}
 
-pub fn key_from_half(half: [u8; 8]) -> [u8; 32] {
-    let mut key = [0u8; 32];
-    for chunk in key.chunks_exact_mut(8) {
-        chunk.copy_from_slice(&half);
-    }
-    key
+struct ServerSession {
+    handshake: ServerHandshake,
+    crypto: SessionSubstrate,
+    peer: SocketAddr,
+    amplification: AmplificationBudget,
 }
 
-/// Shared session nonce prefix. Client and server counters live in
-/// disjoint halves of the 64-bit space, so a nonce can never repeat across
-/// directions while both sides accept the same prefix.
-pub const SESSION_PREFIX: [u8; 4] = [0, 0, 0, 1];
-pub const CLIENT_COUNTER_BASE: u64 = 1;
-pub const SERVER_COUNTER_BASE: u64 = u64::MAX / 2 + 1;
+impl ServerSession {
+    async fn receive(
+        &mut self,
+        socket: &UdpSocket,
+        packet: &[u8],
+        from: SocketAddr,
+    ) -> std::io::Result<Option<Vec<u8>>> {
+        if self.handshake.is_client_retransmit(packet) {
+            self.amplification.credit_receive(packet.len());
+            let reply = *self.handshake.reply();
+            if self.amplification.debit_send(reply.len()) {
+                socket.send_to(&reply, from).await?;
+            }
+            return Ok(None);
+        }
+        let plaintext = match self.crypto.open(packet, SESSION_AAD) {
+            Ok(plaintext) => plaintext,
+            Err(_) => return Ok(None),
+        };
+        // Possession of the directional traffic key authenticates roaming.
+        self.peer = from;
+        self.amplification.credit_receive(packet.len());
+        Ok(Some(plaintext))
+    }
 
-pub async fn udp_server(bind: SocketAddr, key: [u8; 8]) -> std::io::Result<()> {
+    async fn send(&mut self, socket: &UdpSocket, plaintext: &[u8]) -> std::io::Result<()> {
+        let sealed = self.crypto.seal(plaintext, SESSION_AAD);
+        if !self.amplification.debit_send(sealed.len()) {
+            return Err(std::io::Error::other("amplification budget exhausted"));
+        }
+        socket.send_to(&sealed, self.peer).await?;
+        Ok(())
+    }
+}
+
+async fn accept_server_session(
+    socket: &UdpSocket,
+    secret: &BootstrapSecret,
+    packet: &mut [u8],
+) -> std::io::Result<ServerSession> {
+    loop {
+        let (len, from) = socket.recv_from(packet).await?;
+        let handshake = match ServerHandshake::accept(secret, &packet[..len]) {
+            Ok(handshake) => handshake,
+            Err(HandshakeError::Randomness) => {
+                return Err(std::io::Error::other("handshake randomness unavailable"));
+            }
+            Err(_) => continue,
+        };
+        let mut amplification = AmplificationBudget::new(AMPLIFICATION_CEILING);
+        amplification.credit_receive(len);
+        if !amplification.debit_send(handshake.reply().len()) {
+            continue;
+        }
+        socket.send_to(handshake.reply(), from).await?;
+        let association = handshake.association_id();
+        eprintln!(
+            "everudp-spike association={:08x} peer={from}",
+            u32::from_be_bytes(association[..4].try_into().expect("association prefix"))
+        );
+        return Ok(ServerSession {
+            crypto: handshake.roots().for_role(Role::Server),
+            handshake,
+            peer: from,
+            amplification,
+        });
+    }
+}
+
+async fn establish_client_session(
+    socket: &UdpSocket,
+    secret: &BootstrapSecret,
+) -> Result<SessionSubstrate, BenchError> {
+    let handshake = ClientHandshake::begin(secret)
+        .map_err(|error| BenchError(format!("client handshake start failed: {error:?}")))?;
+    let started = Instant::now();
+    let mut reply = [0u8; MTU_CEILING];
+    loop {
+        socket
+            .send(handshake.wire())
+            .await
+            .map_err(|error| BenchError(error.to_string()))?;
+        let retransmit_at = Instant::now() + RETRANSMIT;
+        loop {
+            tokio::select! {
+                received = socket.recv(&mut reply) => {
+                    let len = received.map_err(|error| BenchError(error.to_string()))?;
+                    match handshake.finish(secret, &reply[..len]) {
+                        Ok(roots) => return Ok(roots.for_role(Role::Client)),
+                        Err(HandshakeError::Authentication | HandshakeError::AssociationMismatch) => {
+                            return Err(BenchError("server handshake authentication failed".into()));
+                        }
+                        Err(_) => continue,
+                    }
+                }
+                _ = sleep_until(retransmit_at) => break,
+            }
+        }
+        if started.elapsed() >= TRIAL_TIMEOUT {
+            return Err(BenchError("UDP association handshake timed out".into()));
+        }
+    }
+}
+
+pub async fn udp_server(bind: SocketAddr, secret: BootstrapSecret) -> std::io::Result<()> {
     let socket = UdpSocket::bind(bind).await?;
     eprintln!("everudp-spike udp-server {}", socket.local_addr()?);
-    let mut server = Substrate::new(key_from_half(key), SESSION_PREFIX, SERVER_COUNTER_BASE);
+    udp_server_on_socket(socket, secret).await
+}
+
+pub async fn udp_server_on_socket(
+    socket: UdpSocket,
+    secret: BootstrapSecret,
+) -> std::io::Result<()> {
     let mut packet = [0u8; MTU_CEILING];
+    let mut server = accept_server_session(&socket, &secret, &mut packet).await?;
     let mut wire = Vec::with_capacity(MTU_CEILING);
     loop {
         let (len, from) = socket.recv_from(&mut packet).await?;
-        let plaintext = match server.open(&packet[..len], b"everudp-spike-v1") {
-            Ok(plaintext) => plaintext,
-            Err(_) => continue,
+        let Some(plaintext) = server.receive(&socket, &packet[..len], from).await? else {
+            continue;
         };
         let frame = match decode(&plaintext) {
             Ok(frame) => frame,
@@ -71,8 +178,7 @@ pub async fn udp_server(bind: SocketAddr, key: [u8; 8]) -> std::io::Result<()> {
             continue;
         };
         Echo { ack: seq, bytes }.encode(&mut wire);
-        let sealed = server.seal(&wire, b"everudp-spike-v1");
-        socket.send_to(&sealed, from).await?;
+        server.send(&socket, &wire).await?;
     }
 }
 
@@ -81,12 +187,11 @@ pub async fn udp_server(bind: SocketAddr, key: [u8; 8]) -> std::io::Result<()> {
 /// making the everudp latency path end-to-end like zmosh's session path.
 pub async fn udp_pty_server(
     bind: SocketAddr,
-    key: [u8; 8],
+    secret: BootstrapSecret,
     command: String,
 ) -> std::io::Result<()> {
     let socket = UdpSocket::bind(bind).await?;
     eprintln!("everudp-spike udp-pty-server {}", socket.local_addr()?);
-    let mut server = Substrate::new(key_from_half(key), SESSION_PREFIX, SERVER_COUNTER_BASE);
     let mut child = spawn_echo_child(&command).await?;
     let mut stdin = child.stdin.take().expect("echo child stdin");
     let mut stdout = child.stdout.take().expect("echo child stdout");
@@ -94,12 +199,12 @@ pub async fn udp_pty_server(
     let mut wire = Vec::with_capacity(MTU_CEILING);
     let mut scratch = [0u8; MAX_PAYLOAD];
     let timing = std::env::var_os("EVERUDP_TIMING").is_some();
+    let mut server = accept_server_session(&socket, &secret, &mut packet).await?;
     loop {
         let (len, from) = socket.recv_from(&mut packet).await?;
         let t_received = Instant::now();
-        let plaintext = match server.open(&packet[..len], b"everudp-spike-v1") {
-            Ok(plaintext) => plaintext,
-            Err(_) => continue,
+        let Some(plaintext) = server.receive(&socket, &packet[..len], from).await? else {
+            continue;
         };
         let frame = match decode(&plaintext) {
             Ok(frame) => frame,
@@ -138,8 +243,7 @@ pub async fn udp_pty_server(
             bytes: echoed,
         }
         .encode(&mut wire);
-        let sealed = server.seal(&wire, b"everudp-spike-v1");
-        socket.send_to(&sealed, from).await?;
+        server.send(&socket, &wire).await?;
         if timing {
             let t_sent = Instant::now();
             eprintln!(
@@ -168,7 +272,7 @@ async fn spawn_echo_child(command: &str) -> std::io::Result<Child> {
 
 pub async fn udp_bench(
     server_addr: SocketAddr,
-    key: [u8; 8],
+    secret: BootstrapSecret,
     prediction: bool,
     trials: usize,
 ) -> Result<Vec<Trial>, BenchError> {
@@ -180,7 +284,11 @@ pub async fn udp_bench(
     let socket = UdpSocket::bind(bind)
         .await
         .map_err(|e| BenchError(e.to_string()))?;
-    let mut client = Substrate::new(key_from_half(key), SESSION_PREFIX, CLIENT_COUNTER_BASE);
+    socket
+        .connect(server_addr)
+        .await
+        .map_err(|e| BenchError(e.to_string()))?;
+    let mut client = establish_client_session(&socket, &secret).await?;
     let mut state = PredictionState::new(
         EPOCH,
         if prediction {
@@ -203,7 +311,7 @@ pub async fn udp_bench(
         .encode(&mut wire);
         let started = Instant::now();
         socket
-            .send_to(&client.seal(&wire, b"everudp-spike-v1"), server_addr)
+            .send(&client.seal(&wire, SESSION_AAD))
             .await
             .map_err(|e| BenchError(e.to_string()))?;
         let mut retransmits = 0u32;
@@ -213,7 +321,7 @@ pub async fn udp_bench(
                 received = socket.recv(&mut packet) => {
                     let len = received.map_err(|e| BenchError(e.to_string()))?;
                     let plaintext = client
-                        .open(&packet[..len], b"everudp-spike-v1")
+                        .open(&packet[..len], SESSION_AAD)
                         .map_err(|_| BenchError("server packet failed authentication".into()))?;
                     let frame = decode(&plaintext)
                         .map_err(|_| BenchError("bad server frame".into()))?;
@@ -236,7 +344,7 @@ pub async fn udp_bench(
                     // server's anti-replay window correctly drops a repeated
                     // nonce, so re-sealing is part of retransmission.
                     socket
-                        .send_to(&client.seal(&wire, b"everudp-spike-v1"), server_addr)
+                        .send(&client.seal(&wire, SESSION_AAD))
                         .await
                         .map_err(|e| BenchError(e.to_string()))?;
                 }

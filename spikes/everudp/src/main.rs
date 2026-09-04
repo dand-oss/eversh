@@ -1,22 +1,24 @@
 //! everudp spike CLI. Private research roles only.
 
-use everudp_spike::frame::{decode, Echo, Frame, Input, MTU_CEILING};
 use everudp_spike::quic;
 use everudp_spike::state::{EchoPolicy, PredictionState};
 use everudp_spike::transport::{
-    self, key_from_half, quic_bench, quic_server_endpoint_loop, summarize, udp_bench, udp_server,
+    self, quic_bench, quic_server_endpoint_loop, summarize, udp_bench, udp_server, BootstrapSecret,
 };
 use std::net::SocketAddr;
+
+const BENCHMARK_SECRET_HEX: &str =
+    "62bc8275e2d0fa1d11abb04d07d7e47731c70879c2d343bc47deb577df13ee7d";
 
 fn usage() -> ! {
     eprintln!(
         "usage: everudp-spike <role>\n\
          roles:\n\
            bench --transport udp|quic --prediction on|off --trials N [--host HOST]\n\
-           udp-server --bind ADDR --key-hex 16HEX\n\
-           udp-pty-server --bind ADDR --key-hex 16HEX --echo-command CMD\n\
+           udp-server --bind ADDR --key-hex 64HEX\n\
+           udp-pty-server --bind ADDR --key-hex 64HEX --echo-command CMD\n\
            quic-server --bind ADDR\n\
-           reach --transport udp|quic --host HOST [--key-hex 16HEX]\n\
+           reach --transport udp|quic --host HOST [--key-hex 64HEX]\n\
            oracle"
     );
     std::process::exit(2);
@@ -40,12 +42,12 @@ fn addr(value: &str) -> SocketAddr {
     value.parse().unwrap_or_else(|_| usage())
 }
 
-fn half_key(hex: &str) -> [u8; 8] {
+fn bootstrap_secret(hex: &str) -> BootstrapSecret {
     let bytes = hex.as_bytes();
-    if bytes.len() != 16 {
+    if bytes.len() != 64 {
         usage();
     }
-    let mut out = [0u8; 8];
+    let mut out = [0u8; 32];
     for (i, chunk) in bytes.chunks(2).enumerate() {
         let text = std::str::from_utf8(chunk).unwrap_or_default();
         out[i] = u8::from_str_radix(text, 16).unwrap_or_else(|_| usage());
@@ -66,14 +68,14 @@ fn main() {
             "bench" => bench().await,
             "udp-server" => {
                 let bind = addr(&arg("--bind"));
-                let key = half_key(&arg("--key-hex"));
-                udp_server(bind, key).await.map_err(|e| e.to_string())
+                let secret = bootstrap_secret(&arg("--key-hex"));
+                udp_server(bind, secret).await.map_err(|e| e.to_string())
             }
             "udp-pty-server" => {
                 let bind = addr(&arg("--bind"));
-                let key = half_key(&arg("--key-hex"));
+                let secret = bootstrap_secret(&arg("--key-hex"));
                 let command = arg("--echo-command");
-                transport::udp_pty_server(bind, key, command)
+                transport::udp_pty_server(bind, secret, command)
                     .await
                     .map_err(|e| e.to_string())
             }
@@ -116,13 +118,13 @@ async fn bench() -> Result<(), String> {
     let host_addr: SocketAddr = host.parse().unwrap_or_else(|_| usage());
     let trials = match transport_name.as_str() {
         "udp" => {
-            let key = [7u8; 8];
+            let secret = bootstrap_secret(BENCHMARK_SECRET_HEX);
             let server_addr = if std::env::args().any(|a| a == "--server") {
                 arg("--server").parse().unwrap_or_else(|_| usage())
             } else {
-                spawn_udp_server(host_addr, key).await?
+                spawn_udp_server(host_addr, secret).await?
             };
-            udp_bench(server_addr, key, prediction, trials)
+            udp_bench(server_addr, secret, prediction, trials)
                 .await
                 .map_err(|e| e.to_string())?
         }
@@ -189,41 +191,15 @@ fn report(transport_name: &str, prediction: bool, trials: Vec<transport::Trial>)
     );
 }
 
-async fn spawn_udp_server(bind: SocketAddr, key: [u8; 8]) -> Result<SocketAddr, String> {
+async fn spawn_udp_server(bind: SocketAddr, secret: BootstrapSecret) -> Result<SocketAddr, String> {
     let server = tokio::net::UdpSocket::bind(bind)
         .await
         .map_err(|e| e.to_string())?;
     let addr = server.local_addr().map_err(|e| e.to_string())?;
     tokio::spawn(async move {
-        let _ = run_udp_echo(server, key).await;
+        let _ = transport::udp_server_on_socket(server, secret).await;
     });
     Ok(addr)
-}
-
-async fn run_udp_echo(socket: tokio::net::UdpSocket, key: [u8; 8]) -> std::io::Result<()> {
-    use everudp_spike::aead::Substrate;
-    let mut server = Substrate::new(
-        key_from_half(key),
-        transport::SESSION_PREFIX,
-        transport::SERVER_COUNTER_BASE,
-    );
-    let mut packet = [0u8; MTU_CEILING];
-    let mut wire = Vec::with_capacity(MTU_CEILING);
-    loop {
-        let (len, from) = socket.recv_from(&mut packet).await?;
-        let plaintext = match server.open(&packet[..len], b"everudp-spike-v1") {
-            Ok(plaintext) => plaintext,
-            Err(_) => continue,
-        };
-        let Frame::Input(Input { seq, bytes, .. }) =
-            decode(&plaintext).ok().unwrap_or(Frame::Keepalive)
-        else {
-            continue;
-        };
-        Echo { ack: seq, bytes }.encode(&mut wire);
-        let sealed = server.seal(&wire, b"everudp-spike-v1");
-        socket.send_to(&sealed, from).await?;
-    }
 }
 
 async fn reach() -> Result<(), String> {
@@ -231,8 +207,8 @@ async fn reach() -> Result<(), String> {
     let server_addr: SocketAddr = arg("--host").parse().unwrap_or_else(|_| usage());
     match transport_name.as_str() {
         "udp" => {
-            let key = half_key(&opt_arg("--key-hex", "0707070707070707"));
-            let trials = udp_bench(server_addr, key, false, 1)
+            let secret = bootstrap_secret(&opt_arg("--key-hex", BENCHMARK_SECRET_HEX));
+            let trials = udp_bench(server_addr, secret, false, 1)
                 .await
                 .map_err(|e| e.to_string())?;
             println!(

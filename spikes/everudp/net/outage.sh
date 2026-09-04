@@ -26,12 +26,12 @@ $IP -n "${TAG}c" addr add 10.243.0.2/24 dev "${TAG}c"
 $IP -n "${TAG}s" link set "${TAG}s" up
 $IP -n "${TAG}c" link set "${TAG}c" up
 $IP netns exec "${TAG}s" "$SPIKE" udp-server --bind 10.243.0.1:60400 \
-    --key-hex 0707070707070707 >/dev/null 2>&1 &
+    --key-hex 62bc8275e2d0fa1d11abb04d07d7e47731c70879c2d343bc47deb577df13ee7d >/dev/null 2>&1 &
 SERVER_PID=$!
 sleep 0.3
 reach_once() {
     $IP netns exec "${TAG}c" timeout 2 "$SPIKE" reach --transport udp \
-        --host 10.243.0.1:60400 --key-hex 0707070707070707 >/dev/null 2>&1
+        --host 10.243.0.1:60400 --key-hex 62bc8275e2d0fa1d11abb04d07d7e47731c70879c2d343bc47deb577df13ee7d >/dev/null 2>&1
 }
 reach_once || { echo "pre-outage reach failed" >&2; exit 1; }
 $IP netns exec "${TAG}c" $TC qdisc replace dev "${TAG}c" root netem loss 100%

@@ -33,7 +33,7 @@ udp_server() {
     local bind="$addr:$port"
     [[ $addr == *:* ]] && bind="[$addr]:$port"
     "$IP" netns exec "$ns" "$SPIKE" udp-server --bind "$bind" \
-        --key-hex 0707070707070707 >"$TMP/$ns-server.log" 2>&1 &
+        --key-hex 62bc8275e2d0fa1d11abb04d07d7e47731c70879c2d343bc47deb577df13ee7d >"$TMP/$ns-server.log" 2>&1 &
     echo $!
 }
 
@@ -42,7 +42,7 @@ try_udp() {
     local host="$addr:$port"
     [[ $addr == *:* ]] && host="[$addr]:$port"
     "$IP" netns exec "$ns" timeout 3 "$SPIKE" reach --transport udp \
-        --host "$host" --key-hex 0707070707070707 \
+        --host "$host" --key-hex 62bc8275e2d0fa1d11abb04d07d7e47731c70879c2d343bc47deb577df13ee7d \
         >"$TMP/reach.out" 2>"$TMP/reach.err"
 }
 
@@ -151,7 +151,7 @@ nat_model() {
     sleep 0.2
     local ok=0
     for _ in $(seq 1 "$ATTEMPTS"); do
-        if "$IP" netns exec "${TAG}n" timeout 3 "$SPIKE" reach --transport udp --host "10.242.1.2:$port" --key-hex 0707070707070707 >/dev/null 2>&1; then
+        if "$IP" netns exec "${TAG}n" timeout 3 "$SPIKE" reach --transport udp --host "10.242.1.2:$port" --key-hex 62bc8275e2d0fa1d11abb04d07d7e47731c70879c2d343bc47deb577df13ee7d >/dev/null 2>&1; then
             ok=$((ok + 1))
         fi
     done
@@ -170,11 +170,11 @@ nat_model symmetric 60313 ">=90%"
 # ZeroTier: both endpoints bind the live local ZeroTier address.
 ZT_ADDR=$($IP -4 addr show zt3middjio 2>/dev/null | awk '/inet / {print $2; exit}' | cut -d/ -f1)
 if [[ -n $ZT_ADDR ]]; then
-    server_pid=$("$SPIKE" udp-server --bind "$ZT_ADDR:60320" --key-hex 0707070707070707 >"$TMP/zt-server.log" 2>&1 & echo $!)
+    server_pid=$("$SPIKE" udp-server --bind "$ZT_ADDR:60320" --key-hex 62bc8275e2d0fa1d11abb04d07d7e47731c70879c2d343bc47deb577df13ee7d >"$TMP/zt-server.log" 2>&1 & echo $!)
     sleep 0.3
     ok=0
     for _ in $(seq 1 "$ATTEMPTS"); do
-        if timeout 3 "$SPIKE" reach --transport udp --host "$ZT_ADDR:60320" --key-hex 0707070707070707 >/dev/null 2>&1; then
+        if timeout 3 "$SPIKE" reach --transport udp --host "$ZT_ADDR:60320" --key-hex 62bc8275e2d0fa1d11abb04d07d7e47731c70879c2d343bc47deb577df13ee7d >/dev/null 2>&1; then
             ok=$((ok + 1))
         fi
     done
