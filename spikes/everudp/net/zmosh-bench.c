@@ -17,12 +17,13 @@ static uint64_t now_ns(void) {
 typedef struct {
     uint64_t send_ns;
     uint64_t echo_ns;
+    uint8_t expected;
     int connected;
 } bench_ctx;
 
 static void on_output(void *opaque, const uint8_t *data, uint32_t len) {
     bench_ctx *ctx = (bench_ctx *)opaque;
-    if (ctx->echo_ns == 0 && memchr(data, 'k', len) != NULL) {
+    if (ctx->echo_ns == 0 && memchr(data, ctx->expected, len) != NULL) {
         ctx->echo_ns = now_ns();
     }
 }
@@ -67,9 +68,11 @@ int main(int argc, char **argv) {
     }
     printf("[");
     for (int trial = 0; trial < trials; ++trial) {
+        const uint8_t input = (uint8_t)('a' + (trial % 26));
         ctx.echo_ns = 0;
+        ctx.expected = input;
         ctx.send_ns = now_ns();
-        zmosh_send_input(session, (const uint8_t *)"k", 1);
+        zmosh_send_input(session, &input, 1);
         uint64_t deadline = now_ns() + 2000000000ull;
         while (now_ns() < deadline && ctx.echo_ns == 0) {
             struct pollfd pfd = {.fd = zmosh_get_fd(session), .events = POLLIN};

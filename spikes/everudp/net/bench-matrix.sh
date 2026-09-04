@@ -243,7 +243,7 @@ run_zmosh() {
     read -r _ _ zport zkey <"$TMP/zmosh-connect.txt"
     [[ -n $zkey ]] || { cat "$TMP/zmosh-serve.err" >&2; exit 1; }
     local samples
-    samples=$($IP netns exec "$CLIENT_NS" /tmp/zmosh-bench 10.241.0.1 "$zport" "$zkey" "$TRIALS" 150)
+    samples=$($IP netns exec "$CLIENT_NS" /tmp/zmosh-bench 10.241.0.1 "$zport" "$zkey" "$TRIALS" 100)
     kill "$zserve" 2>/dev/null || true
     python3 - "$out" "$samples" "$TRIALS" <<'PY'
 import json, sys
