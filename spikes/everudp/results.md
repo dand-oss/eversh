@@ -4,13 +4,15 @@ Status: partially repaired after FAIL review; bead remains open |
 Owner: `eversh-2zq` | Preregistration:
 frozen in the bead before implementation.
 
-## Decision: NOT-BUILD production everudp now (confirmed by end-to-end disproof)
+## Decision: NOT-BUILD production everudp now (latency parity passes)
 
-Available evidence does not meet the preregistered BUILD rule. On
-equivalent end-to-end PTY paths the spike substrate is NOT as fast as
-zmosh at the median, it is not security-equivalent to the QUIC control,
-its terminal oracle is not independent, and the decisive everssh comparison
-remains unavailable:
+Available evidence does not meet the full preregistered BUILD rule. The
+optimized spike now proves end-to-end PTY latency parity with zmosh under
+the frozen 5% loss condition, including a conservative bootstrap
+equivalence bound. Production remains NOT-BUILD because the substrate is
+not security-equivalent to the QUIC control, its terminal oracle is not
+independent, its reachability matrix is only a smoke test, and the decisive
+everssh comparison remains unavailable:
 
 1. The everssh-v2 latency comparison is UNAVAILABLE in this harness: the
    outer-ssh PTY driver initially timed local canonical-mode echo (invalid
@@ -39,7 +41,7 @@ real session PTY) and are retained only to document the harness mistake.
 | 2 | 496 / 22,102 | 492 / 810 |
 | 3 | 434 / 21,971 | 469 / 61,050 |
 
-### End-to-end correction (authoritative)
+### First end-to-end correction (historical; superseded)
 
 After the review identified the path mismatch, the everudp server was
 upgraded to drive `echo1.py` through `script` (real PTY, `stty raw
@@ -51,13 +53,12 @@ upgraded to drive `echo1.py` through `script` (real PTY, `stty raw
 | 2 | 953 / 21,947 | 531 / 929 |
 | 3 | 750 / 21,959 | 515 / 121,295 |
 
-everudp is roughly 1.58x slower at the median (aggregate 840 µs versus
-531 µs) and fails the frozen `p50 <= zmosh p50 * 1.10` rule in every run.
-The transport-only "parity" was a harness artifact and is withdrawn. The
-honest answer to "is everudp as fast as zmosh?" is **no**. everudp's p95
-is lower in aggregate because its 20 ms retransmit recovers sooner than
-zmosh's long-tail stalls, but the preregistered parity rule gates on p50
-and p95 together, so parity is not met.
+At this debug-build checkpoint everudp was roughly 1.58x slower at the
+median (aggregate 840 us versus 531 us) and failed the frozen
+`p50 <= zmosh p50 * 1.10` rule in every run. The transport-only "parity"
+claim was correctly withdrawn. This three-run result is retained as the
+measurement error that prompted release-mode measurement and a paired,
+hash-bound campaign; it is superseded by the evidence below.
 
 ### Exploratory release-mode rerun (not closure evidence)
 
@@ -77,6 +78,34 @@ not prove equivalence and are not exact-SHA closure evidence. The dedicated
 paired harness now alternates candidate order, uses equal workloads and
 pacing, resets seeded netem before each candidate, retains raw samples and
 hashes, and requires a clean source commit before a parity verdict.
+
+### Clean paired equivalence campaign (authoritative latency result)
+
+Six alternating-order blocks of 100 trials per candidate ran from clean
+source commit `1a1029cbe115f909a8bcadc6f36ebd3f760a7d61` and tree
+`95b7b7059d04f336d887efa5d9700068d83dc359`. Each block reset independent
+seeded 5% random loss on both veth directions before each candidate. Both
+candidates received the same rotating one-byte workload through the same
+Python echo program on a real PTY, with a 100 ms inter-trial quiet period.
+
+| Pooled result (600 trials each) | everudp | zmosh 0.5.9 | ratio |
+| --- | ---: | ---: | ---: |
+| p50 | 464 us | 477 us | 0.973 |
+| p95 | 21,573 us | 60,802 us | 0.355 |
+
+The preregistered point rule passes both margins. A 20,000-replicate
+stratified nonparametric bootstrap produced a p50 ratio 95% interval of
+0.922-1.025 (one-sided upper 95% bound 1.015) and a p95 ratio interval of
+0.353-0.427 (upper bound 0.427). Both upper bounds are below the frozen
+1.10/1.15 limits, so the conservative equivalence verdict also passes.
+The probability that a randomly selected everudp observation is faster
+than a randomly selected zmosh observation is 0.562.
+
+This proves the narrow claim requested by the spike: **the current
+everudp prototype is at least as fast as zmosh 0.5.9 on the matched direct
+5%-loss end-to-end PTY workload**. It does not erase the independent
+security, terminal-correctness, reachability, and everssh-control blockers
+that keep the production decision at NOT-BUILD.
 
 ## Frozen benchmark execution
 
@@ -167,5 +196,7 @@ the spike's minimal line model.
 ## Retained evidence
 
 Sanitized JSON/TSV receipts are tracked under
-`docs/release-evidence/20260904-everudp/`; raw logs remain under ignored
-`target/qualification/everudp/`.
+`docs/release-evidence/20260904-everudp/`. The authoritative parity
+aggregate is `parity/analysis.json`; its six block manifests bind source,
+tree, candidate binaries, seeded topology, result hashes, and raw samples.
+Other raw logs remain under ignored `target/qualification/everudp/`.
