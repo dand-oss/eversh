@@ -14,7 +14,7 @@ pub struct Substrate {
     cipher: Aes256Gcm,
     prefix: [u8; 4],
     counter: u64,
-    highest_received: u64,
+    highest_received: Option<u64>,
     received_bitmap: u64,
 }
 
@@ -27,7 +27,7 @@ impl Substrate {
             cipher: Aes256Gcm::new_from_slice(&key).expect("AES-256 key"),
             prefix,
             counter,
-            highest_received: u64::MAX,
+            highest_received: None,
             received_bitmap: 0,
         }
     }
@@ -67,10 +67,11 @@ impl Substrate {
         if nonce_bytes[..4] != self.prefix {
             return Err(SubstrateError);
         }
-        if !self.accept_counter(counter) {
+        if !self.counter_is_acceptable(counter) {
             return Err(SubstrateError);
         }
-        self.cipher
+        let plaintext = self
+            .cipher
             .decrypt(
                 nonce,
                 Payload {
@@ -78,36 +79,48 @@ impl Substrate {
                     aad,
                 },
             )
-            .map_err(|_| SubstrateError)
+            .map_err(|_| SubstrateError)?;
+        // An unauthenticated nonce must never advance the replay window:
+        // otherwise one forged high counter can evict all legitimate traffic.
+        self.record_counter(counter);
+        Ok(plaintext)
     }
 
-    fn accept_counter(&mut self, counter: u64) -> bool {
-        if self.highest_received == u64::MAX {
-            self.highest_received = counter;
-            self.received_bitmap = 1;
+    fn counter_is_acceptable(&self, counter: u64) -> bool {
+        let Some(highest_received) = self.highest_received else {
+            return true;
+        };
+        if counter > highest_received {
             return true;
         }
-        if counter > self.highest_received {
-            let shift = counter - self.highest_received;
+        let distance = highest_received.saturating_sub(counter);
+        if distance >= REPLAY_WINDOW {
+            return false;
+        }
+        let bit = 1u64.checked_shl(distance as u32).unwrap_or(0);
+        self.received_bitmap & bit == 0
+    }
+
+    fn record_counter(&mut self, counter: u64) {
+        let Some(highest_received) = self.highest_received else {
+            self.highest_received = Some(counter);
+            self.received_bitmap = 1;
+            return;
+        };
+        if counter > highest_received {
+            let shift = counter - highest_received;
             if shift >= REPLAY_WINDOW {
                 self.received_bitmap = 1;
             } else {
                 self.received_bitmap =
                     self.received_bitmap.checked_shl(shift as u32).unwrap_or(0) | 1;
             }
-            self.highest_received = counter;
-            return true;
+            self.highest_received = Some(counter);
+            return;
         }
-        let distance = self.highest_received.saturating_sub(counter);
-        if distance >= REPLAY_WINDOW {
-            return false;
-        }
+        let distance = highest_received.saturating_sub(counter);
         let bit = 1u64.checked_shl(distance as u32).unwrap_or(0);
-        if self.received_bitmap & bit != 0 {
-            return false;
-        }
         self.received_bitmap |= bit;
-        true
     }
 }
 
@@ -116,4 +129,43 @@ fn nonce(prefix: [u8; 4], counter: u64) -> Nonce<U12> {
     bytes[..4].copy_from_slice(&prefix);
     bytes[4..].copy_from_slice(&counter.to_be_bytes());
     *Nonce::from_slice(&bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const KEY: [u8; KEY_LEN] = [0x5a; KEY_LEN];
+    const PREFIX: [u8; 4] = [1, 2, 3, 4];
+
+    #[test]
+    fn authenticated_packet_is_accepted_only_once() {
+        let mut sender = Substrate::new(KEY, PREFIX, 7);
+        let mut receiver = Substrate::new(KEY, PREFIX, 100);
+        let packet = sender.seal(b"hello", b"test");
+        assert_eq!(receiver.open(&packet, b"test").unwrap(), b"hello");
+        assert!(receiver.open(&packet, b"test").is_err());
+    }
+
+    #[test]
+    fn forged_high_counter_does_not_advance_replay_window() {
+        let mut sender = Substrate::new(KEY, PREFIX, 7);
+        let mut receiver = Substrate::new(KEY, PREFIX, 100);
+        let legitimate = sender.seal(b"hello", b"test");
+        let mut forged = legitimate.clone();
+        forged[4..12].copy_from_slice(&u64::MAX.to_be_bytes());
+        assert!(receiver.open(&forged, b"test").is_err());
+        assert_eq!(receiver.open(&legitimate, b"test").unwrap(), b"hello");
+    }
+
+    #[test]
+    fn bad_tag_does_not_consume_legitimate_counter() {
+        let mut sender = Substrate::new(KEY, PREFIX, 7);
+        let mut receiver = Substrate::new(KEY, PREFIX, 100);
+        let legitimate = sender.seal(b"hello", b"test");
+        let mut forged = legitimate.clone();
+        *forged.last_mut().unwrap() ^= 1;
+        assert!(receiver.open(&forged, b"test").is_err());
+        assert_eq!(receiver.open(&legitimate, b"test").unwrap(), b"hello");
+    }
 }
