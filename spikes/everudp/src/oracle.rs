@@ -95,6 +95,56 @@ impl GridSnapshot {
                 || cell.inverse
         })
     }
+
+    fn contains_text(&self, text: &str) -> bool {
+        self.cells
+            .iter()
+            .map(|cell| cell.contents.as_str())
+            .collect::<String>()
+            .contains(text)
+    }
+}
+
+struct ReplicaTerminal {
+    parser: vt100::Parser,
+    initial_rows: u16,
+    initial_cols: u16,
+}
+
+impl ReplicaTerminal {
+    fn new(rows: u16, cols: u16) -> Self {
+        Self {
+            parser: vt100::Parser::new(rows, cols, 0),
+            initial_rows: rows,
+            initial_cols: cols,
+        }
+    }
+
+    fn process(&mut self, bytes: &[u8]) {
+        self.parser.process(bytes);
+    }
+
+    fn redraw(&mut self, bytes: &[u8]) {
+        self.reset();
+        self.process(bytes);
+    }
+
+    fn redraw_with_resize(&mut self, before: &[u8], after: &[u8]) {
+        self.reset();
+        self.process(before);
+        self.parser
+            .screen_mut()
+            .set_size(RESIZED_ROWS, RESIZED_COLS);
+        self.process(after);
+    }
+
+    fn reset(&mut self) {
+        self.parser = vt100::Parser::new(self.initial_rows, self.initial_cols, 0);
+    }
+
+    fn snapshot(&self) -> Result<GridSnapshot, String> {
+        GridSnapshot::capture(self.parser.screen())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -102,6 +152,8 @@ pub struct OracleReport {
     pub workloads: Vec<&'static str>,
     pub correction_us: u128,
     pub password_prediction_displays: u64,
+    pub persistent_predictions_applied: u64,
+    pub persistent_corrections: u64,
 }
 
 fn render(bytes: &[u8], rows: u16, cols: u16) -> Result<GridSnapshot, String> {
@@ -231,55 +283,110 @@ fn state_result<T>(result: Result<T, StateError>) -> Result<T, String> {
     result.map_err(|error| format!("prediction state: {error}"))
 }
 
-fn reconcile_one(
+fn apply_prediction(
     state: &mut PredictionState,
+    replica: &mut ReplicaTerminal,
     input: &[u8],
+) -> Result<(u64, bool), String> {
+    let (seq, displayed) = state_result(state.send(input))?;
+    if displayed {
+        replica.process(input);
+    }
+    Ok((seq, displayed))
+}
+
+fn reconcile_replica(
+    state: &mut PredictionState,
+    replica: &mut ReplicaTerminal,
+    seq: u64,
     output: &[u8],
+    prediction_displayed: bool,
+    persistent_corrections: &mut u64,
 ) -> Result<Reconciliation, String> {
-    let (seq, _) = state_result(state.send(input))?;
-    state_result(state.reconcile(seq, output))
+    let reconciliation = state_result(state.reconcile(seq, output))?;
+    match reconciliation {
+        Reconciliation::Confirmed { predicted } => {
+            if predicted != prediction_displayed {
+                return Err("reconciliation disagreed with displayed prediction state".into());
+            }
+            if !predicted {
+                replica.process(output);
+            }
+        }
+        Reconciliation::Corrected => {
+            if prediction_displayed {
+                *persistent_corrections = persistent_corrections.saturating_add(1);
+            }
+            replica.redraw(&state.rendered_bytes());
+        }
+        Reconciliation::Buffered | Reconciliation::Duplicate | Reconciliation::Unexpected => {}
+    }
+    Ok(reconciliation)
 }
 
 pub fn run() -> Result<OracleReport, String> {
     let mut workloads = Vec::new();
+    let mut persistent_predictions_applied = 0u64;
+    let mut persistent_corrections = 0u64;
 
     let echo_input = b"hello everudp";
     let echo_output = capture_python("echo", Some(echo_input.len()), echo_input)?;
     let mut echo = PredictionState::new(1, EchoPolicy::Predict);
-    let (echo_seq, echo_displayed) = state_result(echo.send(echo_input))?;
+    let mut echo_replica = ReplicaTerminal::new(INITIAL_ROWS, INITIAL_COLS);
+    let (echo_seq, echo_displayed) = apply_prediction(&mut echo, &mut echo_replica, echo_input)?;
+    persistent_predictions_applied += u64::from(echo_displayed);
     if !echo_displayed
-        || state_result(echo.reconcile(echo_seq, &echo_output))?
-            != (Reconciliation::Confirmed { predicted: true })
+        || reconcile_replica(
+            &mut echo,
+            &mut echo_replica,
+            echo_seq,
+            &echo_output,
+            echo_displayed,
+            &mut persistent_corrections,
+        )? != (Reconciliation::Confirmed { predicted: true })
     {
         return Err("echo: matching printable input was not confirmed as predicted".into());
     }
     require_same_grid(
         "echo",
         render(&echo_output, INITIAL_ROWS, INITIAL_COLS)?,
-        render(&echo.rendered_bytes(), INITIAL_ROWS, INITIAL_COLS)?,
+        echo_replica.snapshot()?,
     )?;
     workloads.push("echo");
 
     let mismatch_output = capture_python("mismatch", None, b"x")?;
+    let mismatch_authority = render(&mismatch_output, INITIAL_ROWS, INITIAL_COLS)?;
     let mut mismatch = PredictionState::new(1, EchoPolicy::Predict);
-    let (mismatch_seq, displayed) = state_result(mismatch.send(b"x"))?;
+    let mut mismatch_replica = ReplicaTerminal::new(INITIAL_ROWS, INITIAL_COLS);
+    let (mismatch_seq, displayed) = apply_prediction(&mut mismatch, &mut mismatch_replica, b"x")?;
+    persistent_predictions_applied += u64::from(displayed);
     if !displayed {
         return Err("mismatch: printable input was not predicted".into());
     }
+    if !mismatch_replica.snapshot()?.contains_text("x") {
+        return Err("mismatch: prediction was not visible in the persistent grid".into());
+    }
     let correction_started = Instant::now();
-    if state_result(mismatch.reconcile(mismatch_seq, &mismatch_output))?
-        != Reconciliation::Corrected
+    if reconcile_replica(
+        &mut mismatch,
+        &mut mismatch_replica,
+        mismatch_seq,
+        &mismatch_output,
+        displayed,
+        &mut persistent_corrections,
+    )? != Reconciliation::Corrected
     {
         return Err("mismatch: divergent authority was not corrected".into());
     }
+    let mismatch_corrected = mismatch_replica.snapshot()?;
     let correction_us = correction_started.elapsed().as_micros();
     if correction_us >= 300_000 {
         return Err(format!("mismatch: correction took {correction_us} us"));
     }
     require_same_grid(
         "mismatch correction",
-        render(&mismatch_output, INITIAL_ROWS, INITIAL_COLS)?,
-        render(&mismatch.rendered_bytes(), INITIAL_ROWS, INITIAL_COLS)?,
+        mismatch_authority,
+        mismatch_corrected,
     )?;
     workloads.push("mismatch-correction");
 
@@ -291,35 +398,70 @@ pub fn run() -> Result<OracleReport, String> {
         ));
     }
     let mut reordered = PredictionState::new(1, EchoPolicy::Predict);
-    let (first, _) = state_result(reordered.send(&reorder_output[..1]))?;
-    let (second, _) = state_result(reordered.send(&reorder_output[1..]))?;
-    if state_result(reordered.reconcile(second, &reorder_output[1..]))? != Reconciliation::Buffered
+    let mut reordered_replica = ReplicaTerminal::new(INITIAL_ROWS, INITIAL_COLS);
+    let (first, first_displayed) =
+        apply_prediction(&mut reordered, &mut reordered_replica, &reorder_output[..1])?;
+    let (second, second_displayed) =
+        apply_prediction(&mut reordered, &mut reordered_replica, &reorder_output[1..])?;
+    persistent_predictions_applied += u64::from(first_displayed) + u64::from(second_displayed);
+    if reconcile_replica(
+        &mut reordered,
+        &mut reordered_replica,
+        second,
+        &reorder_output[1..],
+        second_displayed,
+        &mut persistent_corrections,
+    )? != Reconciliation::Buffered
     {
         return Err("duplicate/reorder: future acknowledgement was not buffered".into());
     }
-    if state_result(reordered.reconcile(first, &reorder_output[..1]))?
-        != (Reconciliation::Confirmed { predicted: true })
-        || state_result(reordered.reconcile(second, &reorder_output[1..]))?
-            != Reconciliation::Duplicate
+    if reconcile_replica(
+        &mut reordered,
+        &mut reordered_replica,
+        first,
+        &reorder_output[..1],
+        first_displayed,
+        &mut persistent_corrections,
+    )? != (Reconciliation::Confirmed { predicted: true })
+        || reconcile_replica(
+            &mut reordered,
+            &mut reordered_replica,
+            second,
+            &reorder_output[1..],
+            second_displayed,
+            &mut persistent_corrections,
+        )? != Reconciliation::Duplicate
     {
         return Err("duplicate/reorder: convergence or duplicate suppression failed".into());
     }
     require_same_grid(
         "duplicate/reorder",
         render(&reorder_output, INITIAL_ROWS, INITIAL_COLS)?,
-        render(&reordered.rendered_bytes(), INITIAL_ROWS, INITIAL_COLS)?,
+        reordered_replica.snapshot()?,
     )?;
     workloads.push("duplicate-reorder");
 
     let full_screen_output = capture_python("full-screen", None, &[])?;
     let mut full_screen = PredictionState::new(1, EchoPolicy::Predict);
-    if reconcile_one(&mut full_screen, b"f", &full_screen_output)? != Reconciliation::Corrected {
+    let mut full_screen_replica = ReplicaTerminal::new(INITIAL_ROWS, INITIAL_COLS);
+    let (full_screen_seq, full_screen_displayed) =
+        apply_prediction(&mut full_screen, &mut full_screen_replica, b"f")?;
+    persistent_predictions_applied += u64::from(full_screen_displayed);
+    if reconcile_replica(
+        &mut full_screen,
+        &mut full_screen_replica,
+        full_screen_seq,
+        &full_screen_output,
+        full_screen_displayed,
+        &mut persistent_corrections,
+    )? != Reconciliation::Corrected
+    {
         return Err("full-screen: trigger prediction was not replaced by authority".into());
     }
     let full_grid = require_same_grid(
         "full-screen",
         render(&full_screen_output, INITIAL_ROWS, INITIAL_COLS)?,
-        render(&full_screen.rendered_bytes(), INITIAL_ROWS, INITIAL_COLS)?,
+        full_screen_replica.snapshot()?,
     )?;
     if !full_grid.has_styled_cell() {
         return Err("full-screen: fixture exercised no cell attributes".into());
@@ -329,19 +471,34 @@ pub fn run() -> Result<OracleReport, String> {
     let resize_output = capture_python("resize", None, b"r")?;
     let (before_resize, after_resize) = split_once(&resize_output, RESIZE_MARKER)?;
     let mut resized = PredictionState::new(1, EchoPolicy::Predict);
-    if reconcile_one(&mut resized, b"s", before_resize)? != Reconciliation::Corrected
-        || reconcile_one(&mut resized, b"r", after_resize)? != Reconciliation::Corrected
+    let mut resized_replica = ReplicaTerminal::new(INITIAL_ROWS, INITIAL_COLS);
+    let (before_seq, before_displayed) =
+        apply_prediction(&mut resized, &mut resized_replica, b"s")?;
+    persistent_predictions_applied += u64::from(before_displayed);
+    if reconcile_replica(
+        &mut resized,
+        &mut resized_replica,
+        before_seq,
+        before_resize,
+        before_displayed,
+        &mut persistent_corrections,
+    )? != Reconciliation::Corrected
     {
         return Err("resize: authoritative redraw did not replace predictions".into());
     }
-    let reconstructed_resize = resized.rendered_bytes();
+    let (after_seq, after_displayed) = apply_prediction(&mut resized, &mut resized_replica, b"r")?;
+    persistent_predictions_applied += u64::from(after_displayed);
+    if state_result(resized.reconcile(after_seq, after_resize))? != Reconciliation::Corrected {
+        return Err("resize: authoritative redraw did not replace predictions".into());
+    }
+    if after_displayed {
+        persistent_corrections = persistent_corrections.saturating_add(1);
+    }
+    resized_replica.redraw_with_resize(before_resize, after_resize);
     let resize_grid = require_same_grid(
         "resize",
         render_with_resize(before_resize, after_resize)?,
-        render_with_resize(
-            &reconstructed_resize[..before_resize.len()],
-            &reconstructed_resize[before_resize.len()..],
-        )?,
+        resized_replica.snapshot()?,
     )?;
     if resize_grid.size != (RESIZED_ROWS, RESIZED_COLS) {
         return Err(format!(
@@ -356,23 +513,42 @@ pub fn run() -> Result<OracleReport, String> {
         return Err("tmux: real tmux stream omitted pane fixture".into());
     }
     let mut tmux = PredictionState::new(1, EchoPolicy::Predict);
-    if reconcile_one(&mut tmux, b"t", &tmux_output)? != Reconciliation::Corrected {
+    let mut tmux_replica = ReplicaTerminal::new(INITIAL_ROWS, INITIAL_COLS);
+    let (tmux_seq, tmux_displayed) = apply_prediction(&mut tmux, &mut tmux_replica, b"t")?;
+    persistent_predictions_applied += u64::from(tmux_displayed);
+    if reconcile_replica(
+        &mut tmux,
+        &mut tmux_replica,
+        tmux_seq,
+        &tmux_output,
+        tmux_displayed,
+        &mut persistent_corrections,
+    )? != Reconciliation::Corrected
+    {
         return Err("tmux: authoritative stream did not replace prediction".into());
     }
     require_same_grid(
         "tmux",
         render(&tmux_output, INITIAL_ROWS, INITIAL_COLS)?,
-        render(&tmux.rendered_bytes(), INITIAL_ROWS, INITIAL_COLS)?,
+        tmux_replica.snapshot()?,
     )?;
     workloads.push("tmux");
 
     let password_input = b"secret";
     let password_output = capture_python("no-echo", Some(password_input.len()), password_input)?;
     let mut password = PredictionState::new(1, EchoPolicy::NoEcho);
-    let (password_seq, password_displayed) = state_result(password.send(password_input))?;
+    let mut password_replica = ReplicaTerminal::new(INITIAL_ROWS, INITIAL_COLS);
+    let (password_seq, password_displayed) =
+        apply_prediction(&mut password, &mut password_replica, password_input)?;
     if password_displayed
-        || state_result(password.reconcile(password_seq, &password_output))?
-            != Reconciliation::Corrected
+        || reconcile_replica(
+            &mut password,
+            &mut password_replica,
+            password_seq,
+            &password_output,
+            password_displayed,
+            &mut persistent_corrections,
+        )? != Reconciliation::Corrected
         || password.predicted_echo_displays != 0
     {
         return Err("no-echo: password prediction policy failed".into());
@@ -380,7 +556,7 @@ pub fn run() -> Result<OracleReport, String> {
     let password_grid = require_same_grid(
         "no-echo",
         render(&password_output, INITIAL_ROWS, INITIAL_COLS)?,
-        render(&password.rendered_bytes(), INITIAL_ROWS, INITIAL_COLS)?,
+        password_replica.snapshot()?,
     )?;
     if password_grid
         .cells
@@ -392,9 +568,33 @@ pub fn run() -> Result<OracleReport, String> {
     workloads.push("no-echo");
 
     let mut resync = PredictionState::new(1, EchoPolicy::Predict);
-    reconcile_one(&mut resync, b"stale", b"stale")?;
+    let mut resync_replica = ReplicaTerminal::new(INITIAL_ROWS, INITIAL_COLS);
+    let (stale_seq, stale_displayed) =
+        apply_prediction(&mut resync, &mut resync_replica, b"stale")?;
+    persistent_predictions_applied += u64::from(stale_displayed);
+    if reconcile_replica(
+        &mut resync,
+        &mut resync_replica,
+        stale_seq,
+        b"stale",
+        stale_displayed,
+        &mut persistent_corrections,
+    )? != (Reconciliation::Confirmed { predicted: true })
+    {
+        return Err("epoch reset/resync did not confirm its pre-reset fixture".into());
+    }
     resync.reset(2);
-    if reconcile_one(&mut resync, b"\x0c", &full_screen_output)? != Reconciliation::Corrected
+    resync_replica.reset();
+    let (resync_seq, resync_displayed) =
+        apply_prediction(&mut resync, &mut resync_replica, b"\x0c")?;
+    if reconcile_replica(
+        &mut resync,
+        &mut resync_replica,
+        resync_seq,
+        &full_screen_output,
+        resync_displayed,
+        &mut persistent_corrections,
+    )? != Reconciliation::Corrected
         || resync
             .rendered_bytes()
             .windows(5)
@@ -405,7 +605,7 @@ pub fn run() -> Result<OracleReport, String> {
     require_same_grid(
         "epoch reset/resync",
         render(&full_screen_output, INITIAL_ROWS, INITIAL_COLS)?,
-        render(&resync.rendered_bytes(), INITIAL_ROWS, INITIAL_COLS)?,
+        resync_replica.snapshot()?,
     )?;
     workloads.push("epoch-reset-resync");
 
@@ -413,6 +613,8 @@ pub fn run() -> Result<OracleReport, String> {
         workloads,
         correction_us,
         password_prediction_displays: password.predicted_echo_displays,
+        persistent_predictions_applied,
+        persistent_corrections,
     })
 }
 
@@ -430,10 +632,36 @@ mod tests {
     }
 
     #[test]
+    fn persistent_replica_visibly_replaces_a_rendered_prediction() {
+        let mut state = PredictionState::new(1, EchoPolicy::Predict);
+        let mut replica = ReplicaTerminal::new(INITIAL_ROWS, INITIAL_COLS);
+        let (seq, displayed) = state.send(b"x").unwrap();
+        assert!(displayed);
+        replica.process(b"x");
+        assert!(replica.snapshot().unwrap().contains_text("x"));
+
+        let started = Instant::now();
+        assert_eq!(
+            state.reconcile(seq, b"y").unwrap(),
+            Reconciliation::Corrected
+        );
+        replica.redraw(&state.rendered_bytes());
+        let corrected = replica.snapshot().unwrap();
+        let correction_us = started.elapsed().as_micros();
+
+        assert!(!corrected.contains_text("x"));
+        assert!(corrected.contains_text("y"));
+        assert_eq!(corrected, render(b"y", INITIAL_ROWS, INITIAL_COLS).unwrap());
+        assert!(correction_us < 300_000);
+    }
+
+    #[test]
     fn real_pty_terminal_grid_matrix_passes() {
         let report = run().unwrap();
         assert_eq!(report.workloads.len(), 8);
         assert!(report.correction_us < 300_000);
         assert_eq!(report.password_prediction_displays, 0);
+        assert_eq!(report.persistent_predictions_applied, 9);
+        assert_eq!(report.persistent_corrections, 5);
     }
 }

@@ -52,18 +52,33 @@ import sys
 raw_path, output_path = sys.argv[1:]
 pattern = re.compile(
     r"^oracle: PASS workloads=(\\S+) correction_us=(\\d+) "
-    r"password_prediction_displays=(\\d+)$"
+    r"password_prediction_displays=(\\d+) "
+    r"persistent_predictions_applied=(\\d+) persistent_corrections=(\\d+)$"
 )
 runs = []
 for line_number, line in enumerate(open(raw_path, encoding="utf-8"), 1):
     match = pattern.fullmatch(line.rstrip("\\n"))
     if not match:
         raise SystemExit(f"malformed oracle output on line {line_number}: {line!r}")
-    workloads, correction_us, password_predictions = match.groups()
+    (
+        workloads,
+        correction_us,
+        password_predictions,
+        predictions_applied,
+        corrections,
+    ) = match.groups()
     if workloads != "$EXPECTED":
         raise SystemExit(f"wrong workload set on line {line_number}: {workloads}")
     if int(password_predictions) != 0:
         raise SystemExit(f"password prediction on line {line_number}")
+    if int(predictions_applied) != 9:
+        raise SystemExit(
+            f"wrong persistent prediction count on line {line_number}: {predictions_applied}"
+        )
+    if int(corrections) != 5:
+        raise SystemExit(
+            f"wrong persistent correction count on line {line_number}: {corrections}"
+        )
     runs.append(int(correction_us))
 
 if len(runs) != $TRIALS:
@@ -98,6 +113,13 @@ receipt = {
         "workloads": "$EXPECTED".split(","),
         "real_pty_runs": len(runs),
         "password_prediction_displays": 0,
+        "persistent_replica": True,
+        "persistent_predictions_applied_per_run": 9,
+        "persistent_corrections_per_run": 5,
+        "correction_timing_boundary": (
+            "start after predicted input is visible in the persistent vt100 grid; "
+            "stop after authoritative reconcile, full redraw, and corrected grid capture"
+        ),
         "correction_samples_us": runs,
         "correction_p95_us": p95,
         "correction_p95_limit_us": 300_000,

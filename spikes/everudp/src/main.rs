@@ -269,10 +269,12 @@ async fn reach() -> Result<(), String> {
 fn oracle() -> Result<(), String> {
     let report = everudp_spike::oracle::run()?;
     println!(
-        "oracle: PASS workloads={} correction_us={} password_prediction_displays={}",
+        "oracle: PASS workloads={} correction_us={} password_prediction_displays={} persistent_predictions_applied={} persistent_corrections={}",
         report.workloads.join(","),
         report.correction_us,
         report.password_prediction_displays,
+        report.persistent_predictions_applied,
+        report.persistent_corrections,
     );
     Ok(())
 }
