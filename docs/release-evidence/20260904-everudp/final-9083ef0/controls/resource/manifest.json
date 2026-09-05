@@ -1,0 +1,91 @@
+{
+  "finished_utc": "2026-09-05T01:48:27Z",
+  "method": {
+    "ceilings": {
+      "hostile_response_packets": 0,
+      "hostile_rss_growth_kib": 8192,
+      "idle_cpu_seconds": 0.1,
+      "idle_tx_packets": 0
+    },
+    "hostile_datagrams": 10000,
+    "hostile_payload_bytes_each": 1200,
+    "idle_seconds": 5,
+    "server_binary_sha256": "9f50504c479f43ee2f5edddf04b93e5e2f9fe01000e299024cd654680e2ba5f8"
+  },
+  "observed": {
+    "hostile_client_network": {
+      "rx_bytes": 0,
+      "rx_packets": 0,
+      "tx_bytes": 12420000,
+      "tx_packets": 10000
+    },
+    "hostile_driver": {
+      "payload_bytes_each": 1200,
+      "response_bytes": 0,
+      "response_datagrams": 0,
+      "send_elapsed_us": 110058,
+      "sent_bytes": 12000000,
+      "sent_datagrams": 10000
+    },
+    "hostile_rss_growth_kib": 128,
+    "hostile_server_network": {
+      "rx_bytes": 12420000,
+      "rx_packets": 10000,
+      "tx_bytes": 0,
+      "tx_packets": 0
+    },
+    "idle_cpu_seconds": 0.0,
+    "idle_server_network": {
+      "rx_bytes": 0,
+      "rx_packets": 0,
+      "tx_bytes": 0,
+      "tx_packets": 0
+    },
+    "legitimate_after_hostile": {
+      "reach": true,
+      "transport": "udp",
+      "us": 88
+    }
+  },
+  "receipt_files": {
+    "hostile.json": "26a6c04e2eec0a44bbf93c41e57b7ab31a622f0627fd16c3ab545152ec5f8f8f",
+    "hostile.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "legitimate.json": "326ee50f44248ae40677bd569e1ab248d6e0a530b3499ec519c4f8efcebe2cbb",
+    "legitimate.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "neighbor-warmup.txt": "190dbeeee374aa38d009724ab98691ca7c478746e3e16552d2299e2ba3fa85f0",
+    "network-client-hostile-after.json": "943632239e2a58ae8f9c461a16e16ace30e9ec6f56b8c60226c394c60d145d2a",
+    "network-client-hostile-before.json": "1ef0b9651918b40082aa57d62f774fc67fa8badfbc894c87c6fc133f86689deb",
+    "network-client-idle-after.json": "1ef0b9651918b40082aa57d62f774fc67fa8badfbc894c87c6fc133f86689deb",
+    "network-client-idle-before.json": "1ef0b9651918b40082aa57d62f774fc67fa8badfbc894c87c6fc133f86689deb",
+    "network-client-legitimate-after.json": "7aedaf9792aa48cdc0f69c04cbaa33f6129f1b45f9d683d09ccc343995c52e3e",
+    "network-server-hostile-after.json": "856d72694d1127bbb7ee4054240379fcedd16ea6acd559c9b7d9b359085b0b24",
+    "network-server-hostile-before.json": "bf79cdb7b88461570e94b98cd0c5753b0a0aaa6364c18309c2838bc405b8abf9",
+    "network-server-idle-after.json": "bf79cdb7b88461570e94b98cd0c5753b0a0aaa6364c18309c2838bc405b8abf9",
+    "network-server-idle-before.json": "bf79cdb7b88461570e94b98cd0c5753b0a0aaa6364c18309c2838bc405b8abf9",
+    "network-server-legitimate-after.json": "1a999f8ac0e38c0a6b39a7b291c2adc186f37a5c41289b10eb0ed4599e9d6faf",
+    "process-hostile-after.txt": "3d18298a0f20270a3c98f577a519c9e697e18f32e235c76e116a15ae985df3e1",
+    "process-hostile-before.txt": "6f5de5939c29ec7d08402d8daadc94dc51449201c7736989cb6fa95847ff6fa5",
+    "process-idle-after.txt": "6f5de5939c29ec7d08402d8daadc94dc51449201c7736989cb6fa95847ff6fa5",
+    "process-idle-before.txt": "6f5de5939c29ec7d08402d8daadc94dc51449201c7736989cb6fa95847ff6fa5",
+    "process-legitimate-after.txt": "8401399741aecea9a2c14cef9937f698756debee86b8c41e0ba21f2b059c0fd9",
+    "resource-hostile-client.txt": "bc2b7a61aeef6358a3b794f065785041b2909c39a036cdfed1bbcd67a7ed2b6b",
+    "server.stderr": "f4ea1994ec3f6878aa8e514e7064026b5bbcde00d9b03c561c347d6ff80a5f89",
+    "server.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "schema_version": 1,
+  "source": {
+    "dirty": false,
+    "head_sha": "9083ef07292acbf6ef55ce065968ecaf14d6a74d",
+    "tree_sha": "e7b0678cfc198a1a314341af0c4940547bf578b3"
+  },
+  "started_utc": "2026-09-05T01:48:20Z",
+  "verdict": {
+    "hostile_count_pass": true,
+    "hostile_rss_growth_pass": true,
+    "hostile_zero_amplification_pass": true,
+    "idle_cpu_pass": true,
+    "idle_zero_tx_pass": true,
+    "legitimate_after_hostile_pass": true,
+    "resource_gate_pass": true
+  }
+}

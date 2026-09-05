@@ -1,0 +1,90 @@
+{
+  "command": [
+    "spikes/everudp/net/oracle-gate.sh",
+    30,
+    "/tmp/everudp-final-9083ef0.3e7Oo8/final/oracle.json"
+  ],
+  "finished_utc": "2026-09-05T01:52:06Z",
+  "host": {
+    "kernel": "Linux 7.1.8+deb14.1-amd64 x86_64 GNU/Linux",
+    "python": "Python 3.14.7",
+    "script": "script from util-linux 2.42.2",
+    "tmux": "tmux 3.7c"
+  },
+  "oracle": {
+    "correction_p95_limit_us": 300000,
+    "correction_p95_us": 6,
+    "correction_samples_us": [
+      3,
+      2,
+      4,
+      4,
+      3,
+      2,
+      4,
+      6,
+      4,
+      2,
+      4,
+      3,
+      3,
+      3,
+      2,
+      4,
+      3,
+      3,
+      3,
+      2,
+      4,
+      3,
+      3,
+      6,
+      5,
+      2,
+      3,
+      2,
+      2,
+      2
+    ],
+    "grid_fields": [
+      "dimensions",
+      "cursor",
+      "cells",
+      "foreground",
+      "background",
+      "bold",
+      "dim",
+      "italic",
+      "underline",
+      "inverse",
+      "wide-cell",
+      "wrapped-row",
+      "alternate-screen",
+      "hidden-cursor"
+    ],
+    "password_prediction_displays": 0,
+    "real_pty_runs": 30,
+    "terminal_model": "vt100 0.16.2 independent authoritative/reconstructed grids",
+    "workloads": [
+      "echo",
+      "mismatch-correction",
+      "duplicate-reorder",
+      "full-screen",
+      "resize",
+      "tmux",
+      "no-echo",
+      "epoch-reset-resync"
+    ]
+  },
+  "schema_version": 1,
+  "source": {
+    "binary_sha256": "9f50504c479f43ee2f5edddf04b93e5e2f9fe01000e299024cd654680e2ba5f8",
+    "dirty": false,
+    "head_sha": "9083ef07292acbf6ef55ce065968ecaf14d6a74d",
+    "tree_sha": "e7b0678cfc198a1a314341af0c4940547bf578b3"
+  },
+  "started_utc": "2026-09-05T01:51:18Z",
+  "verdict": {
+    "pass": true
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "blocks": [
+    {
+      "everudp_p50_us": 429,
+      "everudp_p95_us": 21176,
+      "manifest_sha256": "b063daae4fd8a9a45bd1c9aedeb0b5bc205eb4f734b7eda6383be4dc905ae3be",
+      "order": "everudp-first",
+      "p50_ratio": 0.9491150442477876,
+      "p95_ratio": 23.7665544332211,
+      "path": "/tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13001",
+      "seed": 13001,
+      "zmosh_p50_us": 452,
+      "zmosh_p95_us": 891
+    },
+    {
+      "everudp_p50_us": 433,
+      "everudp_p95_us": 21298,
+      "manifest_sha256": "31718d328400358d4ac5742de7d29917663d8470926bad134d58f0f7df55b8e3",
+      "order": "zmosh-first",
+      "p50_ratio": 0.911578947368421,
+      "p95_ratio": 0.3496232578754699,
+      "path": "/tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13002",
+      "seed": 13002,
+      "zmosh_p50_us": 475,
+      "zmosh_p95_us": 60917
+    },
+    {
+      "everudp_p50_us": 421,
+      "everudp_p95_us": 818,
+      "manifest_sha256": "1f5f0324c8270ea75d5d557e518dc4248dcc152c5011c47188925243548b7dbb",
+      "order": "everudp-first",
+      "p50_ratio": 0.8789144050104384,
+      "p95_ratio": 0.013424360783798864,
+      "path": "/tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13003",
+      "seed": 13003,
+      "zmosh_p50_us": 479,
+      "zmosh_p95_us": 60934
+    },
+    {
+      "everudp_p50_us": 493,
+      "everudp_p95_us": 21473,
+      "manifest_sha256": "1f59a1d28dc5622a7f3aeb963a4f9c89851c3d30d32134edf98c28a3511ecc64",
+      "order": "zmosh-first",
+      "p50_ratio": 1.1053811659192825,
+      "p95_ratio": 0.351895249176513,
+      "path": "/tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13004",
+      "seed": 13004,
+      "zmosh_p50_us": 446,
+      "zmosh_p95_us": 61021
+    },
+    {
+      "everudp_p50_us": 407,
+      "everudp_p95_us": 21294,
+      "manifest_sha256": "2bbffc769047dcaf604a50689829b4f9edc8d923b31b34814729df8e513bb0a6",
+      "order": "everudp-first",
+      "p50_ratio": 0.8255578093306288,
+      "p95_ratio": 0.3480776775205963,
+      "path": "/tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13005",
+      "seed": 13005,
+      "zmosh_p50_us": 493,
+      "zmosh_p95_us": 61176
+    },
+    {
+      "everudp_p50_us": 481,
+      "everudp_p95_us": 21257,
+      "manifest_sha256": "5b8b7b2a4c515fd69ec74d15a27dce4647f9c110afc159bd2b237c277c4dc7c0",
+      "order": "zmosh-first",
+      "p50_ratio": 0.921455938697318,
+      "p95_ratio": 0.4197255405271991,
+      "path": "/tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13006",
+      "seed": 13006,
+      "zmosh_p50_us": 522,
+      "zmosh_p95_us": 50645
+    }
+  ],
+  "method": {
+    "loss_evidence": "hash-bound before/after qdisc counters with positive drop deltas on both egress paths",
+    "quantile": "empirical nearest-rank ceil(p*n)-1, applied identically to both candidates",
+    "thresholds": {
+      "p50_ratio_max": 1.1,
+      "p95_ratio_max": 1.15
+    },
+    "uncertainty": "stratified independent nonparametric bootstrap within each run block"
+  },
+  "pooled": {
+    "everudp_n": 600,
+    "everudp_p50_us": 457,
+    "everudp_p95_us": 21347,
+    "p50_ratio": 0.9641350210970464,
+    "p95_ratio": 0.3503241158611635,
+    "probability_everudp_faster": 0.5790861111111111,
+    "zmosh_n": 600,
+    "zmosh_p50_us": 474,
+    "zmosh_p95_us": 60935
+  },
+  "schema_version": 1,
+  "source": {
+    "all_blocks_clean": true,
+    "artifact_sha256": {
+      "everudp": "9f50504c479f43ee2f5edddf04b93e5e2f9fe01000e299024cd654680e2ba5f8",
+      "zmosh": "7c2494c29f24d250eeccc445331a63bf1658d216fb3cefdb7b6c2eefa0ed97f1",
+      "zmosh_bench": "5d2459f922effc3952b72a47f165f754979cb2e22d6aae5db7aa48fee2921935"
+    },
+    "head_sha": "9083ef07292acbf6ef55ce065968ecaf14d6a74d",
+    "tree_sha": "e7b0678cfc198a1a314341af0c4940547bf578b3"
+  },
+  "uncertainty": {
+    "iterations": 20000,
+    "p50_ratio_ci95": [
+      0.9103869653767821,
+      1.0086767895878526
+    ],
+    "p50_ratio_upper95": 1.0021276595744681,
+    "p95_ratio_ci95": [
+      0.34681209977235133,
+      0.4212622368705001
+    ],
+    "p95_ratio_upper95": 0.42030094363682735,
+    "seed": 9015
+  },
+  "verdict": {
+    "conservative_upper95_equivalence_pass": true,
+    "exact_sha_evidence_pass": true,
+    "observed_loss_evidence_pass": true,
+    "preregistered_point_rule_pass": true
+  }
+}

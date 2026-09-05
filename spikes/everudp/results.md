@@ -1,33 +1,33 @@
 # everudp Stage D spike result
 
-Status: latency, authenticated-substrate, terminal-oracle, and
-available-environment reachability repairs pass; bead remains open |
-Owner: `eversh-2zq` | Preregistration:
-frozen in the bead before implementation.
+Status: exact-SHA closure PASS; requested zmosh parity proven; production
+decision remains NOT-BUILD only because the Tailscale row was unavailable |
+Owner: `eversh-2zq` | Preregistration: frozen in the bead before
+implementation.
 
 ## Decision: NOT-BUILD production everudp now (latency parity passes)
 
-Available evidence does not meet the full preregistered BUILD rule. The
-optimized spike now proves end-to-end PTY latency parity with zmosh under
-the frozen 5% loss condition, including a conservative bootstrap
-equivalence bound. Production remains NOT-BUILD because the substrate is
-not production-equivalent to the QUIC control, Tailscale is unavailable on
-the test fleet, resource and congestion behavior are not qualified, and the
-decisive everssh comparison remains unavailable:
+The final campaign proves end-to-end PTY latency parity with zmosh under the
+frozen 5% loss condition, including conservative bootstrap equivalence
+bounds. It also passes the repaired everssh-v2 comparison, authenticated
+substrate, terminal-grid correction, resource, hostile-input, outage,
+direct-network, modeled-NAT, ZeroTier, blocked-UDP, and fallback gates.
 
-1. The everssh-v2 latency comparison is UNAVAILABLE in this harness: the
-   outer-ssh PTY driver initially timed local canonical-mode echo (invalid
-   sub-millisecond samples), and after adding a remote READY banner the
-   everssh chain no longer established inside the one-shot netns harness
-   (empty transcript). Because BUILD requires a >=50% median and >=33% p95
-   reduction versus everssh v2, that unmet measurement blocks BUILD.
-2. Correction (2026-09-04 review): the pinned zmosh control IS available.
-   The local source checkout at `/home/appsmith/asv/ports/repo/zmosh`
-   contains version 0.5.9 at commit `dfc8395...`; it was built with Zig
-   0.15.2 and measured headlessly through its documented C UDP client. The
-   original "source not discoverable" statement was false and is superseded.
-   zmosh uses its own XChaCha20-Poly1305 UDP protocol and is NOT Mosh SSP;
-   the earlier Mosh-as-family substitution is withdrawn.
+The machine-readable decision remains NOT-BUILD because the preregistered
+BUILD conjunction requires a Tailscale result and fewer than two fleet peers
+were running: Tailscale was missing on badger and bagger and stopped on
+bugger. That is an unavailable input, not a failed everudp measurement. The
+spike also deliberately remains a one-association benchmark fixture rather
+than a production provisioning and multi-user service, so this result proves
+the requested performance proposition without relabeling the prototype as a
+finished product.
+
+Correction retained from the 2026-09-04 review: the pinned zmosh control is
+available. The local source checkout at `/home/appsmith/asv/ports/repo/zmosh`
+contains version 0.5.9 at commit `dfc8395...`; it was built with Zig 0.15.2
+and measured headlessly through its documented C UDP client. zmosh uses its
+own XChaCha20-Poly1305 UDP protocol and is not Mosh SSP; the earlier
+Mosh-as-family substitution is withdrawn.
 
 ## Direct zmosh 0.5.9 head-to-head (updated decision evidence)
 
@@ -108,7 +108,7 @@ configuration before the run rather than hash-bound before/after counters. It
 is therefore retained as historical evidence and superseded by the hardened
 campaign below.
 
-### Hardened clean paired equivalence campaign (authoritative latency result)
+### Hardened clean paired equivalence campaign (pre-closure result)
 
 Six fresh alternating-order blocks of 100 trials per candidate ran from clean
 source commit `c986ce339faeec8671f6d5c9b549965b3ee776b9` and tree
@@ -133,41 +133,74 @@ conservative equivalence verdicts all pass. The probability that a randomly
 selected everudp observation is faster than a randomly selected zmosh
 observation is 0.565.
 
-This proves the narrow claim requested by the spike: **the authenticated
-everudp prototype is at least as fast as zmosh 0.5.9 on the matched direct
-5%-loss end-to-end PTY workload**. It does not erase the independent
-Tailscale-availability, resource, congestion, provisioning, and
-everssh-control blockers that keep the production decision at NOT-BUILD.
+This checkpoint proved the narrow requested latency claim. At that point,
+independent Tailscale-availability, resource, congestion, provisioning, and
+everssh-control gaps kept the production decision at NOT-BUILD. The resource
+and everssh-control gaps are superseded by the final closure below.
+
+### Final exact-SHA closure (authoritative)
+
+The full campaign ran from clean source commit
+`9083ef07292acbf6ef55ce065968ecaf14d6a74d` and tree
+`e7b0678cfc198a1a314341af0c4940547bf578b3`. All parity, control, resource,
+outage, oracle, and reachability receipts bind that same source and the same
+everudp binary SHA-256
+`9f50504c479f43ee2f5edddf04b93e5e2f9fe01000e299024cd654680e2ba5f8`.
+The fleet fallback also binds the eversh binary SHA-256
+`e4ec813a04e85915784bde85a38dbc8337bcb857d7e3b25372520ec33a3f90f5`.
+
+Six alternating-order blocks contributed 600 real-PTY observations per
+candidate under independently reset, seeded 5% symmetric loss:
+
+| Final pooled result | everudp | zmosh 0.5.9 | ratio |
+| --- | ---: | ---: | ---: |
+| p50 | 457 us | 474 us | 0.964 |
+| p95 | 21,347 us | 60,935 us | 0.350 |
+
+The 20,000-replicate stratified bootstrap gave p50 and p95 ratio intervals
+of 0.910-1.009 and 0.347-0.421. Their one-sided 95% upper bounds were 1.002
+and 0.420, safely inside the frozen 1.10 and 1.15 limits. The probability
+that a randomly selected everudp sample was faster was 0.579.
+
+The separate 30-trial control matrix also passed both frozen point rules at
+5% loss: everudp was 0.963x/0.032x zmosh at p50/p95 and 0.155x/0.548x
+everssh at p50/p95. The exact-SHA verifier therefore records
+`requested_zmosh_parity_proven=true`,
+`all_preregistered_performance_thresholds_pass=true`, and
+`exact_sha_closure_pass=true`. Its overall decision is NOT-BUILD solely
+because `tailscale_available_and_passed=false`.
 
 ## Frozen benchmark execution
 
 All latency cells ran 30 stop-and-wait keystroke-to-authoritative-echo
-trials over one netns/veth pair with symmetric netem. everudp samples are
-in-process monotonic timestamps; Mosh samples are pcap-derived authoritative
-echo arrivals at the client interface; SSH samples are PTY-observed echoes
-guarded by a remote READY banner. Prediction is a display property, so
-on/off cells intentionally isolate the same transport metric.
+trials over one netns/veth pair with symmetric, seeded netem. Every
+candidate waited behind the same READY/GO barrier before the measured
+workload. everudp and zmosh samples cover real PTY execution; Mosh samples
+are pcap-derived authoritative echo arrivals; OpenSSH and everssh samples
+are PTY-observed echoes guarded by a remote READY banner. The complete
+matrix contains 1,920 positive raw samples across eight conditions and eight
+candidates, including UDP/QUIC prediction-off controls.
 
-| Cell | everudp-UDP median/p95 µs | everudp-QUIC median/p95 µs | Mosh median/p95 µs | SSH median/p95 µs |
-| --- | --- | --- | --- | --- |
-| 0% loss | 379 / 578 | 1,121 / 2,159 | 9,905 / 10,368 | 14,535 / 16,836 |
-| 1% loss | 481 / 831 | 1,178 / 2,013 | 9,650 / 9,763 | 6,752 / 9,930 |
-| 5% loss | 484 / 844 | 1,448 / 3,137 | 9,776 / 10,727 | 14,186 / 240,714 |
-| 10% loss | 510 / 21,969 | 1,261 / 23,095 | 9,746 / 159,740 | 15,809 / 197,997 |
-| 25% loss | 588 / 85,946 | 2,267 / 85,185 | 10,862 / 231,435 | 195,154 / 1,136,516 |
-| 5% + 25 ms jitter | 50,812 / 65,096 | 51,483 / 73,525 | 59,507 / 69,097 | 66,748 / 137,742 |
-| 5% + 50 ms jitter | 101,843 / 118,138 | 104,082 / 131,601 | 115,964 / 251,635 | 149,335 / 262,162 |
-| 5% + 2% reorder | 2,546 / 23,228 | 3,419 / 23,828 | 11,795 / 160,820 | 10,920 / 44,399 |
+| Cell | everudp UDP p50/p95 us | everudp QUIC p50/p95 us | zmosh p50/p95 us | everssh p50/p95 us | Mosh p50/p95 us | OpenSSH p50/p95 us |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0% loss | 423 / 798 | 740 / 1,045 | 488 / 848 | 3,783 / 21,072 | 9,903 / 10,178 | 4,073 / 5,885 |
+| 1% loss | 475 / 755 | 633 / 1,054 | 489 / 841 | 2,513 / 20,959 | 9,913 / 10,143 | 16,001 / 17,723 |
+| 5% loss | 497 / 22,014 | 644 / 1,557 | 516 / 697,427 | 3,208 / 40,157 | 9,867 / 110,046 | 19,112 / 40,700 |
+| 10% loss | 544 / 21,989 | 691 / 22,290 | 553 / 636,282 | 3,583 / 23,345 | 10,017 / 110,108 | 19,688 / 238,644 |
+| 25% loss | 20,274 / 85,542 | 20,512 / 85,371 | 736 / 3,672,653 | 26,177 / 107,364 | 10,162 / 169,882 | 248,402 / 1,432,599 |
+| 5% + 25 ms jitter | 50,767 / 65,711 | 50,093 / 59,614 | 51,253 / 368,959 | 74,884 / 160,364 | 58,652 / 114,710 | 62,019 / 143,020 |
+| 5% + 50 ms jitter | 100,268 / 123,383 | 101,183 / 108,628 | 102,541 / 359,611 | 154,954 / 304,571 | 61,611 / 205,279 | 131,380 / 315,745 |
+| 5% + 2% reorder | 2,472 / 23,975 | 2,692 / 3,013 | 2,470 / 382,979 | 15,615 / 18,836 | 11,929 / 111,957 | 5,430 / 25,760 |
 
-Mosh remains a separate control, not a zmosh proxy: at 5% loss everudp-UDP
-is 20.2x faster at the median (484 µs versus 9,776 µs). The Mosh parser
-correlates packet direction without payload semantics, so this is retained
-only as an upper-bound transport comparison.
+These are authoritative remote echoes, so prediction on/off is expected to
+have the same transport target and neither mode consistently wins. Local
+speculative paint latency is validated by the correction oracle instead.
+Mosh remains a separate control, not a zmosh proxy.
 
 ## Correctness oracle
 
-The opaque byte self-comparison has been replaced. The exact-SHA gate at
-8a806a15955b838c98add5a7b74a1e813f8b9494 ran 30 complete matrices
+The opaque byte self-comparison has been replaced. The final exact-SHA gate
+at `9083ef07292acbf6ef55ce065968ecaf14d6a74d` ran 30 complete matrices
 through real PTYs, including a real tmux 3.7c client. Authoritative PTY output
 and the predicted/reconciled stream were rendered by separate instances of
 the pinned MIT-licensed vt100 0.16.2 terminal model. The oracle compares
@@ -176,16 +209,16 @@ wide cells, wrapped rows, alternate-screen state, and cursor visibility.
 
 All 30 echo, mismatch-correction, duplicate/reorder, full-screen, resize,
 tmux, no-echo, and epoch-reset/resync matrices matched. Correction convergence
-p95 was 5 us against the frozen 300,000 us ceiling, and password prediction
+p95 was 6 us against the frozen 300,000 us ceiling, and password prediction
 displays were zero. The state model now buffers future acknowledgements,
 commits authoritative output in sequence, rejects unsent acknowledgements,
 suppresses duplicates, and clears the old generation on epoch reset.
 
 ## Reachability
 
-The repaired gate ran from clean source commit
-`9a9e56b281a2e52c20aa6f12cfffb5f2d4087e19` and tree
-`227261f6e9751cd633d198bbd71efafbe4e1cce4`. Each available UDP environment
+The final gate ran from clean source commit
+`9083ef07292acbf6ef55ce065968ecaf14d6a74d` and tree
+`e7b0678cfc198a1a314341af0c4940547bf578b3`. Each available UDP environment
 ran twenty independent one-association client/server processes. The four
 Linux namespace NATs have distinct mapping/filter rules plus behavioral
 probes: full cone accepted the same endpoint, another port on the same host,
@@ -202,7 +235,7 @@ destinations external ports in disjoint 40001-45000 and 50001-55000 ranges.
 | port-restricted-cone NAT | behavior PASS; 20/20 flows | >=19/20 |
 | symmetric NAT | destination-specific mapping PASS; 20/20 flows | >=18/20 |
 | ZeroTier, badger to bugger | 20/20 PASS | >=18/20 |
-| UDP black hole | 20/20 exact diagnosed failures in 2,012-2,020 ms | 20/20 below 3,000 ms |
+| UDP black hole | 20/20 exact diagnosed failures in 2,014-2,023 ms | 20/20 below 3,000 ms |
 | everssh fallback after blocked UDP | exactly 1 invocation, 1/1 PASS | exactly one successful transition |
 | Tailscale fleet inventory | UNAVAILABLE: missing on badger/bagger, stopped on bugger | no comparison claim |
 
@@ -214,11 +247,12 @@ the bounded authenticated-handshake retry loop. It is followed by one, and
 only one, successful invocation of the existing everssh fallback to bugger.
 Raw attempt ledgers, namespace addresses/routes, firewall rules, behavioral
 probe output, peer identities, binary hashes, fleet inventory, aggregate
-receipt, and a verified `SHA256SUMS` manifest are archived under
-`docs/release-evidence/20260904-everudp/reachability-repaired/`.
+receipt, and a verified `SHA256SUMS` manifest are archived under the final
+exact-SHA evidence directory named below.
 
-The one 5 s outage observation produced bounded failures throughout loss
-and recovered a new flow 138 ms after path restoration. Session-level
+The 6.373 s total-loss gate produced three bounded, diagnosed failures and
+recovered a fresh flow on the first attempt, 216 ms after path restoration.
+Session-level
 5-minute outage continuity remains proven by the production everssh v2
 B1 gate, not by this disposable spike.
 
@@ -237,6 +271,11 @@ B1 gate, not by this disposable spike.
   encrypted request and response frames fit the 1,200-byte ceiling.
 - Amplification: the server accounts received and sent bytes with a bounded
   per-association budget; the echo workload cannot send unearned bytes.
+- Resource closure: all candidate processes stayed below 128 MiB RSS, 5 CPU
+  seconds per 30-trial cell, and 65,536 client-interface bytes per trial. The
+  standalone server used 0.00 CPU seconds and sent zero packets while idle;
+  10,000 invalid 1,200-byte datagrams elicited zero responses, grew RSS by
+  128 KiB, and did not prevent the next legitimate association.
 - Remaining production gap: the executable still uses a public benchmark
   fixture instead of a real one-use secret provisioning channel and serves one
   disposable association rather than a managed multi-user service.
@@ -255,11 +294,12 @@ the spike's minimal line model.
 
 ## Retained evidence
 
-Sanitized JSON/TSV receipts are tracked under
-`docs/release-evidence/20260904-everudp/`. The authoritative parity
-aggregate is `parity-hardened/analysis.json`; its six block manifests bind
-source, tree, candidate binaries, seeded topology, raw samples, result hashes,
-and before/after qdisc counters. `parity/analysis.json` retains the earlier
-pre-hardening campaign. `oracle.json` is the exact-SHA 30-run terminal-grid
-receipt.
-Other raw logs remain under ignored `target/qualification/everudp/`.
+The authoritative, one-source evidence is tracked under
+`docs/release-evidence/20260904-everudp/final-9083ef0/`. Its
+`closure.json` binds every component receipt, source/tree identity, candidate
+binary, and checksum inventory. `FINAL_SHA256SUMS` covers all 1,222 component
+files in that immutable campaign: 1,920 raw control observations, 1,200 raw
+parity observations, resource and outage receipts, the 30-run terminal-grid
+oracle, and all reachability attempts. The older sibling directories are
+retained as historical campaigns and repair provenance, not final closure
+evidence.

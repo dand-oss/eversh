@@ -1,0 +1,8 @@
+pid=4110127
+Name:	sshd
+VmPeak:	   11988 kB
+VmHWM:	    7632 kB
+VmRSS:	    7632 kB
+Threads:	1
+user_ticks=0
+system_ticks=0

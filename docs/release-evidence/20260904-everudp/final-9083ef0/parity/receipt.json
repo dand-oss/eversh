@@ -1,0 +1,26 @@
+{
+  "analysis_sha256": "1e3c4fa361ab7a6e50dd077e0ec3f0a1b68f428bdeb00f3d8e1352129329fb21",
+  "blocks": {
+    "block-13001": "b063daae4fd8a9a45bd1c9aedeb0b5bc205eb4f734b7eda6383be4dc905ae3be",
+    "block-13002": "31718d328400358d4ac5742de7d29917663d8470926bad134d58f0f7df55b8e3",
+    "block-13003": "1f5f0324c8270ea75d5d557e518dc4248dcc152c5011c47188925243548b7dbb",
+    "block-13004": "1f59a1d28dc5622a7f3aeb963a4f9c89851c3d30d32134edf98c28a3511ecc64",
+    "block-13005": "2bbffc769047dcaf604a50689829b4f9edc8d923b31b34814729df8e513bb0a6",
+    "block-13006": "5b8b7b2a4c515fd69ec74d15a27dce4647f9c110afc159bd2b237c277c4dc7c0"
+  },
+  "finished_utc": "2026-09-05T01:51:18Z",
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "9083ef07292acbf6ef55ce065968ecaf14d6a74d",
+    "tree_sha": "e7b0678cfc198a1a314341af0c4940547bf578b3"
+  },
+  "started_utc": "2026-09-05T01:48:42Z",
+  "trials_per_candidate_per_block": 100,
+  "verdict": {
+    "conservative_upper95_equivalence_pass": true,
+    "exact_sha_evidence_pass": true,
+    "observed_loss_evidence_pass": true,
+    "preregistered_point_rule_pass": true
+  }
+}

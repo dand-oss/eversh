@@ -1,0 +1,67 @@
+{
+  "binary_sha256": {
+    "eversh": "e4ec813a04e85915784bde85a38dbc8337bcb857d7e3b25372520ec33a3f90f5",
+    "everudp": "9f50504c479f43ee2f5edddf04b93e5e2f9fe01000e299024cd654680e2ba5f8",
+    "zmosh": "7c2494c29f24d250eeccc445331a63bf1658d216fb3cefdb7b6c2eefa0ed97f1",
+    "zmosh_bench": "5d2459f922effc3952b72a47f165f754979cb2e22d6aae5db7aa48fee2921935"
+  },
+  "component_sha256": {
+    "controls_analysis": "81090c37ea9970e5fa75d2e1a015e1c1cac752959db2fc262215c5c6a21942f3",
+    "controls_checksums": "03aa50c227d981bc088da12132d12439444721cdfe27f50df6d19d54bb09bb93",
+    "controls_receipt": "387a23def666d7f2e6a3ef5b2c42a31e429e5dea18466d60d9c18d2c8632e492",
+    "oracle": "199859e78956beb6b549c2ffff4589ce88711dec0337b66f215d1487b4657930",
+    "parity_analysis": "1e3c4fa361ab7a6e50dd077e0ec3f0a1b68f428bdeb00f3d8e1352129329fb21",
+    "parity_checksums": "0460fd27cb8dd4847f3756d3803c3d508b316a3d243753b2371a4dad93d86098",
+    "parity_receipt": "c9997f713e42662b224f96da2cf7dfa3de0762c8ebe51c02b9496ff1b9e6baa0",
+    "reachability_checksums": "429219f2a25f39291799e09f9ca3f6253d33b02bd201a86530c0fe8373362412",
+    "reachability_receipt": "92ec142775125157cc44761112061894a9c7eb0beae60ef702dee71a7640118a"
+  },
+  "other_thresholds": {
+    "correction_convergence_pass": true,
+    "everssh_point_rule_pass": true,
+    "tailscale": "UNAVAILABLE"
+  },
+  "requested_zmosh_parity": {
+    "conservative_upper95_rule_pass": true,
+    "point_rule_pass": true,
+    "pooled": {
+      "everudp_n": 600,
+      "everudp_p50_us": 457,
+      "everudp_p95_us": 21347,
+      "p50_ratio": 0.9641350210970464,
+      "p95_ratio": 0.3503241158611635,
+      "probability_everudp_faster": 0.5790861111111111,
+      "zmosh_n": 600,
+      "zmosh_p50_us": 474,
+      "zmosh_p95_us": 60935
+    },
+    "proven": true,
+    "uncertainty": {
+      "iterations": 20000,
+      "p50_ratio_ci95": [
+        0.9103869653767821,
+        1.0086767895878526
+      ],
+      "p50_ratio_upper95": 1.0021276595744681,
+      "p95_ratio_ci95": [
+        0.34681209977235133,
+        0.4212622368705001
+      ],
+      "p95_ratio_upper95": 0.42030094363682735,
+      "seed": 9015
+    }
+  },
+  "schema_version": 1,
+  "source": {
+    "all_components_clean_and_identical": true,
+    "head_sha": "9083ef07292acbf6ef55ce065968ecaf14d6a74d",
+    "tree_sha": "e7b0678cfc198a1a314341af0c4940547bf578b3"
+  },
+  "verdict": {
+    "all_preregistered_performance_thresholds_pass": true,
+    "decision": "NOT-BUILD",
+    "exact_sha_closure_pass": true,
+    "requested_zmosh_parity_proven": true,
+    "tailscale_available_and_passed": false
+  }
+}

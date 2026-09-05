@@ -1,0 +1,2883 @@
+{
+  "cells": {
+    "loss0": {
+      "everssh": {
+        "latency": {
+          "max_us": 21101,
+          "n": 30,
+          "p50_us": 3783,
+          "p95_us": 21072
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 43914,
+            "rx_packets": 458,
+            "total_bytes": 87680,
+            "total_packets": 914,
+            "tx_bytes": 43766,
+            "tx_packets": 456
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.060000000000000005,
+            "exit_status": 0,
+            "max_rss_kib": 12836,
+            "system_seconds": 0.01,
+            "user_seconds": 0.05
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 43766,
+            "rx_packets": 456,
+            "total_bytes": 87680,
+            "total_packets": 914,
+            "tx_bytes": 43914,
+            "tx_packets": 458
+          }
+        }
+      },
+      "everudp-quic-nopred": {
+        "latency": {
+          "max_us": 868,
+          "n": 30,
+          "p50_us": 550,
+          "p95_us": 839
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 4844,
+            "rx_packets": 61,
+            "total_bytes": 9794,
+            "total_packets": 122,
+            "tx_bytes": 4950,
+            "tx_packets": 61
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 5780,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 4950,
+            "rx_packets": 61,
+            "total_bytes": 9794,
+            "total_packets": 122,
+            "tx_bytes": 4844,
+            "tx_packets": 61
+          }
+        }
+      },
+      "everudp-quic-pred": {
+        "latency": {
+          "max_us": 1099,
+          "n": 30,
+          "p50_us": 740,
+          "p95_us": 1045
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 4970,
+            "rx_packets": 62,
+            "total_bytes": 10093,
+            "total_packets": 124,
+            "tx_bytes": 5123,
+            "tx_packets": 62
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 5832,
+            "system_seconds": 0.01,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 5123,
+            "rx_packets": 62,
+            "total_bytes": 10093,
+            "total_packets": 124,
+            "tx_bytes": 4970,
+            "tx_packets": 62
+          }
+        }
+      },
+      "everudp-udp-nopred": {
+        "latency": {
+          "max_us": 818,
+          "n": 30,
+          "p50_us": 397,
+          "p95_us": 753
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2460,
+            "rx_packets": 30,
+            "total_bytes": 5040,
+            "total_packets": 60,
+            "tx_bytes": 2580,
+            "tx_packets": 30
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 3808,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 2580,
+            "rx_packets": 30,
+            "total_bytes": 5040,
+            "total_packets": 60,
+            "tx_bytes": 2460,
+            "tx_packets": 30
+          }
+        }
+      },
+      "everudp-udp-pred": {
+        "latency": {
+          "max_us": 864,
+          "n": 30,
+          "p50_us": 423,
+          "p95_us": 798
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2460,
+            "rx_packets": 30,
+            "total_bytes": 5040,
+            "total_packets": 60,
+            "tx_bytes": 2580,
+            "tx_packets": 30
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 4032,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 2580,
+            "rx_packets": 30,
+            "total_bytes": 5040,
+            "total_packets": 60,
+            "tx_bytes": 2460,
+            "tx_packets": 30
+          }
+        }
+      },
+      "mosh": {
+        "latency": {
+          "max_us": 10380,
+          "n": 30,
+          "p50_us": 9903,
+          "p95_us": 10178
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 7413,
+            "rx_packets": 62,
+            "total_bytes": 11201,
+            "total_packets": 95,
+            "tx_bytes": 3788,
+            "tx_packets": 33
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.08,
+            "exit_status": 0,
+            "max_rss_kib": 16068,
+            "system_seconds": 0.04,
+            "user_seconds": 0.04
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 3788,
+            "rx_packets": 33,
+            "total_bytes": 11201,
+            "total_packets": 95,
+            "tx_bytes": 7413,
+            "tx_packets": 62
+          }
+        }
+      },
+      "ssh": {
+        "latency": {
+          "max_us": 6038,
+          "n": 30,
+          "p50_us": 4073,
+          "p95_us": 5885
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 15870,
+            "rx_packets": 157,
+            "total_bytes": 31904,
+            "total_packets": 316,
+            "tx_bytes": 16034,
+            "tx_packets": 159
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.07,
+            "exit_status": 0,
+            "max_rss_kib": 12884,
+            "system_seconds": 0.03,
+            "user_seconds": 0.04
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 16034,
+            "rx_packets": 159,
+            "total_bytes": 31904,
+            "total_packets": 316,
+            "tx_bytes": 15870,
+            "tx_packets": 157
+          }
+        }
+      },
+      "zmosh": {
+        "latency": {
+          "max_us": 1036,
+          "n": 30,
+          "p50_us": 488,
+          "p95_us": 848
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5610,
+            "rx_packets": 62,
+            "total_bytes": 11370,
+            "total_packets": 125,
+            "tx_bytes": 5760,
+            "tx_packets": 63
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.06999999999999999,
+            "exit_status": 0,
+            "max_rss_kib": 2848,
+            "system_seconds": 0.06,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 5760,
+            "rx_packets": 63,
+            "total_bytes": 11370,
+            "total_packets": 125,
+            "tx_bytes": 5610,
+            "tx_packets": 62
+          }
+        }
+      }
+    },
+    "loss1": {
+      "everssh": {
+        "latency": {
+          "max_us": 20967,
+          "n": 30,
+          "p50_us": 2513,
+          "p95_us": 20959
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 45361,
+            "rx_packets": 472,
+            "total_bytes": 90636,
+            "total_packets": 943,
+            "tx_bytes": 45275,
+            "tx_packets": 471
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.060000000000000005,
+            "exit_status": 0,
+            "max_rss_kib": 12812,
+            "system_seconds": 0.01,
+            "user_seconds": 0.05
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 6,
+            "server_egress": 3
+          },
+          "server_interface": {
+            "rx_bytes": 45275,
+            "rx_packets": 471,
+            "total_bytes": 90636,
+            "total_packets": 943,
+            "tx_bytes": 45361,
+            "tx_packets": 472
+          }
+        }
+      },
+      "everudp-quic-nopred": {
+        "latency": {
+          "max_us": 1191,
+          "n": 30,
+          "p50_us": 663,
+          "p95_us": 1083
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 4948,
+            "rx_packets": 62,
+            "total_bytes": 9903,
+            "total_packets": 123,
+            "tx_bytes": 4955,
+            "tx_packets": 61
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 6024,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 4955,
+            "rx_packets": 61,
+            "total_bytes": 9903,
+            "total_packets": 123,
+            "tx_bytes": 4948,
+            "tx_packets": 62
+          }
+        }
+      },
+      "everudp-quic-pred": {
+        "latency": {
+          "max_us": 1136,
+          "n": 30,
+          "p50_us": 633,
+          "p95_us": 1054
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 4965,
+            "rx_packets": 62,
+            "total_bytes": 10094,
+            "total_packets": 124,
+            "tx_bytes": 5129,
+            "tx_packets": 62
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 5840,
+            "system_seconds": 0.01,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 5129,
+            "rx_packets": 62,
+            "total_bytes": 10094,
+            "total_packets": 124,
+            "tx_bytes": 4965,
+            "tx_packets": 62
+          }
+        }
+      },
+      "everudp-udp-nopred": {
+        "latency": {
+          "max_us": 740,
+          "n": 30,
+          "p50_us": 365,
+          "p95_us": 668
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2460,
+            "rx_packets": 30,
+            "total_bytes": 5040,
+            "total_packets": 60,
+            "tx_bytes": 2580,
+            "tx_packets": 30
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 3860,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 2580,
+            "rx_packets": 30,
+            "total_bytes": 5040,
+            "total_packets": 60,
+            "tx_bytes": 2460,
+            "tx_packets": 30
+          }
+        }
+      },
+      "everudp-udp-pred": {
+        "latency": {
+          "max_us": 787,
+          "n": 30,
+          "p50_us": 475,
+          "p95_us": 755
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2460,
+            "rx_packets": 30,
+            "total_bytes": 5040,
+            "total_packets": 60,
+            "tx_bytes": 2580,
+            "tx_packets": 30
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 4068,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 2580,
+            "rx_packets": 30,
+            "total_bytes": 5040,
+            "total_packets": 60,
+            "tx_bytes": 2460,
+            "tx_packets": 30
+          }
+        }
+      },
+      "mosh": {
+        "latency": {
+          "max_us": 10163,
+          "n": 30,
+          "p50_us": 9913,
+          "p95_us": 10143
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 7350,
+            "rx_packets": 62,
+            "total_bytes": 11095,
+            "total_packets": 95,
+            "tx_bytes": 3745,
+            "tx_packets": 33
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.09,
+            "exit_status": 0,
+            "max_rss_kib": 15764,
+            "system_seconds": 0.03,
+            "user_seconds": 0.06
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 3745,
+            "rx_packets": 33,
+            "total_bytes": 11095,
+            "total_packets": 95,
+            "tx_bytes": 7350,
+            "tx_packets": 62
+          }
+        }
+      },
+      "ssh": {
+        "latency": {
+          "max_us": 18379,
+          "n": 30,
+          "p50_us": 16001,
+          "p95_us": 17723
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 19156,
+            "rx_packets": 190,
+            "total_bytes": 38336,
+            "total_packets": 380,
+            "tx_bytes": 19180,
+            "tx_packets": 190
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.07,
+            "exit_status": 0,
+            "max_rss_kib": 12928,
+            "system_seconds": 0.02,
+            "user_seconds": 0.05
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 2,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 19180,
+            "rx_packets": 190,
+            "total_bytes": 38336,
+            "total_packets": 380,
+            "tx_bytes": 19156,
+            "tx_packets": 190
+          }
+        }
+      },
+      "zmosh": {
+        "latency": {
+          "max_us": 895,
+          "n": 30,
+          "p50_us": 489,
+          "p95_us": 841
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5610,
+            "rx_packets": 62,
+            "total_bytes": 11256,
+            "total_packets": 124,
+            "tx_bytes": 5646,
+            "tx_packets": 62
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.06999999999999999,
+            "exit_status": 0,
+            "max_rss_kib": 2404,
+            "system_seconds": 0.06,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 0,
+            "server_egress": 0
+          },
+          "server_interface": {
+            "rx_bytes": 5646,
+            "rx_packets": 62,
+            "total_bytes": 11256,
+            "total_packets": 124,
+            "tx_bytes": 5610,
+            "tx_packets": 62
+          }
+        }
+      }
+    },
+    "loss10": {
+      "everssh": {
+        "latency": {
+          "max_us": 61650,
+          "n": 30,
+          "p50_us": 3583,
+          "p95_us": 23345
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 42154,
+            "rx_packets": 428,
+            "total_bytes": 85303,
+            "total_packets": 870,
+            "tx_bytes": 43149,
+            "tx_packets": 442
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.06,
+            "exit_status": 0,
+            "max_rss_kib": 13012,
+            "system_seconds": 0.0,
+            "user_seconds": 0.06
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 47,
+            "server_egress": 43
+          },
+          "server_interface": {
+            "rx_bytes": 43149,
+            "rx_packets": 442,
+            "total_bytes": 85303,
+            "total_packets": 870,
+            "tx_bytes": 42154,
+            "tx_packets": 428
+          }
+        }
+      },
+      "everudp-quic-nopred": {
+        "latency": {
+          "max_us": 41851,
+          "n": 30,
+          "p50_us": 536,
+          "p95_us": 22069
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5267,
+            "rx_packets": 65,
+            "total_bytes": 10578,
+            "total_packets": 129,
+            "tx_bytes": 5311,
+            "tx_packets": 64
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 5764,
+            "system_seconds": 0.0,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 9,
+            "server_egress": 7
+          },
+          "server_interface": {
+            "rx_bytes": 5311,
+            "rx_packets": 64,
+            "total_bytes": 10578,
+            "total_packets": 129,
+            "tx_bytes": 5267,
+            "tx_packets": 65
+          }
+        }
+      },
+      "everudp-quic-pred": {
+        "latency": {
+          "max_us": 42046,
+          "n": 30,
+          "p50_us": 691,
+          "p95_us": 22290
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5249,
+            "rx_packets": 65,
+            "total_bytes": 10687,
+            "total_packets": 131,
+            "tx_bytes": 5438,
+            "tx_packets": 66
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 5640,
+            "system_seconds": 0.0,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 9,
+            "server_egress": 7
+          },
+          "server_interface": {
+            "rx_bytes": 5438,
+            "rx_packets": 66,
+            "total_bytes": 10687,
+            "total_packets": 131,
+            "tx_bytes": 5249,
+            "tx_packets": 65
+          }
+        }
+      },
+      "everudp-udp-nopred": {
+        "latency": {
+          "max_us": 42748,
+          "n": 30,
+          "p50_us": 443,
+          "p95_us": 21953
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2460,
+            "rx_packets": 30,
+            "total_bytes": 5298,
+            "total_packets": 63,
+            "tx_bytes": 2838,
+            "tx_packets": 33
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 4160,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 6,
+            "server_egress": 3
+          },
+          "server_interface": {
+            "rx_bytes": 2838,
+            "rx_packets": 33,
+            "total_bytes": 5298,
+            "total_packets": 63,
+            "tx_bytes": 2460,
+            "tx_packets": 30
+          }
+        }
+      },
+      "everudp-udp-pred": {
+        "latency": {
+          "max_us": 42043,
+          "n": 30,
+          "p50_us": 544,
+          "p95_us": 21989
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2530,
+            "rx_packets": 31,
+            "total_bytes": 5454,
+            "total_packets": 65,
+            "tx_bytes": 2924,
+            "tx_packets": 34
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 4120,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 6,
+            "server_egress": 4
+          },
+          "server_interface": {
+            "rx_bytes": 2924,
+            "rx_packets": 34,
+            "total_bytes": 5454,
+            "total_packets": 65,
+            "tx_bytes": 2530,
+            "tx_packets": 31
+          }
+        }
+      },
+      "mosh": {
+        "latency": {
+          "max_us": 110174,
+          "n": 30,
+          "p50_us": 10017,
+          "p95_us": 110108
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 6365,
+            "rx_packets": 53,
+            "total_bytes": 9826,
+            "total_packets": 83,
+            "tx_bytes": 3461,
+            "tx_packets": 30
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.09000000000000001,
+            "exit_status": 0,
+            "max_rss_kib": 15668,
+            "system_seconds": 0.02,
+            "user_seconds": 0.07
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 4,
+            "server_egress": 5
+          },
+          "server_interface": {
+            "rx_bytes": 3461,
+            "rx_packets": 30,
+            "total_bytes": 9826,
+            "total_packets": 83,
+            "tx_bytes": 6365,
+            "tx_packets": 53
+          }
+        }
+      },
+      "ssh": {
+        "latency": {
+          "max_us": 255845,
+          "n": 30,
+          "p50_us": 19688,
+          "p95_us": 238644
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 23342,
+            "rx_packets": 227,
+            "total_bytes": 48774,
+            "total_packets": 477,
+            "tx_bytes": 25432,
+            "tx_packets": 250
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.05,
+            "exit_status": 0,
+            "max_rss_kib": 12760,
+            "system_seconds": 0.02,
+            "user_seconds": 0.03
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 33,
+            "server_egress": 25
+          },
+          "server_interface": {
+            "rx_bytes": 25432,
+            "rx_packets": 250,
+            "total_bytes": 48774,
+            "total_packets": 477,
+            "tx_bytes": 23342,
+            "tx_packets": 227
+          }
+        }
+      },
+      "zmosh": {
+        "latency": {
+          "max_us": 695336,
+          "n": 30,
+          "p50_us": 553,
+          "p95_us": 636282
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5344,
+            "rx_packets": 59,
+            "total_bytes": 10552,
+            "total_packets": 116,
+            "tx_bytes": 5208,
+            "tx_packets": 57
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.06999999999999999,
+            "exit_status": 0,
+            "max_rss_kib": 2920,
+            "system_seconds": 0.06,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 9,
+            "server_egress": 7
+          },
+          "server_interface": {
+            "rx_bytes": 5208,
+            "rx_packets": 57,
+            "total_bytes": 10552,
+            "total_packets": 116,
+            "tx_bytes": 5344,
+            "tx_packets": 59
+          }
+        }
+      }
+    },
+    "loss25": {
+      "everssh": {
+        "latency": {
+          "max_us": 175376,
+          "n": 30,
+          "p50_us": 26177,
+          "p95_us": 107364
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 45270,
+            "rx_packets": 427,
+            "total_bytes": 90494,
+            "total_packets": 860,
+            "tx_bytes": 45224,
+            "tx_packets": 433
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.05,
+            "exit_status": 0,
+            "max_rss_kib": 12860,
+            "system_seconds": 0.02,
+            "user_seconds": 0.03
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 147,
+            "server_egress": 145
+          },
+          "server_interface": {
+            "rx_bytes": 45224,
+            "rx_packets": 433,
+            "total_bytes": 90494,
+            "total_packets": 860,
+            "tx_bytes": 45270,
+            "tx_packets": 427
+          }
+        }
+      },
+      "everudp-quic-nopred": {
+        "latency": {
+          "max_us": 106257,
+          "n": 30,
+          "p50_us": 21007,
+          "p95_us": 85675
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 6538,
+            "rx_packets": 79,
+            "total_bytes": 13581,
+            "total_packets": 162,
+            "tx_bytes": 7043,
+            "tx_packets": 83
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 5836,
+            "system_seconds": 0.0,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 31,
+            "server_egress": 33
+          },
+          "server_interface": {
+            "rx_bytes": 7043,
+            "rx_packets": 83,
+            "total_bytes": 13581,
+            "total_packets": 162,
+            "tx_bytes": 6538,
+            "tx_packets": 79
+          }
+        }
+      },
+      "everudp-quic-pred": {
+        "latency": {
+          "max_us": 105528,
+          "n": 30,
+          "p50_us": 20512,
+          "p95_us": 85371
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 6538,
+            "rx_packets": 79,
+            "total_bytes": 13577,
+            "total_packets": 162,
+            "tx_bytes": 7039,
+            "tx_packets": 83
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 5764,
+            "system_seconds": 0.01,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 31,
+            "server_egress": 33
+          },
+          "server_interface": {
+            "rx_bytes": 7039,
+            "rx_packets": 83,
+            "total_bytes": 13577,
+            "total_packets": 162,
+            "tx_bytes": 6538,
+            "tx_packets": 79
+          }
+        }
+      },
+      "everudp-udp-nopred": {
+        "latency": {
+          "max_us": 104853,
+          "n": 30,
+          "p50_us": 21247,
+          "p95_us": 85191
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2530,
+            "rx_packets": 31,
+            "total_bytes": 6400,
+            "total_packets": 76,
+            "tx_bytes": 3870,
+            "tx_packets": 45
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 3704,
+            "system_seconds": 0.01,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 17,
+            "server_egress": 15
+          },
+          "server_interface": {
+            "rx_bytes": 3870,
+            "rx_packets": 45,
+            "total_bytes": 6400,
+            "total_packets": 76,
+            "tx_bytes": 2530,
+            "tx_packets": 31
+          }
+        }
+      },
+      "everudp-udp-pred": {
+        "latency": {
+          "max_us": 106243,
+          "n": 30,
+          "p50_us": 20274,
+          "p95_us": 85542
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2502,
+            "rx_packets": 31,
+            "total_bytes": 6328,
+            "total_packets": 76,
+            "tx_bytes": 3826,
+            "tx_packets": 45
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 3728,
+            "system_seconds": 0.01,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 17,
+            "server_egress": 15
+          },
+          "server_interface": {
+            "rx_bytes": 3826,
+            "rx_packets": 45,
+            "total_bytes": 6328,
+            "total_packets": 76,
+            "tx_bytes": 2502,
+            "tx_packets": 31
+          }
+        }
+      },
+      "mosh": {
+        "latency": {
+          "max_us": 232004,
+          "n": 30,
+          "p50_us": 10162,
+          "p95_us": 169882
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 10648,
+            "rx_packets": 87,
+            "total_bytes": 15417,
+            "total_packets": 128,
+            "tx_bytes": 4769,
+            "tx_packets": 41
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.09,
+            "exit_status": 0,
+            "max_rss_kib": 15676,
+            "system_seconds": 0.03,
+            "user_seconds": 0.06
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 14,
+            "server_egress": 36
+          },
+          "server_interface": {
+            "rx_bytes": 4769,
+            "rx_packets": 41,
+            "total_bytes": 15417,
+            "total_packets": 128,
+            "tx_bytes": 10648,
+            "tx_packets": 87
+          }
+        }
+      },
+      "ssh": {
+        "latency": {
+          "max_us": 7196278,
+          "n": 30,
+          "p50_us": 248402,
+          "p95_us": 1432599
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 40572,
+            "rx_packets": 228,
+            "total_bytes": 84458,
+            "total_packets": 493,
+            "tx_bytes": 43886,
+            "tx_packets": 265
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.09000000000000001,
+            "exit_status": 0,
+            "max_rss_kib": 12988,
+            "system_seconds": 0.02,
+            "user_seconds": 0.07
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 94,
+            "server_egress": 82
+          },
+          "server_interface": {
+            "rx_bytes": 43886,
+            "rx_packets": 265,
+            "total_bytes": 84458,
+            "total_packets": 493,
+            "tx_bytes": 40572,
+            "tx_packets": 228
+          }
+        }
+      },
+      "zmosh": {
+        "latency": {
+          "max_us": 5654651,
+          "n": 30,
+          "p50_us": 736,
+          "p95_us": 3672653
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5849,
+            "rx_packets": 65,
+            "total_bytes": 12002,
+            "total_packets": 134,
+            "tx_bytes": 6153,
+            "tx_packets": 69
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.21000000000000002,
+            "exit_status": 0,
+            "max_rss_kib": 2412,
+            "system_seconds": 0.16,
+            "user_seconds": 0.05
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 27,
+            "server_egress": 29
+          },
+          "server_interface": {
+            "rx_bytes": 6153,
+            "rx_packets": 69,
+            "total_bytes": 12002,
+            "total_packets": 134,
+            "tx_bytes": 5849,
+            "tx_packets": 65
+          }
+        }
+      }
+    },
+    "loss5": {
+      "everssh": {
+        "latency": {
+          "max_us": 64982,
+          "n": 30,
+          "p50_us": 3208,
+          "p95_us": 40157
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 45715,
+            "rx_packets": 468,
+            "total_bytes": 91877,
+            "total_packets": 941,
+            "tx_bytes": 46162,
+            "tx_packets": 473
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.060000000000000005,
+            "exit_status": 0,
+            "max_rss_kib": 13028,
+            "system_seconds": 0.01,
+            "user_seconds": 0.05
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 31,
+            "server_egress": 29
+          },
+          "server_interface": {
+            "rx_bytes": 46162,
+            "rx_packets": 473,
+            "total_bytes": 91800,
+            "total_packets": 940,
+            "tx_bytes": 45638,
+            "tx_packets": 467
+          }
+        }
+      },
+      "everudp-quic-nopred": {
+        "latency": {
+          "max_us": 42356,
+          "n": 30,
+          "p50_us": 711,
+          "p95_us": 21655
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 4885,
+            "rx_packets": 61,
+            "total_bytes": 9976,
+            "total_packets": 123,
+            "tx_bytes": 5091,
+            "tx_packets": 62
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 5716,
+            "system_seconds": 0.0,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 5,
+            "server_egress": 3
+          },
+          "server_interface": {
+            "rx_bytes": 5091,
+            "rx_packets": 62,
+            "total_bytes": 9976,
+            "total_packets": 123,
+            "tx_bytes": 4885,
+            "tx_packets": 61
+          }
+        }
+      },
+      "everudp-quic-pred": {
+        "latency": {
+          "max_us": 21382,
+          "n": 30,
+          "p50_us": 644,
+          "p95_us": 1557
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5243,
+            "rx_packets": 65,
+            "total_bytes": 10603,
+            "total_packets": 130,
+            "tx_bytes": 5360,
+            "tx_packets": 65
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 6028,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 5,
+            "server_egress": 3
+          },
+          "server_interface": {
+            "rx_bytes": 5360,
+            "rx_packets": 65,
+            "total_bytes": 10603,
+            "total_packets": 130,
+            "tx_bytes": 5243,
+            "tx_packets": 65
+          }
+        }
+      },
+      "everudp-udp-nopred": {
+        "latency": {
+          "max_us": 42646,
+          "n": 30,
+          "p50_us": 527,
+          "p95_us": 21499
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2632,
+            "rx_packets": 32,
+            "total_bytes": 5514,
+            "total_packets": 65,
+            "tx_bytes": 2882,
+            "tx_packets": 33
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 3720,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 3,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 2882,
+            "rx_packets": 33,
+            "total_bytes": 5514,
+            "total_packets": 65,
+            "tx_bytes": 2632,
+            "tx_packets": 32
+          }
+        }
+      },
+      "everudp-udp-pred": {
+        "latency": {
+          "max_us": 42797,
+          "n": 30,
+          "p50_us": 497,
+          "p95_us": 22014
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2460,
+            "rx_packets": 30,
+            "total_bytes": 5212,
+            "total_packets": 62,
+            "tx_bytes": 2752,
+            "tx_packets": 32
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 4120,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 3,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 2752,
+            "rx_packets": 32,
+            "total_bytes": 5212,
+            "total_packets": 62,
+            "tx_bytes": 2460,
+            "tx_packets": 30
+          }
+        }
+      },
+      "mosh": {
+        "latency": {
+          "max_us": 170826,
+          "n": 30,
+          "p50_us": 9867,
+          "p95_us": 110046
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 6978,
+            "rx_packets": 58,
+            "total_bytes": 10694,
+            "total_packets": 90,
+            "tx_bytes": 3716,
+            "tx_packets": 32
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.08,
+            "exit_status": 0,
+            "max_rss_kib": 16004,
+            "system_seconds": 0.02,
+            "user_seconds": 0.06
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 3,
+            "server_egress": 3
+          },
+          "server_interface": {
+            "rx_bytes": 3716,
+            "rx_packets": 32,
+            "total_bytes": 10694,
+            "total_packets": 90,
+            "tx_bytes": 6978,
+            "tx_packets": 58
+          }
+        }
+      },
+      "ssh": {
+        "latency": {
+          "max_us": 216086,
+          "n": 30,
+          "p50_us": 19112,
+          "p95_us": 40700
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 20626,
+            "rx_packets": 205,
+            "total_bytes": 42410,
+            "total_packets": 425,
+            "tx_bytes": 21784,
+            "tx_packets": 220
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.060000000000000005,
+            "exit_status": 0,
+            "max_rss_kib": 13036,
+            "system_seconds": 0.01,
+            "user_seconds": 0.05
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 18,
+            "server_egress": 13
+          },
+          "server_interface": {
+            "rx_bytes": 21784,
+            "rx_packets": 220,
+            "total_bytes": 42410,
+            "total_packets": 425,
+            "tx_bytes": 20626,
+            "tx_packets": 205
+          }
+        }
+      },
+      "zmosh": {
+        "latency": {
+          "max_us": 907666,
+          "n": 30,
+          "p50_us": 516,
+          "p95_us": 697427
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5626,
+            "rx_packets": 62,
+            "total_bytes": 11430,
+            "total_packets": 125,
+            "tx_bytes": 5804,
+            "tx_packets": 63
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.08,
+            "exit_status": 0,
+            "max_rss_kib": 2868,
+            "system_seconds": 0.06,
+            "user_seconds": 0.02
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 5,
+            "server_egress": 3
+          },
+          "server_interface": {
+            "rx_bytes": 5804,
+            "rx_packets": 63,
+            "total_bytes": 11430,
+            "total_packets": 125,
+            "tx_bytes": 5626,
+            "tx_packets": 62
+          }
+        }
+      }
+    },
+    "loss5-jitter25": {
+      "everssh": {
+        "latency": {
+          "max_us": 163436,
+          "n": 30,
+          "p50_us": 74884,
+          "p95_us": 160364
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 73613,
+            "rx_packets": 735,
+            "total_bytes": 151154,
+            "total_packets": 1520,
+            "tx_bytes": 77541,
+            "tx_packets": 785
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.060000000000000005,
+            "exit_status": 0,
+            "max_rss_kib": 12836,
+            "system_seconds": 0.01,
+            "user_seconds": 0.05
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 41,
+            "server_egress": 34
+          },
+          "server_interface": {
+            "rx_bytes": 77541,
+            "rx_packets": 785,
+            "total_bytes": 151154,
+            "total_packets": 1520,
+            "tx_bytes": 73613,
+            "tx_packets": 735
+          }
+        }
+      },
+      "everudp-quic-nopred": {
+        "latency": {
+          "max_us": 77349,
+          "n": 30,
+          "p50_us": 50180,
+          "p95_us": 59603
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 11959,
+            "rx_packets": 148,
+            "total_bytes": 24327,
+            "total_packets": 297,
+            "tx_bytes": 12368,
+            "tx_packets": 149
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.02,
+            "exit_status": 0,
+            "max_rss_kib": 5804,
+            "system_seconds": 0.01,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 7,
+            "server_egress": 4
+          },
+          "server_interface": {
+            "rx_bytes": 12368,
+            "rx_packets": 149,
+            "total_bytes": 24327,
+            "total_packets": 297,
+            "tx_bytes": 11959,
+            "tx_packets": 148
+          }
+        }
+      },
+      "everudp-quic-pred": {
+        "latency": {
+          "max_us": 76239,
+          "n": 30,
+          "p50_us": 50093,
+          "p95_us": 59614
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 11956,
+            "rx_packets": 148,
+            "total_bytes": 24345,
+            "total_packets": 297,
+            "tx_bytes": 12389,
+            "tx_packets": 149
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 5796,
+            "system_seconds": 0.0,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 7,
+            "server_egress": 4
+          },
+          "server_interface": {
+            "rx_bytes": 12389,
+            "rx_packets": 149,
+            "total_bytes": 24345,
+            "total_packets": 297,
+            "tx_bytes": 11956,
+            "tx_packets": 148
+          }
+        }
+      },
+      "everudp-udp-nopred": {
+        "latency": {
+          "max_us": 73091,
+          "n": 30,
+          "p50_us": 51382,
+          "p95_us": 66227
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 7213,
+            "rx_packets": 88,
+            "total_bytes": 14970,
+            "total_packets": 178,
+            "tx_bytes": 7757,
+            "tx_packets": 90
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 4072,
+            "system_seconds": 0.01,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 5,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 7757,
+            "rx_packets": 90,
+            "total_bytes": 14970,
+            "total_packets": 178,
+            "tx_bytes": 7213,
+            "tx_packets": 88
+          }
+        }
+      },
+      "everudp-udp-pred": {
+        "latency": {
+          "max_us": 67034,
+          "n": 30,
+          "p50_us": 50767,
+          "p95_us": 65711
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 7184,
+            "rx_packets": 88,
+            "total_bytes": 14908,
+            "total_packets": 178,
+            "tx_bytes": 7724,
+            "tx_packets": 90
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 3676,
+            "system_seconds": 0.01,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 5,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 7724,
+            "rx_packets": 90,
+            "total_bytes": 14908,
+            "total_packets": 178,
+            "tx_bytes": 7184,
+            "tx_packets": 88
+          }
+        }
+      },
+      "mosh": {
+        "latency": {
+          "max_us": 155608,
+          "n": 30,
+          "p50_us": 58652,
+          "p95_us": 114710
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 7202,
+            "rx_packets": 59,
+            "total_bytes": 11268,
+            "total_packets": 94,
+            "tx_bytes": 4066,
+            "tx_packets": 35
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.08,
+            "exit_status": 0,
+            "max_rss_kib": 16088,
+            "system_seconds": 0.03,
+            "user_seconds": 0.05
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 1,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 4066,
+            "rx_packets": 35,
+            "total_bytes": 11268,
+            "total_packets": 94,
+            "tx_bytes": 7202,
+            "tx_packets": 59
+          }
+        }
+      },
+      "ssh": {
+        "latency": {
+          "max_us": 157382,
+          "n": 30,
+          "p50_us": 62019,
+          "p95_us": 143020
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 29618,
+            "rx_packets": 287,
+            "total_bytes": 61198,
+            "total_packets": 607,
+            "tx_bytes": 31580,
+            "tx_packets": 320
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.06,
+            "exit_status": 0,
+            "max_rss_kib": 12896,
+            "system_seconds": 0.02,
+            "user_seconds": 0.04
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 14,
+            "server_egress": 12
+          },
+          "server_interface": {
+            "rx_bytes": 31580,
+            "rx_packets": 320,
+            "total_bytes": 61198,
+            "total_packets": 607,
+            "tx_bytes": 29618,
+            "tx_packets": 287
+          }
+        }
+      },
+      "zmosh": {
+        "latency": {
+          "max_us": 2050938,
+          "n": 30,
+          "p50_us": 51253,
+          "p95_us": 368959
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5532,
+            "rx_packets": 61,
+            "total_bytes": 11092,
+            "total_packets": 122,
+            "tx_bytes": 5560,
+            "tx_packets": 61
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.09000000000000001,
+            "exit_status": 0,
+            "max_rss_kib": 2836,
+            "system_seconds": 0.07,
+            "user_seconds": 0.02
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 4,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 5560,
+            "rx_packets": 61,
+            "total_bytes": 11092,
+            "total_packets": 122,
+            "tx_bytes": 5532,
+            "tx_packets": 61
+          }
+        }
+      }
+    },
+    "loss5-jitter50": {
+      "everssh": {
+        "latency": {
+          "max_us": 335850,
+          "n": 30,
+          "p50_us": 154954,
+          "p95_us": 304571
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 87898,
+            "rx_packets": 825,
+            "total_bytes": 181309,
+            "total_packets": 1728,
+            "tx_bytes": 93411,
+            "tx_packets": 903
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.060000000000000005,
+            "exit_status": 0,
+            "max_rss_kib": 12936,
+            "system_seconds": 0.01,
+            "user_seconds": 0.05
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 59,
+            "server_egress": 51
+          },
+          "server_interface": {
+            "rx_bytes": 93411,
+            "rx_packets": 903,
+            "total_bytes": 181309,
+            "total_packets": 1728,
+            "tx_bytes": 87898,
+            "tx_packets": 825
+          }
+        }
+      },
+      "everudp-quic-nopred": {
+        "latency": {
+          "max_us": 127194,
+          "n": 30,
+          "p50_us": 100801,
+          "p95_us": 125974
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 19169,
+            "rx_packets": 237,
+            "total_bytes": 39430,
+            "total_packets": 479,
+            "tx_bytes": 20261,
+            "tx_packets": 242
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.03,
+            "exit_status": 0,
+            "max_rss_kib": 5584,
+            "system_seconds": 0.01,
+            "user_seconds": 0.02
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 17,
+            "server_egress": 16
+          },
+          "server_interface": {
+            "rx_bytes": 20261,
+            "rx_packets": 242,
+            "total_bytes": 39430,
+            "total_packets": 479,
+            "tx_bytes": 19169,
+            "tx_packets": 237
+          }
+        }
+      },
+      "everudp-quic-pred": {
+        "latency": {
+          "max_us": 122171,
+          "n": 30,
+          "p50_us": 101183,
+          "p95_us": 108628
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 18717,
+            "rx_packets": 232,
+            "total_bytes": 38350,
+            "total_packets": 467,
+            "tx_bytes": 19633,
+            "tx_packets": 235
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.03,
+            "exit_status": 0,
+            "max_rss_kib": 5744,
+            "system_seconds": 0.0,
+            "user_seconds": 0.03
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 17,
+            "server_egress": 16
+          },
+          "server_interface": {
+            "rx_bytes": 19633,
+            "rx_packets": 235,
+            "total_bytes": 38350,
+            "total_packets": 467,
+            "tx_bytes": 18717,
+            "tx_packets": 232
+          }
+        }
+      },
+      "everudp-udp-nopred": {
+        "latency": {
+          "max_us": 158504,
+          "n": 30,
+          "p50_us": 101422,
+          "p95_us": 124432
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 11810,
+            "rx_packets": 145,
+            "total_bytes": 24838,
+            "total_packets": 297,
+            "tx_bytes": 13028,
+            "tx_packets": 152
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.02,
+            "exit_status": 0,
+            "max_rss_kib": 3828,
+            "system_seconds": 0.01,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 10,
+            "server_egress": 8
+          },
+          "server_interface": {
+            "rx_bytes": 13028,
+            "rx_packets": 152,
+            "total_bytes": 24838,
+            "total_packets": 297,
+            "tx_bytes": 11810,
+            "tx_packets": 145
+          }
+        }
+      },
+      "everudp-udp-pred": {
+        "latency": {
+          "max_us": 164665,
+          "n": 30,
+          "p50_us": 100268,
+          "p95_us": 123383
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 11677,
+            "rx_packets": 142,
+            "total_bytes": 24634,
+            "total_packets": 292,
+            "tx_bytes": 12957,
+            "tx_packets": 150
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 4024,
+            "system_seconds": 0.01,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 10,
+            "server_egress": 8
+          },
+          "server_interface": {
+            "rx_bytes": 12957,
+            "rx_packets": 150,
+            "total_bytes": 24634,
+            "total_packets": 292,
+            "tx_bytes": 11677,
+            "tx_packets": 142
+          }
+        }
+      },
+      "mosh": {
+        "latency": {
+          "max_us": 217883,
+          "n": 30,
+          "p50_us": 61611,
+          "p95_us": 205279
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 7173,
+            "rx_packets": 58,
+            "total_bytes": 11380,
+            "total_packets": 94,
+            "tx_bytes": 4207,
+            "tx_packets": 36
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.09,
+            "exit_status": 0,
+            "max_rss_kib": 16076,
+            "system_seconds": 0.03,
+            "user_seconds": 0.06
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 3,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 4207,
+            "rx_packets": 36,
+            "total_bytes": 11380,
+            "total_packets": 94,
+            "tx_bytes": 7173,
+            "tx_packets": 58
+          }
+        }
+      },
+      "ssh": {
+        "latency": {
+          "max_us": 337328,
+          "n": 30,
+          "p50_us": 131380,
+          "p95_us": 315745
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 36878,
+            "rx_packets": 323,
+            "total_bytes": 79196,
+            "total_packets": 734,
+            "tx_bytes": 42318,
+            "tx_packets": 411
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.06999999999999999,
+            "exit_status": 0,
+            "max_rss_kib": 12924,
+            "system_seconds": 0.01,
+            "user_seconds": 0.06
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 29,
+            "server_egress": 22
+          },
+          "server_interface": {
+            "rx_bytes": 42318,
+            "rx_packets": 411,
+            "total_bytes": 79196,
+            "total_packets": 734,
+            "tx_bytes": 36878,
+            "tx_packets": 323
+          }
+        }
+      },
+      "zmosh": {
+        "latency": {
+          "max_us": 617488,
+          "n": 30,
+          "p50_us": 102541,
+          "p95_us": 359611
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5720,
+            "rx_packets": 63,
+            "total_bytes": 11679,
+            "total_packets": 128,
+            "tx_bytes": 5959,
+            "tx_packets": 65
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.1,
+            "exit_status": 0,
+            "max_rss_kib": 2828,
+            "system_seconds": 0.06,
+            "user_seconds": 0.04
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 5,
+            "server_egress": 4
+          },
+          "server_interface": {
+            "rx_bytes": 5959,
+            "rx_packets": 65,
+            "total_bytes": 11679,
+            "total_packets": 128,
+            "tx_bytes": 5720,
+            "tx_packets": 63
+          }
+        }
+      }
+    },
+    "loss5-reorder2": {
+      "everssh": {
+        "latency": {
+          "max_us": 19260,
+          "n": 30,
+          "p50_us": 15615,
+          "p95_us": 18836
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 50861,
+            "rx_packets": 527,
+            "total_bytes": 102370,
+            "total_packets": 1061,
+            "tx_bytes": 51509,
+            "tx_packets": 534
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.05,
+            "exit_status": 0,
+            "max_rss_kib": 12836,
+            "system_seconds": 0.02,
+            "user_seconds": 0.03
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 12,
+            "server_egress": 32
+          },
+          "server_interface": {
+            "rx_bytes": 51407,
+            "rx_packets": 533,
+            "total_bytes": 102192,
+            "total_packets": 1059,
+            "tx_bytes": 50785,
+            "tx_packets": 526
+          }
+        }
+      },
+      "everudp-quic-nopred": {
+        "latency": {
+          "max_us": 23844,
+          "n": 30,
+          "p50_us": 2722,
+          "p95_us": 23744
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5030,
+            "rx_packets": 63,
+            "total_bytes": 10141,
+            "total_packets": 126,
+            "tx_bytes": 5111,
+            "tx_packets": 63
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 5748,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 4,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 5111,
+            "rx_packets": 63,
+            "total_bytes": 10141,
+            "total_packets": 126,
+            "tx_bytes": 5030,
+            "tx_packets": 63
+          }
+        }
+      },
+      "everudp-quic-pred": {
+        "latency": {
+          "max_us": 23676,
+          "n": 30,
+          "p50_us": 2692,
+          "p95_us": 3013
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5345,
+            "rx_packets": 66,
+            "total_bytes": 10662,
+            "total_packets": 131,
+            "tx_bytes": 5317,
+            "tx_packets": 65
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.01,
+            "exit_status": 0,
+            "max_rss_kib": 5688,
+            "system_seconds": 0.0,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 4,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 5317,
+            "rx_packets": 65,
+            "total_bytes": 10662,
+            "total_packets": 131,
+            "tx_bytes": 5345,
+            "tx_packets": 66
+          }
+        }
+      },
+      "everudp-udp-nopred": {
+        "latency": {
+          "max_us": 44622,
+          "n": 30,
+          "p50_us": 2489,
+          "p95_us": 23589
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2530,
+            "rx_packets": 31,
+            "total_bytes": 5196,
+            "total_packets": 62,
+            "tx_bytes": 2666,
+            "tx_packets": 31
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 3720,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 2,
+            "server_egress": 1
+          },
+          "server_interface": {
+            "rx_bytes": 2666,
+            "rx_packets": 31,
+            "total_bytes": 5196,
+            "total_packets": 62,
+            "tx_bytes": 2530,
+            "tx_packets": 31
+          }
+        }
+      },
+      "everudp-udp-pred": {
+        "latency": {
+          "max_us": 43479,
+          "n": 30,
+          "p50_us": 2472,
+          "p95_us": 23975
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 2460,
+            "rx_packets": 30,
+            "total_bytes": 5126,
+            "total_packets": 61,
+            "tx_bytes": 2666,
+            "tx_packets": 31
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.0,
+            "exit_status": 0,
+            "max_rss_kib": 3568,
+            "system_seconds": 0.0,
+            "user_seconds": 0.0
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 2,
+            "server_egress": 1
+          },
+          "server_interface": {
+            "rx_bytes": 2666,
+            "rx_packets": 31,
+            "total_bytes": 5126,
+            "total_packets": 61,
+            "tx_bytes": 2460,
+            "tx_packets": 30
+          }
+        }
+      },
+      "mosh": {
+        "latency": {
+          "max_us": 162523,
+          "n": 30,
+          "p50_us": 11929,
+          "p95_us": 111957
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 6607,
+            "rx_packets": 55,
+            "total_bytes": 10335,
+            "total_packets": 87,
+            "tx_bytes": 3728,
+            "tx_packets": 32
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.06999999999999999,
+            "exit_status": 0,
+            "max_rss_kib": 15880,
+            "system_seconds": 0.01,
+            "user_seconds": 0.06
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 2,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 3728,
+            "rx_packets": 32,
+            "total_bytes": 10335,
+            "total_packets": 87,
+            "tx_bytes": 6607,
+            "tx_packets": 55
+          }
+        }
+      },
+      "ssh": {
+        "latency": {
+          "max_us": 28713,
+          "n": 30,
+          "p50_us": 5430,
+          "p95_us": 25760
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 16418,
+            "rx_packets": 163,
+            "total_bytes": 33712,
+            "total_packets": 338,
+            "tx_bytes": 17294,
+            "tx_packets": 175
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.09,
+            "exit_status": 0,
+            "max_rss_kib": 12920,
+            "system_seconds": 0.01,
+            "user_seconds": 0.08
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 6,
+            "server_egress": 9
+          },
+          "server_interface": {
+            "rx_bytes": 17294,
+            "rx_packets": 175,
+            "total_bytes": 33712,
+            "total_packets": 338,
+            "tx_bytes": 16418,
+            "tx_packets": 163
+          }
+        }
+      },
+      "zmosh": {
+        "latency": {
+          "max_us": 457143,
+          "n": 30,
+          "p50_us": 2470,
+          "p95_us": 382979
+        },
+        "resources": {
+          "ceiling_pass": true,
+          "client_interface": {
+            "rx_bytes": 5610,
+            "rx_packets": 62,
+            "total_bytes": 11198,
+            "total_packets": 123,
+            "tx_bytes": 5588,
+            "tx_packets": 61
+          },
+          "client_process_tree": {
+            "cpu_seconds": 0.06999999999999999,
+            "exit_status": 0,
+            "max_rss_kib": 2828,
+            "system_seconds": 0.06,
+            "user_seconds": 0.01
+          },
+          "qdisc_drop_delta": {
+            "client_egress": 4,
+            "server_egress": 2
+          },
+          "server_interface": {
+            "rx_bytes": 5588,
+            "rx_packets": 61,
+            "total_bytes": 11198,
+            "total_packets": 123,
+            "tx_bytes": 5610,
+            "tx_packets": 62
+          }
+        }
+      }
+    }
+  },
+  "comparisons": {
+    "everudp_udp_predicted_vs_everssh_at_loss5": {
+      "bootstrap": {
+        "iterations": 20000,
+        "p50_ratio_ci95": [
+          0.10309498399146211,
+          0.22007042253521128
+        ],
+        "p50_ratio_upper95": 0.21258503401360543,
+        "p95_ratio_ci95": [
+          0.017232362975321863,
+          2.0429137428994224
+        ],
+        "p95_ratio_upper95": 1.8991346793876192,
+        "seed": 9015
+      },
+      "frozen_point_rule_pass": true,
+      "point": {
+        "p50_ratio": 0.15492518703241895,
+        "p95_ratio": 0.548198321587768
+      },
+      "thresholds": {
+        "p50_ratio_max": 0.5,
+        "p95_ratio_max": 0.67
+      }
+    },
+    "everudp_udp_predicted_vs_zmosh_at_loss5": {
+      "bootstrap": {
+        "iterations": 20000,
+        "p50_ratio_ci95": [
+          0.7914691943127962,
+          1.1247443762781186
+        ],
+        "p50_ratio_upper95": 1.0891089108910892,
+        "p95_ratio_ci95": [
+          0.0009922185404350563,
+          21.241071428571427
+        ],
+        "p95_ratio_upper95": 0.7022117940471894,
+        "seed": 9016
+      },
+      "frozen_point_rule_pass": true,
+      "point": {
+        "p50_ratio": 0.9631782945736435,
+        "p95_ratio": 0.03156459385713487
+      },
+      "thresholds": {
+        "p50_ratio_max": 1.1,
+        "p95_ratio_max": 1.15
+      }
+    },
+    "prediction_on_vs_off": {
+      "loss0": {
+        "quic": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              1.0365079365079366,
+              1.5883458646616542
+            ],
+            "p50_ratio_upper95": 1.523715415019763,
+            "p95_ratio_ci95": [
+              1.0786650774731823,
+              1.581294964028777
+            ],
+            "p95_ratio_upper95": 1.5690690690690692,
+            "seed": 9116
+          },
+          "point": {
+            "p50_ratio": 1.3454545454545455,
+            "p95_ratio": 1.2455303933253874
+          }
+        },
+        "udp": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.9028436018957346,
+              1.4517766497461928
+            ],
+            "p50_ratio_upper95": 1.319526627218935,
+            "p95_ratio_ci95": [
+              0.8838630806845966,
+              1.5555555555555556
+            ],
+            "p95_ratio_upper95": 1.5401069518716577,
+            "seed": 9115
+          },
+          "point": {
+            "p50_ratio": 1.0654911838790933,
+            "p95_ratio": 1.0597609561752988
+          }
+        }
+      },
+      "loss1": {
+        "quic": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.8717948717948718,
+              1.248868778280543
+            ],
+            "p50_ratio_upper95": 1.1504587155963302,
+            "p95_ratio_ci95": [
+              0.8413098236775819,
+              1.2428884026258207
+            ],
+            "p95_ratio_upper95": 1.2213209733487833,
+            "seed": 9118
+          },
+          "point": {
+            "p50_ratio": 0.9547511312217195,
+            "p95_ratio": 0.9732225300092336
+          }
+        },
+        "udp": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.906318082788671,
+              1.7178082191780821
+            ],
+            "p50_ratio_upper95": 1.6012084592145015,
+            "p95_ratio_ci95": [
+              0.9970059880239521,
+              1.3482142857142858
+            ],
+            "p95_ratio_upper95": 1.320469798657718,
+            "seed": 9117
+          },
+          "point": {
+            "p50_ratio": 1.3013698630136987,
+            "p95_ratio": 1.1302395209580838
+          }
+        }
+      },
+      "loss10": {
+        "quic": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              1.110738255033557,
+              1.7028688524590163
+            ],
+            "p50_ratio_upper95": 1.6285714285714286,
+            "p95_ratio_ci95": [
+              0.5227832070918258,
+              1.9417197746374804
+            ],
+            "p95_ratio_upper95": 1.9417197746374804,
+            "seed": 9122
+          },
+          "point": {
+            "p50_ratio": 1.289179104477612,
+            "p95_ratio": 1.0100140468530519
+          }
+        },
+        "udp": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.8,
+              1.5930232558139534
+            ],
+            "p50_ratio_upper95": 1.4930232558139536,
+            "p95_ratio_ci95": [
+              0.5035323289978478,
+              1.948148834623048
+            ],
+            "p95_ratio_upper95": 1.948148834623048,
+            "seed": 9121
+          },
+          "point": {
+            "p50_ratio": 1.2279909706546275,
+            "p95_ratio": 1.0016398669885664
+          }
+        }
+      },
+      "loss25": {
+        "quic": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.03360784500404627,
+              29.68451519536903
+            ],
+            "p50_ratio_upper95": 26.849246231155778,
+            "p95_ratio_ci95": [
+              0.6024638376765766,
+              1.6642432462268764
+            ],
+            "p95_ratio_upper95": 1.3390473780757797,
+            "seed": 9124
+          },
+          "point": {
+            "p50_ratio": 0.9764364259532536,
+            "p95_ratio": 0.9964517070323898
+          }
+        },
+        "udp": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.027449667639041653,
+              34.30707395498392
+            ],
+            "p50_ratio_upper95": 32.892638036809814,
+            "p95_ratio_ci95": [
+              0.497047810214694,
+              2.01559849198869
+            ],
+            "p95_ratio_upper95": 1.9812205466541,
+            "seed": 9123
+          },
+          "point": {
+            "p50_ratio": 0.9542052995717042,
+            "p95_ratio": 1.0041201535373454
+          }
+        }
+      },
+      "loss5": {
+        "quic": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.7469287469287469,
+              1.1538461538461537
+            ],
+            "p50_ratio_upper95": 1.12,
+            "p95_ratio_ci95": [
+              0.022712248559826235,
+              18.706911636045493
+            ],
+            "p95_ratio_upper95": 1.6634615384615385,
+            "seed": 9120
+          },
+          "point": {
+            "p50_ratio": 0.9057665260196905,
+            "p95_ratio": 0.07190025398291387
+          }
+        },
+        "udp": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.706408345752608,
+              1.0910815939278937
+            ],
+            "p50_ratio_upper95": 1.0529661016949152,
+            "p95_ratio_ci95": [
+              0.031065227592679493,
+              26.332535885167463
+            ],
+            "p95_ratio_upper95": 25.611244019138756,
+            "seed": 9119
+          },
+          "point": {
+            "p50_ratio": 0.9430740037950665,
+            "p95_ratio": 1.023954602539653
+          }
+        }
+      },
+      "loss5-jitter25": {
+        "quic": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.9564962591080464,
+              1.0410033013615674
+            ],
+            "p50_ratio_upper95": 1.0368640600363253,
+            "p95_ratio_ci95": [
+              0.7424401091158257,
+              1.37268635217861
+            ],
+            "p95_ratio_upper95": 1.3508691106897956,
+            "seed": 9126
+          },
+          "point": {
+            "p50_ratio": 0.9982662415304903,
+            "p95_ratio": 1.0001845544687349
+          }
+        },
+        "udp": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.9439270064685016,
+              1.0437183254126323
+            ],
+            "p50_ratio_upper95": 1.0355034338728464,
+            "p95_ratio_ci95": [
+              0.8034094484957108,
+              1.1613652113652113
+            ],
+            "p95_ratio_upper95": 1.1415677525927692,
+            "seed": 9125
+          },
+          "point": {
+            "p50_ratio": 0.988030827916391,
+            "p95_ratio": 0.9922086158213418
+          }
+        }
+      },
+      "loss5-jitter50": {
+        "quic": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.9671769902137201,
+              1.029741491687223
+            ],
+            "p50_ratio_upper95": 1.026062444028332,
+            "p95_ratio_ci95": [
+              0.8348349764926019,
+              0.984940220414547
+            ],
+            "p95_ratio_upper95": 0.9752925773953028,
+            "seed": 9128
+          },
+          "point": {
+            "p50_ratio": 1.0037896449439985,
+            "p95_ratio": 0.8623049200628701
+          }
+        },
+        "udp": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.9665773308814899,
+              1.0246779824244614
+            ],
+            "p50_ratio_upper95": 1.0220736856851247,
+            "p95_ratio_ci95": [
+              0.6757810528440923,
+              1.5105217774189998
+            ],
+            "p95_ratio_upper95": 1.3701759057398193,
+            "seed": 9127
+          },
+          "point": {
+            "p50_ratio": 0.9886217980319851,
+            "p95_ratio": 0.9915696926835541
+          }
+        }
+      },
+      "loss5-reorder2": {
+        "quic": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.9337517433751743,
+              1.0462169213566903
+            ],
+            "p50_ratio_upper95": 1.0384757676655567,
+            "p95_ratio_ci95": [
+              0.12133031370575406,
+              7.714565004887586
+            ],
+            "p95_ratio_upper95": 1.0230899830220712,
+            "seed": 9130
+          },
+          "point": {
+            "p50_ratio": 0.9889786921381337,
+            "p95_ratio": 0.12689521563342318
+          }
+        },
+        "udp": {
+          "bootstrap": {
+            "iterations": 20000,
+            "p50_ratio_ci95": [
+              0.9423151374370886,
+              1.043351396415173
+            ],
+            "p50_ratio_upper95": 1.0340864050733254,
+            "p95_ratio_ci95": [
+              0.062233875666711486,
+              15.920541926034419
+            ],
+            "p95_ratio_upper95": 15.920541926034419,
+            "seed": 9129
+          },
+          "point": {
+            "p50_ratio": 0.9931699477701889,
+            "p95_ratio": 1.016363559286108
+          }
+        }
+      }
+    }
+  },
+  "correction_convergence": {
+    "everudp_udp_predicted_loss5_p95_us": 22014,
+    "pass": true,
+    "threshold_us_exclusive": 300000
+  },
+  "matrix_manifest_sha256": {
+    "loss0": "b3edbe6e5599d6014d2f925f69c971599cc52d540054a5e8917b061c5d9326e8",
+    "loss1": "b7ec60ed176acf498392220c6c2073e81bd1d0ec324582e8e997100e00f98685",
+    "loss10": "aaed7588d739ce468386a91bdeff36ea4a6780c2c842f200ed9e41aff31e664a",
+    "loss25": "6ce60f5c259251d84f337ec39c45be20d9f1c21527e5d46a91b696a74e0142d7",
+    "loss5": "2a8299459143271187fa276e2d305583202cd1e2de051b3b84463423a5c5f764",
+    "loss5-jitter25": "5327dd50b42c51f6171a2d58a350679da15f18d17db019efea793eb3ac91352e",
+    "loss5-jitter50": "b788330557bd1e36b341cf1c474d5da978d4be9f4bdf5217ea72d7270bb96012",
+    "loss5-reorder2": "d1c2e3e5bd3e6172a01cd6848d01029ac36ecd4b8af080747febc030aef63c69"
+  },
+  "method": {
+    "bootstrap_iterations": 20000,
+    "quantile": "empirical nearest-rank ceil(p*n)-1",
+    "resource_ceilings": {
+      "client_cpu_seconds_per_candidate": 5.0,
+      "client_interface_bytes_per_trial": 65536,
+      "client_max_rss_kib": 131072
+    },
+    "uncertainty": "independent nonparametric bootstrap of each candidate's raw samples"
+  },
+  "schema_version": 1,
+  "source": {
+    "all_cells_clean_and_identical": true,
+    "head_sha": "9083ef07292acbf6ef55ce065968ecaf14d6a74d",
+    "tree_sha": "e7b0678cfc198a1a314341af0c4940547bf578b3"
+  },
+  "verdict": {
+    "all_preregistered_performance_thresholds_pass": true,
+    "all_resource_ceilings_pass": true,
+    "correction_convergence_pass": true,
+    "decision": "BUILD",
+    "everssh_frozen_point_rule_pass": true,
+    "exact_source_pass": true,
+    "measurement_integrity_pass": true,
+    "zmosh_frozen_point_rule_pass": true
+  }
+}
