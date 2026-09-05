@@ -9,6 +9,7 @@ OUTDIR=${1:?usage: resource-gate.sh OUTDIR}
 RUN_USER=${SUDO_USER:-$(stat -c %U "$ROOT")}
 IP=/usr/bin/ip
 TIME=/usr/bin/time
+TIME_FORMAT=$'user_seconds=%U\nsystem_seconds=%S\nmax_rss_kib=%M\nexit_status=%x'
 COUNT=10000
 PAYLOAD_BYTES=1200
 IDLE_SECONDS=5
@@ -110,7 +111,7 @@ sleep "$IDLE_SECONDS"
 snapshot idle-after
 
 snapshot hostile-before
-$IP netns exec "$CLIENT_NS" "$TIME" -v \
+$IP netns exec "$CLIENT_NS" "$TIME" -f "$TIME_FORMAT" \
     -o "$OUTDIR/resource-hostile-client.txt" \
     /usr/bin/python3 "$NET/hostile-flood.py" 10.244.0.1 60400 \
     --count "$COUNT" --size "$PAYLOAD_BYTES" >"$OUTDIR/hostile.json" \
