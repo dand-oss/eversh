@@ -4,7 +4,7 @@ set -Eeuo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
 NET=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 EVERUDP_BIN=${EVERUDP_BIN:-$ROOT/spikes/everudp/target/release/everudp-spike}
-EVERSSH_BIN=${EVERSSH_BIN:-$ROOT/target/release/eversh}
+EVERSH_BIN=${EVERSH_BIN:-$ROOT/target/release/eversh}
 ZMOSH_PREFIX=${ZMOSH_PREFIX:-/tmp/zmosh-059-out}
 ZMOSH_BIN=${ZMOSH_BIN:-$ZMOSH_PREFIX/bin/zmosh}
 ZMOSH_SOURCE_COMMIT=${ZMOSH_SOURCE_COMMIT:-dfc8395b5edcd237bf82712fbde879c6e8be7dfa}
@@ -32,7 +32,7 @@ fi
     echo "loss and reorder percentages must be at most 100" >&2
     exit 2
 }
-for executable in "$EVERUDP_BIN" "$EVERSSH_BIN" "$ZMOSH_BIN" \
+for executable in "$EVERUDP_BIN" "$EVERSH_BIN" "$ZMOSH_BIN" \
     /usr/bin/mosh-server /usr/bin/mosh-client /usr/bin/ssh /usr/sbin/sshd \
     /usr/bin/python3 /usr/bin/cc /usr/bin/tcpdump "$TIME"; do
     [[ -x $executable ]] || { echo "missing executable: $executable" >&2; exit 1; }
@@ -265,8 +265,8 @@ run_ssh_control() {
     local command=(ssh -F "$TMP/client_config" -tt bench "$remote_command")
     if [[ $mode == everssh ]]; then
         command=(
-            "$EVERSSH_BIN" ssh
-            --remote-eversh "$EVERSSH_BIN"
+            "$EVERSH_BIN" ssh
+            --remote-eversh "$EVERSH_BIN"
             bench -- "-F$TMP/client_config" -tt -- "$remote_command"
         )
     fi
@@ -535,7 +535,7 @@ PY
 python3 - "$OUTDIR" "$HEAD_SHA" "$TREE_SHA" "$DIRTY_JSON" \
     "$TRIALS" "$LOSS" "$DELAY_MS" "$REORDER_PCT" "$CELL" \
     "$STARTED_UTC" "$FINISHED_UTC" "$CLIENT_SEED" "$SERVER_SEED" \
-    "$EVERUDP_BIN" "$EVERSSH_BIN" "$ZMOSH_BIN" "$ZMOSH_BENCH" \
+    "$EVERUDP_BIN" "$EVERSH_BIN" "$ZMOSH_BIN" "$ZMOSH_BENCH" \
     "$ZMOSH_SOURCE_COMMIT" "$ZMOSH_SOURCE_TREE" <<'PY'
 import hashlib
 import json
