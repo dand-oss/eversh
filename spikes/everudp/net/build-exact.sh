@@ -52,7 +52,7 @@ ZMOSH_CACHE=$TMP/zmosh-cache
 ZIG_GLOBAL_CACHE=$TMP/zig-global-cache
 
 CARGO_TARGET_DIR=$ROOT_TARGET cargo build --locked --release \
-    --manifest-path "$ROOT/Cargo.toml" -p eversh \
+    --manifest-path "$ROOT/Cargo.toml" -p eversh --features cli \
     >"$OUTDIR/logs/eversh-build.stdout" 2>"$OUTDIR/logs/eversh-build.stderr"
 CARGO_TARGET_DIR=$SPIKE_TARGET cargo build --locked --release \
     --manifest-path "$ROOT/spikes/everudp/Cargo.toml" \
@@ -148,7 +148,7 @@ provenance = {
         "everudp_profile": "release",
         "zmosh_optimize": "ReleaseFast",
         "commands": [
-            "cargo build --locked --release -p eversh",
+            "cargo build --locked --release -p eversh --features cli",
             "cargo build --locked --release --manifest-path spikes/everudp/Cargo.toml",
             "zig build -Doptimize=ReleaseFast",
             "zig build lib -Doptimize=ReleaseFast",
