@@ -14,6 +14,10 @@ import time
 
 def main() -> int:
     port, key, trials, output = sys.argv[1:5]
+    if key == "-":
+        key = os.environ.get("MOSH_BENCH_KEY", "")
+    if not key:
+        raise SystemExit("missing Mosh benchmark key")
     gap = float(sys.argv[5]) if len(sys.argv) > 5 else 0.1
     host = sys.argv[6] if len(sys.argv) > 6 else "127.0.0.1"
     pid, master = pty.fork()

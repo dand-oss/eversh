@@ -78,6 +78,13 @@ int main(int argc, char **argv) {
     const char *host = argv[1];
     uint16_t port = (uint16_t)strtoul(argv[2], NULL, 10);
     const char *key = argv[3];
+    if (strcmp(key, "-") == 0) {
+        key = getenv("ZMOSH_BENCH_KEY");
+    }
+    if (key == NULL || key[0] == '\0') {
+        fprintf(stderr, "missing zmosh benchmark key\n");
+        return 2;
+    }
     int trials = atoi(argv[4]);
     int gap_ms = atoi(argv[5]);
     bench_ctx ctx = {0};
@@ -110,7 +117,7 @@ int main(int argc, char **argv) {
         ctx.expected = input;
         ctx.send_ns = now_ns();
         zmosh_send_input(session, &input, 1);
-        uint64_t deadline = now_ns() + 2000000000ull;
+        uint64_t deadline = now_ns() + 10000000000ull;
         while (now_ns() < deadline && ctx.echo_ns == 0) {
             struct pollfd pfd = {.fd = zmosh_get_fd(session), .events = POLLIN};
             poll(&pfd, 1, 20);

@@ -107,10 +107,10 @@ def verify_checksums(cell: Path) -> None:
 def load_time(path: Path) -> dict:
     fields = {}
     patterns = {
-        "user_seconds": r"^\s*User time \(seconds\): ([0-9.]+)$",
-        "system_seconds": r"^\s*System time \(seconds\): ([0-9.]+)$",
-        "max_rss_kib": r"^\s*Maximum resident set size \(kbytes\): ([0-9]+)$",
-        "exit_status": r"^\s*Exit status: ([0-9]+)$",
+        "user_seconds": r"^user_seconds=([0-9.]+)$",
+        "system_seconds": r"^system_seconds=([0-9.]+)$",
+        "max_rss_kib": r"^max_rss_kib=([0-9]+)$",
+        "exit_status": r"^exit_status=([0-9]+)$",
     }
     text = path.read_text(encoding="utf-8")
     for name, pattern in patterns.items():

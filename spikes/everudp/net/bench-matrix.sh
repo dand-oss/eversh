@@ -16,6 +16,7 @@ DELAY_MS=${4:-0}
 REORDER_PCT=${5:-0}
 RUN_USER=${SUDO_USER:-$(stat -c %U "$ROOT")}
 TIME=/usr/bin/time
+TIME_FORMAT=$'user_seconds=%U\nsystem_seconds=%S\nmax_rss_kib=%M\nexit_status=%x'
 if (( EUID != 0 )); then
     echo "benchmark matrix requires root network-namespace privileges" >&2
     exit 2
@@ -266,7 +267,7 @@ run_ssh_control() {
     clear_impairment
     $IP netns exec "$CLIENT_NS" /usr/bin/env \
         EVERUDP_BENCH_READY_FILE="$ready" EVERUDP_BENCH_GO_FILE="$go" \
-        "$TIME" -v \
+        "$TIME" -f "$TIME_FORMAT" \
         -o "$OUTDIR/resource-$mode-client.txt" \
         /usr/bin/python3 "$NET/drive-ssh.py" \
         "$OUTDIR/${mode}-${CELL}.json" "$TRIALS" 0.10 \
@@ -324,7 +325,7 @@ run_everudp_udp() {
     kill -0 "$udp_server" 2>/dev/null || { cat "$OUTDIR/$label-server.stderr" >&2; exit 1; }
     $IP netns exec "$CLIENT_NS" /usr/bin/env \
         EVERUDP_BENCH_READY_FILE="$ready" EVERUDP_BENCH_GO_FILE="$go" \
-        "$TIME" -v -o "$OUTDIR/resource-$label-client.txt" \
+        "$TIME" -f "$TIME_FORMAT" -o "$OUTDIR/resource-$label-client.txt" \
         "$SPIKE/everudp-spike" bench \
         --transport udp --prediction "$prediction" --trials "$TRIALS" \
         --server 10.241.0.1:60200 >"$OUTDIR/$name.json" \
@@ -362,7 +363,7 @@ run_everudp_quic() {
     [[ ${#spki} == 64 ]] || { cat "$OUTDIR/$label-server.stderr" >&2; exit 1; }
     $IP netns exec "$CLIENT_NS" /usr/bin/env \
         EVERUDP_BENCH_READY_FILE="$ready" EVERUDP_BENCH_GO_FILE="$go" \
-        "$TIME" -v -o "$OUTDIR/resource-$label-client.txt" \
+        "$TIME" -f "$TIME_FORMAT" -o "$OUTDIR/resource-$label-client.txt" \
         "$SPIKE/everudp-spike" bench \
         --transport quic --prediction "$prediction" --trials "$TRIALS" \
         --server 10.241.0.1:60201 --spki-hex "$spki" \
@@ -395,12 +396,12 @@ run_mosh() {
         2>"$OUTDIR/mosh-tcpdump.stderr" &
     local tdump=$!
     sleep 0.3
-    $IP netns exec "$CLIENT_NS" /usr/bin/env \
+    MOSH_BENCH_KEY=$key $IP netns exec "$CLIENT_NS" /usr/bin/env \
         EVERUDP_BENCH_READY_FILE="$ready" EVERUDP_BENCH_GO_FILE="$go" \
-        "$TIME" -v \
+        "$TIME" -f "$TIME_FORMAT" \
         -o "$OUTDIR/resource-mosh-client.txt" \
         /usr/bin/python3 "$NET/drive-mosh.py" \
-        "$actual_port" "$key" "$TRIALS" "$OUTDIR/mosh-events.json" \
+        "$actual_port" - "$TRIALS" "$OUTDIR/mosh-events.json" \
         0.10 10.241.0.1 2>"$OUTDIR/mosh-client.stderr" &
     local client_pid=$!
     wait_for_ready "$label" "$client_pid" "$ready"
@@ -446,11 +447,11 @@ run_zmosh() {
     done
     read -r _ _ zport zkey <"$TMP/zmosh-connect.txt"
     [[ -n ${zkey:-} ]] || { cat "$OUTDIR/zmosh-server.stderr" >&2; exit 1; }
-    $IP netns exec "$CLIENT_NS" /usr/bin/env \
+    ZMOSH_BENCH_KEY=$zkey $IP netns exec "$CLIENT_NS" /usr/bin/env \
         EVERUDP_BENCH_READY_FILE="$ready" EVERUDP_BENCH_GO_FILE="$go" \
-        "$TIME" -v \
+        "$TIME" -f "$TIME_FORMAT" \
         -o "$OUTDIR/resource-zmosh-client.txt" \
-        "$TMP/zmosh-bench" 10.241.0.1 "$zport" "$zkey" "$TRIALS" 100 \
+        "$TMP/zmosh-bench" 10.241.0.1 "$zport" - "$TRIALS" 100 \
         >"$TMP/zmosh-samples.json" 2>"$OUTDIR/zmosh-client.stderr" &
     local client_pid=$!
     wait_for_ready "$label" "$client_pid" "$ready"
