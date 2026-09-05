@@ -1,0 +1,73 @@
+{
+  "artifacts": {
+    "everudp": {
+      "path": "/tmp/everudp-final-7d4a432.G57FW8/final/build/artifacts/bin/everudp-spike",
+      "sha256": "0a781d1785254147f61f90dbda02ce17164278f69e543ba85c1b54c6b85cce30"
+    },
+    "zmosh": {
+      "path": "/tmp/everudp-final-7d4a432.G57FW8/final/build/artifacts/bin/zmosh",
+      "sha256": "f2d7b1a2badc58f7fee1d5d17c56f58e3648972c1935dbcf59b35eccf1dab887",
+      "source_commit": "dfc8395b5edcd237bf82712fbde879c6e8be7dfa",
+      "source_tree": "1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514"
+    },
+    "zmosh_bench": {
+      "sha256": "e7081c213129299b06c6d879c1b4ac73b7f981d6cebc1715ff9875b011089b10",
+      "source": "spikes/everudp/net/zmosh-bench.c"
+    }
+  },
+  "command": [
+    "spikes/everudp/net/bench-parity.sh",
+    100,
+    13001,
+    "/tmp/everudp-final-7d4a432.G57FW8/final/parity/block-13001",
+    "everudp-first"
+  ],
+  "finished_utc": "2026-09-05T03:21:30Z",
+  "host": {
+    "cpu_model": "Intel(R) Xeon(R) CPU E5-2697 v2 @ 2.70GHz",
+    "kernel": "Linux 7.1.8+deb14.1-amd64 x86_64 GNU/Linux"
+  },
+  "inter_trial_ms": 100,
+  "loss": {
+    "client_seed": 13001,
+    "kind": "symmetric independent netem random loss",
+    "observed_drop_delta": {
+      "everudp": {
+        "client_egress": 2,
+        "server_egress": 6
+      },
+      "zmosh": {
+        "client_egress": 9,
+        "server_egress": 8
+      }
+    },
+    "percent_each_direction": 5,
+    "reset_before_each_candidate": true,
+    "server_seed": 1013004
+  },
+  "netem_receipts": {
+    "netem-everudp-client-after.txt": "2adda08efec2a686b3ed66d4dc7dfc3fdb54337ec407f5b24e08687053ef65cd",
+    "netem-everudp-client-before.txt": "9af758e9e074e31326c59afbf07f512c20723e6d351e1fc22c6a83a3bc055fcb",
+    "netem-everudp-server-after.txt": "b9b8460546763c163c340266767021b8c86f3466bffb5f44f53415e6aa2cdf15",
+    "netem-everudp-server-before.txt": "f9a20a8c62003324e432e9cf9df846c45393ae969b54a206300164bfdee8e6b5",
+    "netem-zmosh-client-after.txt": "5e26f8f3fbd46ae16eed9b152faa5e1da4f3a9ef3279c45a112c794b44b77de1",
+    "netem-zmosh-client-before.txt": "2adda08efec2a686b3ed66d4dc7dfc3fdb54337ec407f5b24e08687053ef65cd",
+    "netem-zmosh-server-after.txt": "fee6e53c6b9a87c41fa3c00effb36b7aae2aa33ead5aaf8d87dde125c32cbb45",
+    "netem-zmosh-server-before.txt": "b9b8460546763c163c340266767021b8c86f3466bffb5f44f53415e6aa2cdf15"
+  },
+  "order": "everudp-first",
+  "results": {
+    "everudp.json": "9a06c35fae421e2d3df1e9c945a23c88e9116d033b5faaaa8edaccab84ee2644",
+    "zmosh.json": "4b9cc5f4490243a4befc96f6343983c129b675b97255ee81ced64e77d27fb44f"
+  },
+  "schema_version": 2,
+  "source": {
+    "dirty": false,
+    "head_sha": "7d4a43244f0287dddd3d01231994b375f2113c0e",
+    "tree_sha": "47cdeea34120cad4b88b991f4a8098f4d349ee5c"
+  },
+  "started_utc": "2026-09-05T03:21:08Z",
+  "topology": "two Linux network namespaces joined by one veth pair",
+  "trials_per_candidate": 100,
+  "workload": "rotating one-byte printable input through Python echo1.py on a real PTY"
+}

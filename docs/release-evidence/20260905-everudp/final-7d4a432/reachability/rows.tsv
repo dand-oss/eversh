@@ -1,0 +1,11 @@
+environment	successes	attempts	minimum	verdict	note
+direct-ipv4	20	20	19	PASS	independent one-association processes
+direct-ipv6	20	20	19	PASS	independent one-association processes
+udp-blocked	20	20	20	PASS	exact handshake-timeout diagnostic below 3000ms
+full-cone	20	20	19	PASS	independent one-association processes
+restricted-cone	20	20	19	PASS	independent one-association processes
+port-restricted-cone	20	20	19	PASS	independent one-association processes
+symmetric	20	20	18	PASS	independent one-association processes
+zerotier	20	20	18	PASS	distinct hosts badger to bugger over zt3middjio/zt3middjio
+tailscale	0	20	18	UNAVAILABLE	fewer than two running peers: local=MISSING,bugger.a=STOPPED,bagger.a=MISSING
+everssh-fallback	1	1	1	PASS	exactly 1 transition after 20/20 diagnosed UDP failures

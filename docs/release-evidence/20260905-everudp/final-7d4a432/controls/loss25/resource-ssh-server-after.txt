@@ -1,0 +1,8 @@
+pid=1980058
+Name:	sshd
+VmPeak:	   11988 kB
+VmHWM:	    7660 kB
+VmRSS:	    7660 kB
+Threads:	1
+user_ticks=0
+system_ticks=1

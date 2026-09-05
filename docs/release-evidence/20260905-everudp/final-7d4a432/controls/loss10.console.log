@@ -1,0 +1,9 @@
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss10/everssh-loss10.json {"trials": 30, "nonzero": 30, "median_us": 16104, "p95_us": 50981, "max_us": 95372}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss10/everudp-quic-nopred-loss10.json {"median_us": 676, "p95_us": 21882}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss10/everudp-quic-pred-loss10.json {"median_us": 673, "p95_us": 22059}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss10/everudp-udp-nopred-loss10.json {"median_us": 536, "p95_us": 21581}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss10/everudp-udp-pred-loss10.json {"median_us": 591, "p95_us": 21763}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss10/mosh-loss10.json {"trials": 30, "nonzero": 30, "median_us": 10072, "p95_us": 110300, "max_us": 160027}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss10/ssh-loss10.json {"trials": 30, "nonzero": 30, "median_us": 17495, "p95_us": 267198, "max_us": 392902}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss10/zmosh-loss10.json {"trials": 30, "nonzero": 30, "median_us": 352, "p95_us": 842509, "max_us": 2007435}
+matrix cell complete: loss10 (/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss10)

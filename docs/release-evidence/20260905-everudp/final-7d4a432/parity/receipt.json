@@ -1,0 +1,27 @@
+{
+  "analysis_sha256": "4aa4c82e264c3db95448f5f8effc5ef4be45abec1ec70441f6977cf7e751e2b1",
+  "blocks": {
+    "block-13001": "26d618371312953b14744f6f71f9da3d250dd14a7a4ff66e78eb68e88f247c25",
+    "block-13002": "9ce9f5795a3dc613be086ba381b5b9029f0e8d83260c9fd562db0ff2339f365d",
+    "block-13003": "399dbb2e13f17528103112039e0e5d1aa92994ad0bdf37515a1602ee8e5c1771",
+    "block-13004": "3f93396350aed960d8dbe7e6623c3629c9cc5235621816fb61fbbe92459697a2",
+    "block-13005": "6df3c505b0c4c416be10cf153be8d8b9300ea13784cd5e70a158511b57d0eefa",
+    "block-13006": "f52e4758a643822000c015f61f800dabaf46a0bed33a5628f21e207c4a1c5be7"
+  },
+  "finished_utc": "2026-09-05T03:23:32Z",
+  "schema_version": 1,
+  "sealing_note": "Raw blocks completed; receipt sealed after the registered analyzer rejected performance parity.",
+  "source": {
+    "clean": true,
+    "head_sha": "7d4a43244f0287dddd3d01231994b375f2113c0e",
+    "tree_sha": "47cdeea34120cad4b88b991f4a8098f4d349ee5c"
+  },
+  "started_utc": "2026-09-05T03:21:08Z",
+  "trials_per_candidate_per_block": 100,
+  "verdict": {
+    "conservative_upper95_equivalence_pass": false,
+    "exact_sha_evidence_pass": true,
+    "observed_loss_evidence_pass": true,
+    "preregistered_point_rule_pass": false
+  }
+}

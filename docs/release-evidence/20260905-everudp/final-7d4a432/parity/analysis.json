@@ -1,0 +1,127 @@
+{
+  "blocks": [
+    {
+      "everudp_p50_us": 436,
+      "everudp_p95_us": 21369,
+      "manifest_sha256": "26d618371312953b14744f6f71f9da3d250dd14a7a4ff66e78eb68e88f247c25",
+      "order": "everudp-first",
+      "p50_ratio": 1.217877094972067,
+      "p95_ratio": 29.073469387755104,
+      "path": "block-13001",
+      "seed": 13001,
+      "zmosh_p50_us": 358,
+      "zmosh_p95_us": 735
+    },
+    {
+      "everudp_p50_us": 403,
+      "everudp_p95_us": 21344,
+      "manifest_sha256": "9ce9f5795a3dc613be086ba381b5b9029f0e8d83260c9fd562db0ff2339f365d",
+      "order": "zmosh-first",
+      "p50_ratio": 1.1320224719101124,
+      "p95_ratio": 0.42329889137893423,
+      "path": "block-13002",
+      "seed": 13002,
+      "zmosh_p50_us": 356,
+      "zmosh_p95_us": 50423
+    },
+    {
+      "everudp_p50_us": 487,
+      "everudp_p95_us": 873,
+      "manifest_sha256": "399dbb2e13f17528103112039e0e5d1aa92994ad0bdf37515a1602ee8e5c1771",
+      "order": "everudp-first",
+      "p50_ratio": 1.3565459610027855,
+      "p95_ratio": 0.014384814381518892,
+      "path": "block-13003",
+      "seed": 13003,
+      "zmosh_p50_us": 359,
+      "zmosh_p95_us": 60689
+    },
+    {
+      "everudp_p50_us": 446,
+      "everudp_p95_us": 21314,
+      "manifest_sha256": "3f93396350aed960d8dbe7e6623c3629c9cc5235621816fb61fbbe92459697a2",
+      "order": "zmosh-first",
+      "p50_ratio": 1.2492997198879552,
+      "p95_ratio": 0.3502884283530823,
+      "path": "block-13004",
+      "seed": 13004,
+      "zmosh_p50_us": 357,
+      "zmosh_p95_us": 60847
+    },
+    {
+      "everudp_p50_us": 474,
+      "everudp_p95_us": 21378,
+      "manifest_sha256": "6df3c505b0c4c416be10cf153be8d8b9300ea13784cd5e70a158511b57d0eefa",
+      "order": "everudp-first",
+      "p50_ratio": 1.3819241982507289,
+      "p95_ratio": 0.352109892281846,
+      "path": "block-13005",
+      "seed": 13005,
+      "zmosh_p50_us": 343,
+      "zmosh_p95_us": 60714
+    },
+    {
+      "everudp_p50_us": 457,
+      "everudp_p95_us": 21259,
+      "manifest_sha256": "f52e4758a643822000c015f61f800dabaf46a0bed33a5628f21e207c4a1c5be7",
+      "order": "zmosh-first",
+      "p50_ratio": 1.258953168044077,
+      "p95_ratio": 0.4201798596699279,
+      "path": "block-13006",
+      "seed": 13006,
+      "zmosh_p50_us": 363,
+      "zmosh_p95_us": 50595
+    }
+  ],
+  "method": {
+    "loss_evidence": "hash-bound before/after qdisc counters with positive drop deltas on both egress paths",
+    "quantile": "empirical nearest-rank ceil(p*n)-1, applied identically to both candidates",
+    "thresholds": {
+      "p50_ratio_max": 1.1,
+      "p95_ratio_max": 1.15
+    },
+    "uncertainty": "stratified independent nonparametric bootstrap within each run block"
+  },
+  "pooled": {
+    "everudp_n": 600,
+    "everudp_p50_us": 456,
+    "everudp_p95_us": 21315,
+    "p50_ratio": 1.2773109243697478,
+    "p95_ratio": 0.35121685972746297,
+    "probability_everudp_faster": 0.3532263888888889,
+    "zmosh_n": 600,
+    "zmosh_p50_us": 357,
+    "zmosh_p95_us": 60689
+  },
+  "schema_version": 1,
+  "source": {
+    "all_blocks_clean": true,
+    "artifact_sha256": {
+      "everudp": "0a781d1785254147f61f90dbda02ce17164278f69e543ba85c1b54c6b85cce30",
+      "zmosh": "f2d7b1a2badc58f7fee1d5d17c56f58e3648972c1935dbcf59b35eccf1dab887",
+      "zmosh_bench": "e7081c213129299b06c6d879c1b4ac73b7f981d6cebc1715ff9875b011089b10"
+    },
+    "head_sha": "7d4a43244f0287dddd3d01231994b375f2113c0e",
+    "tree_sha": "47cdeea34120cad4b88b991f4a8098f4d349ee5c"
+  },
+  "uncertainty": {
+    "iterations": 20000,
+    "p50_ratio_ci95": [
+      1.2144846796657383,
+      1.3380281690140845
+    ],
+    "p50_ratio_upper95": 1.3276353276353277,
+    "p95_ratio_ci95": [
+      0.33689099713410414,
+      0.4233863793614708
+    ],
+    "p95_ratio_upper95": 0.4227081847714127,
+    "seed": 9015
+  },
+  "verdict": {
+    "conservative_upper95_equivalence_pass": false,
+    "exact_sha_evidence_pass": true,
+    "observed_loss_evidence_pass": true,
+    "preregistered_point_rule_pass": false
+  }
+}

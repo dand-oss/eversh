@@ -1,0 +1,2 @@
+everudp-spike udp-pty-server 10.241.0.1:60200
+everudp-spike association=123413ae peer=10.241.0.2:49619

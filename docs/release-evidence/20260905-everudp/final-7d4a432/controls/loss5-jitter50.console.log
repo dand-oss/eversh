@@ -1,0 +1,9 @@
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss5-jitter50/everssh-loss5-jitter50.json {"trials": 30, "nonzero": 30, "median_us": 157028, "p95_us": 357214, "max_us": 370246}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss5-jitter50/everudp-quic-nopred-loss5-jitter50.json {"median_us": 102647, "p95_us": 121243}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss5-jitter50/everudp-quic-pred-loss5-jitter50.json {"median_us": 100244, "p95_us": 121275}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss5-jitter50/everudp-udp-nopred-loss5-jitter50.json {"median_us": 100919, "p95_us": 123347}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss5-jitter50/everudp-udp-pred-loss5-jitter50.json {"median_us": 100705, "p95_us": 123307}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss5-jitter50/mosh-loss5-jitter50.json {"trials": 30, "nonzero": 30, "median_us": 60942, "p95_us": 205158, "max_us": 217946}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss5-jitter50/ssh-loss5-jitter50.json {"trials": 30, "nonzero": 30, "median_us": 162527, "p95_us": 275609, "max_us": 320447}
+/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss5-jitter50/zmosh-loss5-jitter50.json {"trials": 30, "nonzero": 30, "median_us": 100180, "p95_us": 328157, "max_us": 358585}
+matrix cell complete: loss5-jitter50 (/tmp/everudp-final-7d4a432.G57FW8/final/controls/loss5-jitter50)

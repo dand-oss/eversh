@@ -1,0 +1,11 @@
+{
+  "finished_utc": "2026-09-05T03:29:43Z",
+  "qualification_exit": 1,
+  "qualification_result": "REGISTERED_PERFORMANCE_GATE_FAILED",
+  "source": {
+    "clean": true,
+    "head_sha": "7d4a43244f0287dddd3d01231994b375f2113c0e",
+    "tree_sha": "47cdeea34120cad4b88b991f4a8098f4d349ee5c"
+  },
+  "started_utc": "2026-09-05T03:10:25Z"
+}
