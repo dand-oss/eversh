@@ -6,6 +6,7 @@ ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
 NET=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 OUTROOT=${1:?usage: qualify-final.sh OUTROOT}
 RUN_USER=${SUDO_USER:-$(stat -c %U "$ROOT")}
+CALLER_SSH_AUTH_SOCK=${SSH_AUTH_SOCK:-}
 
 if (( EUID != 0 )); then
     echo "final qualification requires root network-namespace privileges" >&2
@@ -14,7 +15,12 @@ fi
 [[ ! -e $OUTROOT ]] || { echo "refusing to overwrite final output: $OUTROOT" >&2; exit 1; }
 
 run_user() {
-    /usr/bin/sudo -n -H -u "$RUN_USER" "$@"
+    if [[ -n $CALLER_SSH_AUTH_SOCK ]]; then
+        /usr/bin/sudo -n -H -u "$RUN_USER" /usr/bin/env \
+            SSH_AUTH_SOCK="$CALLER_SSH_AUTH_SOCK" "$@"
+    else
+        /usr/bin/sudo -n -H -u "$RUN_USER" "$@"
+    fi
 }
 
 HEAD_SHA=$(run_user git -C "$ROOT" rev-parse HEAD)
@@ -42,6 +48,36 @@ export ZMOSH_BIN=$BUILD_ARTIFACTS/bin/zmosh
 export ZMOSH_BENCH_BIN=$BUILD_ARTIFACTS/bin/zmosh-bench
 export ZMOSH_SOURCE_COMMIT=dfc8395b5edcd237bf82712fbde879c6e8be7dfa
 export ZMOSH_SOURCE_TREE=1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514
+
+STAGE_HOST=${EVERUDP_STAGE_HOST:-}
+if [[ -n $STAGE_HOST ]]; then
+    STAGE_ADDR=${EVERUDP_STAGE_ZT_ADDR:?EVERUDP_STAGE_ZT_ADDR is required with EVERUDP_STAGE_HOST}
+    STAGE_DIR=${EVERUDP_STAGE_DIR:-/tmp/everudp-final-$HEAD_SHA}
+    [[ $STAGE_HOST =~ ^[A-Za-z0-9._-]+$ ]] || { echo "unsafe stage host" >&2; exit 1; }
+    [[ $STAGE_ADDR =~ ^[0-9A-Fa-f:.]+$ ]] || { echo "unsafe stage address" >&2; exit 1; }
+    [[ $STAGE_DIR =~ ^/[A-Za-z0-9._/+:-]+$ ]] || { echo "unsafe stage directory" >&2; exit 1; }
+    run_user /usr/bin/ssh -oBatchMode=yes -oConnectTimeout=5 "$STAGE_HOST" \
+        "umask 077; mkdir -p '$STAGE_DIR'"
+    run_user /usr/bin/scp -q -oBatchMode=yes -oConnectTimeout=5 \
+        "$EVERUDP_BIN" "$STAGE_HOST:$STAGE_DIR/everudp-spike"
+    run_user /usr/bin/scp -q -oBatchMode=yes -oConnectTimeout=5 \
+        "$EVERSH_BIN" "$STAGE_HOST:$STAGE_DIR/eversh"
+    run_user /usr/bin/ssh -oBatchMode=yes -oConnectTimeout=5 "$STAGE_HOST" \
+        "chmod 700 '$STAGE_DIR/everudp-spike' '$STAGE_DIR/eversh'; /usr/bin/sha256sum '$STAGE_DIR/everudp-spike' '$STAGE_DIR/eversh'" \
+        >"$OUTROOT/build/remote-stage.sha256"
+    REMOTE_EVERUDP_SHA=$(sed -n '1s/[[:space:]].*//p' "$OUTROOT/build/remote-stage.sha256")
+    REMOTE_EVERSH_SHA=$(sed -n '2s/[[:space:]].*//p' "$OUTROOT/build/remote-stage.sha256")
+    [[ $REMOTE_EVERUDP_SHA == $(sha256sum "$EVERUDP_BIN" | awk '{print $1}') \
+        && $REMOTE_EVERSH_SHA == $(sha256sum "$EVERSH_BIN" | awk '{print $1}') ]] || {
+        echo "remote staged artifact hash mismatch" >&2
+        exit 1
+    }
+    export EVERUDP_ZT_PEER_HOST=$STAGE_HOST
+    export EVERUDP_ZT_PEER_ADDR=$STAGE_ADDR
+    export EVERUDP_ZT_REMOTE_BIN=$STAGE_DIR/everudp-spike
+    export EVERUDP_FALLBACK_HOST=$STAGE_HOST
+    export EVERUDP_FALLBACK_REMOTE_EVERSH=$STAGE_DIR/eversh
+fi
 
 python3 - "$OUTROOT/source.json" "$HEAD_SHA" "$TREE_SHA" "$STARTED_UTC" <<'PY'
 import json
