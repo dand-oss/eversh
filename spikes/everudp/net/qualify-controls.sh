@@ -97,8 +97,8 @@ def verify_directory(path):
 analysis = json.loads((outroot / "analysis.json").read_text(encoding="utf-8"))
 if analysis["source"]["head_sha"] != head or analysis["source"]["tree_sha"] != tree:
     raise SystemExit("matrix analysis source identity mismatch")
-if not analysis["verdict"]["matrix_pass"]:
-    raise SystemExit("matrix analysis did not pass")
+if not analysis["verdict"]["measurement_integrity_pass"]:
+    raise SystemExit("matrix measurement integrity did not pass")
 
 cell_manifests = {}
 for cell in cells:
@@ -134,9 +134,13 @@ receipt = {
     "analysis_sha256": digest(outroot / "analysis.json"),
     "child_gates": child_gates,
     "verdict": {
-        "matrix_pass": True,
+        "measurement_integrity_pass": True,
         "resource_gate_pass": True,
         "outage_gate_pass": True,
+        "all_preregistered_performance_thresholds_pass": analysis["verdict"][
+            "all_preregistered_performance_thresholds_pass"
+        ],
+        "decision": analysis["verdict"]["decision"],
         "control_qualification_pass": True,
     },
 }

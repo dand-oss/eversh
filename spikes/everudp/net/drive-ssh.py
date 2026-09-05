@@ -11,7 +11,9 @@ import time
 def drain(stdout, seconds):
     deadline = time.time() + seconds
     while time.time() < deadline:
-        readable, _, _ = select.select([stdout], [], [], 0)
+        readable, _, _ = select.select(
+            [stdout], [], [], min(0.05, max(0, deadline - time.time()))
+        )
         if not readable:
             continue
         data = os.read(stdout, 4096)
@@ -24,7 +26,9 @@ def wait_for(stdout, needle, seconds):
     buffer = b""
     deadline = time.time() + seconds
     while time.time() < deadline:
-        readable, _, _ = select.select([stdout], [], [], 0)
+        readable, _, _ = select.select(
+            [stdout], [], [], min(0.05, max(0, deadline - time.time()))
+        )
         if not readable:
             continue
         data = os.read(stdout, 4096)
@@ -93,7 +97,12 @@ def main() -> int:
             echo_t = None
             deadline = time.time() + trial_timeout
             while time.time() < deadline:
-                readable, _, _ = select.select([proc.stdout.fileno()], [], [], 0)
+                readable, _, _ = select.select(
+                    [proc.stdout.fileno()],
+                    [],
+                    [],
+                    min(0.05, max(0, deadline - time.time())),
+                )
                 if not readable:
                     continue
                 data = os.read(proc.stdout.fileno(), 4096)
@@ -104,7 +113,12 @@ def main() -> int:
             events.append({"t": t0, "kind": "key", "echo_t": echo_t or 0})
             deadline = time.time() + gap
             while time.time() < deadline:
-                readable, _, _ = select.select([proc.stdout.fileno()], [], [], 0)
+                readable, _, _ = select.select(
+                    [proc.stdout.fileno()],
+                    [],
+                    [],
+                    min(0.01, max(0, deadline - time.time())),
+                )
                 if not readable:
                     continue
                 os.read(proc.stdout.fileno(), 4096)

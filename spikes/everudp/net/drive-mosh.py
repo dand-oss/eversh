@@ -70,7 +70,9 @@ def main() -> int:
         os.write(master, b"k")
         deadline = time.time() + gap
         while time.time() < deadline:
-            readable, _, _ = select.select([master], [], [], 0)
+            readable, _, _ = select.select(
+                [master], [], [], min(0.01, max(0, deadline - time.time()))
+            )
             if not readable:
                 continue
             try:

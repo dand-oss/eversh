@@ -294,6 +294,12 @@ def main() -> None:
     )
     correction_p95_us = loss5["everudp-udp-pred"]["latency"]["p95_us"]
     correction_pass = correction_p95_us < 300_000
+    performance_pass = (
+        everssh["frozen_point_rule_pass"]
+        and zmosh["frozen_point_rule_pass"]
+        and correction_pass
+    )
+    measurement_integrity_pass = exact_source_pass and resource_pass
     matrix_receipts = {
         cell_name: digest(args.matrix_root / cell_name / "manifest.json")
         for cell_name in CELLS
@@ -339,18 +345,18 @@ def main() -> None:
         "verdict": {
             "exact_source_pass": exact_source_pass,
             "all_resource_ceilings_pass": resource_pass,
+            "measurement_integrity_pass": measurement_integrity_pass,
             "everssh_frozen_point_rule_pass": everssh["frozen_point_rule_pass"],
             "zmosh_frozen_point_rule_pass": zmosh["frozen_point_rule_pass"],
             "correction_convergence_pass": correction_pass,
-            "matrix_pass": exact_source_pass
-            and resource_pass
-            and everssh["frozen_point_rule_pass"]
-            and zmosh["frozen_point_rule_pass"]
-            and correction_pass,
+            "all_preregistered_performance_thresholds_pass": performance_pass,
+            "decision": "BUILD"
+            if measurement_integrity_pass and performance_pass
+            else "NOT-BUILD",
         },
     }
     print(json.dumps(result, indent=2, sort_keys=True))
-    if not result["verdict"]["matrix_pass"]:
+    if not result["verdict"]["measurement_integrity_pass"]:
         raise SystemExit(1)
 
 
