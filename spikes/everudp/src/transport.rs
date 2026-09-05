@@ -7,6 +7,7 @@ use crate::handshake::{AmplificationBudget, ClientHandshake, HandshakeError, Ser
 use crate::state::{EchoPolicy, PredictionState, Reconciliation};
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
+use std::path::Path;
 use std::process::Stdio;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -21,6 +22,31 @@ pub const EPOCH: u32 = 1;
 pub const AMPLIFICATION_CEILING: usize = MTU_CEILING * 4;
 const SESSION_AAD: &[u8] = b"everudp-spike-v2";
 const SERVER_ECHO_CACHE_LIMIT: usize = 64;
+
+async fn benchmark_barrier() -> Result<(), BenchError> {
+    let ready = std::env::var_os("EVERUDP_BENCH_READY_FILE");
+    let go = std::env::var_os("EVERUDP_BENCH_GO_FILE");
+    match (ready, go) {
+        (None, None) => return Ok(()),
+        (Some(_), None) | (None, Some(_)) => {
+            return Err(BenchError(
+                "benchmark barrier requires both ready and go files".into(),
+            ));
+        }
+        (Some(ready), Some(go)) => {
+            std::fs::write(&ready, b"ready\n")
+                .map_err(|error| BenchError(format!("write benchmark ready file: {error}")))?;
+            let deadline = Instant::now() + Duration::from_secs(60);
+            while !Path::new(&go).exists() {
+                if Instant::now() >= deadline {
+                    return Err(BenchError("benchmark barrier timed out".into()));
+                }
+                sleep(Duration::from_millis(10)).await;
+            }
+        }
+    }
+    Ok(())
+}
 
 pub type BootstrapSecret = [u8; BOOTSTRAP_SECRET_LEN];
 
@@ -381,6 +407,7 @@ pub async fn udp_bench(
         .await
         .map_err(|e| BenchError(e.to_string()))?;
     let mut client = establish_client_session(&socket, &secret).await?;
+    benchmark_barrier().await?;
     let mut state = PredictionState::new(
         EPOCH,
         if prediction {
@@ -559,6 +586,7 @@ pub async fn quic_bench(
         .map_err(|e| BenchError(e.to_string()))?
         .await
         .map_err(|e| BenchError(e.to_string()))?;
+    benchmark_barrier().await?;
     let mut state = PredictionState::new(
         EPOCH,
         if prediction {

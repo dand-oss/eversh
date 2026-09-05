@@ -40,6 +40,26 @@ def main() -> int:
         print("mosh-client never became ready", file=sys.stderr)
         return 1
     time.sleep(0.5)
+    ready_file = os.environ.get("EVERUDP_BENCH_READY_FILE")
+    go_file = os.environ.get("EVERUDP_BENCH_GO_FILE")
+    if (ready_file is None) != (go_file is None):
+        raise RuntimeError("benchmark barrier requires both ready and go files")
+    if ready_file is not None:
+        with open(ready_file, "w", encoding="utf-8") as stream:
+            stream.write("ready\n")
+        deadline = time.time() + 60
+        while not os.path.exists(go_file):
+            if time.time() >= deadline:
+                os.kill(pid, signal.SIGKILL)
+                os.waitpid(pid, 0)
+                print("mosh benchmark barrier timed out", file=sys.stderr)
+                return 1
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                print("mosh client exited at benchmark barrier", file=sys.stderr)
+                return 1
+            time.sleep(0.01)
     events = []
     for _ in range(int(trials)):
         events.append({"t": time.time_ns(), "kind": "key"})
@@ -53,6 +73,18 @@ def main() -> int:
                 os.read(master, 4096)
             except OSError:
                 break
+    # Keep the client alive long enough to transmit the final terminal-state
+    # update and receive its authoritative reply. The packet capture, not this
+    # drain, supplies the latency timestamps.
+    deadline = time.time() + max(1.0, gap * 2)
+    while time.time() < deadline:
+        readable, _, _ = select.select([master], [], [], 0.05)
+        if not readable:
+            continue
+        try:
+            os.read(master, 4096)
+        except OSError:
+            break
     os.kill(pid, signal.SIGTERM)
     try:
         os.waitpid(pid, 0)

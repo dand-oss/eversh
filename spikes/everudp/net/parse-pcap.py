@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Correlate timed keystrokes with pcap-derived authoritative echo arrival."""
 import json
+import math
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -80,7 +81,7 @@ def main() -> int:
     def pick(fraction):
         if not ordered:
             return 0
-        index = round((len(ordered) - 1) * fraction)
+        index = max(0, math.ceil(len(ordered) * fraction) - 1)
         return ordered[index]
 
     summary = {

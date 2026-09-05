@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 static uint64_t now_ns(void) {
     struct timespec ts;
@@ -37,6 +38,38 @@ static void on_end(void *opaque) {
     (void)opaque;
 }
 
+static int benchmark_barrier(void) {
+    const char *ready = getenv("EVERUDP_BENCH_READY_FILE");
+    const char *go = getenv("EVERUDP_BENCH_GO_FILE");
+    if (ready == NULL && go == NULL) {
+        return 0;
+    }
+    if (ready == NULL || go == NULL) {
+        fprintf(stderr, "benchmark barrier requires both ready and go files\n");
+        return -1;
+    }
+    FILE *stream = fopen(ready, "w");
+    if (stream == NULL) {
+        perror("write benchmark ready file");
+        return -1;
+    }
+    fputs("ready\n", stream);
+    if (fclose(stream) != 0) {
+        perror("close benchmark ready file");
+        return -1;
+    }
+    const uint64_t deadline = now_ns() + 60000000000ull;
+    const struct timespec pause = {.tv_sec = 0, .tv_nsec = 10000000};
+    while (access(go, F_OK) != 0) {
+        if (now_ns() >= deadline) {
+            fprintf(stderr, "benchmark barrier timed out\n");
+            return -1;
+        }
+        nanosleep(&pause, NULL);
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc != 6) {
         fprintf(stderr, "usage: zmosh-bench HOST PORT KEY TRIALS GAP_MS\n");
@@ -65,6 +98,10 @@ int main(int argc, char **argv) {
         } else if (ready == 0 && i > 10) {
             break;
         }
+    }
+    if (benchmark_barrier() != 0) {
+        zmosh_disconnect(session);
+        return 1;
     }
     printf("[");
     for (int trial = 0; trial < trials; ++trial) {
