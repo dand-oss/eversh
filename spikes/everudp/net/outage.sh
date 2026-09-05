@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
-SPIKE=$ROOT/spikes/everudp/target/release/everudp-spike
+SPIKE=${EVERUDP_BIN:-$ROOT/spikes/everudp/target/release/everudp-spike}
 OUTDIR=${1:-$ROOT/target/qualification/everudp/outage}
 RUN_USER=${SUDO_USER:-$(stat -c %U "$ROOT")}
 IP=/usr/bin/ip

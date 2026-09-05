@@ -3,8 +3,8 @@
 set -Eeuo pipefail
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../.." && pwd -P)
 NET=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
-SPIKE=$ROOT/spikes/everudp/target/release
-EVERSSH_BIN=$ROOT/target/release/eversh
+EVERUDP_BIN=${EVERUDP_BIN:-$ROOT/spikes/everudp/target/release/everudp-spike}
+EVERSSH_BIN=${EVERSSH_BIN:-$ROOT/target/release/eversh}
 ZMOSH_PREFIX=${ZMOSH_PREFIX:-/tmp/zmosh-059-out}
 ZMOSH_BIN=${ZMOSH_BIN:-$ZMOSH_PREFIX/bin/zmosh}
 ZMOSH_SOURCE_COMMIT=${ZMOSH_SOURCE_COMMIT:-dfc8395b5edcd237bf82712fbde879c6e8be7dfa}
@@ -32,7 +32,7 @@ fi
     echo "loss and reorder percentages must be at most 100" >&2
     exit 2
 }
-for executable in "$SPIKE/everudp-spike" "$EVERSSH_BIN" "$ZMOSH_BIN" \
+for executable in "$EVERUDP_BIN" "$EVERSSH_BIN" "$ZMOSH_BIN" \
     /usr/bin/mosh-server /usr/bin/mosh-client /usr/bin/ssh /usr/sbin/sshd \
     /usr/bin/python3 /usr/bin/cc /usr/bin/tcpdump "$TIME"; do
     [[ -x $executable ]] || { echo "missing executable: $executable" >&2; exit 1; }
@@ -70,9 +70,15 @@ IP=/usr/bin/ip
 TC=/usr/sbin/tc
 TMP=$(mktemp -d)
 chmod 755 "$TMP"
-/usr/bin/cc -O3 -Wall -Wextra -Werror -no-pie \
-    -I "$ZMOSH_PREFIX/include" "$NET/zmosh-bench.c" \
-    "$ZMOSH_PREFIX/lib/libzmosh.a" -o "$TMP/zmosh-bench" -lpthread
+if [[ -n ${ZMOSH_BENCH_BIN:-} ]]; then
+    [[ -x $ZMOSH_BENCH_BIN ]] || { echo "missing executable: $ZMOSH_BENCH_BIN" >&2; exit 1; }
+    ZMOSH_BENCH=$ZMOSH_BENCH_BIN
+else
+    ZMOSH_BENCH=$TMP/zmosh-bench
+    /usr/bin/cc -O3 -Wall -Wextra -Werror -no-pie \
+        -I "$ZMOSH_PREFIX/include" "$NET/zmosh-bench.c" \
+        "$ZMOSH_PREFIX/lib/libzmosh.a" -o "$ZMOSH_BENCH" -lpthread
+fi
 SERVER_PID=
 cleaned=0
 cleanup() {
@@ -315,7 +321,7 @@ run_everudp_udp() {
     local name="$label-$CELL"
     local ready="$TMP/$label.ready" go="$TMP/$label.go"
     clear_impairment
-    $IP netns exec "$SERVER_NS" "$SPIKE/everudp-spike" udp-pty-server \
+    $IP netns exec "$SERVER_NS" "$EVERUDP_BIN" udp-pty-server \
         --bind 10.241.0.1:60200 --key-hex 62bc8275e2d0fa1d11abb04d07d7e47731c70879c2d343bc47deb577df13ee7d \
         --echo-command "/usr/bin/python3 -u $NET/echo1.py" \
         >"$OUTDIR/$label-server.stdout" 2>"$OUTDIR/$label-server.stderr" &
@@ -326,7 +332,7 @@ run_everudp_udp() {
     $IP netns exec "$CLIENT_NS" /usr/bin/env \
         EVERUDP_BENCH_READY_FILE="$ready" EVERUDP_BENCH_GO_FILE="$go" \
         "$TIME" -f "$TIME_FORMAT" -o "$OUTDIR/resource-$label-client.txt" \
-        "$SPIKE/everudp-spike" bench \
+        "$EVERUDP_BIN" bench \
         --transport udp --prediction "$prediction" --trials "$TRIALS" \
         --server 10.241.0.1:60200 >"$OUTDIR/$name.json" \
         2>"$OUTDIR/$name.err" &
@@ -348,7 +354,7 @@ run_everudp_quic() {
     local name="$label-$CELL"
     local ready="$TMP/$label.ready" go="$TMP/$label.go"
     clear_impairment
-    $IP netns exec "$SERVER_NS" "$SPIKE/everudp-spike" quic-pty-server \
+    $IP netns exec "$SERVER_NS" "$EVERUDP_BIN" quic-pty-server \
         --bind 10.241.0.1:60201 \
         --echo-command "/usr/bin/python3 -u $NET/echo1.py" \
         >"$OUTDIR/$label-server.stdout" 2>"$OUTDIR/$label-server.stderr" &
@@ -364,7 +370,7 @@ run_everudp_quic() {
     $IP netns exec "$CLIENT_NS" /usr/bin/env \
         EVERUDP_BENCH_READY_FILE="$ready" EVERUDP_BENCH_GO_FILE="$go" \
         "$TIME" -f "$TIME_FORMAT" -o "$OUTDIR/resource-$label-client.txt" \
-        "$SPIKE/everudp-spike" bench \
+        "$EVERUDP_BIN" bench \
         --transport quic --prediction "$prediction" --trials "$TRIALS" \
         --server 10.241.0.1:60201 --spki-hex "$spki" \
         >"$OUTDIR/$name.json" 2>"$OUTDIR/$name.err" &
@@ -451,7 +457,7 @@ run_zmosh() {
         EVERUDP_BENCH_READY_FILE="$ready" EVERUDP_BENCH_GO_FILE="$go" \
         "$TIME" -f "$TIME_FORMAT" \
         -o "$OUTDIR/resource-zmosh-client.txt" \
-        "$TMP/zmosh-bench" 10.241.0.1 "$zport" - "$TRIALS" 100 \
+        "$ZMOSH_BENCH" 10.241.0.1 "$zport" - "$TRIALS" 100 \
         >"$TMP/zmosh-samples.json" 2>"$OUTDIR/zmosh-client.stderr" &
     local client_pid=$!
     wait_for_ready "$label" "$client_pid" "$ready"
@@ -529,7 +535,7 @@ PY
 python3 - "$OUTDIR" "$HEAD_SHA" "$TREE_SHA" "$DIRTY_JSON" \
     "$TRIALS" "$LOSS" "$DELAY_MS" "$REORDER_PCT" "$CELL" \
     "$STARTED_UTC" "$FINISHED_UTC" "$CLIENT_SEED" "$SERVER_SEED" \
-    "$SPIKE/everudp-spike" "$EVERSSH_BIN" "$ZMOSH_BIN" "$TMP/zmosh-bench" \
+    "$EVERUDP_BIN" "$EVERSSH_BIN" "$ZMOSH_BIN" "$ZMOSH_BENCH" \
     "$ZMOSH_SOURCE_COMMIT" "$ZMOSH_SOURCE_TREE" <<'PY'
 import hashlib
 import json

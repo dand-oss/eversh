@@ -91,9 +91,15 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$ZMX_DIR"
-/usr/bin/cc -O3 -Wall -Wextra -Werror -no-pie \
-    -I "$ZMOSH_PREFIX/include" "$NET/zmosh-bench.c" \
-    "$ZMOSH_PREFIX/lib/libzmosh.a" -o "$TMP/zmosh-bench" -lpthread
+if [[ -n ${ZMOSH_BENCH_BIN:-} ]]; then
+    [[ -x $ZMOSH_BENCH_BIN ]] || { echo "missing executable: $ZMOSH_BENCH_BIN" >&2; exit 1; }
+    ZMOSH_BENCH=$ZMOSH_BENCH_BIN
+else
+    ZMOSH_BENCH=$TMP/zmosh-bench
+    /usr/bin/cc -O3 -Wall -Wextra -Werror -no-pie \
+        -I "$ZMOSH_PREFIX/include" "$NET/zmosh-bench.c" \
+        "$ZMOSH_PREFIX/lib/libzmosh.a" -o "$ZMOSH_BENCH" -lpthread
+fi
 
 $IP netns add "$SERVER_NS"
 $IP netns add "$CLIENT_NS"
@@ -182,7 +188,7 @@ run_zmosh() {
     reset_netem zmosh
     local samples
     samples=$(ZMOSH_BENCH_KEY=$zkey $IP netns exec "$CLIENT_NS" \
-        "$TMP/zmosh-bench" 10.242.0.1 "$zport" - "$TRIALS" "$GAP_MS")
+        "$ZMOSH_BENCH" 10.242.0.1 "$zport" - "$TRIALS" "$GAP_MS")
     record_netem_after zmosh
     /usr/bin/python3 - "$OUTDIR/zmosh.json" "$samples" "$TRIALS" <<'PY'
 import json
@@ -239,7 +245,7 @@ done
 
 EVERUDP_SHA=$(sha256sum "$EVERUDP_BIN" | awk '{print $1}')
 ZMOSH_SHA=$(sha256sum "$ZMOSH_BIN" | awk '{print $1}')
-ZMOSH_BENCH_SHA=$(sha256sum "$TMP/zmosh-bench" | awk '{print $1}')
+ZMOSH_BENCH_SHA=$(sha256sum "$ZMOSH_BENCH" | awk '{print $1}')
 EVERUDP_RESULT_SHA=$(sha256sum "$OUTDIR/everudp.json" | awk '{print $1}')
 ZMOSH_RESULT_SHA=$(sha256sum "$OUTDIR/zmosh.json" | awk '{print $1}')
 EVERUDP_CLIENT_BEFORE_SHA=$(sha256sum "$OUTDIR/netem-everudp-client-before.txt" | awk '{print $1}')

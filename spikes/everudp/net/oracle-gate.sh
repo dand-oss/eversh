@@ -37,13 +37,16 @@ done
 FINISHED_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 mkdir -p "$(dirname -- "$OUT")"
+RAW_OUT=$(dirname -- "$OUT")/oracle-runs.txt
+cp "$TMP/runs.txt" "$RAW_OUT"
 BIN_SHA=$(sha256sum "$BIN" | awk '{print $1}')
 KERNEL=$(uname -srmo)
 PYTHON_VERSION=$(/usr/bin/python3 --version 2>&1)
 SCRIPT_VERSION=$(/usr/bin/script --version | head -1)
 TMUX_VERSION=$(/usr/bin/tmux -V)
 
-/usr/bin/python3 - "$TMP/runs.txt" "$OUT" <<PY
+/usr/bin/python3 - "$RAW_OUT" "$OUT" <<PY
+import hashlib
 import json
 import math
 import re
@@ -123,6 +126,10 @@ receipt = {
         "correction_samples_us": runs,
         "correction_p95_us": p95,
         "correction_p95_limit_us": 300_000,
+    },
+    "raw_runs": {
+        "path": "oracle-runs.txt",
+        "sha256": hashlib.sha256(open(raw_path, "rb").read()).hexdigest(),
     },
     "verdict": {"pass": passed},
 }

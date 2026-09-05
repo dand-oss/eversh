@@ -157,7 +157,7 @@ def main():
         },
         "blocks": [
             {
-                "path": str(path),
+                "path": path.name,
                 "manifest_sha256": manifest["receipt_sha256"],
                 "seed": manifest["loss"]["client_seed"],
                 "order": manifest["order"],

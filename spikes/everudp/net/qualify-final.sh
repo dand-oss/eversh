@@ -25,7 +25,24 @@ TREE_SHA=$(run_user git -C "$ROOT" rev-parse HEAD^{tree})
 }
 
 mkdir -p "$OUTROOT"
+chown "$RUN_USER" "$OUTROOT"
 STARTED_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+run_user /usr/bin/env \
+    EVERUDP_ZIG="${EVERUDP_ZIG:-}" \
+    ZMOSH_SOURCE_REPO="${ZMOSH_SOURCE_REPO:-/home/appsmith/asv/ports/repo/zmosh}" \
+    "$NET/build-exact.sh" "$OUTROOT/build" \
+    > >(tee "$OUTROOT/build.console.log") \
+    2> >(tee "$OUTROOT/build.console.stderr" >&2)
+BUILD_ARTIFACTS=$OUTROOT/build/artifacts
+export EVERUDP_BIN=$BUILD_ARTIFACTS/bin/everudp-spike
+export EVERSH_BIN=$BUILD_ARTIFACTS/bin/eversh
+export ZMOSH_PREFIX=$BUILD_ARTIFACTS
+export ZMOSH_BIN=$BUILD_ARTIFACTS/bin/zmosh
+export ZMOSH_BENCH_BIN=$BUILD_ARTIFACTS/bin/zmosh-bench
+export ZMOSH_SOURCE_COMMIT=dfc8395b5edcd237bf82712fbde879c6e8be7dfa
+export ZMOSH_SOURCE_TREE=1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514
+
 python3 - "$OUTROOT/source.json" "$HEAD_SHA" "$TREE_SHA" "$STARTED_UTC" <<'PY'
 import json
 import sys
@@ -57,11 +74,12 @@ PY
     > >(tee "$OUTROOT/reachability.console.log") \
     2> >(tee "$OUTROOT/reachability.console.stderr" >&2)
 
-python3 "$NET/verify-closure.py" \
+run_user /usr/bin/env PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 "$NET/verify-closure.py" \
     --controls "$OUTROOT/controls" \
     --parity "$OUTROOT/parity" \
     --oracle "$OUTROOT/oracle.json" \
     --reachability "$OUTROOT/reachability" \
+    --build-provenance "$OUTROOT/build/provenance.json" \
     --expected-head "$HEAD_SHA" --expected-tree "$TREE_SHA" \
     --output "$OUTROOT/closure.json" \
     > >(tee "$OUTROOT/closure.console.log") \
