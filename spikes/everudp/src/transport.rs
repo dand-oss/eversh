@@ -421,6 +421,9 @@ pub async fn udp_bench(
     let mut wire = Vec::with_capacity(MTU_CEILING);
     for trial in 0..trials {
         let byte = b'a' + (trial % 26) as u8;
+        // The frozen candidate boundary starts before any client input work,
+        // matching zmosh's clock immediately before zmosh_send_input().
+        let started = Instant::now();
         let (seq, predicted) = state
             .send(&[byte])
             .map_err(|error| BenchError(error.to_string()))?;
@@ -431,7 +434,6 @@ pub async fn udp_bench(
         }
         .encode(&mut wire)
         .map_err(|_| BenchError("input exceeds frame limit".into()))?;
-        let started = Instant::now();
         socket
             .send(&client.seal(&wire, SESSION_AAD))
             .await
@@ -448,17 +450,9 @@ pub async fn udp_bench(
                     let frame = decode(&plaintext)
                         .map_err(|_| BenchError("bad server frame".into()))?;
                     let Frame::Echo(echo) = frame else { continue };
-                    if echo.ack != seq {
-                        state
-                            .reconcile(echo.ack, &echo.bytes)
-                            .map_err(|error| BenchError(error.to_string()))?;
-                        continue;
+                    if accept_benchmark_echo(&mut state, seq, &[byte], predicted, &echo)? {
+                        break started.elapsed().as_micros();
                     }
-                    let reconciliation = state
-                        .reconcile(echo.ack, &echo.bytes)
-                        .map_err(|error| BenchError(error.to_string()))?;
-                    debug_assert_eq!(reconciliation, Reconciliation::Confirmed { predicted });
-                    break started.elapsed().as_micros();
                 }
                 _ = sleep_until(next_retransmit) => {
                     if started.elapsed() >= TRIAL_TIMEOUT {
@@ -486,6 +480,43 @@ pub async fn udp_bench(
         sleep(INTER_TRIAL).await;
     }
     Ok(result)
+}
+
+/// Return true only when this exact trial received byte-equal authority.
+/// Delayed duplicate replies may be ignored; every other shape is a failed
+/// benchmark sample rather than a positive latency observation.
+fn accept_benchmark_echo(
+    state: &mut PredictionState,
+    expected_seq: u64,
+    expected_bytes: &[u8],
+    expected_predicted: bool,
+    echo: &Echo,
+) -> Result<bool, BenchError> {
+    if echo.ack == expected_seq && echo.bytes != expected_bytes {
+        return Err(BenchError(
+            "authoritative echo did not match pending input".into(),
+        ));
+    }
+    let reconciliation = state
+        .reconcile(echo.ack, &echo.bytes)
+        .map_err(|error| BenchError(error.to_string()))?;
+    if echo.ack != expected_seq {
+        return match reconciliation {
+            Reconciliation::Duplicate => Ok(false),
+            _ => Err(BenchError(
+                "unexpected acknowledgement during benchmark trial".into(),
+            )),
+        };
+    }
+    match reconciliation {
+        Reconciliation::Confirmed { predicted } if predicted == expected_predicted => Ok(true),
+        Reconciliation::Corrected => Err(BenchError(
+            "authoritative echo did not match pending input".into(),
+        )),
+        _ => Err(BenchError(
+            "current benchmark acknowledgement was not confirmed".into(),
+        )),
+    }
 }
 
 pub async fn quic_server_endpoint_loop(endpoint: noq::Endpoint) -> Result<(), BenchError> {
@@ -599,6 +630,9 @@ pub async fn quic_bench(
     let mut wire = Vec::with_capacity(MTU_CEILING);
     for trial in 0..trials {
         let byte = b'a' + (trial % 26) as u8;
+        // Include prediction, encoding, and the transport API call in the
+        // same client-side boundary used by every other candidate.
+        let started = Instant::now();
         let (seq, predicted) = state
             .send(&[byte])
             .map_err(|error| BenchError(error.to_string()))?;
@@ -611,7 +645,6 @@ pub async fn quic_bench(
         .map_err(|_| BenchError("QUIC input exceeds frame limit".into()))?;
         conn.send_datagram(wire.clone().into())
             .map_err(|e| BenchError(e.to_string()))?;
-        let started = Instant::now();
         let mut retransmits = 0u32;
         let mut next_retransmit = started + RETRANSMIT;
         let correct_render_us = loop {
@@ -619,17 +652,9 @@ pub async fn quic_bench(
                 datagram = conn.read_datagram() => {
                     let datagram = datagram.map_err(|e| BenchError(e.to_string()))?;
                     let Some(Frame::Echo(echo)) = decode(&datagram).ok() else { continue };
-                    if echo.ack != seq {
-                        state
-                            .reconcile(echo.ack, &echo.bytes)
-                            .map_err(|error| BenchError(error.to_string()))?;
-                        continue;
+                    if accept_benchmark_echo(&mut state, seq, &[byte], predicted, &echo)? {
+                        break started.elapsed().as_micros();
                     }
-                    let reconciliation = state
-                        .reconcile(echo.ack, &echo.bytes)
-                        .map_err(|error| BenchError(error.to_string()))?;
-                    debug_assert_eq!(reconciliation, Reconciliation::Confirmed { predicted });
-                    break started.elapsed().as_micros();
                 }
                 _ = sleep_until(next_retransmit) => {
                     if started.elapsed() >= TRIAL_TIMEOUT {
@@ -827,6 +852,68 @@ mod tests {
         assert_eq!(trials.len(), 1);
         server.abort();
         let _ = server.await;
+    }
+
+    #[test]
+    fn benchmark_requires_byte_equal_authority_before_success() {
+        let mut state = PredictionState::new(EPOCH, EchoPolicy::Predict);
+        let (seq, predicted) = state.send(b"k").unwrap();
+        let error = accept_benchmark_echo(
+            &mut state,
+            seq,
+            b"k",
+            predicted,
+            &Echo {
+                ack: seq,
+                bytes: b"x".to_vec(),
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error.0, "authoritative echo did not match pending input");
+        assert_eq!(state.rendered_bytes(), b"k");
+    }
+
+    #[test]
+    fn benchmark_ignores_only_old_duplicates_and_accepts_exact_current_echo() {
+        let mut state = PredictionState::new(EPOCH, EchoPolicy::Predict);
+        let (first, first_predicted) = state.send(b"a").unwrap();
+        assert!(accept_benchmark_echo(
+            &mut state,
+            first,
+            b"a",
+            first_predicted,
+            &Echo {
+                ack: first,
+                bytes: b"a".to_vec(),
+            },
+        )
+        .unwrap());
+
+        let (second, second_predicted) = state.send(b"b").unwrap();
+        assert!(!accept_benchmark_echo(
+            &mut state,
+            second,
+            b"b",
+            second_predicted,
+            &Echo {
+                ack: first,
+                bytes: b"a".to_vec(),
+            },
+        )
+        .unwrap());
+        assert!(accept_benchmark_echo(
+            &mut state,
+            second,
+            b"b",
+            second_predicted,
+            &Echo {
+                ack: second,
+                bytes: b"b".to_vec(),
+            },
+        )
+        .unwrap());
+        assert_eq!(state.rendered_bytes(), b"ab");
     }
 
     #[tokio::test(flavor = "current_thread")]

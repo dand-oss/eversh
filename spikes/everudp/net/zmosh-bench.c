@@ -116,7 +116,12 @@ int main(int argc, char **argv) {
         ctx.echo_ns = 0;
         ctx.expected = input;
         ctx.send_ns = now_ns();
-        zmosh_send_input(session, &input, 1);
+        status = zmosh_send_input(session, &input, 1);
+        if (status != ZMOSH_OK) {
+            fprintf(stderr, "zmosh_send_input failed: %d\n", (int)status);
+            zmosh_disconnect(session);
+            return 1;
+        }
         uint64_t deadline = now_ns() + 10000000000ull;
         while (now_ns() < deadline && ctx.echo_ns == 0) {
             struct pollfd pfd = {.fd = zmosh_get_fd(session), .events = POLLIN};

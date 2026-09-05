@@ -181,8 +181,8 @@ run_zmosh() {
     [[ -n ${zkey:-} ]] || { echo "zmosh gateway did not publish bootstrap" >&2; exit 1; }
     reset_netem zmosh
     local samples
-    samples=$($IP netns exec "$CLIENT_NS" "$TMP/zmosh-bench" \
-        10.242.0.1 "$zport" "$zkey" "$TRIALS" "$GAP_MS")
+    samples=$(ZMOSH_BENCH_KEY=$zkey $IP netns exec "$CLIENT_NS" \
+        "$TMP/zmosh-bench" 10.242.0.1 "$zport" - "$TRIALS" "$GAP_MS")
     record_netem_after zmosh
     /usr/bin/python3 - "$OUTDIR/zmosh.json" "$samples" "$TRIALS" <<'PY'
 import json
