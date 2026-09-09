@@ -1,0 +1,14 @@
+{
+  "candidate": {
+    "head_sha": "8c6f060d4799c38fdd1fa7399a137d8b64d8fc8c",
+    "tree_sha": "88bd4d5fcbfa442617ec4f6be444ee6035f34435"
+  },
+  "finished_utc": "2026-09-08T11:54:55.995079+00:00",
+  "integration_proposal_eligible": false,
+  "production_actor_integration_authorized": false,
+  "production_qualification": false,
+  "purpose": "matched-reliable-stream-floor",
+  "quantitative_gate_status": "FAIL",
+  "schema_version": 1,
+  "status": "NOT-ADOPTED"
+}

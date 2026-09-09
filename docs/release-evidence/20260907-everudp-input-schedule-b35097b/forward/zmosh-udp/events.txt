@@ -1,0 +1,1386 @@
+1390432.870910111:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.870920300:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.870923165:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390432.870932475: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390432.870935812:  syscalls:sys_exit_read: 0x1
+1390432.870985682:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390432.871132064:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.871144383:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.871146282:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390432.871159366:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390432.871467878:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.871498865:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.871502891:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390432.871553046:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390432.971772161:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.971803937:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.971808670:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390432.971820846: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390432.971825258:  syscalls:sys_exit_read: 0x1
+1390432.971879683:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390432.971996643:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.972009351:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.972011701:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390432.972026694:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390432.972295050:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.972304813:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390432.972308063:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390432.972349093:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.072568323:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.072632639:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.072636871:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.072649078: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390433.072653585:  syscalls:sys_exit_read: 0x1
+1390433.072728243:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.072796257:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.072801906:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.072803788:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.072816914:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.072982719:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.072986307:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.072987717:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.073020535:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.173275380:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.173332460:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.173336991:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.173349569: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390433.173354118:  syscalls:sys_exit_read: 0x1
+1390433.173406279:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.173451223:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.173456512:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.173458322:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.173470901:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.173621866:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.173625482:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.173626828:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.173657450:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.273900459:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.273934298:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.273940494:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.273953963: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390433.273959899:  syscalls:sys_exit_read: 0x1
+1390433.274023749:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.274076789:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.274083418:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.274085760:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.274102178:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.274265933:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.274271163:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.274272898:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.274313508:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.374560371:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.374623144:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.374627289:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.374638460: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390433.374642535:  syscalls:sys_exit_read: 0x1
+1390433.374702839:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.374770892:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.374777223:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.374779136:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.374811890:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.374982532:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.374986097:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.374987448:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.375019147:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.475266271:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.475330103:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.475334271:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.475344787: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390433.475348675:  syscalls:sys_exit_read: 0x1
+1390433.475393577:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.475444703:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.475450678:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.475452330:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.475484513:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.475627063:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.475631125:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.475632471:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.475663362:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.575901280:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.575934354:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.575939183:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.575951810: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390433.575955889:  syscalls:sys_exit_read: 0x1
+1390433.576030574:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.576112670:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.576120219:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.576122238:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.576143047:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.576247872:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.576252486:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.576254142:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.576324204:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.676509908:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.676575382:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.676579907:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.676594094: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390433.676598773:  syscalls:sys_exit_read: 0x1
+1390433.676669024:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.676735145:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.676740989:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.676743021:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.676756063:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.676919278:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.676922876:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.676924219:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.676957091:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.777175450:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.777210677:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.777216381:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.777232551: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390433.777238038:  syscalls:sys_exit_read: 0x1
+1390433.777293451:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.777366083:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.777373715:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.777376355:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.777392334:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.777571312:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.777578429:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.777581755:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.777640833:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.877847951:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.877859865:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.877881788:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.877895288: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390433.877900990:  syscalls:sys_exit_read: 0x1
+1390433.877954548:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.878000230:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.878007409:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.878009926:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.878027175:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.878171984:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.878176903:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.878178539:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.878218854:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.978472296:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.978529938:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.978535404:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.978547674: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390433.978553267:  syscalls:sys_exit_read: 0x1
+1390433.978608990:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.978685419:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.978693260:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.978695561:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.978711997:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390433.978829674:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.978834601:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390433.978836495:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390433.978876826:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.079091928:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.079145540:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.079151660:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.079167028: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390434.079172770:  syscalls:sys_exit_read: 0x1
+1390434.079230106:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.079305282:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.079313393:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.079316111:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.079333789:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.079590063:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.079595915:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.079598282:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.079650163:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.179860903:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.179892392:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.179896677:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.179908229: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390434.179912504:  syscalls:sys_exit_read: 0x1
+1390434.179959323:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.180009623:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.180016475:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.180020264:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.180034555:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.180165089:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.180169507:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.180171460:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.180212233:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.280382404:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.280414520:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.280420168:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.280435081: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390434.280440059:  syscalls:sys_exit_read: 0x1
+1390434.280499047:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.280576907:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.280583723:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.280585841:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.280601418:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.280773838:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.280778458:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.280780117:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.280819413:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.380986491:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.381021132:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.381026484:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.381039394: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390434.381044451:  syscalls:sys_exit_read: 0x1
+1390434.381102584:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.381147086:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.381153884:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.381155988:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.381171654:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.381319006:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.381323760:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.381325438:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.381364856:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.481539325:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.481573549:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.481579425:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.481591278: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390434.481596295:  syscalls:sys_exit_read: 0x1
+1390434.481650670:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.481736933:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.481745430:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.481747770:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.481763669:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.481913830:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.481919815:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.481921629:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.481963336:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.582172098:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.582182009:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.582185612:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.582196290: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390434.582200692:  syscalls:sys_exit_read: 0x1
+1390434.582257674:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.582334520:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.582342980:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.582345227:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.582361178:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.582536822:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.582542804:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.582544765:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.582589895:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.682795902:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.682803802:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.682807467:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.682829495: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390434.682833471:  syscalls:sys_exit_read: 0x1
+1390434.682886518:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.682962583:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.682969308:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.682971274:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.682985687:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.683165738:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.683170005:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.683171712:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.683207560:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.783361453:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.783366833:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.783369597:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.783378535: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390434.783382568:  syscalls:sys_exit_read: 0x1
+1390434.783433743:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.783475924:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.783482014:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.783483860:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.783496632:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.783594985:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.783599479:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.783600900:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.783633504:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.883837206:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.883846716:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.883849481:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.883861075: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390434.883866772:  syscalls:sys_exit_read: 0x1
+1390434.883940966:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.884045004:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.884050670:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.884052577:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.884080358:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390434.884167764:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390434.884172677:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.884175302:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.884221096:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.984475691:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.984482164:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.984484954:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.984495213: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390434.984498933:  syscalls:sys_exit_read: 0x1
+1390434.984574320:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.984642589:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.984649364:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.984651173:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.984681946:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390434.984778225:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.984782203:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390434.984783737:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390434.984836331:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.085031243:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.085039365:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.085042590:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.085052068: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390435.085056404:  syscalls:sys_exit_read: 0x1
+1390435.085105670:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.085182083:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.085188953:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.085191201:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.085204338:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.085327740:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.085332245:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.085333846:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.085370242:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.185583320:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.185667665:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.185671834:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.185684631: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390435.185690236:  syscalls:sys_exit_read: 0x1
+1390435.185758347:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.185841218:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.185847550:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.185849275:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.185861758:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.186065728:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.186069761:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.186071368:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.186105086:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.286308427:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.286341060:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.286345268:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.286358028: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390435.286364191:  syscalls:sys_exit_read: 0x1
+1390435.286437547:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.286508247:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.286514159:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.286516059:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.286528901:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.286623451:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.286627631:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.286629128:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.286663466:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.386852910:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.386884647:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.386889046:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.386902018: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390435.386907607:  syscalls:sys_exit_read: 0x1
+1390435.386960744:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.387044382:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.387050481:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.387052340:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.387065845:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.387157827:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.387161456:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.387162946:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.387196463:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.487364537:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.487409166:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.487413658:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.487425573: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390435.487431418:  syscalls:sys_exit_read: 0x1
+1390435.487514208:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.487572081:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.487578140:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.487579899:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.487593005:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.487687117:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.487690630:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.487692174:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.487725441:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.587910538:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.587964132:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.587968188:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.587980740: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390435.587986357:  syscalls:sys_exit_read: 0x1
+1390435.588064058:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.588123062:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.588128977:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.588131233:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.588144020:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.588252160:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.588255902:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.588257348:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.588290724:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.688450313:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.688489716:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.688494207:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.688507886: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390435.688515542:  syscalls:sys_exit_read: 0x1
+1390435.688574065:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.688650775:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.688656569:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.688658378:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.688671312:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.688783251:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.688786683:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.688788339:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.688821660:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.788985701:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.789026017:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.789030649:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.789044527: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390435.789051710:  syscalls:sys_exit_read: 0x1
+1390435.789108601:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.789195360:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.789201620:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.789203644:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.789217121:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.789325505:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.789329076:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.789330666:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.789368377:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.889564084:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.889574508:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.889577143:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.889587754: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390435.889593184:  syscalls:sys_exit_read: 0x1
+1390435.889668497:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.889748993:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.889755556:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.889757314:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.889770971:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.889873358:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.889877057:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.889878701:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.889914818:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.990139159:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.990146582:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.990149521:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.990159450: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390435.990163504:  syscalls:sys_exit_read: 0x1
+1390435.990213467:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.990261258:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.990266663:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.990268391:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.990300599:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390435.990441494:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.990445593:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390435.990447181:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390435.990480339:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.090673648:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.090680906:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.090683844:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.090693619: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390436.090697896:  syscalls:sys_exit_read: 0x1
+1390436.090741400:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.090811581:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.090817919:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.090819694:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.090832480:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.090948122:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.090952141:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.090954300:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.090987775:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.191187579:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.191252852:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.191256975:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.191267918: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390436.191272054:  syscalls:sys_exit_read: 0x1
+1390436.191317108:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.191355924:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.191361333:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.191363134:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.191375156:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.191455584:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.191459255:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.191460720:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.191493348:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.291795190:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.291806059:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.291810887:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.291823557: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390436.291829503:  syscalls:sys_exit_read: 0x1
+1390436.291890851:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.291961546:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.291970549:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.291973744:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.291994870:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.292112845:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.292119947:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.292122946:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.292171947:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.392367243:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.392398152:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.392402691:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.392415327: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390436.392420608:  syscalls:sys_exit_read: 0x1
+1390436.392485444:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.392529346:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.392534819:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.392536673:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.392549836:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.392669948:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.392673421:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.392674998:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.392708444:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.492889084:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.492918187:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.492922703:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.492936068: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390436.492942760:  syscalls:sys_exit_read: 0x1
+1390436.493005731:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.493051315:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.493057074:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.493058873:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.493071910:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.493210547:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.493214138:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.493215546:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.493248857:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390436.593452051:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390436.593485991:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.593490969:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.593505517: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390436.593512484:  syscalls:sys_exit_read: 0x1
+1390436.593590189:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.593654397:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.593660198:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.593662096:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.593675015:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.593780275:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.593784224:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.593785632:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.593818744:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.694052000:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.694115415:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.694119807:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.694131943: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390436.694136995:  syscalls:sys_exit_read: 0x1
+1390436.694188717:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.694233117:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.694237876:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.694239585:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.694252175:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.694503375:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.694532593:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.694536744:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.694586786:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.794780418:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.794787513:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.794790301:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.794801540: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390436.794806352:  syscalls:sys_exit_read: 0x1
+1390436.794864738:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.795014846:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.795021949:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.795023477:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.795035358:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.795340834:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.795346199:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.795347564:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.795386508:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.895616091:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.895683669:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.895687763:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.895699527: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390436.895703557:  syscalls:sys_exit_read: 0x1
+1390436.895770106:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.895836864:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.895842918:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.895844694:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.895857066:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.896036683:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.896041436:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.896043593:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.896088147:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.996241655:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.996251012:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.996255207:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.996267463: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390436.996272080:  syscalls:sys_exit_read: 0x1
+1390436.996330263:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.996383101:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.996388023:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.996389875:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.996402545:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390436.996523748:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.996528078:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390436.996529396:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390436.996562816:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.096792840:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.096856401:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.096860635:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.096875880: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390437.096880827:  syscalls:sys_exit_read: 0x1
+1390437.096938505:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.096983447:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.096988355:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.096990315:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.097003719:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.097144084:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.097148233:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.097149761:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.097200385:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.197369433:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.197376002:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.197379063:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.197387054: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390437.197389998:  syscalls:sys_exit_read: 0x1
+1390437.197432090:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.197468863:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.197473937:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.197475649:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.197507667:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.197650449:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.197654253:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.197655895:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.197693089:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.297852935:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.297859856:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.297862573:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.297872206: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390437.297875698:  syscalls:sys_exit_read: 0x1
+1390437.297933229:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.297994778:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.298000346:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.298002092:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.298014857:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.298187635:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.298191825:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.298193224:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.298223715:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.398411389:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.398421630:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.398426114:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.398436867: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390437.398440889:  syscalls:sys_exit_read: 0x1
+1390437.398496109:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.398534444:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.398542177:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.398545916:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.398565371:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.398689287:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.398694536:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.398696594:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.398737235:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.498928248:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.498935844:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.498938915:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.498947530: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390437.498951548:  syscalls:sys_exit_read: 0x1
+1390437.498995527:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.499066514:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.499073204:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.499074902:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.499087040:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.499177636:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.499181472:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.499182788:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.499214692:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.599426355:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.599432731:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.599435517:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.599455011: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390437.599458767:  syscalls:sys_exit_read: 0x1
+1390437.599501736:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.599572800:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.599578092:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.599604587:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.599615376:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.599835879:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.599840283:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.599841629:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.599870536:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.700120831:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.700127852:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.700130824:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.700140550: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390437.700145286:  syscalls:sys_exit_read: 0x1
+1390437.700194051:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.700245548:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.700250706:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.700252454:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.700278084:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390437.700386349:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390437.700393215:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.700396013:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.700459584:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390437.800675605:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.800734572:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.800739129:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.800752713: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390437.800757329:  syscalls:sys_exit_read: 0x1
+1390437.800809809:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390437.800851697:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.800856701:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.800858416:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.800888095:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390437.801014895:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.801019126:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.801020512:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.801051463:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390437.901321290:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.901380480:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.901384812:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.901398167: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390437.901403076:  syscalls:sys_exit_read: 0x1
+1390437.901481403:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390437.901543290:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.901548921:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.901550740:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.901563699:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390437.901792926:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.901796642:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390437.901798061:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390437.901830250:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.002031469:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.002095631:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.002100170:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.002112118: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390438.002116452:  syscalls:sys_exit_read: 0x1
+1390438.002183884:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.002246875:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.002252742:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.002254406:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.002267629:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.002391287:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.002395437:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.002396941:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.002428885:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.102628862:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.102696021:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.102700209:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.102711337: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390438.102715733:  syscalls:sys_exit_read: 0x1
+1390438.102783387:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.102842058:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.102848085:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.102850359:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.102862985:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.102950610:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.102955280:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.102956627:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.102987605:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.203167147:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.203203353:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.203207940:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.203220200: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390438.203224606:  syscalls:sys_exit_read: 0x1
+1390438.203273820:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.203338554:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.203344349:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.203346208:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.203358862:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.203460335:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.203463963:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.203465559:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.203498384:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.303699835:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.303761314:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.303765579:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.303777572: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390438.303782229:  syscalls:sys_exit_read: 0x1
+1390438.303831387:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.303889116:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.303894803:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.303896642:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.303908383:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.304026578:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.304031045:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.304032758:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.304071741:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.404228160:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.404238413:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.404251466:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.404287782: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390438.404301862:  syscalls:sys_exit_read: 0x1
+1390438.404435181:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.404469480:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.404488450:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.404492522:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.404531474:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.404712838:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.404723720:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.404725794:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.404880065:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.505062657:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.505079027:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.505086363:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.505139698: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390438.505157245:  syscalls:sys_exit_read: 0x1
+1390438.505299340:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.505369607:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.505379102:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.505385821:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.505440304:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.505793801:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.505806478:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.505811995:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.505931779:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.606095191:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.606147168:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.606151370:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.606163785: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390438.606168374:  syscalls:sys_exit_read: 0x1
+1390438.606240451:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.606307198:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.606313091:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.606314936:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.606327471:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.606444619:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.606455836:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.606457154:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.606487533:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.706687481:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.706730347:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.706734197:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.706744701: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390438.706749320:  syscalls:sys_exit_read: 0x1
+1390438.706810547:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.706868278:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.706874472:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.706876362:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.706889514:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.706991050:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.706995616:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.706997466:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.707028849:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390438.807243828:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390438.807307048:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.807311054:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.807322026: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390438.807326646:  syscalls:sys_exit_read: 0x1
+1390438.807390121:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.807460461:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.807467106:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.807488169:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.807500337:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.807669094:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.807673673:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.807675074:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.807706628:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.907917076:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.907983013:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.907987242:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.907998814: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390438.908009650:  syscalls:sys_exit_read: 0x1
+1390438.908092195:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.908138026:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.908143958:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.908145793:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.908158617:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390438.908250028:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.908253575:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390438.908254978:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390438.908286604:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390439.008449229:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390439.008484894:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.008489507:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.008501917: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390439.008507202:  syscalls:sys_exit_read: 0x1
+1390439.008565418:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.008636312:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.008643082:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.008644962:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.008657916:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.008756052:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.008760345:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.008761793:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.008804888:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.109055937:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.109089093:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.109093404:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.109106199: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390439.109111899:  syscalls:sys_exit_read: 0x1
+1390439.109171296:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.109230109:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.109235722:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.109237538:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.109250207:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.109358715:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.109363163:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.109364559:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.109397329:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.209587559:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.209618439:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.209623210:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.209636921: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390439.209642582:  syscalls:sys_exit_read: 0x1
+1390439.209702465:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.209749030:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.209754361:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.209756186:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.209768962:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.209860208:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.209863823:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.209865157:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.209897182:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.310083265:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.310117618:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.310121667:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.310133630: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390439.310138091:  syscalls:sys_exit_read: 0x1
+1390439.310185233:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.310250861:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.310256978:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.310258935:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.310271269:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.310363246:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.310367599:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.310368977:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.310402070:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.410599470:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.410664417:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.410668865:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.410683623: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390439.410688469:  syscalls:sys_exit_read: 0x1
+1390439.410760605:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.410826189:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.410832114:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.410834057:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.410847116:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.411031263:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.411036063:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.411037538:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.411069681:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.511257954:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.511307948:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.511311699:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.511323686: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390439.511327855:  syscalls:sys_exit_read: 0x1
+1390439.511391180:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.511449056:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.511454467:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.511456112:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.511467854:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.511695537:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.511698775:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.511700065:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.511730956:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.611960421:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.612048197:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.612052255:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.612062049: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390439.612065939:  syscalls:sys_exit_read: 0x1
+1390439.612109894:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.612151206:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.612157021:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.612158869:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.612171694:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.612351736:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.612355346:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.612356733:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.612388059:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.712567057:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.712575541:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.712578861:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.712589635: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390439.712593982:  syscalls:sys_exit_read: 0x1
+1390439.712645718:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.712694465:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.712699136:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.712700916:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.712714117:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.712940686:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.712944119:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.712945452:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.712978020:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.813166697:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.813247159:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.813251643:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.813264733: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390439.813269997:  syscalls:sys_exit_read: 0x1
+1390439.813327443:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.813376719:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.813382252:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.813384020:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.813396499:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.813509238:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.813512729:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.813514143:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.813547304:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.913784156:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.913844233:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.913848781:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.913860581: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390439.913864691:  syscalls:sys_exit_read: 0x1
+1390439.913917109:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.913957343:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.913962851:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.913964506:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.913997159:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390439.914127711:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.914131453:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390439.914132823:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390439.914164324:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.014434991:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.014441086:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.014443596:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.014453567: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390440.014456811:  syscalls:sys_exit_read: 0x1
+1390440.014523425:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.014613259:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.014619616:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.014621382:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.014633289:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.014770523:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.014774907:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.014776214:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.014806787:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.114992067:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.114999794:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.115002678:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.115013496: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390440.115017582:  syscalls:sys_exit_read: 0x1
+1390440.115065569:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.115108995:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.115113990:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.115115619:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.115127618:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.115218503:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.115222638:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.115223954:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.115255899:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.215455123:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.215516676:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.215521270:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.215532833: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390440.215536973:  syscalls:sys_exit_read: 0x1
+1390440.215600914:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.215665705:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.215671450:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.215673147:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.215685191:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.215790638:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.215794297:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.215795565:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.215826004:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.315981829:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.316032400:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.316036941:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.316059470: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390440.316064355:  syscalls:sys_exit_read: 0x1
+1390440.316116657:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.316230250:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.316241670:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.316243700:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.316257398:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.316538198:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.316577718:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.316583151:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.316694093:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.416896724:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.416903904:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.416906916:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.416916684: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390440.416920292:  syscalls:sys_exit_read: 0x1
+1390440.416967166:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.417038882:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.417044784:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.417046475:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.417058637:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.417153078:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.417156886:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.417158190:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.417189235:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.517379731:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.517391862:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.517395782:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.517408378: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390440.517413076:  syscalls:sys_exit_read: 0x1
+1390440.517470443:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.517516407:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.517523154:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.517525205:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.517548872:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.517692383:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.517697675:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.517699301:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.517744283:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.617973497:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.618014065:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.618018603:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.618030643: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390440.618036622:  syscalls:sys_exit_read: 0x1
+1390440.618104413:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.618168499:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.618174368:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.618176790:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.618189770:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.618283929:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.618287638:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.618288976:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.618322127:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.718494726:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.718519983:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.718523314:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.718534858: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390440.718540144:  syscalls:sys_exit_read: 0x1
+1390440.718599941:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.718686504:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.718693097:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.718695178:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.718710211:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.718830202:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.718834416:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.718836032:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.718873602:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.819136516:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.819192954:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.819203698:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.819227495: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390440.819239388:  syscalls:sys_exit_read: 0x1
+1390440.819344961:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.819433737:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.819447197:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.819451684:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.819483018:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.819803609:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.819856030:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.819866330:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.819993720:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390440.920249535:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390440.920259275:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390440.920263480:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.920279456: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390440.920285490:  syscalls:sys_exit_read: 0x1
+1390440.920348403:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390440.920407169:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390440.920413337:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390440.920415417:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.920428608:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390440.920543730:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390440.920547462:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390440.920548962:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390440.920582379:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.020852148:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.020951892:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.020956039:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.020967724: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390441.020972080:  syscalls:sys_exit_read: 0x1
+1390441.021035761:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.021115064:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.021121003:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.021122691:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.021134566:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.021371278:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.021374706:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.021376173:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.021408108:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.121680540:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.121736962:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.121741028:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.121750381: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390441.121754761:  syscalls:sys_exit_read: 0x1
+1390441.121808593:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.121863249:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.121869047:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.121870838:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.121882689:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.122093980:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.122097323:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.122098746:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.122129349:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.222318573:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.222326637:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.222329809:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.222341048: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390441.222346515:  syscalls:sys_exit_read: 0x1
+1390441.222408900:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.222475838:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.222481880:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.222483504:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.222495731:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.222584258:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.222587704:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.222589213:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.222622557:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.322875300:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.322928168:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.322939045:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.322964699: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390441.322975285:  syscalls:sys_exit_read: 0x1
+1390441.323082918:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.323212265:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.323228082:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.323232515:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.323262906:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.323569523:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.323620404:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.323631065:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.323762838:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390441.424098786:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.424111167:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.424116163:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.424126474: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390441.424131821:  syscalls:sys_exit_read: 0x1
+1390441.424176640:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390441.424222830:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.424230589:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.424232868:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.424247644:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390441.424360995:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.424366314:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.424368064:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.424405142:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390441.524591106:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.524627894:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.524632706:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.524644928: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390441.524650275:  syscalls:sys_exit_read: 0x1
+1390441.524699853:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390441.524773436:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.524780706:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.524782761:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.524796776:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390441.524897767:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.524902576:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.524904152:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.524941048:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390441.625140030:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.625190564:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.625196331:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.625212477: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390441.625219641:  syscalls:sys_exit_read: 0x1
+1390441.625292114:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390441.625368509:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.625376257:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.625378615:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.625395837:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390441.625582570:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.625586722:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.625588135:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.625619709:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120
+1390441.725810554:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390441.725935607:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.725939638:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.725950406: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390441.725954340:  syscalls:sys_exit_read: 0x1
+1390441.726058501:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.726187125:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.726201788:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.726206405:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.726237506:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.726546890:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.726555470:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.726559207:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.726643322:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.826875713:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.826945312:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.826955688:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.826975969: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390441.826985666:  syscalls:sys_exit_read: 0x1
+1390441.827080018:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.827153817:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.827167697:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.827172494:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.827204678:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.827439750:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.827451937:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.827455991:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.827542433:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.927806196:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.927843327:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.927848582:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.927858929: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390441.927882616:  syscalls:sys_exit_read: 0x1
+1390441.927971138:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.928079938:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.928086720:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.928088899:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.928102801:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390441.928184132:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.928188498:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390441.928190099:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390441.928225465:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.028390623:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.028419946:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.028432721:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.028444084: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390442.028448688:  syscalls:sys_exit_read: 0x1
+1390442.028495750:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.028536672:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.028542152:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.028544023:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.028556362:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.028660212:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.028663625:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.028665390:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.028714254:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.128877754:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.128913385:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.128917795:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.128930894: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390442.128937163:  syscalls:sys_exit_read: 0x1
+1390442.128994986:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.129064417:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.129070869:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.129072797:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.129086293:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.129180102:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.129184024:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.129185727:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.129219724:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.229379975:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.229416603:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.229421741:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.229433694: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390442.229438552:  syscalls:sys_exit_read: 0x1
+1390442.229500060:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.229586506:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.229594421:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.229596701:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.229611835:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.229748786:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.229752876:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.229754585:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.229798447:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.330049503:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.330116425:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.330126988:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.330147729: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390442.330157549:  syscalls:sys_exit_read: 0x1
+1390442.330252185:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.330376141:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.330391761:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.330396461:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.330427725:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.330726653:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.330738536:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.330742496:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.330824235:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.431122349:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.431133195:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.431137240:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.431152656: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390442.431159055:  syscalls:sys_exit_read: 0x1
+1390442.431226612:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.431307922:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.431315905:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.431318493:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.431334698:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.431501190:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.431511837:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.431515554:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.431600392:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.531917865:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.531945123:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.531948877:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.531962886: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390442.531968611:  syscalls:sys_exit_read: 0x1
+1390442.532042946:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.532110049:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.532124098:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.532127775:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.532149205:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.532345349:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.532352223:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.532354625:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.532402756:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.632573347:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.632581606:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.632584848:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.632596646: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390442.632601672:  syscalls:sys_exit_read: 0x1
+1390442.632679792:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.632731854:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.632738617:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.632740955:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.632757610:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.632918376:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.632923402:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.632925356:      sched:sched_switch: prev_comm=swapper/40 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.632968182:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/40 next_pid=0 next_prio=120
+1390442.733149153:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=040
+1390442.733158796:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390442.733161952:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.733174108: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00001000
+1390442.733178871:  syscalls:sys_exit_read: 0x1
+1390442.733242223:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390442.733333561:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390442.733340592:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390442.733342663:      sched:sched_switch: prev_comm=swapper/42 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.733360156:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/42 next_pid=0 next_prio=120
+1390442.733487693:      sched:sched_waking: comm=zmosh-udp pid=3907906 prio=120 target_cpu=042
+1390442.733494620:      sched:sched_wakeup: comm=zmosh-udp pid=3907906 prio=120 target_cpu=044
+1390442.733497559:      sched:sched_switch: prev_comm=swapper/44 prev_pid=0 prev_prio=120 prev_state=R ==> next_comm=zmosh-udp next_pid=3907906 next_prio=120
+1390442.733551408:      sched:sched_switch: prev_comm=zmosh-udp prev_pid=3907906 prev_prio=120 prev_state=S ==> next_comm=swapper/44 next_pid=0 next_prio=120

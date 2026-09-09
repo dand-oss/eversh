@@ -27,6 +27,9 @@ pub enum Kind {
     Pong = 11,
     Exit = 12,
     Error = 13,
+    Signal = 14,
+    GatewayHello = 15,
+    Lease = 16,
 }
 
 impl Kind {
@@ -45,6 +48,9 @@ impl Kind {
             11 => Self::Pong,
             12 => Self::Exit,
             13 => Self::Error,
+            14 => Self::Signal,
+            15 => Self::GatewayHello,
+            16 => Self::Lease,
             _ => return None,
         })
     }
@@ -59,6 +65,21 @@ pub enum Frame {
         name: String,
         rows: u16,
         cols: u16,
+    },
+    /// Fast-path writer hello. The broker additionally binds the current
+    /// same-UID peer credentials to `pid` and `/proc/<pid>/stat` start time
+    /// before considering a PTY lease.
+    ///
+    /// `u8 take_over | u16 name_len | name | u16 rows | u16 cols |
+    ///  [u8;16] gateway_generation | u32 pid | u64 start_ticks`
+    GatewayHello {
+        take_over: bool,
+        name: String,
+        rows: u16,
+        cols: u16,
+        generation: [u8; 16],
+        pid: u32,
+        start_ticks: u64,
     },
     /// `u32 client_id | u8 broker_protocol_version | u8 status`
     HelloAck {
@@ -78,6 +99,17 @@ pub enum Frame {
     Resize {
         rows: u16,
         cols: u16,
+    },
+    /// `u8 signal`; allow-listed process-group signal for the current writer.
+    Signal {
+        signal: u8,
+    },
+    /// Fixed-size fast-path lease state. The duplicated PTY descriptor is
+    /// ancillary to `Grant`; no descriptor is represented in these bytes.
+    Lease {
+        action: LeaseAction,
+        generation: [u8; 16],
+        lease_id: u64,
     },
     /// `u8 event`
     Ownership(OwnershipEvent),
@@ -116,6 +148,37 @@ pub enum AttachStatus {
 pub enum OwnershipEvent {
     Granted = 1,
     Revoked = 2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum LeaseAction {
+    Grant = 1,
+    Commit = 2,
+    Committed = 3,
+    Release = 4,
+    Released = 5,
+    Revoke = 6,
+    Unavailable = 7,
+    Barrier = 8,
+    BarrierAck = 9,
+}
+
+impl LeaseAction {
+    fn from_u8(value: u8) -> Option<Self> {
+        Some(match value {
+            1 => Self::Grant,
+            2 => Self::Commit,
+            3 => Self::Committed,
+            4 => Self::Release,
+            5 => Self::Released,
+            6 => Self::Revoke,
+            7 => Self::Unavailable,
+            8 => Self::Barrier,
+            9 => Self::BarrierAck,
+            _ => return None,
+        })
+    }
 }
 
 #[derive(Debug)]
@@ -182,16 +245,22 @@ fn put_u16(out: &mut Vec<u8>, v: u16) {
 fn put_u32(out: &mut Vec<u8>, v: u32) {
     out.extend_from_slice(&v.to_be_bytes());
 }
+fn put_u64(out: &mut Vec<u8>, v: u64) {
+    out.extend_from_slice(&v.to_be_bytes());
+}
 
 impl Frame {
     pub fn kind(&self) -> Kind {
         match self {
             Self::Hello { .. } => Kind::Hello,
+            Self::GatewayHello { .. } => Kind::GatewayHello,
             Self::HelloAck { .. } => Kind::HelloAck,
             Self::Busy { .. } => Kind::Busy,
             Self::Input(_) => Kind::Input,
             Self::Output(_) => Kind::Output,
             Self::Resize { .. } => Kind::Resize,
+            Self::Signal { .. } => Kind::Signal,
+            Self::Lease { .. } => Kind::Lease,
             Self::Ownership(_) => Kind::Ownership,
             Self::DetachWriter => Kind::DetachWriter,
             Self::Kill => Kind::Kill,
@@ -220,6 +289,24 @@ impl Frame {
                 put_u16(&mut payload, *rows);
                 put_u16(&mut payload, *cols);
             }
+            Self::GatewayHello {
+                take_over,
+                name,
+                rows,
+                cols,
+                generation,
+                pid,
+                start_ticks,
+            } => {
+                payload.push(u8::from(*take_over));
+                put_u16(&mut payload, name.len() as u16);
+                payload.extend_from_slice(name.as_bytes());
+                put_u16(&mut payload, *rows);
+                put_u16(&mut payload, *cols);
+                payload.extend_from_slice(generation);
+                put_u32(&mut payload, *pid);
+                put_u64(&mut payload, *start_ticks);
+            }
             Self::HelloAck {
                 client_id,
                 broker_protocol_version,
@@ -234,6 +321,16 @@ impl Frame {
             Self::Resize { rows, cols } => {
                 put_u16(&mut payload, *rows);
                 put_u16(&mut payload, *cols);
+            }
+            Self::Signal { signal } => payload.push(*signal),
+            Self::Lease {
+                action,
+                generation,
+                lease_id,
+            } => {
+                payload.push(*action as u8);
+                payload.extend_from_slice(generation);
+                put_u64(&mut payload, *lease_id);
             }
             Self::Ownership(e) => payload.push(*e as u8),
             Self::DetachWriter | Self::Kill | Self::Ping | Self::Pong => {}
@@ -331,6 +428,59 @@ impl Frame {
                     cols,
                 }
             }
+            Kind::GatewayHello => {
+                if body.len() < 35 {
+                    return Err(FrameError::Malformed("gateway hello too short"));
+                }
+                let take_over = match body[0] {
+                    0 => false,
+                    1 => true,
+                    _ => return Err(FrameError::Malformed("bad gateway take_over")),
+                };
+                let name_len = u16::from_be_bytes([body[1], body[2]]) as usize;
+                let expected = 35_usize
+                    .checked_add(name_len)
+                    .ok_or(FrameError::Malformed("gateway hello length"))?;
+                if body.len() != expected {
+                    return Err(FrameError::Malformed("gateway hello length"));
+                }
+                let name_end = 3 + name_len;
+                let name = std::str::from_utf8(&body[3..name_end])
+                    .map_err(|_| FrameError::TextNotUtf8)?
+                    .to_owned();
+                if !validate_name(&name, limits) {
+                    return Err(FrameError::NameInvalid);
+                }
+                let rows = u16::from_be_bytes([body[name_end], body[name_end + 1]]);
+                let cols = u16::from_be_bytes([body[name_end + 2], body[name_end + 3]]);
+                let generation_start = name_end + 4;
+                let mut generation = [0_u8; 16];
+                generation.copy_from_slice(&body[generation_start..generation_start + 16]);
+                let pid_start = generation_start + 16;
+                let pid = u32::from_be_bytes(
+                    body[pid_start..pid_start + 4]
+                        .try_into()
+                        .expect("fixed checked slice"),
+                );
+                let ticks_start = pid_start + 4;
+                let start_ticks = u64::from_be_bytes(
+                    body[ticks_start..ticks_start + 8]
+                        .try_into()
+                        .expect("fixed checked slice"),
+                );
+                if generation == [0; 16] || pid == 0 || start_ticks == 0 {
+                    return Err(FrameError::Malformed("invalid gateway identity"));
+                }
+                Self::GatewayHello {
+                    take_over,
+                    name,
+                    rows,
+                    cols,
+                    generation,
+                    pid,
+                    start_ticks,
+                }
+            }
             Kind::HelloAck => {
                 if body.len() != 6 {
                     return Err(FrameError::Malformed("helloack length"));
@@ -369,6 +519,35 @@ impl Frame {
                 Self::Resize {
                     rows: u16::from_be_bytes([body[0], body[1]]),
                     cols: u16::from_be_bytes([body[2], body[3]]),
+                }
+            }
+            Kind::Signal => {
+                if body.len() != 1 || !signal_is_allowed(body[0]) {
+                    return Err(FrameError::Malformed("invalid process-group signal"));
+                }
+                Self::Signal { signal: body[0] }
+            }
+            Kind::Lease => {
+                if body.len() != 25 {
+                    return Err(FrameError::Malformed("lease length"));
+                }
+                let action =
+                    LeaseAction::from_u8(body[0]).ok_or(FrameError::Malformed("lease action"))?;
+                let mut generation = [0_u8; 16];
+                generation.copy_from_slice(&body[1..17]);
+                let lease_id =
+                    u64::from_be_bytes(body[17..25].try_into().expect("fixed checked slice"));
+                let valid_id = match action {
+                    LeaseAction::Unavailable => lease_id == 0,
+                    _ => lease_id != 0,
+                };
+                if generation == [0; 16] || !valid_id {
+                    return Err(FrameError::Malformed("invalid lease identity"));
+                }
+                Self::Lease {
+                    action,
+                    generation,
+                    lease_id,
                 }
             }
             Kind::Ownership => {
@@ -418,6 +597,12 @@ impl Frame {
     }
 }
 
+/// Stable allow-list shared with the direct-QUIC input protocol. Values are
+/// POSIX/Linux signal numbers carried on the local same-UID broker socket.
+pub const fn signal_is_allowed(signal: u8) -> bool {
+    matches!(signal, 1 | 2 | 3 | 15 | 18 | 20)
+}
+
 fn empty(body: &[u8], f: Frame) -> Result<Frame, FrameError> {
     if body.is_empty() {
         Ok(f)
@@ -446,6 +631,15 @@ mod tests {
                 rows: 1,
                 cols: 2,
             },
+            Frame::GatewayHello {
+                take_over: true,
+                name: "lease-1".into(),
+                rows: 41,
+                cols: 132,
+                generation: [0x5a; 16],
+                pid: 4242,
+                start_ticks: 987_654,
+            },
             Frame::HelloAck {
                 client_id: 7,
                 broker_protocol_version: PROTOCOL_VERSION,
@@ -457,6 +651,17 @@ mod tests {
             Frame::Resize {
                 rows: 80,
                 cols: 240,
+            },
+            Frame::Signal { signal: 2 },
+            Frame::Lease {
+                action: LeaseAction::Grant,
+                generation: [0xa5; 16],
+                lease_id: 1,
+            },
+            Frame::Lease {
+                action: LeaseAction::Unavailable,
+                generation: [0xa5; 16],
+                lease_id: 0,
             },
             Frame::Ownership(OwnershipEvent::Granted),
             Frame::Ownership(OwnershipEvent::Revoked),
@@ -558,6 +763,68 @@ mod tests {
                 other => panic!("signal byte {byte}: expected Malformed, got {other:?}"),
             }
         }
+    }
+
+    #[test]
+    fn process_group_signal_is_exact_and_allow_listed() {
+        let limits = Limits::default();
+        for signal in [1, 2, 3, 15, 18, 20] {
+            let encoded = Frame::Signal { signal }.encode();
+            assert_eq!(
+                Frame::decode(&encoded, &limits).expect("allowed signal").0,
+                Frame::Signal { signal }
+            );
+        }
+        for signal in [0, 4, 9, 19, 255] {
+            let mut encoded = Frame::Signal { signal: 2 }.encode();
+            encoded[HEADER_LEN] = signal;
+            assert!(matches!(
+                Frame::decode(&encoded, &limits),
+                Err(FrameError::Malformed("invalid process-group signal"))
+            ));
+        }
+    }
+
+    #[test]
+    fn gateway_and_lease_identity_fields_are_canonical() {
+        let limits = Limits::default();
+        let hello = Frame::GatewayHello {
+            take_over: false,
+            name: "fast".to_owned(),
+            rows: 24,
+            cols: 80,
+            generation: [7; 16],
+            pid: 123,
+            start_ticks: 456,
+        };
+        let encoded = hello.encode();
+        assert_eq!(Frame::decode(&encoded, &limits).expect("hello").0, hello);
+
+        let mut last = Vec::new();
+        for action in [
+            LeaseAction::Grant,
+            LeaseAction::Commit,
+            LeaseAction::Committed,
+            LeaseAction::Release,
+            LeaseAction::Released,
+            LeaseAction::Revoke,
+            LeaseAction::Barrier,
+            LeaseAction::BarrierAck,
+        ] {
+            let lease = Frame::Lease {
+                action,
+                generation: [9; 16],
+                lease_id: 73,
+            };
+            last = lease.encode();
+            assert_eq!(Frame::decode(&last, &limits).expect("lease").0, lease);
+        }
+
+        last[HEADER_LEN + 1..HEADER_LEN + 17].fill(0);
+        assert!(matches!(
+            Frame::decode(&last, &limits),
+            Err(FrameError::Malformed("invalid lease identity"))
+        ));
     }
 
     #[test]

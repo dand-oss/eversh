@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "verdict": "PASS",
+  "command": "network",
+  "head_sha": "930a3d751050d75af6dc450ead1d32ed0928ddae",
+  "tree_sha": "7ea942ae9846afc626bed3901a2c5ebd428fcc31",
+  "clean_tree": true,
+  "final_identity_rechecked": true,
+  "started_utc": "2026-09-03T17:37:49Z",
+  "completed_utc": "2026-09-03T17:58:18Z",
+  "toolchain": "rustc 1.95.0 (59807616e 2026-04-14)",
+  "cargo_target_dir": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target",
+  "everssh_binary_sha256": "20893656609af7e5f0b106d7c6cfb08d2fbab4fbafb2286156b32575e1ecc927",
+  "gates": [
+    {
+      "name": "production-openssh",
+      "verdict": "PASS",
+      "coverage": [
+        "exit-status",
+        "binary",
+        "pty",
+        "sftp",
+        "scp",
+        "local-forward",
+        "remote-forward",
+        "agent-certificate",
+        "post-gate-sshd-health",
+        "owned-process-cleanup"
+      ],
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/everssh/network/20260903T173749Z-930a3d751050/gates/production-openssh.log"
+    },
+    {
+      "name": "production-netns-veth-migration",
+      "verdict": "PASS",
+      "privileged": true,
+      "coverage": [
+        "ipv4-api-migration",
+        "ipv6-api-migration",
+        "ipv4-process-migration",
+        "ipv6-process-migration",
+        "same-route-loss",
+        "total-path-loss",
+        "no-replay",
+        "namespace-and-process-cleanup"
+      ],
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/everssh/network/20260903T173749Z-930a3d751050/gates/production-migration.log"
+    }
+  ],
+  "run_root": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/everssh/network/20260903T173749Z-930a3d751050"
+}

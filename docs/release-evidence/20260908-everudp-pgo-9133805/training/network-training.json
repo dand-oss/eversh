@@ -1,0 +1,55 @@
+{
+  "cells": [
+    {
+      "client_seed": 20100001,
+      "loss_percent": 0,
+      "server_seed": 21100004,
+      "training": {
+        "binary_sha256": "63500d5e3d526d07b173b9f08f39b642c4173e27c69c8137b26e91b0db252e18",
+        "elapsed_seconds": 5.539996154839173,
+        "fixture_sha256": "6a2e7f935b34784a7a893d6acba8d3a77fbc8011d720cc34216a942f3d916317",
+        "qualification": false,
+        "schema_version": 1,
+        "status": "TRAINED",
+        "transcript_bytes": 131351,
+        "transcript_sha256": "3ca1ba2a8451e0e513efcaa9df14504bf726f2e97befaf0542b9fa810afee1e3",
+        "workload": {
+          "large_roundtrips": 32,
+          "large_size": 4096,
+          "one_byte_roundtrips": 256,
+          "spacing_seconds": 0.02
+        }
+      }
+    },
+    {
+      "client_seed": 20105001,
+      "loss_percent": 5,
+      "server_seed": 21105004,
+      "training": {
+        "binary_sha256": "63500d5e3d526d07b173b9f08f39b642c4173e27c69c8137b26e91b0db252e18",
+        "elapsed_seconds": 5.675154148833826,
+        "fixture_sha256": "6a2e7f935b34784a7a893d6acba8d3a77fbc8011d720cc34216a942f3d916317",
+        "qualification": false,
+        "schema_version": 1,
+        "status": "TRAINED",
+        "transcript_bytes": 131351,
+        "transcript_sha256": "3ca1ba2a8451e0e513efcaa9df14504bf726f2e97befaf0542b9fa810afee1e3",
+        "workload": {
+          "large_roundtrips": 32,
+          "large_size": 4096,
+          "one_byte_roundtrips": 256,
+          "spacing_seconds": 0.02
+        }
+      }
+    }
+  ],
+  "hashes": {
+    "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everudp/tests/net/pgo_network_train.py": "43a1e907bd86c5d81619b2f18f6a348fa02eb96b4b979c0efe4a538dc63832d3",
+    "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everudp/tests/net/pgo_terminal_train.py": "ceb27ebc9f98fa8b76b6a665ae645a2cc8a0a494ddb7ab26e702bbd84b04b91b",
+    "/tmp/everudp-pgo-fixture-MuGWEy/pgo-echo": "6a2e7f935b34784a7a893d6acba8d3a77fbc8011d720cc34216a942f3d916317",
+    "/tmp/everudp-pgo-instrumented-binary": "63500d5e3d526d07b173b9f08f39b642c4173e27c69c8137b26e91b0db252e18"
+  },
+  "qualification": false,
+  "schema_version": 1,
+  "status": "TRAINED"
+}

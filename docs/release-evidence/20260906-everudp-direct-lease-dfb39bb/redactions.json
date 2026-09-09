@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "reason": "Remove ephemeral QUIC bootstrap credentials from current evidence tree; original Git history unchanged",
+  "original_receipts_suffix": ".pre-redaction",
+  "original_receipts_verified_before_redaction": true,
+  "changes": [
+    {
+      "path": "performance/loss0/block-941001/zmosh-quic/connect.log",
+      "original_sha256": "c8e08ae6d2ab8f8fa74a237c3d7c618bd3bec47d4ea0520645852a414a213bc8",
+      "redacted_sha256": "4da7ac9db5c8de64a5506cd877e3222c6ad1f5fe888c38f8218e5cce7988ac4c"
+    },
+    {
+      "path": "performance/loss0/block-941002/zmosh-quic/connect.log",
+      "original_sha256": "6fe6731985a7d554982906aff9e388f4a906aab297c70cd1e8f95d263a57b7f8",
+      "redacted_sha256": "455d961a3dddd6c080d79191eb3aec465776d7fe4e3d6a5f086e53c50aa842c6"
+    },
+    {
+      "path": "performance/loss5/block-942001/zmosh-quic/connect.log",
+      "original_sha256": "34aa2e33075fef5b10742b8354f7da9a426e240c59a66b118fa6e51061a0f560",
+      "redacted_sha256": "8e3943af143060cf3cdb3f276f2284a412b159ae0786c3f1e46943a65b4e1e94"
+    },
+    {
+      "path": "performance/loss5/block-942002/zmosh-quic/connect.log",
+      "original_sha256": "d4bd3ee245be40f1be6605119be265178a11aab170b42f01f3e2326a751892f0",
+      "redacted_sha256": "0e8d32172a6ef913d54de8e5b5f41022b37023282943adb3d5c37eebbf9325cb"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+	Command being timed: "/usr/bin/env PTY_BENCH_WINDOW_DIR=/tmp/everudp-quinn-f1287d22-measure/loss0-block3-A/zmosh-quic/window /usr/bin/taskset -c 40,42,44,46 /tmp/everudp-quinn-f1287d22-A-build/artifacts/bin/pty-bench 200 100 /tmp/everudp-quinn-f1287d22-measure/loss0-block3-A/zmosh-quic/result.json /tmp/everudp-quinn-f1287d22-measure/loss0-block3-A/zmosh-quic/candidate.stderr -- /tmp/everudp-quinn-f1287d22-source.JKSz8U/crates/everudp/tests/net/launch-zmosh-quic.sh target 10.246.0.1 /tmp/everudp-perf-block.6OOpTf/client_config /tmp/everudp-perf-block.6OOpTf/remote-zmosh-quic/remote-zmosh perf-p8f3c8-2-zmosh_quic /tmp/everudp-quinn-f1287d22-A-build/artifacts/bin/pty-echo /tmp/everudp-quinn-f1287d22-A-build/artifacts/bin/zmosh-quic-bridge /tmp/everudp-quinn-f1287d22-measure/loss0-block3-A/zmosh-quic/connect.log /tmp/everudp-quinn-f1287d22-measure/loss0-block3-A/zmosh-quic/server.stderr"
+	User time (seconds): 0.09
+	System time (seconds): 0.11
+	Percent of CPU this job got: 1%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:20.86
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 8768
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 2252
+	Voluntary context switches: 3418
+	Involuntary context switches: 4
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

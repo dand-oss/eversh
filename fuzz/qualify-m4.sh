@@ -17,9 +17,9 @@ readonly ROOT=$(
     pwd -P
 )
 readonly FUZZ_DIR="$ROOT/fuzz"
-readonly EVERLINK_QUAL_ROOT="$ROOT/target/qualification/everlink"
+readonly EVERSSH_QUAL_ROOT="$ROOT/target/qualification/everssh"
 readonly QUAL_ROOT="$ROOT/target/qualification/eversh"
-readonly TOOL_ROOT="$EVERLINK_QUAL_ROOT/tools"
+readonly TOOL_ROOT="$EVERSSH_QUAL_ROOT/tools"
 readonly RUSTUP_HOME="$TOOL_ROOT/rustup"
 readonly CARGO_HOME="$TOOL_ROOT/cargo"
 readonly CARGO_BIN="$CARGO_HOME/bin"
@@ -242,7 +242,7 @@ run_qualification() {
     validate_tools || {
         /usr/bin/mkdir -p -- "$QUAL_ROOT/runs"
         RECEIPT_PATH="$QUAL_ROOT/runs/missing-tools.json"
-        fail validate-tools 1 "$EVERLINK_QUAL_ROOT/setup/raw.log"
+        fail validate-tools 1 "$EVERSSH_QUAL_ROOT/setup/raw.log"
     }
 
     HEAD_SHA=$(/usr/bin/git -C "$ROOT" rev-parse HEAD)

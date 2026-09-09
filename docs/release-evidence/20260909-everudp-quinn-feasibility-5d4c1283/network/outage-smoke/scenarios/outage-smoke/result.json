@@ -1,0 +1,1 @@
+{"elapsed_ms": 35808, "gap_notices": 0, "messages": 4, "mode": "outage", "observed_outage_seconds": 35, "required_outage_seconds": 35, "responses": {"ASYNC:outage-smoke": 1, "RX:during-outage-smoke": 1, "RX:post-outage-smoke": 1, "RX:quit": 1}, "saw_reconnecting": true, "schema_version": 1, "session": "outage-smoke", "stderr_bytes": 0, "transcript_bytes": 160, "verdict": "PASS"}

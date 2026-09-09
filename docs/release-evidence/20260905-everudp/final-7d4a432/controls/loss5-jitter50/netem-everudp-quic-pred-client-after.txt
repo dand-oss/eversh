@@ -1,0 +1,3 @@
+qdisc netem 8417: root refcnt 49 limit 1000 delay 50ms  5ms loss 5% seed 14515
+ Sent 19409 bytes 233 pkt (dropped 17, overlimits 0 requeues 0)
+ backlog 0b 0p requeues 0

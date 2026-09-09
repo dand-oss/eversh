@@ -1,0 +1,1484 @@
+{
+  "excluded_trials": 52,
+  "groups": {
+    "all": {
+      "latency_median_ns": 636010.5,
+      "runnable_wait_median_ns": {
+        "client": 11466.5,
+        "gateway": 9958.5
+      },
+      "trials": 148
+    },
+    "at_most_2ms": {
+      "latency_median_ns": 622349,
+      "runnable_wait_median_ns": {
+        "client": 10713,
+        "gateway": 9336
+      },
+      "trials": 133
+    },
+    "over_2ms": {
+      "latency_median_ns": 4158292,
+      "runnable_wait_median_ns": {
+        "client": 26802,
+        "gateway": 22921
+      },
+      "trials": 15
+    }
+  },
+  "production_qualification": false,
+  "rows": [
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 624249,
+      "trial": 0
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 465775,
+      "trial": 1
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 3666866,
+      "trial": 2
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 492247,
+      "trial": 3
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 1098239,
+      "trial": 4
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 3773018,
+      "trial": 5
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 484833,
+      "trial": 6
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 983329,
+      "trial": 7
+    },
+    {
+      "latency_ns": 562450,
+      "runnable_wait_ns": {
+        "client": 10494,
+        "gateway": 7986
+      },
+      "trial": 8
+    },
+    {
+      "latency_ns": 518406,
+      "runnable_wait_ns": {
+        "client": 12230,
+        "gateway": 7174
+      },
+      "trial": 9
+    },
+    {
+      "latency_ns": 1144010,
+      "runnable_wait_ns": {
+        "client": 25382,
+        "gateway": 28407
+      },
+      "trial": 10
+    },
+    {
+      "latency_ns": 723249,
+      "runnable_wait_ns": {
+        "client": 13237,
+        "gateway": 14041
+      },
+      "trial": 11
+    },
+    {
+      "latency_ns": 732903,
+      "runnable_wait_ns": {
+        "client": 17305,
+        "gateway": 13822
+      },
+      "trial": 12
+    },
+    {
+      "latency_ns": 563144,
+      "runnable_wait_ns": {
+        "client": 10659,
+        "gateway": 10180
+      },
+      "trial": 13
+    },
+    {
+      "latency_ns": 537104,
+      "runnable_wait_ns": {
+        "client": 12109,
+        "gateway": 8159
+      },
+      "trial": 14
+    },
+    {
+      "latency_ns": 3798189,
+      "runnable_wait_ns": {
+        "client": 17763,
+        "gateway": 12276
+      },
+      "trial": 15
+    },
+    {
+      "latency_ns": 431095,
+      "runnable_wait_ns": {
+        "client": 15862,
+        "gateway": 3816
+      },
+      "trial": 16
+    },
+    {
+      "latency_ns": 632917,
+      "runnable_wait_ns": {
+        "client": 9964,
+        "gateway": 9956
+      },
+      "trial": 17
+    },
+    {
+      "latency_ns": 668112,
+      "runnable_wait_ns": {
+        "client": 12070,
+        "gateway": 4827
+      },
+      "trial": 18
+    },
+    {
+      "latency_ns": 402016,
+      "runnable_wait_ns": {
+        "client": 15018,
+        "gateway": 3370
+      },
+      "trial": 19
+    },
+    {
+      "latency_ns": 576140,
+      "runnable_wait_ns": {
+        "client": 11371,
+        "gateway": 10281
+      },
+      "trial": 20
+    },
+    {
+      "latency_ns": 586226,
+      "runnable_wait_ns": {
+        "client": 10726,
+        "gateway": 9144
+      },
+      "trial": 21
+    },
+    {
+      "latency_ns": 1079582,
+      "runnable_wait_ns": {
+        "client": 24018,
+        "gateway": 23415
+      },
+      "trial": 22
+    },
+    {
+      "latency_ns": 865260,
+      "runnable_wait_ns": {
+        "client": 19831,
+        "gateway": 16164
+      },
+      "trial": 23
+    },
+    {
+      "latency_ns": 3944899,
+      "runnable_wait_ns": {
+        "client": 22643,
+        "gateway": 24735
+      },
+      "trial": 24
+    },
+    {
+      "latency_ns": 548768,
+      "runnable_wait_ns": {
+        "client": 8999,
+        "gateway": 5480
+      },
+      "trial": 25
+    },
+    {
+      "latency_ns": 487903,
+      "runnable_wait_ns": {
+        "client": 6727,
+        "gateway": 4430
+      },
+      "trial": 26
+    },
+    {
+      "latency_ns": 687442,
+      "runnable_wait_ns": {
+        "client": 9919,
+        "gateway": 22055
+      },
+      "trial": 27
+    },
+    {
+      "latency_ns": 711117,
+      "runnable_wait_ns": {
+        "client": 10024,
+        "gateway": 10829
+      },
+      "trial": 28
+    },
+    {
+      "latency_ns": 647794,
+      "runnable_wait_ns": {
+        "client": 10244,
+        "gateway": 9661
+      },
+      "trial": 29
+    },
+    {
+      "latency_ns": 442894,
+      "runnable_wait_ns": {
+        "client": 6884,
+        "gateway": 6952
+      },
+      "trial": 30
+    },
+    {
+      "latency_ns": 542364,
+      "runnable_wait_ns": {
+        "client": 16411,
+        "gateway": 7700
+      },
+      "trial": 31
+    },
+    {
+      "latency_ns": 495262,
+      "runnable_wait_ns": {
+        "client": 12342,
+        "gateway": 9164
+      },
+      "trial": 32
+    },
+    {
+      "latency_ns": 565812,
+      "runnable_wait_ns": {
+        "client": 8934,
+        "gateway": 10590
+      },
+      "trial": 33
+    },
+    {
+      "latency_ns": 543626,
+      "runnable_wait_ns": {
+        "client": 186727,
+        "gateway": 69698
+      },
+      "trial": 34
+    },
+    {
+      "latency_ns": 601050,
+      "runnable_wait_ns": {
+        "client": 14061,
+        "gateway": 12717
+      },
+      "trial": 35
+    },
+    {
+      "latency_ns": 631756,
+      "runnable_wait_ns": {
+        "client": 9721,
+        "gateway": 11734
+      },
+      "trial": 36
+    },
+    {
+      "latency_ns": 578382,
+      "runnable_wait_ns": {
+        "client": 11178,
+        "gateway": 15885
+      },
+      "trial": 37
+    },
+    {
+      "latency_ns": 725582,
+      "runnable_wait_ns": {
+        "client": 9966,
+        "gateway": 8325
+      },
+      "trial": 38
+    },
+    {
+      "latency_ns": 4759998,
+      "runnable_wait_ns": {
+        "client": 47823,
+        "gateway": 40210
+      },
+      "trial": 39
+    },
+    {
+      "latency_ns": 598794,
+      "runnable_wait_ns": {
+        "client": 9258,
+        "gateway": 8128
+      },
+      "trial": 40
+    },
+    {
+      "latency_ns": 446688,
+      "runnable_wait_ns": {
+        "client": 8411,
+        "gateway": 7363
+      },
+      "trial": 41
+    },
+    {
+      "latency_ns": 568615,
+      "runnable_wait_ns": {
+        "client": 13721,
+        "gateway": 7178
+      },
+      "trial": 42
+    },
+    {
+      "latency_ns": 1195677,
+      "runnable_wait_ns": {
+        "client": 42714,
+        "gateway": 23333
+      },
+      "trial": 43
+    },
+    {
+      "latency_ns": 752207,
+      "runnable_wait_ns": {
+        "client": 19066,
+        "gateway": 17655
+      },
+      "trial": 44
+    },
+    {
+      "latency_ns": 562227,
+      "runnable_wait_ns": {
+        "client": 7357,
+        "gateway": 7885
+      },
+      "trial": 45
+    },
+    {
+      "latency_ns": 493723,
+      "runnable_wait_ns": {
+        "client": 6843,
+        "gateway": 8928
+      },
+      "trial": 46
+    },
+    {
+      "latency_ns": 525869,
+      "runnable_wait_ns": {
+        "client": 6894,
+        "gateway": 6179
+      },
+      "trial": 47
+    },
+    {
+      "latency_ns": 524965,
+      "runnable_wait_ns": {
+        "client": 7325,
+        "gateway": 5380
+      },
+      "trial": 48
+    },
+    {
+      "latency_ns": 889925,
+      "runnable_wait_ns": {
+        "client": 17564,
+        "gateway": 15576
+      },
+      "trial": 49
+    },
+    {
+      "latency_ns": 686229,
+      "runnable_wait_ns": {
+        "client": 16854,
+        "gateway": 9961
+      },
+      "trial": 50
+    },
+    {
+      "latency_ns": 745416,
+      "runnable_wait_ns": {
+        "client": 11949,
+        "gateway": 15280
+      },
+      "trial": 51
+    },
+    {
+      "latency_ns": 812747,
+      "runnable_wait_ns": {
+        "client": 15696,
+        "gateway": 9858
+      },
+      "trial": 52
+    },
+    {
+      "latency_ns": 729779,
+      "runnable_wait_ns": {
+        "client": 12950,
+        "gateway": 12980
+      },
+      "trial": 53
+    },
+    {
+      "latency_ns": 1161664,
+      "runnable_wait_ns": {
+        "client": 19240,
+        "gateway": 51544
+      },
+      "trial": 54
+    },
+    {
+      "latency_ns": 4016729,
+      "runnable_wait_ns": {
+        "client": 26802,
+        "gateway": 58960
+      },
+      "trial": 55
+    },
+    {
+      "latency_ns": 491710,
+      "runnable_wait_ns": {
+        "client": 7839,
+        "gateway": 5998
+      },
+      "trial": 56
+    },
+    {
+      "latency_ns": 508577,
+      "runnable_wait_ns": {
+        "client": 6686,
+        "gateway": 6619
+      },
+      "trial": 57
+    },
+    {
+      "latency_ns": 659516,
+      "runnable_wait_ns": {
+        "client": 76553,
+        "gateway": 24529
+      },
+      "trial": 58
+    },
+    {
+      "latency_ns": 624247,
+      "runnable_wait_ns": {
+        "client": 8094,
+        "gateway": 7655
+      },
+      "trial": 59
+    },
+    {
+      "latency_ns": 767135,
+      "runnable_wait_ns": {
+        "client": 11613,
+        "gateway": 10224
+      },
+      "trial": 60
+    },
+    {
+      "latency_ns": 586448,
+      "runnable_wait_ns": {
+        "client": 9221,
+        "gateway": 8784
+      },
+      "trial": 61
+    },
+    {
+      "latency_ns": 535644,
+      "runnable_wait_ns": {
+        "client": 8294,
+        "gateway": 7830
+      },
+      "trial": 62
+    },
+    {
+      "latency_ns": 607963,
+      "runnable_wait_ns": {
+        "client": 9307,
+        "gateway": 9110
+      },
+      "trial": 63
+    },
+    {
+      "latency_ns": 637748,
+      "runnable_wait_ns": {
+        "client": 13475,
+        "gateway": 10756
+      },
+      "trial": 64
+    },
+    {
+      "latency_ns": 971464,
+      "runnable_wait_ns": {
+        "client": 18445,
+        "gateway": 16272
+      },
+      "trial": 65
+    },
+    {
+      "latency_ns": 642611,
+      "runnable_wait_ns": {
+        "client": 8449,
+        "gateway": 9256
+      },
+      "trial": 66
+    },
+    {
+      "latency_ns": 556708,
+      "runnable_wait_ns": {
+        "client": 6460,
+        "gateway": 11510
+      },
+      "trial": 67
+    },
+    {
+      "latency_ns": 750112,
+      "runnable_wait_ns": {
+        "client": 9676,
+        "gateway": 12709
+      },
+      "trial": 68
+    },
+    {
+      "latency_ns": 9471010,
+      "runnable_wait_ns": {
+        "client": 39562,
+        "gateway": 15117
+      },
+      "trial": 69
+    },
+    {
+      "latency_ns": 591687,
+      "runnable_wait_ns": {
+        "client": 9436,
+        "gateway": 7748
+      },
+      "trial": 70
+    },
+    {
+      "latency_ns": 4208487,
+      "runnable_wait_ns": {
+        "client": 34771,
+        "gateway": 15680
+      },
+      "trial": 71
+    },
+    {
+      "latency_ns": 641107,
+      "runnable_wait_ns": {
+        "client": 9185,
+        "gateway": 9040
+      },
+      "trial": 72
+    },
+    {
+      "latency_ns": 4343515,
+      "runnable_wait_ns": {
+        "client": 29360,
+        "gateway": 32282
+      },
+      "trial": 73
+    },
+    {
+      "latency_ns": 767507,
+      "runnable_wait_ns": {
+        "client": 14293,
+        "gateway": 15794
+      },
+      "trial": 74
+    },
+    {
+      "latency_ns": 626886,
+      "runnable_wait_ns": {
+        "client": 10705,
+        "gateway": 12519
+      },
+      "trial": 75
+    },
+    {
+      "latency_ns": 604132,
+      "runnable_wait_ns": {
+        "client": 7632,
+        "gateway": 26935
+      },
+      "trial": 76
+    },
+    {
+      "latency_ns": 508493,
+      "runnable_wait_ns": {
+        "client": 6791,
+        "gateway": 5348
+      },
+      "trial": 77
+    },
+    {
+      "latency_ns": 521067,
+      "runnable_wait_ns": {
+        "client": 6490,
+        "gateway": 10795
+      },
+      "trial": 78
+    },
+    {
+      "latency_ns": 3986358,
+      "runnable_wait_ns": {
+        "client": 17674,
+        "gateway": 15588
+      },
+      "trial": 79
+    },
+    {
+      "latency_ns": 500214,
+      "runnable_wait_ns": {
+        "client": 9180,
+        "gateway": 6423
+      },
+      "trial": 80
+    },
+    {
+      "latency_ns": 737376,
+      "runnable_wait_ns": {
+        "client": 12550,
+        "gateway": 12672
+      },
+      "trial": 81
+    },
+    {
+      "latency_ns": 422051,
+      "runnable_wait_ns": {
+        "client": 8301,
+        "gateway": 6161
+      },
+      "trial": 82
+    },
+    {
+      "latency_ns": 963340,
+      "runnable_wait_ns": {
+        "client": 18313,
+        "gateway": 19008
+      },
+      "trial": 83
+    },
+    {
+      "latency_ns": 585277,
+      "runnable_wait_ns": {
+        "client": 11270,
+        "gateway": 11024
+      },
+      "trial": 84
+    },
+    {
+      "latency_ns": 1010401,
+      "runnable_wait_ns": {
+        "client": 22029,
+        "gateway": 24245
+      },
+      "trial": 85
+    },
+    {
+      "latency_ns": 611428,
+      "runnable_wait_ns": {
+        "client": 9670,
+        "gateway": 7453
+      },
+      "trial": 86
+    },
+    {
+      "latency_ns": 881203,
+      "runnable_wait_ns": {
+        "client": 9861,
+        "gateway": 8702
+      },
+      "trial": 87
+    },
+    {
+      "latency_ns": 567909,
+      "runnable_wait_ns": {
+        "client": 11193,
+        "gateway": 8311
+      },
+      "trial": 88
+    },
+    {
+      "latency_ns": 568821,
+      "runnable_wait_ns": {
+        "client": 18321,
+        "gateway": 8937
+      },
+      "trial": 89
+    },
+    {
+      "latency_ns": 700990,
+      "runnable_wait_ns": {
+        "client": 9778,
+        "gateway": 10296
+      },
+      "trial": 90
+    },
+    {
+      "latency_ns": 554023,
+      "runnable_wait_ns": {
+        "client": 8265,
+        "gateway": 6249
+      },
+      "trial": 91
+    },
+    {
+      "latency_ns": 754517,
+      "runnable_wait_ns": {
+        "client": 9874,
+        "gateway": 23476
+      },
+      "trial": 92
+    },
+    {
+      "latency_ns": 1192544,
+      "runnable_wait_ns": {
+        "client": 29681,
+        "gateway": 28261
+      },
+      "trial": 93
+    },
+    {
+      "latency_ns": 706017,
+      "runnable_wait_ns": {
+        "client": 10521,
+        "gateway": 8311
+      },
+      "trial": 94
+    },
+    {
+      "latency_ns": 549458,
+      "runnable_wait_ns": {
+        "client": 8650,
+        "gateway": 4629
+      },
+      "trial": 95
+    },
+    {
+      "latency_ns": 625094,
+      "runnable_wait_ns": {
+        "client": 11403,
+        "gateway": 9204
+      },
+      "trial": 96
+    },
+    {
+      "latency_ns": 568122,
+      "runnable_wait_ns": {
+        "client": 12465,
+        "gateway": 8366
+      },
+      "trial": 97
+    },
+    {
+      "latency_ns": 1324008,
+      "runnable_wait_ns": {
+        "client": 28894,
+        "gateway": 33120
+      },
+      "trial": 98
+    },
+    {
+      "latency_ns": 564888,
+      "runnable_wait_ns": {
+        "client": 8115,
+        "gateway": 5241
+      },
+      "trial": 99
+    },
+    {
+      "latency_ns": 556942,
+      "runnable_wait_ns": {
+        "client": 9616,
+        "gateway": 8274
+      },
+      "trial": 100
+    },
+    {
+      "latency_ns": 706071,
+      "runnable_wait_ns": {
+        "client": 11902,
+        "gateway": 10949
+      },
+      "trial": 101
+    },
+    {
+      "latency_ns": 567951,
+      "runnable_wait_ns": {
+        "client": 10675,
+        "gateway": 6131
+      },
+      "trial": 102
+    },
+    {
+      "latency_ns": 1030604,
+      "runnable_wait_ns": {
+        "client": 26394,
+        "gateway": 20256
+      },
+      "trial": 103
+    },
+    {
+      "latency_ns": 921990,
+      "runnable_wait_ns": {
+        "client": 19190,
+        "gateway": 36857
+      },
+      "trial": 104
+    },
+    {
+      "latency_ns": 1059399,
+      "runnable_wait_ns": {
+        "client": 22419,
+        "gateway": 20307
+      },
+      "trial": 105
+    },
+    {
+      "latency_ns": 1361621,
+      "runnable_wait_ns": {
+        "client": 28127,
+        "gateway": 27173
+      },
+      "trial": 106
+    },
+    {
+      "latency_ns": 4082573,
+      "runnable_wait_ns": {
+        "client": 15963,
+        "gateway": 17205
+      },
+      "trial": 107
+    },
+    {
+      "latency_ns": 825539,
+      "runnable_wait_ns": {
+        "client": 11530,
+        "gateway": 9430
+      },
+      "trial": 108
+    },
+    {
+      "latency_ns": 722866,
+      "runnable_wait_ns": {
+        "client": 9634,
+        "gateway": 9475
+      },
+      "trial": 109
+    },
+    {
+      "latency_ns": 611714,
+      "runnable_wait_ns": {
+        "client": 15658,
+        "gateway": 7910
+      },
+      "trial": 110
+    },
+    {
+      "latency_ns": 639773,
+      "runnable_wait_ns": {
+        "client": 19825,
+        "gateway": 7209
+      },
+      "trial": 111
+    },
+    {
+      "latency_ns": 4509202,
+      "runnable_wait_ns": {
+        "client": 35810,
+        "gateway": 34270
+      },
+      "trial": 112
+    },
+    {
+      "latency_ns": 852891,
+      "runnable_wait_ns": {
+        "client": 19034,
+        "gateway": 10864
+      },
+      "trial": 113
+    },
+    {
+      "latency_ns": 725506,
+      "runnable_wait_ns": {
+        "client": 29784,
+        "gateway": 9336
+      },
+      "trial": 114
+    },
+    {
+      "latency_ns": 530349,
+      "runnable_wait_ns": {
+        "client": 7815,
+        "gateway": 5660
+      },
+      "trial": 115
+    },
+    {
+      "latency_ns": 698781,
+      "runnable_wait_ns": {
+        "client": 11077,
+        "gateway": 9445
+      },
+      "trial": 116
+    },
+    {
+      "latency_ns": 400146,
+      "runnable_wait_ns": {
+        "client": 5025,
+        "gateway": 4718
+      },
+      "trial": 117
+    },
+    {
+      "latency_ns": 929980,
+      "runnable_wait_ns": {
+        "client": 14514,
+        "gateway": 16688
+      },
+      "trial": 118
+    },
+    {
+      "latency_ns": 4158292,
+      "runnable_wait_ns": {
+        "client": 23895,
+        "gateway": 22921
+      },
+      "trial": 119
+    },
+    {
+      "latency_ns": 579212,
+      "runnable_wait_ns": {
+        "client": 9691,
+        "gateway": 7045
+      },
+      "trial": 120
+    },
+    {
+      "latency_ns": 963668,
+      "runnable_wait_ns": {
+        "client": 12837,
+        "gateway": 15557
+      },
+      "trial": 121
+    },
+    {
+      "latency_ns": 533177,
+      "runnable_wait_ns": {
+        "client": 26988,
+        "gateway": 6864
+      },
+      "trial": 122
+    },
+    {
+      "latency_ns": 925456,
+      "runnable_wait_ns": {
+        "client": 22620,
+        "gateway": 29831
+      },
+      "trial": 123
+    },
+    {
+      "latency_ns": 904782,
+      "runnable_wait_ns": {
+        "client": 18036,
+        "gateway": 13595
+      },
+      "trial": 124
+    },
+    {
+      "latency_ns": 622349,
+      "runnable_wait_ns": {
+        "client": 10666,
+        "gateway": 6616
+      },
+      "trial": 125
+    },
+    {
+      "latency_ns": 1098521,
+      "runnable_wait_ns": {
+        "client": 22834,
+        "gateway": 19865
+      },
+      "trial": 126
+    },
+    {
+      "latency_ns": 538602,
+      "runnable_wait_ns": {
+        "client": 8518,
+        "gateway": 4894
+      },
+      "trial": 127
+    },
+    {
+      "latency_ns": 3799655,
+      "runnable_wait_ns": {
+        "client": 15608,
+        "gateway": 11619
+      },
+      "trial": 128
+    },
+    {
+      "latency_ns": 486992,
+      "runnable_wait_ns": {
+        "client": 7136,
+        "gateway": 6345
+      },
+      "trial": 129
+    },
+    {
+      "latency_ns": 467214,
+      "runnable_wait_ns": {
+        "client": 7367,
+        "gateway": 4686
+      },
+      "trial": 130
+    },
+    {
+      "latency_ns": 517786,
+      "runnable_wait_ns": {
+        "client": 9803,
+        "gateway": 9991
+      },
+      "trial": 131
+    },
+    {
+      "latency_ns": 509504,
+      "runnable_wait_ns": {
+        "client": 7196,
+        "gateway": 4628
+      },
+      "trial": 132
+    },
+    {
+      "latency_ns": 537009,
+      "runnable_wait_ns": {
+        "client": 8585,
+        "gateway": 9119
+      },
+      "trial": 133
+    },
+    {
+      "latency_ns": 438989,
+      "runnable_wait_ns": {
+        "client": 6954,
+        "gateway": 5312
+      },
+      "trial": 134
+    },
+    {
+      "latency_ns": 477048,
+      "runnable_wait_ns": {
+        "client": 6908,
+        "gateway": 5383
+      },
+      "trial": 135
+    },
+    {
+      "latency_ns": 606296,
+      "runnable_wait_ns": {
+        "client": 7976,
+        "gateway": 5936
+      },
+      "trial": 136
+    },
+    {
+      "latency_ns": 516101,
+      "runnable_wait_ns": {
+        "client": 7290,
+        "gateway": 8434
+      },
+      "trial": 137
+    },
+    {
+      "latency_ns": 1027504,
+      "runnable_wait_ns": {
+        "client": 24137,
+        "gateway": 14479
+      },
+      "trial": 138
+    },
+    {
+      "latency_ns": 947592,
+      "runnable_wait_ns": {
+        "client": 18066,
+        "gateway": 16210
+      },
+      "trial": 139
+    },
+    {
+      "latency_ns": 567654,
+      "runnable_wait_ns": {
+        "client": 9030,
+        "gateway": 6406
+      },
+      "trial": 140
+    },
+    {
+      "latency_ns": 494719,
+      "runnable_wait_ns": {
+        "client": 7989,
+        "gateway": 6866
+      },
+      "trial": 141
+    },
+    {
+      "latency_ns": 679136,
+      "runnable_wait_ns": {
+        "client": 12325,
+        "gateway": 10136
+      },
+      "trial": 142
+    },
+    {
+      "latency_ns": 4612621,
+      "runnable_wait_ns": {
+        "client": 39523,
+        "gateway": 31940
+      },
+      "trial": 143
+    },
+    {
+      "latency_ns": 992267,
+      "runnable_wait_ns": {
+        "client": 18707,
+        "gateway": 16039
+      },
+      "trial": 144
+    },
+    {
+      "latency_ns": 621046,
+      "runnable_wait_ns": {
+        "client": 11755,
+        "gateway": 12126
+      },
+      "trial": 145
+    },
+    {
+      "latency_ns": 740689,
+      "runnable_wait_ns": {
+        "client": 12172,
+        "gateway": 13168
+      },
+      "trial": 146
+    },
+    {
+      "latency_ns": 1096729,
+      "runnable_wait_ns": {
+        "client": 27044,
+        "gateway": 13453
+      },
+      "trial": 147
+    },
+    {
+      "latency_ns": 714252,
+      "runnable_wait_ns": {
+        "client": 9544,
+        "gateway": 7625
+      },
+      "trial": 148
+    },
+    {
+      "latency_ns": 634273,
+      "runnable_wait_ns": {
+        "client": 10540,
+        "gateway": 9393
+      },
+      "trial": 149
+    },
+    {
+      "latency_ns": 474776,
+      "runnable_wait_ns": {
+        "client": 7861,
+        "gateway": 6222
+      },
+      "trial": 150
+    },
+    {
+      "latency_ns": 627018,
+      "runnable_wait_ns": {
+        "client": 10713,
+        "gateway": 7460
+      },
+      "trial": 151
+    },
+    {
+      "latency_ns": 1211468,
+      "runnable_wait_ns": {
+        "client": 24461,
+        "gateway": 23900
+      },
+      "trial": 152
+    },
+    {
+      "latency_ns": 4082502,
+      "runnable_wait_ns": {
+        "client": 22892,
+        "gateway": 24718
+      },
+      "trial": 153
+    },
+    {
+      "latency_ns": 595033,
+      "runnable_wait_ns": {
+        "client": 10642,
+        "gateway": 8173
+      },
+      "trial": 154
+    },
+    {
+      "latency_ns": 13284577,
+      "runnable_wait_ns": {
+        "client": 26851,
+        "gateway": 13498
+      },
+      "trial": 155
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 648728,
+      "trial": 156
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 1050868,
+      "trial": 157
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 633671,
+      "trial": 158
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 637543,
+      "trial": 159
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 653136,
+      "trial": 160
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 1103714,
+      "trial": 161
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 795423,
+      "trial": 162
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 680555,
+      "trial": 163
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 514662,
+      "trial": 164
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 545346,
+      "trial": 165
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 1017770,
+      "trial": 166
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 574312,
+      "trial": 167
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 714765,
+      "trial": 168
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 459789,
+      "trial": 169
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 491818,
+      "trial": 170
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 428808,
+      "trial": 171
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 4587714,
+      "trial": 172
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 964846,
+      "trial": 173
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 547174,
+      "trial": 174
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 833622,
+      "trial": 175
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 784749,
+      "trial": 176
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 674883,
+      "trial": 177
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 617064,
+      "trial": 178
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 384148,
+      "trial": 179
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 429867,
+      "trial": 180
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 459296,
+      "trial": 181
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 615622,
+      "trial": 182
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 454772,
+      "trial": 183
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 664941,
+      "trial": 184
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 566646,
+      "trial": 185
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 409919,
+      "trial": 186
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 3938162,
+      "trial": 187
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 908720,
+      "trial": 188
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 445972,
+      "trial": 189
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 557380,
+      "trial": 190
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 479436,
+      "trial": 191
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 480009,
+      "trial": 192
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 551936,
+      "trial": 193
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 487474,
+      "trial": 194
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 3983663,
+      "trial": 195
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 3824949,
+      "trial": 196
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 770769,
+      "trial": 197
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 489890,
+      "trial": 198
+    },
+    {
+      "excluded": "outside conservative scheduler coverage",
+      "latency_ns": 512861,
+      "trial": 199
+    }
+  ],
+  "scope": "target main threads only; do not sum independent process waits or infer exclusive network cost",
+  "source": {
+    "clean": true,
+    "head_sha": "981975bceed8a315b3c827406dc8c5be029ec272",
+    "tree_sha": "04c8012f84efb6fd0e2e7d98cf967feaba4dc9df"
+  },
+  "status": "DIAGNOSTIC",
+  "threshold_note": "2ms grouping is exploratory, not an acceptance threshold"
+}

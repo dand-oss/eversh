@@ -1,0 +1,1 @@
+{"elapsed_ms": 10229, "gap_notices": 1, "messages": 3, "mode": "overrun", "responses": {"RX:future-after-gap-forced-overrun": 1, "RX:post-forced-overrun": 1, "RX:quit": 1}, "saw_reconnecting": true, "schema_version": 1, "session": "forced-overrun", "stderr_bytes": 46, "transcript_bytes": 172, "verdict": "PASS"}

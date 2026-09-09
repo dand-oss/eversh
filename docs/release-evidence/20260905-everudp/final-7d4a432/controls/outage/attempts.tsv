@@ -1,0 +1,6 @@
+phase	attempt	exit_code	elapsed_ms
+pre	1	0	109
+outage	1	1	2017
+outage	2	1	2013
+outage	3	1	2014
+recovery	1	0	110

@@ -1,0 +1,100 @@
+{
+  "status": "DIAGNOSTIC",
+  "qualification": "NOT_APPLICABLE",
+  "target_pid": 4077429,
+  "process_start_ticks": "139089761",
+  "clock_identity": {
+    "boot_id": "a379fc1e-ec8d-4f5c-afaa-4bbe88d1fced",
+    "time_namespace_dev": 5,
+    "time_namespace_ino": 4026531834
+  },
+  "process_start": {
+    "stdin_identity": {
+      "dev": 25,
+      "ino": 11,
+      "mode": 8576,
+      "rdev": 34824
+    },
+    "stdin_alias_fds": [
+      0,
+      1
+    ],
+    "tids": [
+      4077429
+    ],
+    "affinity": [
+      40,
+      42,
+      44,
+      46
+    ]
+  },
+  "process_end": {
+    "stdin_identity": {
+      "dev": 25,
+      "ino": 11,
+      "mode": 8576,
+      "rdev": 34824
+    },
+    "stdin_alias_fds": [
+      0,
+      1
+    ],
+    "tids": [
+      4077429
+    ],
+    "affinity": [
+      40,
+      42,
+      44,
+      46
+    ]
+  },
+  "clock": "CLOCK_MONOTONIC",
+  "duration_seconds": 10,
+  "command": [
+    "sudo",
+    "-n",
+    "env",
+    "LD_LIBRARY_PATH=/tmp/eversh-profile-tools.m4Ikm3/extracted/usr/lib/x86_64-linux-gnu",
+    "DEBUGINFOD_URLS=",
+    "/tmp/eversh-profile-tools.m4Ikm3/extracted/usr/bin/perf",
+    "record",
+    "-a",
+    "--synth",
+    "no",
+    "--clockid",
+    "mono",
+    "-e",
+    "sched:sched_waking",
+    "--filter",
+    "pid == 4077429",
+    "-e",
+    "sched:sched_wakeup",
+    "--filter",
+    "pid == 4077429",
+    "-e",
+    "sched:sched_switch",
+    "--filter",
+    "prev_pid == 4077429 || next_pid == 4077429",
+    "-e",
+    "syscalls:sys_enter_read",
+    "--filter",
+    "common_pid == 4077429",
+    "-e",
+    "syscalls:sys_exit_read",
+    "--filter",
+    "common_pid == 4077429",
+    "-o",
+    "/tmp/eversh-input-schedule-reverse.VxPAbE/zmosh-udp/perf.data",
+    "--",
+    "/usr/bin/sleep",
+    "10"
+  ],
+  "source_build": {
+    "clean": true,
+    "head_sha": "04a04ed8c3156d943fc3584cfa92cd4483fa4bc8",
+    "tree_sha": "98418eabf0839088a97c0dba8e86af52efd10b2e"
+  },
+  "scope": "target PID scheduler and read syscall boundaries only; no payloads or stacks; buffer addresses redacted from exported text"
+}

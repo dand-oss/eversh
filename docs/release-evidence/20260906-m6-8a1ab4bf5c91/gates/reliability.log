@@ -1,0 +1,17 @@
+everudp reliability loss0: PASS
+everudp reliability loss1: PASS
+everudp reliability loss5: PASS
+everudp reliability loss10: PASS
+everudp reliability loss25: PASS
+everudp reliability loss5-jitter25: PASS
+everudp reliability loss5-jitter50: PASS
+everudp reliability loss5-reorder2-duplicate2: PASS
+everudp reliability UDP-only data plane: PASS
+everudp reliability ipv6-loss5: PASS
+everudp reliability 1200-byte MTU: PASS
+everudp reliability sleep/wake: PASS
+everudp reliability outage-5m (300s): PASS
+everudp reliability outage-30m (1800s): PASS
+everudp reliability forced overrun: PASS
+everudp reliability address/interface migration: PASS
+everudp production reliability gate: PASS (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T085101Z-8a1ab4bf5c91/reliability)

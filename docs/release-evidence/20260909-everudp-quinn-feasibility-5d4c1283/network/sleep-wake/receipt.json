@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "verdict": "PASS",
+  "source": {
+    "head": "5d4c1283460586e9b4640ce10ca90d561206d3f9",
+    "tree": "070886e52959ceab13eed05b6a341400b629f86d"
+  },
+  "started_utc": "2026-09-09T02:21:30Z",
+  "completed_utc": "2026-09-09T02:21:36Z",
+  "smoke": false,
+  "twelve_hour_soak": "NOT_RUN",
+  "scenarios": [
+    {
+      "elapsed_ms": 5522,
+      "gap_notices": 0,
+      "messages": 3,
+      "mode": "pause",
+      "responses": {
+        "ASYNC:sleep-wake": 1,
+        "RX:post-sleep-wake": 1,
+        "RX:quit": 1
+      },
+      "saw_reconnecting": false,
+      "schema_version": 1,
+      "session": "sleep-wake",
+      "stderr_bytes": 0,
+      "transcript_bytes": 105,
+      "verdict": "PASS"
+    }
+  ]
+}

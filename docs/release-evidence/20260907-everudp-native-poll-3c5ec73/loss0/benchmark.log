@@ -1,0 +1,3 @@
+performance block candidate 1/2: everudp-floor
+performance block candidate 2/2: zmosh-udp
+performance block PASS: /tmp/everudp-native-poll-3c5ec73-loss0/measurement

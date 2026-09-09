@@ -1,0 +1,16 @@
+{
+  "binary_sha256": "63500d5e3d526d07b173b9f08f39b642c4173e27c69c8137b26e91b0db252e18",
+  "elapsed_seconds": 5.565375861944631,
+  "fixture_sha256": "6a2e7f935b34784a7a893d6acba8d3a77fbc8011d720cc34216a942f3d916317",
+  "qualification": false,
+  "schema_version": 1,
+  "status": "TRAINED",
+  "transcript_bytes": 131351,
+  "transcript_sha256": "3ca1ba2a8451e0e513efcaa9df14504bf726f2e97befaf0542b9fa810afee1e3",
+  "workload": {
+    "large_roundtrips": 32,
+    "large_size": 4096,
+    "one_byte_roundtrips": 256,
+    "spacing_seconds": 0.02
+  }
+}

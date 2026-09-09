@@ -1,0 +1,3 @@
+{"counter-value" : "114824312.000000", "unit" : "", "event" : "cycles:u", "event-runtime" : 114831980, "pcnt-running" : 100.00}
+{"counter-value" : "27630077.000000", "unit" : "", "event" : "instructions:u", "event-runtime" : 114831980, "pcnt-running" : 100.00}
+{"counter-value" : "301468.000000", "unit" : "", "event" : "cache-misses:u", "event-runtime" : 114831980, "pcnt-running" : 100.00}

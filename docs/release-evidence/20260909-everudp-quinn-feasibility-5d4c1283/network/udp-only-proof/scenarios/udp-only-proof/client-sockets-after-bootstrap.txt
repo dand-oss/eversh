@@ -1,0 +1,15 @@
+Netid State     Recv-Q Send-Q Local Address:Port   Peer Address:Port Process
+udp   UNCONN    0      0         10.253.0.2:57978       0.0.0.0:*     users:(("everudp",pid=1580195,fd=10))
+tcp   TIME-WAIT 0      0         10.253.0.2:53948    10.253.0.1:22453
+tcp   TIME-WAIT 0      0         10.253.0.2:53962    10.253.0.1:22453
+tcp   TIME-WAIT 0      0         10.253.0.2:53964    10.253.0.1:22453
+tcp   TIME-WAIT 0      0         10.253.0.2:53970    10.253.0.1:22453
+tcp   TIME-WAIT 0      0         10.253.0.2:53986    10.253.0.1:22453
+tcp   TIME-WAIT 0      0         10.253.0.2:53992    10.253.0.1:22453
+tcp   TIME-WAIT 0      0         10.253.0.2:54004    10.253.0.1:22453
+tcp   TIME-WAIT 0      0      [fd42:253::2]:49606 [fd42:253::1]:22453
+tcp   TIME-WAIT 0      0      [fd42:253::2]:49608 [fd42:253::1]:22453
+tcp   TIME-WAIT 0      0      [fd42:253::2]:49622 [fd42:253::1]:22453
+tcp   TIME-WAIT 0      0      [fd42:253::2]:49630 [fd42:253::1]:22453
+tcp   TIME-WAIT 0      0      [fd42:253::2]:49634 [fd42:253::1]:22453
+tcp   TIME-WAIT 0      0      [fd42:253::2]:49642 [fd42:253::1]:22453

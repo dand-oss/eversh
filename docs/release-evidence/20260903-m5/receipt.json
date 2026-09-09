@@ -1,0 +1,295 @@
+{
+  "schema_version": 1,
+  "verdict": "PASS",
+  "command": "run",
+  "milestone": "M5",
+  "head_sha": "0ab05ce93d53c0225132a6e5722cf9cf6be4ca41",
+  "tree_sha": "5520db1c1ab83b6486995eef8910c3369f729ebd",
+  "clean_tree": true,
+  "final_identity_rechecked": true,
+  "started_utc": "2026-09-03T21:06:03Z",
+  "completed_utc": "2026-09-03T21:58:28Z",
+  "tools": {
+    "stable": "rustc 1.95.0 (59807616e 2026-04-14)",
+    "msrv": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+    "nightly": "rustc 1.100.0-nightly (f7d782a3b 2026-08-19)",
+    "cargo_fuzz": "cargo-fuzz 0.13.2",
+    "cargo_deny": "cargo-deny 0.20.2",
+    "cross_target": "aarch64-unknown-linux-gnu",
+    "cargo_target_dir": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target"
+  },
+  "deterministic_gates": [
+    "git-diff-check",
+    "root-fmt",
+    "root-check",
+    "root-clippy",
+    "root-test",
+    "eversh-supervisor-x3",
+    "eversh-resource-bounds",
+    "eversh-e2e-openssh",
+    "everssh-migration-netns",
+    "everssh-openssh-slice5a",
+    "everssh-version-skew",
+    "everssh-composed-netns-b1",
+    "everssh-composed-netns-b2",
+    "documentation-compat",
+    "root-no-default-libs",
+    "msrv-check",
+    "aarch64-check",
+    "cargo-deny-root",
+    "cargo-deny-fuzz",
+    "fuzz-fmt",
+    "fuzz-check",
+    "fuzz-clippy",
+    "nine-fuzz-builds",
+    "release-packaging"
+  ],
+  "supervisor_stability_rounds": 3,
+  "subreceipts": {
+    "git-diff-check": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/git-diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "root-fmt": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/root-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "root-check": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/root-check.log",
+      "sha256": "b5f4ed39db16c12584df2dee6155f4455b9e5524582f2ce3fe8d8f4a059d0129"
+    },
+    "root-clippy": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/root-clippy.log",
+      "sha256": "2bd1ff2c221faa4131816c61c71cbce4e8edb61c969f16ebde6b834853a465db"
+    },
+    "root-test": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/root-test.log",
+      "sha256": "ec54feb6c1ba3ae40c44a24b370513490a16075e5f8ba0a3dbaa468c87c97d1b"
+    },
+    "eversh-resource-bounds": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/eversh-resource-bounds.log",
+      "sha256": "32a6447963d18ab2d7d744a5afe6d29bc2893141c280ea1ed2ce7c3d3411dcb2"
+    },
+    "eversh-e2e-openssh": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/eversh-e2e-openssh.log",
+      "sha256": "9d01d239c1a9aaf9207d9137a0bf397204e57f25d99df1533428b5851f474beb"
+    },
+    "everssh-migration-netns": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/everssh-migration-netns.log",
+      "sha256": "97695f32ba06d743fffc86b71bdf74e5be3ebd76142de533b5057738c9c2517d"
+    },
+    "everssh-openssh-slice5a": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/everssh-openssh-slice5a.log",
+      "sha256": "f5999dd99134a051461c8da8de44e3b2b08770e03cea9c7e8068c3b0316f984c"
+    },
+    "everssh-version-skew": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/everssh-version-skew.log",
+      "sha256": "d9986eec8e7ed54fad17473f088ad2c26ae7749887229bdab5fad5ee421641d5"
+    },
+    "everssh-composed-netns-b1": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/everssh-composed-netns-b1.log",
+      "sha256": "a2c076825d80eb6dbb64adfa12dd062f549a7580db6ca1af99160e1ff1c43d0a"
+    },
+    "everssh-composed-netns-b2": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/everssh-composed-netns-b2.log",
+      "sha256": "891058f07260e147f565853962465242bc02c91e64a7a776841b95769d56c8da"
+    },
+    "documentation-compat": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/documentation-compat.log",
+      "sha256": "cc0734192949e37aa7f4bdc6e9a80ab5fb30ad9f790ca676d61921488f544916"
+    },
+    "root-no-default-libs": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/root-no-default-libs.log",
+      "sha256": "7fe4ec41397bfbee73b5c80ec75552c2ecfe01bd42e35d7d8cb67a5421d25d1b"
+    },
+    "msrv-check": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/msrv-check.log",
+      "sha256": "6a277e9bbe0fbc82f38de9d32b24763145e3e31ce22fffe30437cf0385fd8766"
+    },
+    "aarch64-check": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/aarch64-check.log",
+      "sha256": "57fde8925948aa2dd6f5c40be3d28d97f8a435935ecd0d8cf0fb0898610bd2db"
+    },
+    "cargo-deny-root": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/cargo-deny-root.log",
+      "sha256": "5112549b7d0919079d06f2954d8d08a989d2adff536078653b0bde3016a9e777"
+    },
+    "cargo-deny-fuzz": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/cargo-deny-fuzz.log",
+      "sha256": "02726b1d9896550e5d6d42e3d12c26ceeff9ea02b3eef7d273c29b2e8ea64844"
+    },
+    "fuzz-fmt": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/fuzz-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "fuzz-check": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/fuzz-check.log",
+      "sha256": "71e08004cde5892abed66622c72fb9cd9e97f8d5e0975458557ea10923bc1271"
+    },
+    "fuzz-clippy": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/fuzz-clippy.log",
+      "sha256": "5e81fd30ea12995dc5339c7da1a92eaf2e81d1a3ca0e86b7d6f2eb5f2ea87b30"
+    },
+    "release-build": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/release-build.log",
+      "sha256": "a0afdb07a5e7d5330eccbb7c1dd2c1e7d1618c9dbc359ffd78818bfcc26f1005"
+    },
+    "release-build-reproducibility": {
+      "log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/release-build-reproducibility.log",
+      "sha256": "79ed64745bb722df7248f5bb2bac70320a494dc29c795d5b3cc266ffed6bd076"
+    }
+  },
+  "resource_metrics": "eversh-resource-bounds: PASS cycles=5 fd_baseline=6 fd_peak=6/14 fd_final=6 rss_baseline_kib=10164 rss_peak_kib=10228/18356 rss_final_kib=10228/14260",
+  "e2e_openssh_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/gates/eversh-e2e-openssh.log",
+  "campaigns": [
+    {
+      "target": "fuzz_auth_frame",
+      "verdict": "PASS",
+      "elapsed_seconds": 63,
+      "executions": 19119823,
+      "average_exec_per_second": 308384,
+      "new_units": 3,
+      "peak_rss_mb": 496,
+      "corpus_files": 3,
+      "crash_artifacts": 0,
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/raw/fuzz_auth_frame.log",
+      "corpus": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/corpus/fuzz_auth_frame",
+      "artifacts": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/artifacts/fuzz_auth_frame"
+    },
+    {
+      "target": "fuzz_bootstrap_record",
+      "verdict": "PASS",
+      "elapsed_seconds": 62,
+      "executions": 19086625,
+      "average_exec_per_second": 307848,
+      "new_units": 80,
+      "peak_rss_mb": 551,
+      "corpus_files": 43,
+      "crash_artifacts": 0,
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/raw/fuzz_bootstrap_record.log",
+      "corpus": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/corpus/fuzz_bootstrap_record",
+      "artifacts": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/artifacts/fuzz_bootstrap_record"
+    },
+    {
+      "target": "fuzz_everssh_close_sequence",
+      "verdict": "PASS",
+      "elapsed_seconds": 62,
+      "executions": 426400,
+      "average_exec_per_second": 6877,
+      "new_units": 569,
+      "peak_rss_mb": 427,
+      "corpus_files": 277,
+      "crash_artifacts": 0,
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/raw/fuzz_everssh_close_sequence.log",
+      "corpus": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/corpus/fuzz_everssh_close_sequence",
+      "artifacts": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/artifacts/fuzz_everssh_close_sequence"
+    },
+    {
+      "target": "fuzz_everssh_stream_boundary",
+      "verdict": "PASS",
+      "elapsed_seconds": 63,
+      "executions": 7816436,
+      "average_exec_per_second": 126071,
+      "new_units": 67,
+      "peak_rss_mb": 522,
+      "corpus_files": 36,
+      "crash_artifacts": 0,
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/raw/fuzz_everssh_stream_boundary.log",
+      "corpus": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/corpus/fuzz_everssh_stream_boundary",
+      "artifacts": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/artifacts/fuzz_everssh_stream_boundary"
+    },
+    {
+      "target": "fuzz_frame",
+      "verdict": "PASS",
+      "elapsed_seconds": 63,
+      "executions": 18017163,
+      "average_exec_per_second": 290599,
+      "new_units": 320,
+      "peak_rss_mb": 566,
+      "corpus_files": 79,
+      "crash_artifacts": 0,
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/raw/fuzz_frame.log",
+      "corpus": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/corpus/fuzz_frame",
+      "artifacts": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/artifacts/fuzz_frame"
+    },
+    {
+      "target": "fuzz_metadata",
+      "verdict": "PASS",
+      "elapsed_seconds": 62,
+      "executions": 15060059,
+      "average_exec_per_second": 242904,
+      "new_units": 446,
+      "peak_rss_mb": 502,
+      "corpus_files": 125,
+      "crash_artifacts": 0,
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/raw/fuzz_metadata.log",
+      "corpus": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/corpus/fuzz_metadata",
+      "artifacts": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/artifacts/fuzz_metadata"
+    },
+    {
+      "target": "fuzz_proc_stat",
+      "verdict": "PASS",
+      "elapsed_seconds": 63,
+      "executions": 17374137,
+      "average_exec_per_second": 280228,
+      "new_units": 1124,
+      "peak_rss_mb": 501,
+      "corpus_files": 148,
+      "crash_artifacts": 0,
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/raw/fuzz_proc_stat.log",
+      "corpus": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/corpus/fuzz_proc_stat",
+      "artifacts": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/artifacts/fuzz_proc_stat"
+    },
+    {
+      "target": "fuzz_remote_control",
+      "verdict": "PASS",
+      "elapsed_seconds": 62,
+      "executions": 4173315,
+      "average_exec_per_second": 67311,
+      "new_units": 1006,
+      "peak_rss_mb": 489,
+      "corpus_files": 297,
+      "crash_artifacts": 0,
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/raw/fuzz_remote_control.log",
+      "corpus": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/corpus/fuzz_remote_control",
+      "artifacts": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/artifacts/fuzz_remote_control"
+    },
+    {
+      "target": "fuzz_resume_handshake",
+      "verdict": "PASS",
+      "elapsed_seconds": 62,
+      "executions": 20800909,
+      "average_exec_per_second": 335498,
+      "new_units": 11,
+      "peak_rss_mb": 483,
+      "corpus_files": 10,
+      "crash_artifacts": 0,
+      "raw_log": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/raw/fuzz_resume_handshake.log",
+      "corpus": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/corpus/fuzz_resume_handshake",
+      "artifacts": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53/campaigns/artifacts/fuzz_resume_handshake"
+    }
+  ],
+  "release_artifacts": {
+    "cargo_target_dir_a": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target",
+    "cargo_target_dir_b": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/cache/release-b",
+    "reproducible": true,
+    "binaries": [
+      {
+        "name": "everpty",
+        "sha256": "7db004898331d63295b2370e85c2977760783f3321e46c36bf85415a2c3d3be6",
+        "size_bytes": 1362040
+      },
+      {
+        "name": "eversh",
+        "sha256": "7f58a1f2c30b4fb309ed0475ee36d0461e9e5933d35376e8abc3edd3433461b7",
+        "size_bytes": 6660464
+      },
+      {
+        "name": "everssh",
+        "sha256": "2704959ca457ad6e13400c6d94e6f33f77c0252b37e742a3224547acf04ae3f6",
+        "size_bytes": 6087520
+      }
+    ]
+  },
+  "run_root": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/target/qualification/eversh/runs/20260903T210603Z-0ab05ce93d53"
+}

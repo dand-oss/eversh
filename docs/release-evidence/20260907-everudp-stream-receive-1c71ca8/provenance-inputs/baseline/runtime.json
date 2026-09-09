@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "source": {
+    "head_sha": "1c71ca893c86642144db1e474565799aba353992",
+    "tree_sha": "3a624806c46a2ae690c1047aa1cd637b0118b412",
+    "clean": true
+  },
+  "everudp_build": {
+    "cargo_features": [
+      "cli"
+    ]
+  },
+  "tools": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)"
+  },
+  "inputs": {
+    "Cargo.lock": "036f87a810d709762a25451d5442bb1d55de6fd1080e45a255676d101d5e322b"
+  },
+  "artifacts": {
+    "everudp": {
+      "path": "artifacts/bin/everudp",
+      "sha256": "86d237a941811faa6d594f5c81cffee9d6a9b38990e2830e4e749510ff9002bb"
+    }
+  },
+  "commands": [
+    "CARGO_TARGET_DIR=/tmp/everudp-stream-receive-1c71ca8-baseline-target cargo build --locked --release -p everudp --features cli"
+  ],
+  "build_log": {
+    "path": "logs/everudp-build.log",
+    "sha256": "7935d0c3db30a5f29e987c0efae3624ec54f409ba75e6f19cb9d215edada18df"
+  },
+  "isolation": {
+    "isolated_cargo_target": true
+  },
+  "recorded_utc": "2026-09-07 21:15:36 UTC",
+  "qualification": false
+}

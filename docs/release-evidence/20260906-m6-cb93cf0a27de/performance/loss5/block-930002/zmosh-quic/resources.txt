@@ -1,0 +1,23 @@
+	Command being timed: "/usr/bin/taskset -c 40,42,44,46 /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/builds/cb93cf0a27de339bd444cd1692d1f6e61030868d/artifacts/bin/pty-bench 200 100 /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T102238Z-cb93cf0a27de/performance/loss5/block-930002/zmosh-quic/result.json /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T102238Z-cb93cf0a27de/performance/loss5/block-930002/zmosh-quic/candidate.stderr -- /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everudp/tests/net/launch-zmosh-quic.sh target 10.246.0.1 /tmp/everudp-perf-block.wb6nhi/client_config /tmp/everudp-perf-block.wb6nhi/remote-zmosh-quic/remote-zmosh perf-peb914-2-zmosh_quic /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/builds/cb93cf0a27de339bd444cd1692d1f6e61030868d/artifacts/bin/pty-echo /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/builds/cb93cf0a27de339bd444cd1692d1f6e61030868d/artifacts/bin/zmosh-quic-bridge /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T102238Z-cb93cf0a27de/performance/loss5/block-930002/zmosh-quic/connect.log /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T102238Z-cb93cf0a27de/performance/loss5/block-930002/zmosh-quic/server.stderr"
+	User time (seconds): 0.12
+	System time (seconds): 0.12
+	Percent of CPU this job got: 1%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:24.23
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 8380
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 4050
+	Voluntary context switches: 3728
+	Involuntary context switches: 9
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 24
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "status": "FAIL",
+  "decision": "NOT_ADOPTED",
+  "scope": "ACK inline-storage floor experiment",
+  "candidate_sha": "dc019b8ecf41279e1c33c223d9632562962fb223",
+  "candidate_tree": "cfbe2988a78667ac9ab272070d088c5ac5d3ab1f",
+  "capture_complete": true,
+  "completed_blocks": 8,
+  "measured_responses": 3200,
+  "transcript_failures": 0,
+  "inline_p50_ratios": {"loss0": 1.081190798376184, "loss5": 0.9901477832512315},
+  "p50_ceiling": 0.9,
+  "all_block_and_cell_packet_ratios_le_1_60": true,
+  "qualification_pass": false,
+  "integration_authorized": false,
+  "runtime_allocation_reduction_measured": false,
+  "causal_speedup_or_slowdown_established": false
+}

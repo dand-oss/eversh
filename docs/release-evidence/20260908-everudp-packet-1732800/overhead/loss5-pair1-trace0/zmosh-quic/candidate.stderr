@@ -1,0 +1,2 @@
+info(udp): bound udp ephemeral port=34684 family=inet
+zmosh-quic-bridge: state=awaiting_ack

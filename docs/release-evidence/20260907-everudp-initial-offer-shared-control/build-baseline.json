@@ -1,0 +1,113 @@
+{
+  "artifacts": {
+    "everudp-floor": {
+      "path": "artifacts/bin/everudp-floor",
+      "sha256": "53698e88d8a4e7568cdbe9ecd98bbc891e9880c58c74b8c072d8247f7fa949fb"
+    },
+    "pty-bench": {
+      "path": "artifacts/bin/pty-bench",
+      "sha256": "76595f49b48e5dd3907cedb05f6f69035cf6ec8299e2b879ff77a681959d3358"
+    },
+    "pty-echo": {
+      "path": "artifacts/bin/pty-echo",
+      "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e"
+    },
+    "zmosh-udp": {
+      "path": "artifacts/bin/zmosh-udp",
+      "sha256": "de1e96e5ef57df173db266747eb18b8bce6911952410d298f236ab9c1e7fa162"
+    }
+  },
+  "commands": [
+    "CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_PANIC=abort RUSTFLAGS='' CARGO_ENCODED_RUSTFLAGS='' cargo build --locked --release -p everudp --features cli,reliable-datagram-spike,floor-single-owner --example everudp-floor",
+    "zig-0.15.2 build -Doptimize=ReleaseFast (zmosh UDP)",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-bench.c -lutil",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-echo.c"
+  ],
+  "control_reuse": {
+    "control_input": "provenance-inputs/control.json",
+    "control_provenance_sha256": "5abc058dcc3d8e4a3c6780435972ed4be38c5daa298dfa3066b82648a25436e0",
+    "runtime_input": "provenance-inputs/runtime.json",
+    "runtime_provenance_sha256": "5abc058dcc3d8e4a3c6780435972ed4be38c5daa298dfa3066b82648a25436e0",
+    "schema_version": 1,
+    "selected_control_artifacts": {
+      "pty-bench": {
+        "sha256": "76595f49b48e5dd3907cedb05f6f69035cf6ec8299e2b879ff77a681959d3358",
+        "source_build": "control",
+        "source_path": "artifacts/bin/pty-bench"
+      },
+      "pty-echo": {
+        "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e",
+        "source_build": "control",
+        "source_path": "artifacts/bin/pty-echo"
+      },
+      "zmosh-udp": {
+        "sha256": "de1e96e5ef57df173db266747eb18b8bce6911952410d298f236ab9c1e7fa162",
+        "source_build": "control",
+        "source_path": "artifacts/bin/zmosh-udp"
+      }
+    },
+    "selected_runtime_artifact": {
+      "sha256": "53698e88d8a4e7568cdbe9ecd98bbc891e9880c58c74b8c072d8247f7fa949fb",
+      "source_build": "runtime",
+      "source_path": "artifacts/bin/everudp-floor"
+    }
+  },
+  "everudp_build": {
+    "ack_inline_storage_experiment": false,
+    "cargo_features": [
+      "cli",
+      "reliable-datagram-spike",
+      "floor-single-owner"
+    ],
+    "diagnostic_build": false,
+    "profile": {
+      "codegen_units": 1,
+      "lto": "fat",
+      "panic": "abort",
+      "rustflags": "",
+      "target_cpu": "portable default"
+    },
+    "single_owner_experiment": true,
+    "target": "example everudp-floor",
+    "udp_send_fast_path_experiment": false
+  },
+  "finished_utc": "2026-09-07T17:54:31Z",
+  "host": {
+    "platform": "Linux-7.1.8+deb14.1-amd64-x86_64-with-glibc2.43"
+  },
+  "inputs": {
+    "Cargo.lock": "036f87a810d709762a25451d5442bb1d55de6fd1080e45a255676d101d5e322b",
+    "everudp-floor.rs": "d435fb8d68a8d56b61c0af4948a328915ffc7219ea31aa34104536711a24bcf9",
+    "pty-bench.c": "07a94f06c5fe222ecadacb0b1450e507d01777b9958be7859f84a652332f31cc",
+    "pty-echo.c": "41108c62a545eb632b9dac4185c7ba8d975658c4e50bfa63b3adb91a116154d1"
+  },
+  "isolation": {
+    "fresh_detached_zmosh_clone": true,
+    "isolated_cargo_target": true,
+    "isolated_zig_global_cache": true,
+    "isolated_zig_local_cache": true
+  },
+  "purpose": "authenticated-noq-datagram-stage-zero-floor",
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "1bdd3528bc4d257a1f33adc96b1fb48a97a777d9",
+    "tree_sha": "a034e66f58ed14dae078752b1ec18bceeb95b06b"
+  },
+  "started_utc": "2026-09-07T17:49:52Z",
+  "tools": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+    "cc": "cc (Debian 16.2.0-1) 16.2.0",
+    "git": "git version 2.55.0",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+    "zig_0_15_2": {
+      "sha256": "2858dc89dbbfdd08cceda1b841e7fd0a793a1a67b49f150bc3d0d1de44ed7f51",
+      "version": "0.15.2"
+    }
+  },
+  "zmosh_source": {
+    "clean": true,
+    "commit": "dfc8395b5edcd237bf82712fbde879c6e8be7dfa",
+    "tree": "1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514"
+  }
+}

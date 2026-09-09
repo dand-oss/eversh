@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "status": "DIAGNOSTIC",
+  "capture_complete": true,
+  "attribution_status": "PARTIAL",
+  "qualification_pass": false,
+  "production_actor_integration_authorized": false,
+  "candidate_sha": "30f2093daccceb05d324f63ad445b57ef3fc4081",
+  "candidate_tree": "637ffade7d4c1ccfe821b4dfef8a3ab98e80e7c9",
+  "completed_blocks": 12,
+  "measured_responses": 4800,
+  "transcript_failures": 0,
+  "valid_cpu_trace_pairs": 4,
+  "clock_calibration_samples_per_process": 64,
+  "architecture_decision": "No runtime replacement selected; distinguish sender userspace and kernel costs before choosing the next optimization",
+  "collection_check_correction": "Server-only wire export byte cap was initially also applied to local client trace; corrected to canonical scope, retaining the first three sealed blocks without rerun"
+}

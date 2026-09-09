@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "source": {
+    "head_sha": "5f9a0057213b3dc8b562c5c8959ea661868a3277",
+    "tree_sha": "084738b2b60747a6dccc2994fddccf07d9f053af",
+    "clean": true
+  },
+  "started_utc": "2026-09-08T00:27:11Z",
+  "finished_utc": "2026-09-08T00:28:06Z",
+  "cargo_features": [
+    "cli"
+  ],
+  "profile": {
+    "lto": "false",
+    "codegen_units": 16,
+    "panic": "unwind",
+    "opt_level": 3,
+    "rustflags": "",
+    "encoded_rustflags": "",
+    "target_cpu": "portable default"
+  },
+  "inputs": {
+    "Cargo.lock": "036f87a810d709762a25451d5442bb1d55de6fd1080e45a255676d101d5e322b"
+  },
+  "target": "/tmp/everudp-lto-5f9a005-baseline-target",
+  "artifact_sha256": "79c28a7751506f9563ff2aa31fe368d1440d1d3ef235a93a3e5725ba1dc0cafa",
+  "logs": {
+    "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr": "454a8f2e5ace31393d99ea114b6a5081371f3b2c6a847f8d13b30c1ff842d958"
+  },
+  "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+  "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+  "command": "CARGO_TARGET_DIR=/tmp/everudp-lto-5f9a005-baseline-target CARGO_PROFILE_RELEASE_LTO=false CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 CARGO_PROFILE_RELEASE_PANIC=unwind CARGO_PROFILE_RELEASE_OPT_LEVEL=3 RUSTFLAGS='' CARGO_ENCODED_RUSTFLAGS='' cargo build --locked --release -p everudp --features cli"
+}

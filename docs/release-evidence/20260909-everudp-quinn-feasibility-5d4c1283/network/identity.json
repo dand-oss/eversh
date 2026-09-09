@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "qualification": false,
+  "purpose": "selected engine network feasibility",
+  "engine": "quinn",
+  "quinn": "0.11.11",
+  "quinn_proto": "0.11.15",
+  "source": {
+    "head": "5d4c1283460586e9b4640ce10ca90d561206d3f9",
+    "tree": "070886e52959ceab13eed05b6a341400b629f86d",
+    "clean": true
+  },
+  "binary": "/tmp/everudp-quinn-5d4c1283.kDbZfE/source/spikes/everudp-quinn-eval/target/release/everudp",
+  "binary_sha256": "cc9e19cab3c4265ea6f18bec9191e47feeb4e1a41b2969bbd9e9be11947a0308",
+  "lock_sha256": "62bbd8b69627ed08c33515031b0b2bf49dfd51075b55ffa82393fcd5f1fd308b",
+  "features": [
+    "cli"
+  ],
+  "scenarios": [
+    "loss0",
+    "loss5-reorder2-duplicate2",
+    "ipv6-loss5",
+    "interface-migration",
+    "outage-smoke",
+    "forced-overrun",
+    "udp-only-proof",
+    "sleep-wake"
+  ]
+}

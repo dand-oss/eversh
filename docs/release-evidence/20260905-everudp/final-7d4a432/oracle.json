@@ -1,0 +1,98 @@
+{
+  "command": [
+    "spikes/everudp/net/oracle-gate.sh",
+    30,
+    "/tmp/everudp-final-7d4a432.G57FW8/final/oracle.json"
+  ],
+  "finished_utc": "2026-09-05T03:26:06Z",
+  "host": {
+    "kernel": "Linux 7.1.8+deb14.1-amd64 x86_64 GNU/Linux",
+    "python": "Python 3.14.7",
+    "script": "script from util-linux 2.42.2",
+    "tmux": "tmux 3.7c"
+  },
+  "oracle": {
+    "correction_p95_limit_us": 300000,
+    "correction_p95_us": 293,
+    "correction_samples_us": [
+      102,
+      276,
+      143,
+      283,
+      143,
+      107,
+      116,
+      142,
+      111,
+      146,
+      110,
+      254,
+      297,
+      153,
+      268,
+      107,
+      179,
+      268,
+      122,
+      97,
+      145,
+      108,
+      147,
+      110,
+      293,
+      275,
+      123,
+      124,
+      131,
+      260
+    ],
+    "correction_timing_boundary": "start after predicted input is visible in the persistent vt100 grid; stop after authoritative reconcile, full redraw, and corrected grid capture",
+    "grid_fields": [
+      "dimensions",
+      "cursor",
+      "cells",
+      "foreground",
+      "background",
+      "bold",
+      "dim",
+      "italic",
+      "underline",
+      "inverse",
+      "wide-cell",
+      "wrapped-row",
+      "alternate-screen",
+      "hidden-cursor"
+    ],
+    "password_prediction_displays": 0,
+    "persistent_corrections_per_run": 5,
+    "persistent_predictions_applied_per_run": 9,
+    "persistent_replica": true,
+    "real_pty_runs": 30,
+    "terminal_model": "vt100 0.16.2 independent authoritative/reconstructed grids",
+    "workloads": [
+      "echo",
+      "mismatch-correction",
+      "duplicate-reorder",
+      "full-screen",
+      "resize",
+      "tmux",
+      "no-echo",
+      "epoch-reset-resync"
+    ]
+  },
+  "raw_runs": {
+    "path": "oracle-runs.txt",
+    "sha256": "698d04a6a26e6948a4d55fcd87aab9609e51e880ad441a6095c6be9c8a42b2ec"
+  },
+  "schema_version": 1,
+  "source": {
+    "binary_sha256": "0a781d1785254147f61f90dbda02ce17164278f69e543ba85c1b54c6b85cce30",
+    "dirty": false,
+    "head_sha": "7d4a43244f0287dddd3d01231994b375f2113c0e",
+    "tree_sha": "47cdeea34120cad4b88b991f4a8098f4d349ee5c"
+  },
+  "started_utc": "2026-09-05T03:25:18Z",
+  "verdict": {
+    "pass": true
+  }
+}

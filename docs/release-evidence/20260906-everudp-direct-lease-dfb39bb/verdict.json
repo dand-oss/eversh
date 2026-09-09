@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "verdict": "FAIL",
+  "release_receipt": false,
+  "candidate": {
+    "commit": "dfb39bb4705e5d49924a0751ece57c8f170e8336",
+    "tree": "74bf011508a86a377f93a28b01c20da70007de8a",
+    "binary_sha256": "f57ab43d0b5837672e06ce981c5dc8bebf092b1f0410ee548f74ab9058324b96"
+  },
+  "contract": {
+    "minimum_observations_per_implementation_per_cell": 200,
+    "maximum_p50_ratio_vs_zmosh_udp": 0.9
+  },
+  "cells": {
+    "loss0": {
+      "observations_per_implementation": 200,
+      "everudp_p50_us": 695,
+      "everudp_p95_us": 1042,
+      "zmosh_udp_p50_us": 388,
+      "zmosh_udp_p95_us": 776,
+      "p50_ratio": 1.7912371134,
+      "pass": false
+    },
+    "loss5": {
+      "observations_per_implementation": 200,
+      "everudp_p50_us": 668,
+      "everudp_p95_us": 4003,
+      "zmosh_udp_p50_us": 438,
+      "zmosh_udp_p95_us": 50716,
+      "p50_ratio": 1.5251141553,
+      "pass": false
+    }
+  },
+  "transcript_failures": 0,
+  "decision": "Do not productionize this repair; require a separately reviewed transport contract revision."
+}

@@ -1,0 +1,7 @@
+{
+  "path": "zmosh-quic/connect.log",
+  "reason": "remove ephemeral bootstrap credential",
+  "original_sha256": "d520f999c09e47728e68e568ae3d9c2fce3aa21c1f9a3ed5bbed9f29ebe5b89e",
+  "redacted_sha256": "2431a46b5a1d49eb9817d2a2bde87157a10bc9c17b9e64444a44656b6fd1d927",
+  "original_receipt": "SHA256SUMS.original"
+}

@@ -277,8 +277,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "everlink"
-version = "0.1.0"
+name = "everpty"
+version = "0.2.0"
+dependencies = [
+ "clap",
+ "libc",
+ "nix",
+]
+
+[[package]]
+name = "eversh"
+version = "0.2.0"
+dependencies = [
+ "cargo_metadata",
+ "clap",
+ "everpty",
+ "everssh",
+ "everudp",
+]
+
+[[package]]
+name = "everssh"
+version = "0.2.0"
 dependencies = [
  "clap",
  "noq",
@@ -290,22 +310,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "everpty"
-version = "0.1.0"
+name = "everudp"
+version = "0.2.0"
 dependencies = [
+ "bytes",
  "clap",
- "libc",
- "nix",
-]
-
-[[package]]
-name = "eversh"
-version = "0.1.0"
-dependencies = [
- "cargo_metadata",
- "clap",
- "everlink",
  "everpty",
+ "everssh",
+ "libc",
+ "noq",
+ "noq-proto",
+ "rcgen",
+ "ring",
+ "tokio",
+ "zeroize",
 ]
 
 [[package]]
@@ -507,8 +525,6 @@ dependencies = [
 [[package]]
 name = "noq"
 version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09e4bb6601fa543c110d8957813267d5a8d775a0f8fbaccf1f615d06ba9b10da"
 dependencies = [
  "bytes",
  "cfg_aliases",
@@ -529,8 +545,6 @@ dependencies = [
 [[package]]
 name = "noq-proto"
 version = "1.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "baa7b5ccd819a9c68a0d955e67a881032d09b1a17219b1f90b0997a0888e1a15"
 dependencies = [
  "aes-gcm",
  "bytes",

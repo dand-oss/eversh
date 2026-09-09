@@ -1,0 +1,163 @@
+   Compiling libc v0.2.189
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.24
+   Compiling cfg-if v1.0.4
+   Compiling version_check v0.9.5
+   Compiling typenum v1.20.1
+   Compiling cfg_aliases v0.2.2
+   Compiling find-msvc-tools v0.1.11
+   Compiling shlex v2.0.1
+   Compiling pin-project-lite v0.2.17
+   Compiling subtle v2.6.1
+   Compiling zeroize v1.9.0
+   Compiling once_cell v1.21.4
+   Compiling rand_core v0.10.1
+   Compiling cpufeatures v0.2.17
+   Compiling untrusted v0.9.0
+   Compiling portable-atomic v1.15.0
+   Compiling unicode-segmentation v1.13.3
+   Compiling libm v0.2.16
+   Compiling bytes v1.12.1
+   Compiling getrandom v0.4.3
+   Compiling opaque-debug v0.3.1
+   Compiling thiserror v2.0.20
+   Compiling unicode-xid v0.2.6
+   Compiling rustls v0.23.43
+   Compiling cpufeatures v0.3.0
+   Compiling autocfg v1.5.1
+   Compiling time-core v0.1.9
+   Compiling tinyvec_macros v0.1.1
+   Compiling powerfmt v0.2.0
+   Compiling futures-core v0.3.34
+   Compiling num-conv v0.2.2
+   Compiling foldhash v0.2.0
+   Compiling futures-sink v0.3.34
+   Compiling siphasher v1.0.3
+   Compiling deranged v0.5.8
+   Compiling slab v0.4.12
+   Compiling sorted-index-buffer v0.2.1
+   Compiling rustc-hash v2.1.3
+   Compiling identity-hash v0.1.0
+   Compiling lru-slab v0.1.2
+   Compiling clap_lex v1.1.0
+   Compiling anstyle v1.0.14
+   Compiling bitflags v2.13.1
+   Compiling heck v0.5.0
+   Compiling tinyvec v1.12.0
+   Compiling noq-udp v1.1.1
+   Compiling noq v1.1.1 (/tmp/everudp-security-0e7fed71.gDB3AG/source/vendor/noq)
+   Compiling nix v0.31.3
+   Compiling chacha20 v0.10.2
+   Compiling rand_pcg v0.10.2
+   Compiling cc v1.4.4
+   Compiling rustls-pki-types v1.15.1
+   Compiling clap_builder v4.6.6
+   Compiling tracing-core v0.1.36
+   Compiling generic-array v0.14.7
+   Compiling memoffset v0.9.1
+   Compiling convert_case v0.10.0
+   Compiling tracing v0.1.44
+   Compiling syn v3.0.3
+   Compiling syn v2.0.119
+   Compiling time v0.3.55
+   Compiling ring v0.17.14
+   Compiling crypto-common v0.1.7
+   Compiling inout v0.1.4
+   Compiling universal-hash v0.5.1
+   Compiling aead v0.5.2
+   Compiling cipher v0.4.4
+   Compiling polyval v0.6.2
+   Compiling fastbloom v0.17.0
+   Compiling ghash v0.5.1
+   Compiling aes v0.8.4
+   Compiling ctr v0.9.2
+   Compiling yasna v0.5.2
+   Compiling aes-gcm v0.10.3
+   Compiling getrandom v0.2.17
+   Compiling socket2 v0.6.5
+   Compiling errno v0.3.14
+   Compiling mio v1.2.2
+   Compiling signal-hook-registry v1.4.8
+   Compiling rand v0.10.2
+   Compiling derive_more-impl v2.1.1
+   Compiling tokio-macros v2.7.2
+   Compiling thiserror-impl v2.0.20
+   Compiling enum-assoc v1.4.1
+   Compiling clap_derive v4.6.4
+   Compiling tokio v1.53.1
+   Compiling everpty v0.1.0 (/tmp/everudp-security-0e7fed71.gDB3AG/source/crates/everpty)
+   Compiling clap v4.6.6
+   Compiling derive_more v2.1.1
+   Compiling rustls-webpki v0.103.14
+   Compiling rcgen v0.13.2
+   Compiling tokio-util v0.7.19
+   Compiling tokio-stream v0.1.19
+   Compiling noq-proto v1.1.1 (/tmp/everudp-security-0e7fed71.gDB3AG/source/vendor/noq-proto)
+   Compiling everssh v0.1.0 (/tmp/everudp-security-0e7fed71.gDB3AG/source/crates/everssh)
+   Compiling everudp v0.1.0 (/tmp/everudp-security-0e7fed71.gDB3AG/source/crates/everudp)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 29.94s
+     Running tests/admission.rs (target/debug/deps/admission-5958507cdfbe1805)
+
+running 5 tests
+test capacity_is_eight_and_expired_slots_are_reused ... ok
+test invitation_binds_every_authenticated_dimension_and_consumes_once ... ok
+test secret_debug_paths_are_redacted ... ok
+test takeover_is_writer_only_and_is_cryptographically_carried_by_the_invitation ... ok
+test wrong_token_does_not_consume_and_expiration_is_strict ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/handshake.rs (target/debug/deps/handshake-b2a9a3c72c12bfe2)
+
+running 3 tests
+test hello_rejects_invalid_modes_roles_acks_and_trailing_bytes ... ok
+test initial_and_resume_hellos_have_canonical_exact_shapes ... ok
+test server_hello_round_trips_pending_gap_without_ambiguity ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/resume.rs (target/debug/deps/resume-d10a23542820f72c)
+
+running 4 tests
+test gap_and_control_sequences_survive_a_resume_that_the_client_never_finishes ... ok
+test hostile_resume_bindings_are_terminal_but_do_not_kill_the_gateway_endpoint ... ok
+test sequential_connection_replays_only_unacknowledged_terminal_operations ... ok
+test ten_mib_is_byte_identical_across_five_forced_reconnects ... everudp 10 MiB byte identity across five forced reconnects: PASS
+ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.10s
+
+     Running tests/transport.rs (target/debug/deps/transport-393ed9325e0691c6)
+
+running 12 tests
+test development_matrix_is_exact_and_records_the_preregistered_default ... ok
+test development_profile_reaches_both_noq_endpoints ... ok
+test fast_datagram_is_negotiated_flushed_and_received_before_stream_use ... ok
+test floor_profile_is_explicit_and_does_not_change_stream_endpoints ... ok
+test initial_budget_is_one_deadline_and_only_pre_connection_timeout_is_fallback_safe ... ok
+test live_noq_connection_survives_a_client_udp_rebind ... ok
+test pinned_mutual_tls_claims_once_and_gateway_accepts_sequential_connections ... ok
+test reconnect_classification_retries_only_network_reachability_failures ... ok
+test stream_floor_profile_is_independent_and_effective_receipt_is_stream_only ... ok
+test transport_profile_is_frozen_and_datagrams_match_the_build_contract ... ok
+test wrong_pin_fails_before_application_admission ... ok
+test wrong_token_and_client_key_fail_without_consuming_the_invitation ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.81s
+
+     Running tests/wire.rs (target/debug/deps/wire-f83a5192b16ca602)
+
+running 9 tests
+test caps_are_checked_from_the_header_before_payload_is_buffered ... ok
+test cumulative_ack_and_gap_epochs_are_explicit_and_canonical ... ok
+test every_stream_round_trips_without_allocating_a_payload ... ok
+test fast_datagram_rejects_every_truncation_and_noncanonical_shape ... ok
+test fast_datagram_round_trip_is_exact_and_bounded ... ok
+test malformed_version_kind_length_and_stream_fail_closed ... ok
+test protocol_identifiers_and_header_bytes_are_frozen ... ok
+test resize_has_one_canonical_network_order_encoding ... ok
+test stream_layout_rejects_observer_input_and_every_extra_stream ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

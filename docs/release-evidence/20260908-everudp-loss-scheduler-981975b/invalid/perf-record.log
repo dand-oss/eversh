@@ -1,0 +1,2 @@
+[ perf record: Woken up 4 times to write data ]
+[ perf record: Captured and wrote 6.386 MB /tmp/everudp-loss-scheduler-981975b/private-perf.data (8498 samples) ]

@@ -1,0 +1,4 @@
+phase=post-bootstrap-terminal
+events=process,socket,readiness-metadata-only
+payload-syscalls=disabled
+fd-decoding=endpoint-metadata

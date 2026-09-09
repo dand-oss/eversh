@@ -36,7 +36,7 @@ boundary regressions in crates/everpty/tests/resources.rs)
 | Limit | Value | Selection rationale |
 | --- | --- | --- |
 | startup_deadline_ms | 10000 | Broker must see its initial writer well within interactive startup; 100x observed loopback attach time. |
-| kill_grace_ms | 5000 | TERM-to-KILL grace; matches everlink drain+finalize sum. |
+| kill_grace_ms | 5000 | TERM-to-KILL grace; matches everssh drain+finalize sum. |
 | writer_queue_bytes | 256 KiB | Backpressure boundary proven by the writer-queue fill tests; keeps one writer lossless while healthy. |
 | observer_queue_bytes | 64 KiB | Observers are disposable; small queues bound eviction latency. |
 | observer_count | 8 | Bounded fan-out; observer-eviction tests fill every slot. |
@@ -45,8 +45,8 @@ boundary regressions in crates/everpty/tests/resources.rs)
 | writer_input_queue_bytes | 64 KiB | Bounded retained input awaiting a draining PTY. |
 | incomplete_frame_deadline_ms | 5000 | Drip-fed frames cannot hold a slot open. |
 | accepts_per_iteration | 8 | Poll fairness under accept storms. |
-| read_chunk_bytes | 16 KiB | One PTY/socket read; matches everlink copy_buf. |
-| stall_deadline_ms | 20000 | Writer revocation bound; matches everlink stall_timeout. |
+| read_chunk_bytes | 16 KiB | One PTY/socket read; matches everssh copy_buf. |
+| stall_deadline_ms | 20000 | Writer revocation bound; matches everssh stall_timeout. |
 | pty_exit_drain_ms | 5000 | Post-reap PTY drain-to-EOF bound. |
 | control_reply_deadline_ms | 5000 | Control replies cannot wedge the broker. |
 | list_probe_deadline_ms | 500 | Discovery pings stay interactive. |
@@ -54,7 +54,7 @@ boundary regressions in crates/everpty/tests/resources.rs)
 | exec_label_max_bytes | 256 | Executable label without arguments. |
 | origin_label_max_bytes / origin_count_max | 64 / 4 | Bounded origin labels (shared with eversh). |
 
-## everlink (crates/everlink/src/limits.rs)
+## everssh (crates/everssh/src/limits.rs and resume.rs)
 
 Contract values
 | Limit | Value | Rule |
@@ -64,16 +64,18 @@ Contract values
 | token_len | 32 | 256-bit one-use token. |
 | max_bi_streams | 1 | Exactly one SSH-carrying stream. |
 
-Runtime values (M0 candidates remeasured in M3; evidence: the resource
-gate log target/qualification/everlink/runs/20260901T104502Z-c10b885d2cc7/gates/everlink-resource-bounds.log
-and the raw campaign/network logs under
-target/qualification/everlink/runs/20260901T104502Z-c10b885d2cc7 and
-target/qualification/everlink/network/20260901T105153Z-c10b885d2cc7)
+Runtime values (M0 candidates remeasured in M3; durable evidence:
+docs/release-evidence/20260903-m3/deterministic-receipt.json,
+docs/release-evidence/20260903-m3/network-receipt.json, and the bound log
+excerpts beside them; raw logs remain under the ignored target/ tree)
 | Limit | Value | Selection rationale |
 | --- | --- | --- |
 | copy_buf | 16 KiB | Per-direction buffer; transport envelope stayed at 3.5 MB during the 12 MiB resource transfer. |
 | send_window / receive_window | 384 KiB | Bounds stalled-peer memory: stalled TCP/QUIC ceilings 11.9 MB never exceeded 3.4 MB observed. |
 | server_lease_ms | 30000 | One-shot server lifetime without a valid client. |
+| association_lease_ms | 360000 | Server clock from entry into resume acceptance through which a released v2 association remains resumable; the production netns gate observes 302 s IPv4 and 22 s IPv6 recovery beneath it and the default-bound terminal-expiry gates prove loss past it ends both directions. |
+| client reconnect budget | ~350 s per outage epoch | association lease minus one handshake timeout; created before the first bind of an outage epoch and cleared only by successful resume. The migration gate proves budget reset after each successful sequential outage. |
+| replay queue | 4 MiB and 1,024 frames per direction | Bounded opaque-frame replay retained until cumulative acknowledgement; saturation gates end the association rather than grow without bound, and delivered duplicates are suppressed. |
 | handshake_timeout_ms | 10000 | Includes forced Retry round trip. |
 | idle_timeout_ms | 30000 | Path-loss teardown bound proven in the netns loss gates. |
 | stall_timeout_ms | 20000 | Copy-direction stall bound (stalled-reader gates). |
@@ -85,6 +87,15 @@ target/qualification/everlink/network/20260901T105153Z-c10b885d2cc7)
 | max_udp_port_span | 1024 | Operator port-range width bound. |
 | route_poll_ms / route_observation_timeout_ms | 250 / 200 | Mandatory fallback poll and per-observation bound; wake/migration gates. |
 | max_same_route_replacements | 1 | One same-route rebind, then PathFailed. |
+
+Protocol identity and version skew: v2 speaks bootstrap prefix
+`everssh v2`, ALPN `everssh-link/2`, private release record
+`everssh-release v1`, and private start record `everssh-start v1`. The
+pinned pre-v2 product (`43e80cc`, binary `everlink`, prefix `everlink v1`,
+ALPN `eversh-link/1`) fails closed in both whole-product directions with a
+coordinated-upgrade diagnostic; there is no automatic protocol fallback.
+Evidence: crates/everssh/tests/version_skew.rs and
+crates/everssh/tests/net/test-version-skew.sh.
 
 ## eversh (crates/eversh/src/limits.rs)
 
@@ -115,7 +126,7 @@ crates/eversh/tests/supervisor_linux.rs)
 ## Tuning rule
 
 A runtime value may change only when `fuzz/qualify-m4.sh run` (deterministic
-gates), the everlink resource gate, and — for transport values — the
+gates), the everssh resource gate, and — for transport values — the
 `fuzz/qualify-m3.sh run`/`network` gates remain green; a release-qualified
 change additionally requires `fuzz/qualify-m5.sh run` to pass in full. An
 everpty limit change whose selection evidence is being revised additionally

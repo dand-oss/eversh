@@ -1,0 +1,32 @@
+{
+  "argv": [
+    "/usr/bin/sudo",
+    "-u",
+    "appsmith",
+    "--",
+    "/usr/bin/cargo",
+    "test",
+    "--locked",
+    "-p",
+    "everudp",
+    "--no-default-features",
+    "--features",
+    "cli,stream-floor",
+    "--lib",
+    "--example",
+    "everudp-stream-floor",
+    "--test",
+    "stream_floor_admission",
+    "--test",
+    "stream_floor_io",
+    "--test",
+    "stream_floor_native",
+    "--test",
+    "stream_floor_native_echo",
+    "--test",
+    "stream_floor_native_run",
+    "--test",
+    "stream_floor_ordinary"
+  ],
+  "exit_code": 0
+}

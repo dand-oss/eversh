@@ -9,15 +9,16 @@ publish = false
 [package.metadata]
 cargo-fuzz = true
 
-# Separate workspace: the production workspace yields exactly three binaries.
+# Separate workspace: the production workspace yields exactly four binaries.
 # cargo-fuzz runs here only (ask-first; requires nightly).
 [workspace]
 
 [dependencies]
 libfuzzer-sys = "=0.4.13"
 everpty = { path = "../crates/everpty" }
-everlink = { path = "../crates/everlink" }
+everssh = { path = "../crates/everssh" }
 eversh = { path = "../crates/eversh" }
+everudp = { path = "../crates/everudp" }
 
 [[bin]]
 name = "fuzz_frame"
@@ -62,15 +63,36 @@ doc = false
 bench = false
 
 [[bin]]
-name = "fuzz_everlink_close_sequence"
-path = "fuzz_targets/fuzz_everlink_close_sequence.rs"
+name = "fuzz_everssh_close_sequence"
+path = "fuzz_targets/fuzz_everssh_close_sequence.rs"
 test = false
 doc = false
 bench = false
 
 [[bin]]
-name = "fuzz_everlink_stream_boundary"
-path = "fuzz_targets/fuzz_everlink_stream_boundary.rs"
+name = "fuzz_everssh_stream_boundary"
+path = "fuzz_targets/fuzz_everssh_stream_boundary.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_resume_handshake"
+path = "fuzz_targets/fuzz_resume_handshake.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_everudp_control"
+path = "fuzz_targets/fuzz_everudp_control.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_everudp_resume_boundary"
+path = "fuzz_targets/fuzz_everudp_resume_boundary.rs"
 test = false
 doc = false
 bench = false

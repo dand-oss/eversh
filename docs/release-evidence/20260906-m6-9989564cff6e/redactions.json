@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "reason": "Remove ephemeral QUIC bootstrap credentials from current evidence tree; original Git history unchanged",
+  "original_receipts_suffix": ".pre-redaction",
+  "original_receipts_verified_before_redaction": true,
+  "changes": [
+    {
+      "path": "performance/loss0/block-920001/zmosh-quic/connect.log",
+      "original_sha256": "a81251ffe2a2bc3c58c5bf880768fa6c2decc01dca15f357522dc4950a093c62",
+      "redacted_sha256": "d8bca73726a60402607fe8dc7ea0e35def5443c0e811b2319dde4f56ccacaf69"
+    },
+    {
+      "path": "performance/loss0/block-920002/zmosh-quic/connect.log",
+      "original_sha256": "159fdf82f80b2810b40bf8b50ac7f770c79559535e911e2309a53215daca7b89",
+      "redacted_sha256": "1208257e70ded5441cb4ad08b4cc95d5e5752653c1c8efc094e230ce96252390"
+    },
+    {
+      "path": "performance/loss0/block-920003/zmosh-quic/connect.log",
+      "original_sha256": "4a87e878549216c739fb320fd913bb1acb719f70dc63c8ced7b585672ec60130",
+      "redacted_sha256": "97b75e7f12f56e6c174b93286d992560af3e2c6976beda92be62e6b79c432c57"
+    },
+    {
+      "path": "performance/loss0/block-920004/zmosh-quic/connect.log",
+      "original_sha256": "174c13c6d05f871e1b0580e5fc39aeefa6e0bf96066f2b1486aefae74a21ce52",
+      "redacted_sha256": "a019a67dca1ffae1807aa26f4a83116eead4ffd29c478df57acf628d999b04ba"
+    },
+    {
+      "path": "performance/loss0/block-920005/zmosh-quic/connect.log",
+      "original_sha256": "396ef82cbed88635b523eb2ebaf52455a57a2b508b89dbdf746d61600abfc4aa",
+      "redacted_sha256": "fd9b82f72bde124cd117695dde747bcd11df433529812d1e783d9d772b243223"
+    },
+    {
+      "path": "performance/loss0/block-920006/zmosh-quic/connect.log",
+      "original_sha256": "5a2e2239a75dae80e29586d5b4b9e26d46d265e38c28800fb44f0611e320434a",
+      "redacted_sha256": "35b1f5ef796892ed1d27e385044ca6d232ba30f424356e1d55ac11f0e1ed6de5"
+    },
+    {
+      "path": "performance/loss5/block-930001/zmosh-quic/connect.log",
+      "original_sha256": "f376083c1f888eceda017d50fd3df3077ea66d000cf56bd33d9f23d5c9d7eedf",
+      "redacted_sha256": "826540f436a442d542a9f3a361b9520fb9be97538655d89a8ae06ecb1f835e92"
+    },
+    {
+      "path": "performance/loss5/block-930002/zmosh-quic/connect.log",
+      "original_sha256": "bc7384d2ff72bf26e238978839806359bfa0de7df8c8e984d5eb923b696ceea4",
+      "redacted_sha256": "305449e69d88357fb56c11dbe7cab098c7e5914eec2cc485830bfd96c9806c71"
+    },
+    {
+      "path": "performance/loss5/block-930003/zmosh-quic/connect.log",
+      "original_sha256": "6907aa2d03a77126967319ce8ab5182eb383e67a3f1de3a6538e6c0588ee52fe",
+      "redacted_sha256": "664dc9ce7cc5b0a07a9b8ddb726973f79427efcc2cd5586c351eeb857aa7913f"
+    },
+    {
+      "path": "performance/loss5/block-930004/zmosh-quic/connect.log",
+      "original_sha256": "22d1e5ceb0f50ad4ae4555f58dd4c4a00fc5c4a04dd0a31eadd618c06c44f0a8",
+      "redacted_sha256": "046de556576f0cb1334ec97dab045eec1aa5bff74d2d72d71227fd358de18f79"
+    },
+    {
+      "path": "performance/loss5/block-930005/zmosh-quic/connect.log",
+      "original_sha256": "339053a60d5a849c0afb6ba92668a5eccc69b6f2d549577951486b0ae29d9e9f",
+      "redacted_sha256": "4d2984c9a2fc09634a02a4b98e930b821cfca11fec729a9ac3b09600dd5874e8"
+    },
+    {
+      "path": "performance/loss5/block-930006/zmosh-quic/connect.log",
+      "original_sha256": "3b23614808c786025733b7703536dd05df9b548122f87dd31a4f9cf043f973dd",
+      "redacted_sha256": "bb1e3b3d80ae7122e20e6420e7f1942b17dabb4e893bd6a86a4b97d6c2db817a"
+    }
+  ]
+}

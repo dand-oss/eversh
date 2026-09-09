@@ -1,0 +1,111 @@
+{
+  "artifacts": {
+    "everudp": {
+      "path": "artifacts/bin/everudp",
+      "sha256": "430086ec6e6257713a266c32c6cecf027310a58839475fa30781006d50b6bf66"
+    },
+    "pty-bench": {
+      "path": "artifacts/bin/pty-bench",
+      "sha256": "76595f49b48e5dd3907cedb05f6f69035cf6ec8299e2b879ff77a681959d3358"
+    },
+    "pty-echo": {
+      "path": "artifacts/bin/pty-echo",
+      "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e"
+    },
+    "zmosh-quic": {
+      "path": "artifacts/bin/zmosh-quic",
+      "sha256": "0a42045dcf7580453ab85b5bbe740eeb43bbb4a698246c1bc7d049d767bb266f"
+    },
+    "zmosh-quic-bridge": {
+      "path": "artifacts/bin/zmosh-quic-bridge",
+      "sha256": "2713eca90b50995546325fbf8c530e722c13d3854f7aecd1221109dad16ad11e"
+    },
+    "zmosh-udp": {
+      "path": "artifacts/bin/zmosh-udp",
+      "sha256": "ff9541dead907680e22f60bc859fd26d966298ef49b944e573354da8ddb73154"
+    }
+  },
+  "commands": [
+    "cargo build --locked --release -p everudp --features cli",
+    "zig-0.15.2 build -Doptimize=ReleaseFast (zmosh UDP)",
+    "zig-0.16.0 build -Doptimize=ReleaseFast (zmosh QUIC)",
+    "zig-0.16.0 build --build-file zmosh-quic-bench-build.zig -Doptimize=ReleaseFast",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-bench.c -lutil",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-echo.c",
+    "CARGO_TARGET_DIR=/tmp/everudp-stream-flush-a86efaf-variant-target cargo build --locked --release -p everudp --features cli,stream-flush-spike"
+  ],
+  "everudp_build": {
+    "cargo_features": [
+      "cli",
+      "stream-flush-spike"
+    ]
+  },
+  "finished_utc": "2026-09-07T20:51:24Z",
+  "host": {
+    "platform": "Linux-7.1.8+deb14.1-amd64-x86_64-with-glibc2.43"
+  },
+  "inputs": {
+    "Cargo.lock": "036f87a810d709762a25451d5442bb1d55de6fd1080e45a255676d101d5e322b",
+    "pty-bench.c": "07a94f06c5fe222ecadacb0b1450e507d01777b9958be7859f84a652332f31cc",
+    "pty-echo.c": "41108c62a545eb632b9dac4185c7ba8d975658c4e50bfa63b3adb91a116154d1",
+    "zmosh-quic-bench-build.zig": "87d34326fa4549871972735d3ef0f8d992b90d6cbd10efdd00611eaedbe4fdc0",
+    "zmosh-quic-bridge.zig": "fd87e46db7ad28117a6ecd706466651a97239a40d455a92a3aebbe76e7d9072d"
+  },
+  "isolation": {
+    "fresh_detached_zmosh_clones": true,
+    "isolated_cargo_target": true,
+    "isolated_zig_global_caches_per_baseline": true,
+    "isolated_zig_local_caches": true,
+    "quic_adapter_changes_tracked_baseline": false
+  },
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "a86efafe2daff03e895616a6e8db9fd58ea48ffa",
+    "tree_sha": "d145fe5eb17f905ba4292ff5887357350d221ae0"
+  },
+  "started_utc": "2026-09-07T20:40:12Z",
+  "tools": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+    "cc": "cc (Debian 16.2.0-1) 16.2.0",
+    "git": "git version 2.55.0",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+    "zig_0_15_2": {
+      "sha256": "2858dc89dbbfdd08cceda1b841e7fd0a793a1a67b49f150bc3d0d1de44ed7f51",
+      "version": "0.15.2"
+    },
+    "zig_0_16_0": {
+      "sha256": "2317bbb91798556d9d0f38aabdac23db83f0979b25f767259ae474546724087c",
+      "version": "0.16.0"
+    }
+  },
+  "zmosh_sources": {
+    "quic": {
+      "clean": true,
+      "commit": "21db4a4de6040b254531f2131b6f1c0cd146a7a1",
+      "tree": "38ea33069ce480a1b6465d4c49eafc59c3b6edd8"
+    },
+    "udp": {
+      "clean": true,
+      "commit": "dfc8395b5edcd237bf82712fbde879c6e8be7dfa",
+      "tree": "1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514"
+    }
+  },
+  "qualification": false,
+  "control_reuse": {
+    "schema_version": 1,
+    "method": "Copy the five non-everudp artifacts byte-for-byte from the sealed baseline build; replace only everudp with the separately built same-source stream-flush variant.",
+    "control_input": "provenance-inputs/control.json",
+    "control_provenance_sha256": "68478490528d3de380e8dbb480cc74266bcd617d80f5aaf0742d2bbcf8c41d89",
+    "runtime_input": "provenance-inputs/runtime.json",
+    "runtime_provenance_sha256": "8b5ce5f32d728e847d7cbad16db71f18d46b9022998c3e0413eed2ec443c9aa6",
+    "selected_runtime_artifact": "everudp",
+    "selected_control_artifacts": [
+      "pty-bench",
+      "pty-echo",
+      "zmosh-udp",
+      "zmosh-quic",
+      "zmosh-quic-bridge"
+    ]
+  }
+}

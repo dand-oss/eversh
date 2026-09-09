@@ -23,8 +23,8 @@ use crate::error::Error;
 use crate::frame::{self, Frame, OwnershipEvent, Role};
 use crate::limits::Limits;
 use crate::session::{
-    resolve_state_root_existing_from, resolve_state_root_from, LockedSession, SessionMeta,
-    StateRoot,
+    resolve_state_root_existing_from, resolve_state_root_from, LockedSession, SessionDir,
+    SessionMeta, StateRoot,
 };
 use crate::sys::{self, Forked, PollFd, PollFlags};
 
@@ -74,6 +74,67 @@ pub struct StartRequest<'a> {
     pub origins: Vec<OsString>,
     pub stdin: BorrowedFd<'a>,
     pub stdout: BorrowedFd<'a>,
+}
+
+/// Terminal-free create-or-locate request for a future writer such as an
+/// everudp gateway. Dimensions are explicit, and no caller descriptor is
+/// attached to the broker.
+pub struct EnsureSessionRequest {
+    pub context: Context,
+    pub name: String,
+    pub command: Vec<OsString>,
+    pub default_shell: Option<OsString>,
+    pub environment: Vec<OsString>,
+    pub path: Option<OsString>,
+    pub origins: Vec<OsString>,
+    pub rows: u16,
+    pub columns: u16,
+}
+
+/// A live session capability returned without claiming writer ownership.
+pub struct EnsuredSession {
+    session: SessionDir,
+    created: bool,
+}
+
+impl EnsuredSession {
+    pub fn name(&self) -> &str {
+        self.session.name()
+    }
+
+    pub fn socket_path(&self) -> PathBuf {
+        self.session.socket_path()
+    }
+
+    pub const fn created(&self) -> bool {
+        self.created
+    }
+
+    pub fn session(&self) -> &SessionDir {
+        &self.session
+    }
+
+    pub fn into_session(self) -> SessionDir {
+        self.session
+    }
+}
+
+impl std::fmt::Debug for EnsuredSession {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("EnsuredSession")
+            .field("name", &self.name())
+            .field("created", &self.created)
+            .finish_non_exhaustive()
+    }
+}
+
+/// The parent receives [`Ready`](EnsureSessionOutcome::Ready); the one
+/// daemon-fork child owns the broker loop and eventually receives `Broker`.
+#[derive(Debug)]
+pub enum EnsureSessionOutcome {
+    Ready(EnsuredSession),
+    Broker(BrokerExit),
 }
 
 fn existing_root(context: &Context) -> Result<StateRoot, Error> {
@@ -488,6 +549,89 @@ fn start_locked(
     }
 }
 
+fn ensure_start_locked(
+    request: StartRequest<'_>,
+    root: StateRoot,
+    locked: LockedSession,
+    created_unix_ms: u64,
+) -> Result<EnsureSessionOutcome, Error> {
+    let readiness = broker::ReadinessChannel::new()?;
+    // SAFETY: ensure_session has the same pre-runtime, single-threaded process
+    // boundary as start; the child becomes the one long-lived broker.
+    let forked = unsafe { sys::fork_broker()? };
+    match forked {
+        Forked::Child => {
+            drop(readiness.read);
+            drop(root);
+            match broker_branch(request, locked, readiness.write, created_unix_ms)? {
+                Outcome::Broker(exit) => Ok(EnsureSessionOutcome::Broker(exit)),
+                _ => Err(Error::Protocol("broker branch returned a parent outcome")),
+            }
+        }
+        Forked::Parent(pid) => {
+            locked.close_parent_fork_duplicate();
+            drop(readiness.write);
+            match wait_readiness(
+                readiness.read.as_fd(),
+                request.context.limits.startup_deadline_ms,
+            ) {
+                Ok(ReadyStatus::Ready) => {
+                    let session = root.open_session(&request.name, &request.context.limits)?;
+                    Ok(EnsureSessionOutcome::Ready(EnsuredSession {
+                        session,
+                        created: true,
+                    }))
+                }
+                Ok(ReadyStatus::Failed { errno }) => {
+                    reap_failed_broker(pid, request.context.limits.control_reply_deadline_ms)?;
+                    Err(Error::Io(io::Error::from_raw_os_error(errno)))
+                }
+                Err(error) => {
+                    reap_failed_broker(pid, request.context.limits.control_reply_deadline_ms)?;
+                    Err(error)
+                }
+            }
+        }
+    }
+}
+
+fn ensure_probe_is_absent(error: &Error) -> bool {
+    match error {
+        Error::NotLive => true,
+        Error::Io(error) => matches!(
+            error.kind(),
+            io::ErrorKind::TimedOut
+                | io::ErrorKind::UnexpectedEof
+                | io::ErrorKind::BrokenPipe
+                | io::ErrorKind::ConnectionRefused
+                | io::ErrorKind::ConnectionReset
+                | io::ErrorKind::ConnectionAborted
+                | io::ErrorKind::NotConnected
+        ),
+        _ => false,
+    }
+}
+
+fn ensured_if_live(
+    root: &StateRoot,
+    context: &Context,
+    name: &str,
+) -> Result<Option<EnsuredSession>, Error> {
+    let session = match root.open_session(name, &context.limits) {
+        Ok(session) => session,
+        Err(Error::NotLive) => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    match ping_session(&session, &context.limits) {
+        Ok(()) => Ok(Some(EnsuredSession {
+            session,
+            created: false,
+        })),
+        Err(error) if ensure_probe_is_absent(&error) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 pub fn start(mut request: StartRequest<'_>) -> Result<Outcome, Error> {
     prepare_command(&mut request)?;
     let dimensions = initial_dimensions(&request)?;
@@ -499,6 +643,66 @@ pub fn start(mut request: StartRequest<'_>) -> Result<Outcome, Error> {
         .lock()?;
     locked.recover_stale_socket()?;
     start_locked(request, root, locked, dimensions, created_unix_ms)
+}
+
+/// Creates or locates a broker without reading a terminal, changing terminal
+/// modes, attaching a writer, or spawning the PTY child. The caller must use
+/// this at the same single-threaded pre-runtime process edge as [`start`].
+/// A newly created broker retains its validated spawn plan until the first
+/// writer commits with explicit nonzero dimensions.
+pub fn ensure_session(request: EnsureSessionRequest) -> Result<EnsureSessionOutcome, Error> {
+    let null = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open("/dev/null")?;
+    let dimensions = (request.rows, request.columns);
+    let mut request = StartRequest {
+        context: request.context,
+        name: request.name,
+        command: request.command,
+        default_shell: request.default_shell,
+        environment: request.environment,
+        path: request.path,
+        origins: request.origins,
+        stdin: null.as_fd(),
+        stdout: null.as_fd(),
+    };
+    validate_request_name(&request)?;
+    prepare_command(&mut request)?;
+    validate_spawn_inputs(&request, dimensions)?;
+    let deadline =
+        sys::clock_monotonic_ms()?.saturating_add(request.context.limits.startup_deadline_ms);
+
+    loop {
+        match existing_root(&request.context) {
+            Ok(root) => {
+                if let Some(session) = ensured_if_live(&root, &request.context, &request.name)? {
+                    return Ok(EnsureSessionOutcome::Ready(session));
+                }
+            }
+            Err(Error::NotLive) => {}
+            Err(error) => return Err(error),
+        }
+        if sys::clock_monotonic_ms()? >= deadline {
+            return Err(Error::StartupDeadline);
+        }
+        let root = resolve_state_root_from(&request.context.state_candidates)?;
+        let session = root.session(&request.name, &request.context.limits)?;
+        match session.lock() {
+            Ok(locked) => {
+                locked.recover_stale_socket()?;
+                let created_unix_ms = unix_millis()?;
+                return ensure_start_locked(request, root, locked, created_unix_ms);
+            }
+            Err(Error::AlreadyExists) => {
+                if sys::clock_monotonic_ms()? >= deadline {
+                    return Err(Error::StartupDeadline);
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => return Err(error),
+        }
+    }
 }
 
 pub fn attach_or_create(mut request: StartRequest<'_>) -> Result<Outcome, Error> {

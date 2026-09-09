@@ -1,0 +1,1 @@
+{"transport":"udp","prediction":false,"trials":30,"median_us":53274,"p95_us":78255,"max_us":101721,"mean_us":56793.700,"retransmits":67}

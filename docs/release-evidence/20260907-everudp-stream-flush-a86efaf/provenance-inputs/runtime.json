@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "source": {
+    "head_sha": "a86efafe2daff03e895616a6e8db9fd58ea48ffa",
+    "tree_sha": "d145fe5eb17f905ba4292ff5887357350d221ae0",
+    "clean": true
+  },
+  "everudp_build": {
+    "cargo_features": [
+      "cli",
+      "stream-flush-spike"
+    ]
+  },
+  "tools": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)"
+  },
+  "inputs": {
+    "Cargo.lock": "036f87a810d709762a25451d5442bb1d55de6fd1080e45a255676d101d5e322b"
+  },
+  "artifacts": {
+    "everudp": {
+      "path": "artifacts/bin/everudp",
+      "sha256": "430086ec6e6257713a266c32c6cecf027310a58839475fa30781006d50b6bf66"
+    }
+  },
+  "commands": [
+    "CARGO_TARGET_DIR=/tmp/everudp-stream-flush-a86efaf-variant-target cargo build --locked --release -p everudp --features cli,stream-flush-spike"
+  ],
+  "build_log": {
+    "path": "logs/everudp-build.log",
+    "sha256": "7a5d764ca3b010a0cdbeda5d834d3d52b2aa477f9ca5952c3ac52dd325813846"
+  },
+  "isolation": {
+    "isolated_cargo_target": true
+  },
+  "qualification": false
+}

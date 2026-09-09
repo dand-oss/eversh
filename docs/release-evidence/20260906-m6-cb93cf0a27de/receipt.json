@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "milestone": "M6",
+  "verdict": "FAIL",
+  "terminal_stage": "performance",
+  "exit_status": 1,
+  "source": {
+    "head_sha": "cb93cf0a27de339bd444cd1692d1f6e61030868d",
+    "tree_sha": "8c5c0218b3d252f6896960dde46634fa0e1fe51a",
+    "clean_before_and_after_gates": true
+  },
+  "started_utc": "2026-09-06T10:22:38Z",
+  "completed_utc": "2026-09-06T12:19:14Z",
+  "frozen_contract": "plans/everudp-v1.md",
+  "performance_qualification": "FAIL",
+  "twelve_hour_soak": "NOT_RUN",
+  "optional_unavailable_policy": "only preregistered nonmandatory network capabilities",
+  "subreceipts": [
+    {
+      "name": "environment",
+      "verdict": "PASS",
+      "path": "environment.json",
+      "sha256": "311ed7cb171e3b7600b8b7eaa69b4d90e1eec582d2d5f307eec9b2a37aac702d"
+    },
+    {
+      "name": "optional-networks",
+      "verdict": "UNAVAILABLE",
+      "path": "optional-networks.json",
+      "sha256": "0c6579cb0a987b730e94cdb8d56d324254c6b414b14cf1fedeb287b2b8c268c2"
+    },
+    {
+      "name": "git-diff-check",
+      "verdict": "PASS",
+      "path": "gates/git-diff-check.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "m5",
+      "verdict": "PASS",
+      "path": "gates/m5.log",
+      "sha256": "83aa27c47617d3e7c8e6d6cc56ab363dc5a80b83b63218c6eeabf3ff30fe4db9"
+    },
+    {
+      "name": "m5-receipt",
+      "verdict": "PASS",
+      "path": "external/m5-receipt.json",
+      "sha256": "e28a108b429e8d12174dd98794691a38ad07869c92d7f37d8612a9d6bad606f0"
+    },
+    {
+      "name": "everudp-security",
+      "verdict": "PASS",
+      "path": "gates/everudp-security.log",
+      "sha256": "1ab577336c1423565a4392ca4d107b7fe6ffdd61ddf84a665dfb1f3c39b8ef4c"
+    },
+    {
+      "name": "everudp-process",
+      "verdict": "PASS",
+      "path": "gates/everudp-process.log",
+      "sha256": "c7845863864741b0257a5e7ffa47b61b5652397d6180b10adf8e1b883d6bb30c"
+    },
+    {
+      "name": "everudp-applications",
+      "verdict": "PASS",
+      "path": "gates/everudp-applications.log",
+      "sha256": "873ea27001996d65369f3ae368c8a0b79ad605f7f82de307aa29836e7754e1bf"
+    },
+    {
+      "name": "eversh-everudp-process",
+      "verdict": "PASS",
+      "path": "gates/eversh-everudp-process.log",
+      "sha256": "e45d0ea2b400188ccd39eae506044d6348d6b386d0743ad10c1138ea7ffdef75"
+    },
+    {
+      "name": "release-build",
+      "verdict": "PASS",
+      "path": "gates/release-build.log",
+      "sha256": "85c8dbac64ed6a362d668bf3988686e26e947620bb15cfdbe2e999a0ff8261b2"
+    },
+    {
+      "name": "release-binary-everpty",
+      "verdict": "PASS",
+      "path": "external/everpty.sha256",
+      "sha256": "787cab09bdef9cd3348908dce42df07c0e4e05d835ffd2f04d34b293dce8a61f"
+    },
+    {
+      "name": "release-binary-everssh",
+      "verdict": "PASS",
+      "path": "external/everssh.sha256",
+      "sha256": "b3d1a7f0806def8f6ef615f2d81ff73ae501fa0863b5c8df514323a897331ebd"
+    },
+    {
+      "name": "release-binary-everudp",
+      "verdict": "PASS",
+      "path": "external/everudp.sha256",
+      "sha256": "c6a7ba5dabc675475562235a7afb0028903df5321bd54c2be23bc54b32e70ed6"
+    },
+    {
+      "name": "release-binary-eversh",
+      "verdict": "PASS",
+      "path": "external/eversh.sha256",
+      "sha256": "32822e8e2810632dd7465d8760d148c106e7e176bb47f782e9bfe5080fcbd5c7"
+    },
+    {
+      "name": "fuzz-fuzz_everudp_control",
+      "verdict": "PASS",
+      "path": "gates/fuzz-fuzz_everudp_control.log",
+      "sha256": "666482754da4980fd163c16db0b28b73c082ac3ee44b23de9e64c1adb6592555"
+    },
+    {
+      "name": "fuzz-fuzz_everudp_resume_boundary",
+      "verdict": "PASS",
+      "path": "gates/fuzz-fuzz_everudp_resume_boundary.log",
+      "sha256": "3cebf0b688ee0b7a090bfe970379956e0c1b17b58ba89c4832c15f1c96584bf4"
+    },
+    {
+      "name": "reliability",
+      "verdict": "PASS",
+      "path": "gates/reliability.log",
+      "sha256": "f910de4e70cc8f75900e6663c87e3cda618ba016659313054fbd66198ca88047"
+    },
+    {
+      "name": "reliability-receipt",
+      "verdict": "PASS",
+      "path": "reliability/receipt.json",
+      "sha256": "bc521b850c876e5fdf8e9d657b678d5f606a7dc1035da2280e57dae919c90279"
+    },
+    {
+      "name": "performance-build",
+      "verdict": "PASS",
+      "path": "gates/performance-build.log",
+      "sha256": "01e99875d4c89947337e76a6d92944d7b70e97aa7826f7bcad72b3f7410e87b6"
+    },
+    {
+      "name": "performance-build-provenance",
+      "verdict": "PASS",
+      "path": "external/performance-build-provenance.json",
+      "sha256": "fe3f23f3ca4557be159ddb042c275ffcac9fcfbb39b9d3fa2a41c89580ed56df"
+    },
+    {
+      "name": "performance",
+      "verdict": "FAIL",
+      "path": "performance/receipt.json",
+      "sha256": "1cba29702b6c1cdd852fd3a20110386c33fb3b89191c9edefc8b4f3cb60d63b5"
+    },
+    {
+      "name": "final-identity",
+      "verdict": "PASS",
+      "path": "gates/final-identity.log",
+      "sha256": "bb39bfad85ad1456e631211a118ae38c046889696dd8340bab05b0502235967b"
+    }
+  ],
+  "evidence_path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/docs/release-evidence/20260906-m6-cb93cf0a27de"
+}

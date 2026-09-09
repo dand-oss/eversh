@@ -1,0 +1,21 @@
+everudp-status-v1 state connecting
+everudp-status-v1 state connected
+everudp-status-v1 state carrying
+everudp-status-v1 state disconnected ambiguous-input=1
+everudp-status-v1 state migrating
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=61175 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=121176 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=182877 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=242878 ambiguous-input=1
+everudp-status-v1 state connected
+everudp-status-v1 state carrying
+everudp-status-v1 cause pty-exit carried=1 ambiguous-input=0

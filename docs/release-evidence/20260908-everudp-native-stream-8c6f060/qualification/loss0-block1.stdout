@@ -1,0 +1,4 @@
+performance block candidate 1/3: everudp-stream-native
+performance block candidate 2/3: everudp-stream-ordinary
+performance block candidate 3/3: zmosh-udp
+performance block PASS: /tmp/everudp-stream-qualification-8c6f060/loss0-block1

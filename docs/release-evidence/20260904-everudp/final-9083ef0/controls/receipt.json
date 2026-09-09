@@ -1,0 +1,54 @@
+{
+  "analysis_sha256": "81090c37ea9970e5fa75d2e1a015e1c1cac752959db2fc262215c5c6a21942f3",
+  "cells": {
+    "loss0": "b3edbe6e5599d6014d2f925f69c971599cc52d540054a5e8917b061c5d9326e8",
+    "loss1": "b7ec60ed176acf498392220c6c2073e81bd1d0ec324582e8e997100e00f98685",
+    "loss10": "aaed7588d739ce468386a91bdeff36ea4a6780c2c842f200ed9e41aff31e664a",
+    "loss25": "6ce60f5c259251d84f337ec39c45be20d9f1c21527e5d46a91b696a74e0142d7",
+    "loss5": "2a8299459143271187fa276e2d305583202cd1e2de051b3b84463423a5c5f764",
+    "loss5-jitter25": "5327dd50b42c51f6171a2d58a350679da15f18d17db019efea793eb3ac91352e",
+    "loss5-jitter50": "b788330557bd1e36b341cf1c474d5da978d4be9f4bdf5217ea72d7270bb96012",
+    "loss5-reorder2": "d1c2e3e5bd3e6172a01cd6848d01029ac36ecd4b8af080747febc030aef63c69"
+  },
+  "child_gates": {
+    "outage": {
+      "manifest_sha256": "70e50ab0ae28cf1b12de7b5a771bbf91b8939d0ae3d7a2880119afca05a09647",
+      "verdict": {
+        "bounded_diagnosed_failures_pass": true,
+        "outage_duration_pass": true,
+        "outage_gate_pass": true,
+        "post_restore_recovery_pass": true,
+        "preflight_pass": true
+      }
+    },
+    "resource": {
+      "manifest_sha256": "7c0a52b381ccbd307506e2a9a07e2e5522bc726dd6f1418f7ec9e7b6d2f97a7e",
+      "verdict": {
+        "hostile_count_pass": true,
+        "hostile_rss_growth_pass": true,
+        "hostile_zero_amplification_pass": true,
+        "idle_cpu_pass": true,
+        "idle_zero_tx_pass": true,
+        "legitimate_after_hostile_pass": true,
+        "resource_gate_pass": true
+      }
+    }
+  },
+  "finished_utc": "2026-09-05T01:48:42Z",
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "9083ef07292acbf6ef55ce065968ecaf14d6a74d",
+    "tree_sha": "e7b0678cfc198a1a314341af0c4940547bf578b3"
+  },
+  "started_utc": "2026-09-05T01:42:05Z",
+  "trials_per_candidate_per_cell": 30,
+  "verdict": {
+    "all_preregistered_performance_thresholds_pass": true,
+    "control_qualification_pass": true,
+    "decision": "BUILD",
+    "measurement_integrity_pass": true,
+    "outage_gate_pass": true,
+    "resource_gate_pass": true
+  }
+}

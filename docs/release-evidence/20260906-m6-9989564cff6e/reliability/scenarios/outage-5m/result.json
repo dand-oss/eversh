@@ -1,0 +1,1 @@
+{"elapsed_ms": 300695, "gap_notices": 0, "messages": 4, "mode": "outage", "observed_outage_seconds": 300, "required_outage_seconds": 300, "responses": {"ASYNC:outage-5m": 1, "RX:during-outage-5m": 1, "RX:post-outage-5m": 1, "RX:quit": 1}, "saw_reconnecting": true, "schema_version": 1, "session": "outage-5m", "stderr_bytes": 0, "transcript_bytes": 139, "verdict": "PASS"}

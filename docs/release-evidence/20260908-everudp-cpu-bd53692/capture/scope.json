@@ -1,0 +1,70 @@
+{
+  "before": {
+    "client": {
+      "affinity": [
+        40,
+        42,
+        44,
+        46
+      ],
+      "exe": [
+        43,
+        9531995
+      ],
+      "namespace": [
+        5,
+        4026531834
+      ],
+      "pid": 3230067,
+      "start_ticks": "147943642",
+      "tids": [
+        3230067
+      ]
+    },
+    "gateway": {
+      "affinity": [
+        40,
+        42,
+        44,
+        46
+      ],
+      "exe": [
+        43,
+        9531995
+      ],
+      "namespace": [
+        5,
+        4026531834
+      ],
+      "pid": 3230137,
+      "start_ticks": "147943660",
+      "tids": [
+        3230137,
+        3230141
+      ]
+    }
+  },
+  "boot_id": "a379fc1e-ec8d-4f5c-afaa-4bbe88d1fced",
+  "command": [
+    "/tmp/eversh-profile-tools.m4Ikm3/extracted/usr/bin/perf",
+    "record",
+    "--no-inherit",
+    "--no-buildid-cache",
+    "--clockid",
+    "mono",
+    "-T",
+    "-e",
+    "cpu-clock:u,cpu-clock:k",
+    "-F",
+    "4999",
+    "--strict-freq",
+    "-p",
+    "3230067,3230137",
+    "-o",
+    "/tmp/everudp-production-cpu-bd53692/private-perf.data",
+    "--",
+    "/usr/bin/sleep",
+    "45"
+  ],
+  "start_ns": 1479437066278918
+}

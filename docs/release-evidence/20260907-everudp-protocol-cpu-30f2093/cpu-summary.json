@@ -1,0 +1,63 @@
+{
+  "status": "DIAGNOSTIC",
+  "qualification_pass": false,
+  "semantics": "Pooled whole-trace call populations, including warmup/control and recorder overhead. CPU and wall sampled separately. No per-trial attribution, percentile subtraction/summing, or calibration correction.",
+  "populations": [
+    {
+      "kind": "protocol_poll_intervals",
+      "role": "client",
+      "outcome": "idle",
+      "count": 4766,
+      "wall_median_ns": 2805.5,
+      "cpu_median_ns": 2661.5
+    },
+    {
+      "kind": "protocol_poll_intervals",
+      "role": "client",
+      "outcome": "ready",
+      "count": 1958,
+      "wall_median_ns": 15928.5,
+      "cpu_median_ns": 15744.5
+    },
+    {
+      "kind": "protocol_poll_intervals",
+      "role": "server",
+      "outcome": "idle",
+      "count": 3082,
+      "wall_median_ns": 2976.5,
+      "cpu_median_ns": 2708
+    },
+    {
+      "kind": "protocol_poll_intervals",
+      "role": "server",
+      "outcome": "ready",
+      "count": 1598,
+      "wall_median_ns": 13584.5,
+      "cpu_median_ns": 12987
+    },
+    {
+      "kind": "sender_poll_intervals",
+      "role": "client",
+      "outcome": "accepted",
+      "count": 1958,
+      "wall_median_ns": 27247,
+      "cpu_median_ns": 27536.5
+    },
+    {
+      "kind": "sender_poll_intervals",
+      "role": "client",
+      "outcome": "blocked",
+      "count": 4,
+      "wall_median_ns": 2532,
+      "cpu_median_ns": 2536
+    },
+    {
+      "kind": "sender_poll_intervals",
+      "role": "server",
+      "outcome": "accepted",
+      "count": 1598,
+      "wall_median_ns": 27043,
+      "cpu_median_ns": 27338.5
+    }
+  ]
+}

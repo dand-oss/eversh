@@ -1,0 +1,1 @@
+{"cancellation_ms": 4, "elapsed_ms": 40223, "exit_code": 143, "mode": "cancel", "saw_reconnecting": true, "schema_version": 1, "session": "cancel-outage", "terminal_restored": true, "verdict": "PASS"}

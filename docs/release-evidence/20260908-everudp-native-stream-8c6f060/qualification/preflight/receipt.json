@@ -1,0 +1,30 @@
+{
+  "built_profile_parity": true,
+  "cases": [
+    "ordinary/exact-pty-cancel-restore",
+    "ordinary/wrong-pin",
+    "ordinary/wrong-token",
+    "native/exact-pty-cancel-restore",
+    "native/wrong-pin",
+    "native/wrong-token"
+  ],
+  "fixture_cleanup": true,
+  "identity": {
+    "binary_sha256": "e909ab3d9a56ce2ddb332463ba7476d61b0698ef948a35e08cdac5156c7da2e9",
+    "collector_head": "8c6f060d4799c38fdd1fa7399a137d8b64d8fc8c",
+    "collector_sha256": "4d182f1952235ebc26209162a1fa2616fa4914cba6124f67690bae2da9f22e38",
+    "collector_tree": "88bd4d5fcbfa442617ec4f6be444ee6035f34435",
+    "evidence_writer_sha256": "e2b8bbcd231144952cde081cb9bf805491b357f0095fbbe0891e3135bc12e34c"
+  },
+  "performance_qualification": false,
+  "profiles": {
+    "native-client-built.txt": "b15dc4bd84a1149c51d6aa523ea0129b6e08022440607f30b410e6d0f9e75544",
+    "native-server-built.txt": "31611b3fb5b76558ea5415f9fb01f400dd004fc2510f67524deb3d762934e600",
+    "ordinary-client-built.txt": "b15dc4bd84a1149c51d6aa523ea0129b6e08022440607f30b410e6d0f9e75544",
+    "ordinary-server-built.txt": "31611b3fb5b76558ea5415f9fb01f400dd004fc2510f67524deb3d762934e600"
+  },
+  "purpose": "matched-stream-untimed-preflight",
+  "schema_version": 1,
+  "scope": "local-built-not-negotiated",
+  "status": "PASS"
+}

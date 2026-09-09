@@ -1,0 +1,3 @@
+Script started on 2026-09-04 22:20:13-05:00 [COMMAND="'/tmp/everudp-final-7d4a432.G57FW8/final/build/artifacts/bin/eversh' 'ssh' '--remote-eversh' '/tmp/everudp-final-7d4a432.G57FW8/final/build/artifacts/bin/eversh' 'bench' '--' '-F/tmp/tmp.dZUTYbmBAN/client_config' '-tt' '--' '/bin/sh -c '"'"'printf EVERUDP_READY; stty raw -echo; exec /usr/bin/python3 -u /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/9015-dkd-everssh-resume-WORK/spikes/everudp/net/echo1.py'"'"''" <not executed on terminal>]
+EVERUDP_READYkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk
+Script done on 2026-09-04 22:20:19-05:00 [COMMAND_EXIT_CODE="0"]

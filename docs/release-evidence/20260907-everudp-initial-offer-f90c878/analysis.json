@@ -1,0 +1,13 @@
+{
+  "status": "INVALID",
+  "qualification": "NOT_APPLICABLE",
+  "production_adoption": false,
+  "reason": "Matched-control artifact identity check failed before numerical analysis: independently rebuilt frozen zmosh executables have different SHA256 hashes.",
+  "baseline_runtime": "1bdd3528bc4d257a1f33adc96b1fb48a97a777d9",
+  "candidate_runtime": "f90c878dfda16c86b7bd04ee255889450eedb859",
+  "baseline_zmosh_sha256": "de1e96e5ef57df173db266747eb18b8bce6911952410d298f236ab9c1e7fa162",
+  "candidate_zmosh_sha256": "96d137833846b8c6fb0d4a9cbb29c9682fda7a928e073dff4b42609b1744f8f0",
+  "completed_blocks": 8,
+  "reported_transcript_failures": 0,
+  "numerical_gate_verdict": "NOT_EVALUATED"
+}

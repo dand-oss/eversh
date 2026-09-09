@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "reason": "Remove ephemeral QUIC bootstrap credentials from current evidence tree; original Git history unchanged",
+  "original_receipts_suffix": ".pre-redaction",
+  "original_receipts_verified_before_redaction": true,
+  "changes": [
+    {
+      "path": "loss0-block1/zmosh-quic/connect.log",
+      "original_sha256": "ea73afe627e9d8fa9ea945df2eca0c47fecfecad913690deeff7cd6490412725",
+      "redacted_sha256": "7a1971326b4cbc413bc5a91ea8ebf6429f6144c848f697c1cc004d88b4eed2e1"
+    },
+    {
+      "path": "loss0-block2/zmosh-quic/connect.log",
+      "original_sha256": "7ce73322fd45f8ddf58fb7b3bd34620aedbeaa582f7948dc43fbc61d3aa7df37",
+      "redacted_sha256": "fa9319ce6a009ad436d8fb67aec24782613ecb6e94cd021cc02a5d6a4305fa1f"
+    },
+    {
+      "path": "loss0-block3/zmosh-quic/connect.log",
+      "original_sha256": "03711bedcd62690c3fece81a8743ec8df957b5919f5feea7fe8cf5e162ae85f6",
+      "redacted_sha256": "ede4ff834ed8c4ebce0c247fe449cc3baa98a8d21d5e913d904a8e56f7d7585b"
+    },
+    {
+      "path": "loss0-block4/zmosh-quic/connect.log",
+      "original_sha256": "c027d39f556e892735d76c72146a4e79543e49981295309c8283de36bf62a117",
+      "redacted_sha256": "622f6b6c09c7e82b3dcbf15b6e62bbefcf06afaa813c44fb5eba6e932e5c1088"
+    },
+    {
+      "path": "loss5-block1/zmosh-quic/connect.log",
+      "original_sha256": "30e6e2c5efadad4107a620edf950c4a48746059ba14e93cde2a6c1a778fb8e08",
+      "redacted_sha256": "e953f4c430617c996f4f309462ba89b7ed6f6da100979150ae3b3642994b3a09"
+    },
+    {
+      "path": "loss5-block2/zmosh-quic/connect.log",
+      "original_sha256": "28878dfb006cb4ae31c332785172b2d39b264314de35fff84084e57260c576e5",
+      "redacted_sha256": "bb14fea4abe8dc7d3ab75943ea8b4545aab01b5e6420465a3d81302b052e394e"
+    },
+    {
+      "path": "loss5-block3/zmosh-quic/connect.log",
+      "original_sha256": "ed93f5282eee2fac29f19a68f87a957bf5505f1c7814855d61c03a9e0a3d23eb",
+      "redacted_sha256": "662ff7edd88f3a85cfa298014595bf38ce1572f51372c8256d505b4bafdfaa9b"
+    },
+    {
+      "path": "loss5-block4/zmosh-quic/connect.log",
+      "original_sha256": "b2f01aed01bd3f3beb560bf1fae173795a4063c9de8ed1fcb0c8058ec33d1cb1",
+      "redacted_sha256": "558d27c52f5078736ee3c12a44a0dff18efee9238688b24b15eda5a7165f23d1"
+    }
+  ]
+}

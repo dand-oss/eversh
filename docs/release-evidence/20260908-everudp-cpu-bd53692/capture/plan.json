@@ -1,0 +1,17 @@
+{
+  "capture_seconds": 45,
+  "collector_sha256": "8f3aaf4c13b3626a56990724a2a4a07c21d7cb51cd4c46671aae90cf3be99e16",
+  "command": [
+    "/tmp/eversh-fairness-bd53692/crates/everudp/tests/net/bench-performance-block.sh",
+    "600",
+    "0",
+    "19000001",
+    "/tmp/everudp-production-cpu-bd53692/measurement",
+    "everudp,zmosh-udp,zmosh-quic"
+  ],
+  "frequency_hz": 4999,
+  "head": "bd53692a23e498408f55ee30b03309017a923a4c",
+  "perf_sha256": "83e79d866c65499c16302d8e27900955868609908be2bbe0d1afed02f082decb",
+  "qualification": false,
+  "scope": "client and gateway process CPU leaf samples; no inherit, stacks, registers, payloads or argv export; raw perf private; public-window filtering required after capture"
+}

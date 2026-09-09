@@ -1,0 +1,33 @@
+15:08:06.738350 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 8075) = 1
+15:08:07.647115 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 1
+15:08:07.650533 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLOUT, data=0x55e78803e880}, {events=EPOLLIN, data=0}], 1024, 4) = 3
+15:08:07.650931 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 3) = 2
+15:08:07.651193 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 3) = 2
+15:08:07.651443 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.651599 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 3) = 2
+15:08:07.651850 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.652105 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.652371 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.652526 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 2) = 2
+15:08:07.652760 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.653107 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.653311 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 1) = 2
+15:08:07.653576 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.653824 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.653998 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 3) = 2
+15:08:07.654284 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.654480 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 3) = 2
+15:08:07.654747 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x55e78803e880}, {events=EPOLLIN|EPOLLOUT, data=0x55e788168900}], 1024, 0) = 2
+15:08:07.654902 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 2) = 2
+15:08:07.655168 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.655321 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 2) = 2
+15:08:07.655708 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.655887 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e788168900}, {events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 1) = 2
+15:08:07.656118 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x55e788168900}, {events=EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 2
+15:08:07.656181 epoll_wait(3<anon_inode:[eventpoll]>, [], 1024, 1) = 0
+15:08:07.657288 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 2) = 1
+15:08:07.658813 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x55e78803e880}, {events=EPOLLIN, data=0}], 1024, 1) = 2
+15:08:07.658863 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55e78803e880}], 1024, 1) = 1
+15:08:07.659094 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x55e78803e880}], 1024, 0) = 1
+15:08:07.659149 epoll_wait(3<anon_inode:[eventpoll]>, [], 1024, 1) = 0
+15:08:07.660245 epoll_wait(3<anon_inode:[eventpoll]> <detached ...>

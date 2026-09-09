@@ -1,0 +1,15 @@
+READY
+PRE1
+R:PRE1
+Connection to 10.241.0.1 closed by remote host.
+Connection to 10.241.0.1 closed.
+everssh: absolute client_loop: send disconnect: Broken pipe
+association reconnect deadline expired
+eversh: reconnect attempt 1 in 346 ms
+eversh: probing session 'outage' (attempt 1)
+eversh: session is live; reattaching (attempt 1)
+eversh: reattaching session 'outage' (attempt 1)
+NEW1
+R:NEW1
+
+Session terminated, killing shell... ...killed.

@@ -1,0 +1,96 @@
+[package]
+name = "everudp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Persistent direct-QUIC terminal transport above everpty"
+
+[features]
+default = []
+cli = ["dep:clap"]
+tuning = []
+# Opt-in production path timing; never part of uninstrumented qualification.
+path-diagnostics = ["dep:libc"]
+# Opt-in bounded noQ I/O sidecar for path diagnostics; never enabled by default.
+path-io-diagnostics = ["path-diagnostics", "noq/diagnostic-events"]
+# Opt-in packet correlation; never part of the uninstrumented release profile.
+path-packet-diagnostics = ["path-io-diagnostics", "noq/packet-diagnostics"]
+# Disposable production-stream scheduling experiment; never enabled by default.
+# This exposes the transmit pass only, without negotiating QUIC DATAGRAMs.
+stream-flush-spike = ["noq/immediate-datagram-flush"]
+# Independent receive-side scheduling experiment; no datagrams or inline send.
+stream-receive-spike = ["noq/inline-received-events"]
+# Packet-evidence-driven application handoff before a bounded deferred TX pass.
+# Independent of inline receive/native scheduling; never enabled by default.
+stream-delivery-spike = ["noq/stream-delivery-handoff"]
+# Independent root-versus-scheduled application ownership experiment.
+application-task-spike = []
+# Skip CID sizing only when no NEW_CONNECTION_ID frame is queued.
+packet-preparation-spike = ["noq/lazy-cid-preparation"]
+# Equivalent stable single-primary-path scheduling shortcut; default-off.
+single-path-scheduling-spike = ["noq/single-path-scheduling"]
+# Default-off shortcut for key-discarded, probe-free handshake spaces.
+discarded-space-spike = ["noq/skip-discarded-spaces"]
+# Isolated wire scheduling only; input commit and replay records are unchanged.
+input-ack-hold-spike = []
+# Existing QUIC ACK policy, isolated for production traffic-coalescing diagnosis.
+quic-ack-coalescing-spike = []
+# Isolate packet threshold from ACK delay; production/tuning defaults unchanged.
+quic-ack-threshold-spike = []
+# One bounded PTY readiness probe after committed input; never waits for echo.
+pty-ready-spike = []
+# Explicit interaction experiment for the two reliable-stream scheduling paths.
+# Neither datagrams nor diagnostics are enabled; production defaults stay unchanged.
+stream-pump-spike = ["stream-flush-spike", "stream-receive-spike"]
+datagram-spike = [
+    "dep:bytes",
+    "noq/immediate-datagram-flush",
+    "noq/inline-received-events",
+]
+reliable-datagram-spike = ["datagram-spike"]
+floor-diagnostics = ["noq/diagnostic-events", "dep:libc"]
+# Disposable socket-readiness experiment; not enabled by default or qualification.
+floor-send-fast-path = ["noq/udp-send-fast-path"]
+# Disposable ACK bookkeeping experiment; never enabled by default.
+floor-ack-inline-storage = ["noq/ack-inline-storage"]
+# Disposable single-owner protocol driver; never enabled by default.
+floor-single-owner = ["reliable-datagram-spike", "dep:noq-proto", "dep:libc"]
+# Independent reliable-stream floor experiment. It deliberately does not
+# imply datagram or diagnostic features.
+stream-floor = ["dep:noq-proto", "dep:libc", "dep:bytes"]
+
+[dependencies]
+everpty = { path = "../everpty" }
+everssh = { path = "../everssh", default-features = false }
+clap = { version = "=4.6.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"], optional = true }
+bytes = { version = "=1.12.1", optional = true }
+libc = { version = "=0.2.189", optional = true }
+noq = { version = "=1.1.1", default-features = false, features = ["runtime-tokio", "rustls", "ring", "bloom"] }
+noq-proto = { version = "=1.1.1", default-features = false, features = ["rustls", "ring", "bloom"], optional = true }
+rcgen = { version = "=0.13.2", default-features = false, features = ["ring", "zeroize"] }
+ring = "0.17"
+tokio = { version = "1", features = ["rt", "net", "io-util", "time", "sync", "macros"] }
+zeroize = "1"
+
+[lib]
+name = "everudp"
+
+[[bin]]
+name = "everudp"
+required-features = ["cli"]
+
+[[example]]
+name = "everudp-tune"
+required-features = ["tuning"]
+
+[[example]]
+name = "everudp-floor"
+required-features = ["cli", "reliable-datagram-spike"]
+
+[[example]]
+name = "everudp-stream-floor"
+required-features = ["cli", "stream-floor"]
+
+[lints]
+workspace = true

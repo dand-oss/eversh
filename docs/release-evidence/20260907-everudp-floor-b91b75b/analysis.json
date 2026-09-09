@@ -1,0 +1,47 @@
+{
+  "bootstrap": {
+    "block_stratified": true,
+    "resamples": 20000,
+    "upper95_reported_not_gating": true
+  },
+  "cells": {
+    "0": {
+      "cutoff": 0.9,
+      "everudp_floor": {
+        "p50_us": 406.0,
+        "p95_us": 665,
+        "summed_egress_packets": 1758
+      },
+      "observations_per_candidate": 400,
+      "p50_ratio": 0.9854368932038835,
+      "p50_ratio_bootstrap_upper95": 1.032418952618454,
+      "pass": false,
+      "zmosh_udp": {
+        "p50_us": 412.0,
+        "p95_us": 868,
+        "summed_egress_packets": 1714
+      }
+    },
+    "5": {
+      "cutoff": 0.9,
+      "everudp_floor": {
+        "p50_us": 426.5,
+        "p95_us": 3581,
+        "summed_egress_packets": 1806
+      },
+      "observations_per_candidate": 400,
+      "p50_ratio": 0.9221621621621622,
+      "p50_ratio_bootstrap_upper95": 1.0033745781777277,
+      "pass": false,
+      "zmosh_udp": {
+        "p50_us": 462.5,
+        "p95_us": 50557,
+        "summed_egress_packets": 1702
+      }
+    }
+  },
+  "criterion": "everudp-floor p50 / frozen-zmosh-udp p50 <= 0.90 in each loss cell",
+  "pass": false,
+  "purpose": "authenticated-noq-datagram-stage-zero-cutoff",
+  "schema_version": 1
+}

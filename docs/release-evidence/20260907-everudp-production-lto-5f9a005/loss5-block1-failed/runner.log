@@ -1,0 +1,5 @@
+performance block candidate 1/3: everudp
+performance block candidate 2/3: zmosh-udp
+performance block candidate 3/3: zmosh-quic
+candidate did not echo the warm-up marker
+measurement barrier unavailable: /tmp/everudp-lto-5f9a005-loss5-block1/zmosh-quic/window/start.ready

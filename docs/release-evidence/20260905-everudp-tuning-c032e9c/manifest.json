@@ -1,0 +1,68 @@
+{
+  "analyzer": {
+    "path": "crates/everudp/tests/net/analyze-tuning.py",
+    "sha256": "e9ca6a58736def4476d8092049180429291a22b363a9c771b9993ec1c42b1ae1"
+  },
+  "binary": {
+    "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/release/everudp-tune",
+    "sha256": "6949692fe85de98b92b58dfb64383e9205c3961ac7ad8c6d2f34d6217efe6ad3"
+  },
+  "cells": [
+    0,
+    5
+  ],
+  "correctness": "one exact byte, sequence, application ACK, and sink call per trial; no output during the post-cell quiet window",
+  "failed_cells": 0,
+  "finished_utc": "2026-09-05T19:19:00Z",
+  "harness": {
+    "path": "crates/everudp/tests/net/tune-profiles.sh",
+    "sha256": "57bd4d1fb5b259a8767a517ffe2dc898d7df0aaca05ade46551fe2a04f9b183c"
+  },
+  "host": {
+    "cpu": 0,
+    "governor": "schedutil",
+    "kernel": "7.1.8+deb14.1-amd64",
+    "machine": "x86_64"
+  },
+  "profiles": [
+    "rtt25-off-gso-off",
+    "rtt25-off-gso-on",
+    "rtt25-every-1ms-gso-off",
+    "rtt25-every-1ms-gso-on",
+    "rtt25-every-other-5ms-gso-off",
+    "rtt25-every-other-5ms-gso-on",
+    "rtt100-off-gso-off",
+    "rtt100-off-gso-on",
+    "rtt100-every-1ms-gso-off",
+    "rtt100-every-1ms-gso-on",
+    "rtt100-every-other-5ms-gso-off",
+    "rtt100-every-other-5ms-gso-on",
+    "rtt333-off-gso-off",
+    "rtt333-off-gso-on",
+    "rtt333-every-1ms-gso-off",
+    "rtt333-every-1ms-gso-on",
+    "rtt333-every-other-5ms-gso-off",
+    "rtt333-every-other-5ms-gso-on"
+  ],
+  "ranking": "correct profiles only; worst-cell p95, then p50, then CPU",
+  "schema_version": 1,
+  "seeds": {
+    "0": 910001,
+    "5": 910003
+  },
+  "selection": "retain preregistered default unless paired block-stratified 95% p95 ratio interval is wholly below 1.00",
+  "source": {
+    "dirty": false,
+    "head_sha": "c032e9c09e03fd9b367ec8b70bc812a6d0389a8e",
+    "tree_sha": "39715d053d7bf5116c80654da7dff6aa2ada094d"
+  },
+  "started_utc": "2026-09-05T19:18:44Z",
+  "timer": "immediately before ClientAssociation::queue_input through exact OutputOperation acceptance by the local sink",
+  "toolchain": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+    "python": "3.14.6",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)"
+  },
+  "topology": "current-thread Tokio runtime, real noq QUIC endpoints, deterministic bidirectional userspace UDP loss proxy",
+  "trials": 200
+}

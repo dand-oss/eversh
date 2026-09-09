@@ -1,0 +1,7 @@
+info(udp): bound udp ephemeral port=47480 family=inet
+zmosh-quic-bridge: state=awaiting_ack
+zmosh-quic-bridge: HELLO_ACK
+zmosh-quic-bridge: state=installing_snapshot
+zmosh-quic-bridge: state=active
+zmosh-quic-bridge: first input bytes=1
+zmosh-quic-bridge: first output bytes=1

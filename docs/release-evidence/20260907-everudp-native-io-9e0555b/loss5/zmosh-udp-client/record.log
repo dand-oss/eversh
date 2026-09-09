@@ -1,0 +1,2 @@
+[ perf record: Woken up 1 times to write data ]
+[ perf record: Captured and wrote 3.099 MB /tmp/everudp-native-io-9b67a67-loss5-raw-write/zmosh-udp-client/perf.data (2336 samples) ]

@@ -1,0 +1,191 @@
+{
+  "blocks": [
+    {
+      "block": 1,
+      "floor_attempts": 807,
+      "floor_p50_us": 372.5,
+      "loss_percent": 0,
+      "mode": "control",
+      "name": "loss0-block1-control",
+      "p50_ratio": 0.9764089121887287,
+      "packet_attempt_ratio": 1.0062344139650872,
+      "packet_attempt_ratio_le_1_60": true,
+      "zmosh_attempts": 802,
+      "zmosh_p50_us": 381.5
+    },
+    {
+      "block": 1,
+      "floor_attempts": 809,
+      "floor_p50_us": 391.5,
+      "loss_percent": 0,
+      "mode": "inline",
+      "name": "loss0-block1-inline",
+      "p50_ratio": 1.0609756097560976,
+      "packet_attempt_ratio": 1.0087281795511223,
+      "packet_attempt_ratio_le_1_60": true,
+      "zmosh_attempts": 802,
+      "zmosh_p50_us": 369.0
+    },
+    {
+      "block": 2,
+      "floor_attempts": 800,
+      "floor_p50_us": 396.0,
+      "loss_percent": 0,
+      "mode": "control",
+      "name": "loss0-block2-control",
+      "p50_ratio": 1.0219354838709678,
+      "packet_attempt_ratio": 0.9852216748768473,
+      "packet_attempt_ratio_le_1_60": true,
+      "zmosh_attempts": 812,
+      "zmosh_p50_us": 387.5
+    },
+    {
+      "block": 2,
+      "floor_attempts": 799,
+      "floor_p50_us": 408.0,
+      "loss_percent": 0,
+      "mode": "inline",
+      "name": "loss0-block2-inline",
+      "p50_ratio": 1.1012145748987854,
+      "packet_attempt_ratio": 0.9864197530864197,
+      "packet_attempt_ratio_le_1_60": true,
+      "zmosh_attempts": 810,
+      "zmosh_p50_us": 370.5
+    },
+    {
+      "block": 1,
+      "floor_attempts": 858,
+      "floor_p50_us": 384.5,
+      "loss_percent": 5,
+      "mode": "control",
+      "name": "loss5-block1-control",
+      "p50_ratio": 1.0198938992042441,
+      "packet_attempt_ratio": 1.0214285714285714,
+      "packet_attempt_ratio_le_1_60": true,
+      "zmosh_attempts": 840,
+      "zmosh_p50_us": 377.0
+    },
+    {
+      "block": 1,
+      "floor_attempts": 879,
+      "floor_p50_us": 405.5,
+      "loss_percent": 5,
+      "mode": "inline",
+      "name": "loss5-block1-inline",
+      "p50_ratio": 0.966626936829559,
+      "packet_attempt_ratio": 1.0439429928741093,
+      "packet_attempt_ratio_le_1_60": true,
+      "zmosh_attempts": 842,
+      "zmosh_p50_us": 419.5
+    },
+    {
+      "block": 2,
+      "floor_attempts": 879,
+      "floor_p50_us": 396.0,
+      "loss_percent": 5,
+      "mode": "control",
+      "name": "loss5-block2-control",
+      "p50_ratio": 1.0688259109311742,
+      "packet_attempt_ratio": 1.0402366863905326,
+      "packet_attempt_ratio_le_1_60": true,
+      "zmosh_attempts": 845,
+      "zmosh_p50_us": 370.5
+    },
+    {
+      "block": 2,
+      "floor_attempts": 877,
+      "floor_p50_us": 399.5,
+      "loss_percent": 5,
+      "mode": "inline",
+      "name": "loss5-block2-inline",
+      "p50_ratio": 1.002509410288582,
+      "packet_attempt_ratio": 1.034198113207547,
+      "packet_attempt_ratio_le_1_60": true,
+      "zmosh_attempts": 848,
+      "zmosh_p50_us": 398.5
+    }
+  ],
+  "collection": {
+    "blocks": 8,
+    "common_control_artifacts": {
+      "pty-bench": "0f082f7ec8a761dfdb16d9e4a04e74bf0af3c0afedf54aaa57b7bbe2f2b977eb",
+      "pty-echo": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e",
+      "zmosh-udp": "aaef40c8b4b0952c44627bd223ace5a3efe7bead6cb7b28248ba749114a2191b"
+    },
+    "responses": 3200,
+    "source": {
+      "head_sha": "dc019b8ecf41279e1c33c223d9632562962fb223",
+      "tree_sha": "cfbe2988a78667ac9ab272070d088c5ac5d3ab1f"
+    }
+  },
+  "integration_authorized": false,
+  "interpretation": [
+    "This is a diagnostic ACK-inline-storage experiment, not production qualification or approval.",
+    "Pooled ratios use two 200-trial blocks per loss and variant; no per-trial pairing or cross-clock subtraction is performed.",
+    "The frozen floor thresholds are reported only as descriptive criteria; they do not authorize integration."
+  ],
+  "pooled_by_loss_and_variant": [
+    {
+      "floor_attempts": 1607,
+      "floor_p50_us": 383.5,
+      "frozen_floor_criterion": {
+        "p50_ratio_le_0_90": false,
+        "packet_attempt_ratio_le_1_60": true
+      },
+      "loss_percent": 0,
+      "mode": "control",
+      "observations_per_candidate": 400,
+      "p50_ratio": 0.9973992197659298,
+      "packet_attempt_ratio": 0.9956629491945477,
+      "zmosh_attempts": 1614,
+      "zmosh_p50_us": 384.5
+    },
+    {
+      "floor_attempts": 1608,
+      "floor_p50_us": 399.5,
+      "frozen_floor_criterion": {
+        "p50_ratio_le_0_90": false,
+        "packet_attempt_ratio_le_1_60": true
+      },
+      "loss_percent": 0,
+      "mode": "inline",
+      "observations_per_candidate": 400,
+      "p50_ratio": 1.081190798376184,
+      "packet_attempt_ratio": 0.9975186104218362,
+      "zmosh_attempts": 1612,
+      "zmosh_p50_us": 369.5
+    },
+    {
+      "floor_attempts": 1737,
+      "floor_p50_us": 387.0,
+      "frozen_floor_criterion": {
+        "p50_ratio_le_0_90": false,
+        "packet_attempt_ratio_le_1_60": true
+      },
+      "loss_percent": 5,
+      "mode": "control",
+      "observations_per_candidate": 400,
+      "p50_ratio": 1.032,
+      "packet_attempt_ratio": 1.030860534124629,
+      "zmosh_attempts": 1685,
+      "zmosh_p50_us": 375.0
+    },
+    {
+      "floor_attempts": 1756,
+      "floor_p50_us": 402.0,
+      "frozen_floor_criterion": {
+        "p50_ratio_le_0_90": false,
+        "packet_attempt_ratio_le_1_60": true
+      },
+      "loss_percent": 5,
+      "mode": "inline",
+      "observations_per_candidate": 400,
+      "p50_ratio": 0.9901477832512315,
+      "packet_attempt_ratio": 1.0390532544378699,
+      "zmosh_attempts": 1690,
+      "zmosh_p50_us": 406.0
+    }
+  ],
+  "qualification": "NOT_APPLICABLE",
+  "status": "DIAGNOSTIC"
+}

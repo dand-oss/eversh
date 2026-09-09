@@ -1,0 +1,138 @@
+{
+  "bootstrap": {
+    "block_stratified": true,
+    "caveat": "Within-block resampling, not independent experiment replications or causal overhead certainty.",
+    "resamples": 20000
+  },
+  "cells": {
+    "0": {
+      "cpu_clock_pair_calibration_ns": {
+        "max": 1816,
+        "median": 683.5,
+        "min": 564
+      },
+      "following_top_nonidle_observations": 0,
+      "included_stage_trials": 400,
+      "overhead_observations": {
+        "everudp-floor": {
+          "observations_per_mode": 400,
+          "off_p50_us": 387.0,
+          "on_off_p50_ratio": 0.9922480620155039,
+          "on_off_ratio_central95": [
+            0.9214026602176542,
+            1.0570652173913044
+          ],
+          "on_p50_us": 384.0
+        },
+        "zmosh-udp": {
+          "observations_per_mode": 400,
+          "off_p50_us": 429.5,
+          "on_off_p50_ratio": 0.9452852153667055,
+          "on_off_ratio_central95": [
+            0.8758314855875832,
+            1.0107655502392345
+          ],
+          "on_p50_us": 406.0
+        }
+      },
+      "pooled_step_medians_ns": {
+        "following_loop_top": {
+          "thread_cpu": 3021.5,
+          "wall": 2965.0
+        },
+        "initial_post_offer": {
+          "thread_cpu": 88329.5,
+          "wall": 87865.5
+        }
+      },
+      "stage_reports": {
+        "loss0-block2": {
+          "excluded_rows": [],
+          "included_sequences": 200,
+          "integration_authorized": false,
+          "limitation": "Step durations include event draining. Sequential wall/CPU samples and work counters do not prove a turn can be skipped or establish causal savings. Warmup and excluded pairs are not aggregated.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 2223791,
+          "target_tid": 2223791
+        },
+        "loss0-block3": {
+          "excluded_rows": [],
+          "included_sequences": 200,
+          "integration_authorized": false,
+          "limitation": "Step durations include event draining. Sequential wall/CPU samples and work counters do not prove a turn can be skipped or establish causal savings. Warmup and excluded pairs are not aggregated.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 2233360,
+          "target_tid": 2233360
+        }
+      }
+    },
+    "5": {
+      "cpu_clock_pair_calibration_ns": {
+        "max": 2061,
+        "median": 771.0,
+        "min": 740
+      },
+      "following_top_nonidle_observations": 0,
+      "included_stage_trials": 400,
+      "overhead_observations": {
+        "everudp-floor": {
+          "observations_per_mode": 400,
+          "off_p50_us": 389.0,
+          "on_off_p50_ratio": 1.069408740359897,
+          "on_off_ratio_central95": [
+            1.0049261083743843,
+            1.1598513011152416
+          ],
+          "on_p50_us": 416.0
+        },
+        "zmosh-udp": {
+          "observations_per_mode": 400,
+          "off_p50_us": 456.0,
+          "on_off_p50_ratio": 0.9868421052631579,
+          "on_off_ratio_central95": [
+            0.8973544973544973,
+            1.091743119266055
+          ],
+          "on_p50_us": 450.0
+        }
+      },
+      "pooled_step_medians_ns": {
+        "following_loop_top": {
+          "thread_cpu": 3163.5,
+          "wall": 3109.5
+        },
+        "initial_post_offer": {
+          "thread_cpu": 89941.5,
+          "wall": 89845.5
+        }
+      },
+      "stage_reports": {
+        "loss5-block2": {
+          "excluded_rows": [],
+          "included_sequences": 200,
+          "integration_authorized": false,
+          "limitation": "Step durations include event draining. Sequential wall/CPU samples and work counters do not prove a turn can be skipped or establish causal savings. Warmup and excluded pairs are not aggregated.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 2299099,
+          "target_tid": 2299099
+        },
+        "loss5-block3": {
+          "excluded_rows": [],
+          "included_sequences": 200,
+          "integration_authorized": false,
+          "limitation": "Step durations include event draining. Sequential wall/CPU samples and work counters do not prove a turn can be skipped or establish causal savings. Warmup and excluded pairs are not aggregated.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 2309318,
+          "target_tid": 2309318
+        }
+      }
+    }
+  },
+  "production_actor_integration_authorized": false,
+  "qualification": "NOT_APPLICABLE",
+  "status": "DIAGNOSTIC"
+}

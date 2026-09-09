@@ -1,0 +1,3 @@
+qdisc netem 8a32: root refcnt 49 limit 1000 loss 5% seed 214400104
+ Sent 92990 bytes 918 pkt (dropped 54, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0

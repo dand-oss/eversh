@@ -1,0 +1,23 @@
+	Command being timed: "/usr/bin/env PTY_BENCH_WINDOW_DIR=/tmp/everudp-lto-5f9a005-loss5-block1/zmosh-udp/window /usr/bin/taskset -c 40,42,44,46 /tmp/everudp-lto-5f9a005-baseline-build/artifacts/bin/pty-bench 200 100 /tmp/everudp-lto-5f9a005-loss5-block1/zmosh-udp/result.json /tmp/everudp-lto-5f9a005-loss5-block1/zmosh-udp/candidate.stderr -- /usr/bin/env EVERUDP_BENCH_SSH_CONFIG=/tmp/everudp-perf-block.h4O5hc/client_config ZMX_DIR=/tmp/everudp-lto-5f9a005-loss5-block1/zmosh-udp/client-state ZMOSH_REMOTE_BIN=/tmp/everudp-perf-block.h4O5hc/remote-zmosh-udp/remote-zmosh TERM=xterm-256color PATH=/tmp/everudp-perf-block.h4O5hc/client-bin:/usr/bin:/bin /tmp/everudp-lto-5f9a005-baseline-build/artifacts/bin/zmosh-udp attach -r 10.246.0.1 perf-p1aa5d-2-zmosh_udp /tmp/everudp-lto-5f9a005-baseline-build/artifacts/bin/pty-echo"
+	User time (seconds): 0.00
+	System time (seconds): 0.04
+	Percent of CPU this job got: 0%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:22.35
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 2008
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 446
+	Voluntary context switches: 1069
+	Involuntary context switches: 3
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

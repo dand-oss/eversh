@@ -1,0 +1,69 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 151  of event 'cpu-clock:u'
+# Event count (approx.): 30206040
+#
+# Overhead  Command        Pid:Command    Shared Object  Symbol                                                                                                          IPC   [IPC Coverage]
+# ........  .........  .................  .............  ..............................................................................................................  ....................
+#
+    10.60%  zmosh      3766239:zmosh      libc.so.6      [.] __internal_syscall_cancel                                                                                   -      -            
+     9.27%  zmosh      3766239:zmosh      zmosh-udp      [.] serve.Gateway.run                                                                                           -      -            
+     8.61%  zmosh      3766242:zmosh      zmosh-udp      [.] main.daemonLoop                                                                                             -      -            
+     5.30%  zmosh-udp  3766182:zmosh-udp  zmosh-udp      [.] udp.Peer.send                                                                                               -      -            
+     4.64%  zmosh-udp  3766182:zmosh-udp  libc.so.6      [.] __internal_syscall_cancel                                                                                   -      -            
+     3.97%  zmosh      3766242:zmosh      libc.so.6      [.] __internal_syscall_cancel                                                                                   -      -            
+     3.97%  zmosh-udp  3766182:zmosh-udp  zmosh-udp      [.] crypto.poly1305.Poly1305.blocks__anon_68808                                                                 -      -            
+     3.97%  zmosh-udp  3766182:zmosh-udp  zmosh-udp      [.] remote.remoteAttach                                                                                         -      -            
+     3.31%  zmosh      3766239:zmosh      zmosh-udp      [.] crypto.poly1305.Poly1305.blocks__anon_68808                                                                 -      -            
+     3.31%  zmosh      3766239:zmosh      zmosh-udp      [.] udp.Peer.recv                                                                                               -      -            
+     2.65%  zmosh      3766239:zmosh      libc.so.6      [.] malloc                                                                                                      -      -            
+     2.65%  zmosh      3766239:zmosh      zmosh-udp      [.] crypto.chacha20.ChaChaIETF(20).xor                                                                          -      -            
+     2.65%  zmosh      3766242:zmosh      zmosh-udp      [.] terminal.Terminal.print                                                                                     -      -            
+     2.65%  zmosh-udp  3766182:zmosh-udp  zmosh-udp      [.] crypto.chacha20.ChaChaIETF(20).xor                                                                          -      -            
+     1.99%  zmosh      3766239:zmosh      zmosh-udp      [.] posix.read                                                                                                  -      -            
+     1.99%  zmosh      3766239:zmosh      zmosh-udp      [.] udp.Peer.send                                                                                               -      -            
+     1.99%  zmosh      3766242:zmosh      zmosh-udp      [.] simdutf::westmere::implementation::convert_utf8_to_utf32(char const*, unsigned long, char32_t*) const       -      -            
+     1.99%  zmosh-udp  3766182:zmosh-udp  libc.so.6      [.] read                                                                                                        -      -            
+     1.99%  zmosh-udp  3766182:zmosh-udp  zmosh-udp      [.] posix.read                                                                                                  -      -            
+     1.32%  zmosh      3766239:zmosh      libc.so.6      [.] __libc_recvfrom                                                                                             -      -            
+     1.32%  zmosh      3766242:zmosh      zmosh-udp      [.] ghostty_simd_decode_utf8_until_control_seq                                                                  -      -            
+     1.32%  zmosh-udp  3766182:zmosh-udp  libc.so.6      [.] __syscall_cancel                                                                                            -      -            
+     1.32%  zmosh-udp  3766182:zmosh-udp  libc.so.6      [.] clock_gettime@@GLIBC_2.17                                                                                   -      -            
+     1.32%  zmosh-udp  3766182:zmosh-udp  zmosh-udp      [.] transport.ReliableSend.queue                                                                                -      -            
+     1.32%  zmosh-udp  3766182:zmosh-udp  zmosh-udp      [.] udp.Peer.updateState                                                                                        -      -            
+
+
+# Samples: 340  of event 'cpu-clock:k'
+# Event count (approx.): 68013600
+#
+# Overhead  Command        Pid:Command    Shared Object      Symbol                                    IPC   [IPC Coverage]
+# ........  .........  .................  .................  ........................................  ....................
+#
+     4.12%  zmosh-udp  3766182:zmosh-udp  [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore           -      -            
+     2.65%  zmosh-udp  3766182:zmosh-udp  [kernel.kallsyms]  [k] ip_route_output_key_hash_rcu          -      -            
+     2.35%  zmosh      3766239:zmosh      [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore           -      -            
+     2.06%  zmosh      3766239:zmosh      [kernel.kallsyms]  [k] _raw_spin_lock                        -      -            
+     2.06%  zmosh      3766242:zmosh      [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore           -      -            
+     2.06%  zmosh-udp  3766182:zmosh-udp  [kernel.kallsyms]  [k] fib_table_lookup                      -      -            
+     1.76%  zmosh      3766239:zmosh      [kernel.kallsyms]  [k] ip_route_input_slow                   -      -            
+     1.47%  zmosh      3766239:zmosh      [kernel.kallsyms]  [k] __skb_recv_udp                        -      -            
+     1.47%  zmosh      3766239:zmosh      [kernel.kallsyms]  [k] do_syscall_64                         -      -            
+     1.47%  zmosh      3766239:zmosh      [kernel.kallsyms]  [k] fib_table_lookup                      -      -            
+     1.47%  zmosh      3766242:zmosh      [kernel.kallsyms]  [k] do_syscall_64                         -      -            
+     1.47%  zmosh-udp  3766182:zmosh-udp  [kernel.kallsyms]  [k] __dev_queue_xmit                      -      -            
+     1.47%  zmosh-udp  3766182:zmosh-udp  [kernel.kallsyms]  [k] do_syscall_64                         -      -            
+     1.47%  zmosh-udp  3766182:zmosh-udp  [kernel.kallsyms]  [k] fib_lookup_good_nhc                   -      -            
+     1.18%  zmosh      3766239:zmosh      [kernel.kallsyms]  [k] __check_heap_object                   -      -            
+     1.18%  zmosh      3766239:zmosh      [kernel.kallsyms]  [k] __check_object_size                   -      -            
+     1.18%  zmosh      3766239:zmosh      [kernel.kallsyms]  [k] fdget                                 -      -            
+     1.18%  zmosh      3766239:zmosh      [kernel.kallsyms]  [k] udpv6_recvmsg                         -      -            
+     1.18%  zmosh      3766242:zmosh      [kernel.kallsyms]  [k] queue_work_on                         -      -            
+     1.18%  zmosh-udp  3766182:zmosh-udp  [kernel.kallsyms]  [k] do_sys_poll                           -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

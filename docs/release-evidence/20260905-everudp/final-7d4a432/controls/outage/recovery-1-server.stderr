@@ -1,0 +1,2 @@
+everudp-spike udp-server 10.243.0.1:60400
+everudp-spike association=58dac3b1 peer=10.243.0.2:59930

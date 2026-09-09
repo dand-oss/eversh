@@ -28,5 +28,10 @@ name = "attach_or_create_race"
 path = "tests/attach_or_create_race.rs"
 harness = false
 
+[[test]]
+name = "ensure_session"
+path = "tests/ensure_session.rs"
+harness = false
+
 [lints]
 workspace = true

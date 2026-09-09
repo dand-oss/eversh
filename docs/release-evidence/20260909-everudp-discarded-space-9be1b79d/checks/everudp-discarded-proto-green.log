@@ -1,0 +1,25 @@
+   Compiling noq-proto v1.1.1 (/tmp/everudp-discarded-proto.WOwUxJ/vendor/noq-proto)
+error[E0615]: attempted to take value of method `stats` on type `&mut connection::Connection`
+    --> src/connection/mod.rs:2230:42
+     |
+2230 |                     format!("{:?}", self.stats),
+     |                                          ^^^^^ method, not a field
+     |
+help: use parentheses to call the method
+     |
+2230 |                     format!("{:?}", self.stats()),
+     |                                               ++
+
+error[E0615]: attempted to take value of method `stats` on type `&mut connection::Connection`
+    --> src/connection/mod.rs:2261:46
+     |
+2261 |                         format!("{:?}", self.stats),
+     |                                              ^^^^^ method, not a field
+     |
+help: use parentheses to call the method
+     |
+2261 |                         format!("{:?}", self.stats()),
+     |                                                   ++
+
+For more information about this error, try `rustc --explain E0615`.
+error: could not compile `noq-proto` (lib test) due to 2 previous errors

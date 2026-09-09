@@ -1,0 +1,16 @@
+21:21:26.831322 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x564f9f1a8500}], 1024, 8041) = 1
+21:21:28.356876 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x564f9f1a8500}], 1024, 0) = 1
+21:21:28.367289 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x564f9f2dc380}, {events=EPOLLOUT, data=0x564f9f1a8500}, {events=EPOLLIN, data=0}], 1024, 5) = 3
+21:21:28.368425 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x564f9f1a8500}, {events=EPOLLIN|EPOLLOUT, data=0x564f9f2dc380}], 1024, 4) = 2
+21:21:28.369060 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x564f9f2dc380}, {events=EPOLLOUT, data=0x564f9f1a8500}], 1024, 4) = 2
+21:21:28.369364 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x564f9f1a8500}], 1024, 3) = 1
+21:21:28.369556 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x564f9f2dc380}], 1024, 3) = 1
+21:21:28.370215 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x564f9f2dc380}, {events=EPOLLOUT, data=0x564f9f1a8500}], 1024, 3) = 2
+21:21:28.370502 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x564f9f2dc380}, {events=EPOLLOUT, data=0x564f9f1a8500}], 1024, 2) = 2
+21:21:28.370792 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x564f9f2dc380}, {events=EPOLLOUT, data=0x564f9f1a8500}], 1024, 2) = 2
+21:21:28.370883 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x564f9f1a8500}], 1024, 2) = 1
+21:21:28.371175 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x564f9f1a8500}], 1024, 0) = 1
+21:21:28.371293 epoll_wait(3<anon_inode:[eventpoll]>, [], 1024, 1) = 0
+21:21:28.372398 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x564f9f1a8500}], 1024, 6500) = 1
+21:21:28.373412 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x564f9f1a8500}], 1024, 0) = 1
+21:21:28.373760 epoll_wait(3<anon_inode:[eventpoll]> <detached ...>

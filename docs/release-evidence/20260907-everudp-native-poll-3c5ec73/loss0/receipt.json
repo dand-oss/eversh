@@ -1,0 +1,17 @@
+{
+  "status": "DIAGNOSTIC_COMPLETE",
+  "production_actor_integration_authorized": false,
+  "source_build": {
+    "clean": true,
+    "head_sha": "a9321d0060cc726b27fcde89ca7d31e9519c5425",
+    "tree_sha": "1be0df9798a56d8c307e32d82e74352f4ea0db6a"
+  },
+  "harness_head": "3c5ec736295de4d1f770752a0fe4e88e5304340b",
+  "seed": 940701,
+  "loss": 0,
+  "order": [
+    "everudp-floor",
+    "zmosh-udp"
+  ],
+  "raw_perf_private": true
+}

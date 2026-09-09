@@ -1,14 +1,14 @@
-//! Thin supervision of OpenSSH, everlink, and Kitty processes (design 7).
+//! Thin supervision of OpenSSH, everssh, and Kitty processes (design 7).
 //!
-//! Every function here launches the installed `ssh` binary over the everlink
+//! Every function here launches the installed `ssh` binary over the everssh
 //! ProxyCommand and supervises it: eversh never relays or parses terminal
 //! data, never builds a runtime, and preserves inherited stdin/stdout/stderr
 //! for the live terminal path. Effective OpenSSH configuration resolution is
 //! delegated to OpenSSH itself: ProxyCommand `%n`/`%p` carry the original
-//! destination token and effective port into everlink, whose own `ssh -G`
+//! destination token and effective port into everssh, whose own `ssh -G`
 //! verification rejects recursive proxying (design 6.4, 8).
 //!
-//! ## The local everlink link-status file (design 3, 7)
+//! ## The local everssh link-status file (design 3, 7)
 //!
 //! OpenSSH reserves exit 255 for its own failures, but that single code is
 //! produced identically whether the SSH session never established anything
@@ -17,9 +17,9 @@
 //! does not need a remote-side channel: for every structured interactive
 //! operation and every probe, eversh creates a private per-spawn file under
 //! its own state root (a `0700` directory, `0600` files) and passes its
-//! path to the local everlink `ssh-proxy` edge as a `--status-file`
+//! path to the local everssh `ssh-proxy` edge as a `--status-file`
 //! ProxyCommand ARGUMENT. OpenSSH executes the ProxyCommand line through
-//! the user's local shell, so the path arrives in everlink's own argv: no
+//! the user's local shell, so the path arrives in everssh's own argv: no
 //! environment variable exists, no `SendEnv`/`AcceptEnv` policy can forward
 //! one remotely, and no ambient value can instrument a spawn that was not
 //! given the argument. The channel is mandatory, never best-effort: if the
@@ -36,7 +36,7 @@
 //! inherited and uninstrumented (design 7: it is never retried, so there is
 //! nothing to classify).
 //!
-//! everlink appends two kinds of versioned line to that file: `carrying`,
+//! everssh appends two kinds of versioned line to that file: `carrying`,
 //! written once as soon as the QUIC stream first delivers a byte
 //! originating from the remote peer (a genuine round trip — the remote
 //! sshd's own banner proves it), and a terminal `cause <word>
@@ -80,11 +80,12 @@
 //!
 //! A reattach reporting Busy (a writer is already attached) is retried
 //! against the episode's OWN deadline, never the attempt budget and never
-//! `--take-over`: after a path death the remote writer slot can stay
-//! legitimately held for up to everlink's idle timeout (~30s), because the
-//! remote bridge only learns of the loss when its QUIC endpoint expires —
-//! a small attempt count would give up long before the broker could
-//! possibly revoke the slot. Other in-episode failures (an unreachable
+//! `--take-over`: after a terminal path death the remote writer slot can
+//! stay legitimately held through everssh's renewed association lease
+//! (configured 360s from resume acceptance), so a small attempt count
+//! would give up long before the broker could possibly revoke the slot.
+//! A published `reconnecting` record defers this episode entirely while
+//! the association retries on its own. Other in-episode failures (an unreachable
 //! host, a reattach that dies again without carrying) keep the finite
 //! attempt budget: they give up fast by design rather than hammering a
 //! down host.
@@ -99,12 +100,12 @@
 //!
 //! Because every spawn stays fully inherited (no piped descriptor to await
 //! EOF on), a deadline-triggered kill of the direct `ssh` child is always
-//! bounded regardless of any surviving descendant (notably everlink's own
+//! bounded regardless of any surviving descendant (notably everssh's own
 //! `ssh-proxy` ProxyCommand child, if it is mid-handshake): eversh never
 //! waits on it. Residual documented limitation: once a reattach is
-//! carrying, a wedge on that now-live transport is bounded by everlink's
-//! own contractual timeouts (idle/stall/handshake/lease deadlines are all
-//! finite and measured in single-digit to low tens of seconds — design 4,
+//! carrying, a wedge on that now-live transport is bounded by everssh's
+//! own contractual timeouts (idle/stall/handshake deadlines in single- to
+//! low-tens of seconds; association lease configured at 360s — design 4,
 //! 6.3), not by `retry_deadline_ms`. A user who needs a tighter bound on
 //! THAT window can layer
 //! `ServerAliveCountMax`/`ServerAliveInterval`/`ConnectTimeout` via
@@ -112,13 +113,13 @@
 #![cfg(unix)]
 
 use crate::command::{
-    kitty_launch_args, outer_ssh_args, proxy_command, raw_ssh_args, remote_words, status_word_safe,
-    validate_self_exe, RemoteOp,
+    everudp_launch_args, kitty_launch_args, outer_ssh_args, proxy_command, raw_ssh_args,
+    remote_words, status_word_safe, validate_self_exe, EverudpOp, RemoteOp,
 };
 use crate::error::{Error, LinkStatusFault};
 use crate::limits::Limits;
 use crate::remote::{origin_label, validate_host, validate_name, ControlRequest};
-use everlink::link_status;
+use everssh::link_status;
 use std::ffi::OsString;
 use std::io::Read;
 use std::os::fd::AsFd;
@@ -137,7 +138,7 @@ pub struct Config {
     pub ssh_program: OsString,
     /// The Kitty launcher used by resume-all.
     pub kitty_program: OsString,
-    /// This executable, re-invoked as the local everlink role and by Kitty
+    /// This executable, re-invoked as the local everssh role and by Kitty
     /// tabs.
     pub self_exe: PathBuf,
     /// The remote combined eversh binary: bare PATH word or absolute path.
@@ -146,7 +147,7 @@ pub struct Config {
     pub kitty_listen_on: Option<String>,
     /// The local host name used for generated origin metadata.
     pub local_host: String,
-    /// The private local root eversh's own per-spawn everlink link-status
+    /// The private local root eversh's own per-spawn everssh link-status
     /// files are created under (design 3, 7); `None` when no state-root
     /// candidate resolves at all, in which case every classification-
     /// carrying spawn (structured interactive operations and probes) fails
@@ -287,7 +288,7 @@ impl Notifier for SilentNotifier {
 
 /// Build the ProxyCommand for one spawn. `status_file`, when set, is the
 /// same per-spawn link-status file the spawn's ssh child is classified
-/// through: the path travels to the local everlink edge as a ProxyCommand
+/// through: the path travels to the local everssh edge as a ProxyCommand
 /// argument (never an environment variable — see the module header).
 fn proxy_for(
     config: &Config,
@@ -313,7 +314,7 @@ fn spawn_quiet(config: &Config, args: &[OsString]) -> Result<ExitKind, Error> {
 }
 
 // ---------------------------------------------------------------------------
-// Bounded waits and the local everlink link-status file (design 3, 7;
+// Bounded waits and the local everssh link-status file (design 3, 7;
 // findings 1-3).
 // ---------------------------------------------------------------------------
 
@@ -382,13 +383,23 @@ fn restore_termios(termios: &everpty::sys::TerminalAttributes) {
 }
 
 /// Bounded grace period for the final status-file read after the direct
-/// child is confirmed reaped: covers the everlink `ssh-proxy` ProxyCommand
+/// child is confirmed reaped: covers the everssh `ssh-proxy` ProxyCommand
 /// descendant's own terminal write landing a few scheduler ticks after its
 /// parent `ssh` process exits. A reliability improvement only — reading a
 /// local file never blocks the way a pipe read can, so this grace period
 /// never risks a hang; it only reduces spurious "unparseable" fallbacks
 /// from a legitimate race between the two processes' exits.
 const LINK_STATUS_GRACE: Duration = Duration::from_millis(300);
+// A file that already published `reconnecting` belongs to an association
+// inside everssh's bounded transport budget: the outer ssh can observe
+// remote close and exit before the proxy finishes Request->Drain->Finalize
+// and appends `cause ... carried=...`. The grace is derived from the same
+// everssh finalize limit rather than duplicated so the two bounds cannot
+// drift. Files with no reconnecting record keep the prompt 300 ms bound so
+// reconnect deadlines remain tightly enforced.
+fn carrying_status_grace() -> Duration {
+    Duration::from_millis(everssh::Limits::default().finalize_timeout_ms)
+}
 
 /// The classified outcome of reading the link-status file after a spawn
 /// exits, or its absence (design 3, 7).
@@ -425,7 +436,8 @@ fn parse_link_status(content: &str) -> Option<LinkOutcome> {
 /// unreadable file, or an unparseable one, resolves to the safe default —
 /// the same defense in depth that covers a record lost after the spawn.
 fn link_status_final(path: &Path) -> LinkOutcome {
-    let deadline = Instant::now() + LINK_STATUS_GRACE;
+    let prompt_deadline = Instant::now() + LINK_STATUS_GRACE;
+    let mut carrying_deadline: Option<Instant> = None;
     loop {
         let Ok(content) = std::fs::read_to_string(path) else {
             return LinkOutcome::TransportFailure { carried: false };
@@ -433,6 +445,16 @@ fn link_status_final(path: &Path) -> LinkOutcome {
         if let Some(outcome) = parse_link_status(&content) {
             return outcome;
         }
+        let deadline = if content.lines().any(|line| {
+            matches!(
+                link_status::parse_line(line),
+                Some(link_status::StatusRecord::Reconnecting)
+            )
+        }) {
+            *carrying_deadline.get_or_insert_with(|| Instant::now() + carrying_status_grace())
+        } else {
+            prompt_deadline
+        };
         if Instant::now() >= deadline {
             return LinkOutcome::TransportFailure { carried: false };
         }
@@ -440,10 +462,11 @@ fn link_status_final(path: &Path) -> LinkOutcome {
     }
 }
 
-/// Whether the status file already has ANY recognized record (`carrying`
-/// or a terminal `cause`) — used only to end the bounded phase of a
-/// reattach spawn early; the final classification always uses
-/// [`link_status_final`], never this.
+/// Whether the status file already has ANY recognized record (`carrying`,
+/// transient `reconnecting`, or a terminal `cause`) — used only to end the
+/// bounded phase of a reattach spawn early. A `reconnecting` association
+/// hands the deadline to everssh's own bounded transport budget; the final
+/// classification always uses [`link_status_final`], never this.
 fn link_status_settled(path: &Path) -> bool {
     let Ok(content) = std::fs::read_to_string(path) else {
         return false;
@@ -533,6 +556,45 @@ fn allocate_status_file(config: &Config) -> Result<AllocatedStatus, Error> {
     Ok(AllocatedStatus { path })
 }
 
+/// Reserve a private unique path that the everudp child itself creates with
+/// `O_EXCL`. Unlike the everssh ProxyCommand channel, this direct argv path
+/// does not need a pre-created file and must not preempt everudp's own
+/// descriptor-validation boundary.
+fn allocate_everudp_status_path(config: &Config) -> Result<AllocatedStatus, Error> {
+    let root = config
+        .link_status_root
+        .as_deref()
+        .ok_or(Error::LinkStatusChannel {
+            root: None,
+            fault: LinkStatusFault::NoRoot,
+        })?;
+    let dir = root.join("link-status");
+    let path = dir.join(unique_status_name());
+    if !status_word_safe(&path) {
+        return Err(Error::LinkStatusChannel {
+            root: Some(root.to_owned()),
+            fault: LinkStatusFault::UnsafePath,
+        });
+    }
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true).mode(0o700);
+    builder
+        .create(&dir)
+        .map_err(|error| Error::LinkStatusChannel {
+            root: Some(root.to_owned()),
+            fault: LinkStatusFault::RootUnusable(error),
+        })?;
+    if path.try_exists().map_err(Error::Io)? {
+        return Err(Error::LinkStatusChannel {
+            root: Some(root.to_owned()),
+            fault: LinkStatusFault::FileCreate(std::io::Error::from(
+                std::io::ErrorKind::AlreadyExists,
+            )),
+        });
+    }
+    Ok(AllocatedStatus { path })
+}
+
 fn unique_status_name() -> String {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
@@ -566,14 +628,16 @@ enum StatusSpawn {
 /// return path from the allocating scope, including the error paths below.
 ///
 /// `deadline`, when set, bounds the wait ONLY until the status file shows
-/// `carrying` (or a terminal record has already arrived): a hung
-/// pre-`carrying` child (a reattach that never reconnects) is killed and
-/// reaped at the deadline, with the outer terminal's termios restored
-/// first if this process's ssh child put it mid-transition. Once
-/// carrying — or when `deadline` is `None`, as for the very first spawn of
-/// an invocation, which is never part of a bounded reconnect episode — the
-/// wait is unbounded: an ongoing session is never killed by the reconnect
-/// deadline (design 7, finding 3).
+/// `carrying`, `reconnecting`, or a terminal record: `reconnecting` means
+/// the v2 association is alive inside everssh's bounded reconnect budget,
+/// so this supervisor defers to that transport deadline instead of racing
+/// it with a local kill. A hung child with no recognized record is killed
+/// and reaped at this deadline, with the outer terminal's termios restored
+/// first if this process's ssh child put it mid-transition. Once carrying
+/// or reconnecting — or when `deadline` is `None`, as for the very first
+/// spawn of an invocation, which is never part of a bounded reconnect
+/// episode — the wait is unbounded: an ongoing session is never killed by
+/// the reconnect deadline (design 7, finding 3).
 fn spawn_link_tracked(
     config: &Config,
     args: &[OsString],
@@ -624,6 +688,7 @@ fn spawn_link_tracked(
 }
 
 /// The terminal meaning of one link-tracked spawn (findings 1-3).
+#[derive(Clone, Copy)]
 enum SpawnOutcome {
     Remote(u8),
     SshSignaled(i32),
@@ -786,7 +851,8 @@ fn run_with_reconnect(
             }
         }
     };
-    if let Some(end) = spawn_outcome_to_session_end(classify_status_spawn(exit, status)) {
+    let classified_spawn = classify_status_spawn(exit, status);
+    if let Some(end) = spawn_outcome_to_session_end(classified_spawn) {
         if matches!(end, SessionEnd::SshFailed) {
             notifier.notify(Event::SshFailed);
         }
@@ -800,8 +866,12 @@ fn run_with_reconnect(
     // visible ordinary failure once `episode_restarts_max` is reached,
     // never a silent infinite loop.
     let mut restarts: u32 = 0;
+    let drain_old_association = matches!(
+        classified_spawn,
+        SpawnOutcome::TransportAfterFailure { carried: true }
+    );
     loop {
-        match reconnect(config, run, notifier)? {
+        match reconnect(config, run, notifier, drain_old_association)? {
             ReconnectOutcome::Terminal(end) => return Ok(end),
             ReconnectOutcome::RestartEpisode => {
                 restarts += 1;
@@ -830,7 +900,7 @@ enum ReconnectOutcome {
 /// bounds a hung probe, a not-yet-carrying reattach, AND the Busy-retry
 /// path (finding 3). Busy reattach responses never consume the attempt
 /// budget — the episode deadline alone governs them, because the remote
-/// writer slot can stay legitimately held for up to everlink's idle timeout
+/// writer slot can stay legitimately held for up to everssh's idle timeout
 /// after a path death, far longer than a small attempt budget could span.
 /// Once a reattach starts carrying it runs unbounded; if THAT later dies
 /// again with `carried=1`, this returns [`ReconnectOutcome::RestartEpisode`]
@@ -839,8 +909,12 @@ fn reconnect(
     config: &Config,
     run: SessionRun<'_>,
     notifier: &mut dyn Notifier,
+    drain_old_association: bool,
 ) -> Result<ReconnectOutcome, Error> {
     let limits = &config.limits;
+    if drain_old_association {
+        std::thread::sleep(Duration::from_millis(limits.association_drain_ms));
+    }
     let deadline = Instant::now() + Duration::from_millis(limits.retry_deadline_ms);
     let mut attempt: u32 = 0;
     // Whether the most recent retry cause was a reattach reporting Busy,
@@ -973,7 +1047,7 @@ fn reconnect(
                 // A reattach finding the session Busy is retried within
                 // THIS episode's deadline budget without charging its
                 // attempt budget: the dead transport's writer slot may not
-                // be revoked for up to everlink's idle timeout after the
+                // be revoked for up to everssh's idle timeout after the
                 // path death. Never escalated to take_over — a
                 // legitimately attached new writer must not be stolen.
                 SpawnOutcome::Remote(REMOTE_BUSY_EXIT) if !run.observer => {
@@ -1094,6 +1168,82 @@ pub fn observe(
     )
 }
 
+/// Result of one direct everudp child. `fallback_safe` is true only when a
+/// canonical status journal proves the child never crossed SERVER_HELLO into
+/// a committed association. The caller must additionally require exit 69.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EverudpOutcome {
+    pub exit: ExitKind,
+    pub fallback_safe: bool,
+}
+
+impl EverudpOutcome {
+    pub fn allows_auto_fallback(self) -> bool {
+        self.exit == ExitKind::Code(everudp::UDP_UNREACHABLE_EXIT) && self.fallback_safe
+    }
+}
+
+/// Re-exec this combined binary into its everudp client role. stdio remains
+/// inherited; this supervisor never sees terminal payload bytes.
+pub fn everudp_session(
+    config: &Config,
+    host: &str,
+    operation: EverudpOp<'_>,
+    ssh_options: &[String],
+) -> Result<EverudpOutcome, Error> {
+    config.limits.validate()?;
+    let status = allocate_everudp_status_path(config)?;
+    let args = everudp_launch_args(
+        &config.self_exe,
+        &config.remote_eversh,
+        host,
+        operation,
+        ssh_options,
+        Some(status.path()),
+        &config.limits,
+    )?;
+    let exit = classify(Command::new(&config.self_exe).args(args).status()?);
+    let fallback_safe = std::fs::read_to_string(status.path())
+        .ok()
+        .and_then(|content| classify_everudp_status(&content))
+        .is_some_and(|classification| classification.precommit_only);
+    Ok(EverudpOutcome {
+        exit,
+        fallback_safe,
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct EverudpStatusClassification {
+    precommit_only: bool,
+}
+
+fn classify_everudp_status(content: &str) -> Option<EverudpStatusClassification> {
+    let mut saw_connecting = false;
+    let mut committed = false;
+    for line in content.lines() {
+        match everudp::parse_status_line(line)? {
+            everudp::StatusRecord::Transition(everudp::LinkState::Connecting) => {
+                saw_connecting = true;
+            }
+            everudp::StatusRecord::Transition(
+                everudp::LinkState::Connected
+                | everudp::LinkState::Carrying
+                | everudp::LinkState::Migrating
+                | everudp::LinkState::Disconnected { .. }
+                | everudp::LinkState::Reconnecting { .. }
+                | everudp::LinkState::RecoveringOverSsh { .. }
+                | everudp::LinkState::Gapped,
+            )
+            | everudp::StatusRecord::DisconnectedHeartbeat { .. } => committed = true,
+            everudp::StatusRecord::Terminal { carried, .. } => committed |= carried,
+        }
+    }
+    saw_connecting.then_some(EverudpStatusClassification {
+        precommit_only: !committed,
+    })
+}
+
 /// Captured non-interactive remote output plus its exit classification.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Captured {
@@ -1182,7 +1332,7 @@ pub fn simple_remote(
     spawn_quiet(config, &args)
 }
 
-/// `eversh ssh`: raw OpenSSH over everlink. Never restarted (design 7),
+/// `eversh ssh`: raw OpenSSH over everssh. Never restarted (design 7),
 /// never passes a link-status file to its ProxyCommand — stays fully
 /// inherited and uninstrumented on every descriptor (and since the handoff
 /// is an argument, not an environment variable, no ambient value can
@@ -1198,7 +1348,7 @@ pub fn raw_ssh(
 ) -> Result<SessionEnd, Error> {
     config.limits.validate()?;
     // Raw options are passed verbatim to the outer ssh (unaudited escape
-    // hatch), but only the audited subset is mirrored into the everlink
+    // hatch), but only the audited subset is mirrored into the everssh
     // bootstrap's ProxyCommand (design 6.4); a rejected option simply stays
     // outer-ssh-only rather than erroring in raw mode (finding 4).
     let audited = crate::command::audited_subset(pre_options);
@@ -1272,6 +1422,7 @@ pub fn resume_all(
     config: &Config,
     host: &str,
     local_host: &str,
+    transport: &str,
     ssh_options: &[String],
     notifier: &mut dyn Notifier,
 ) -> Result<ResumeReport, Error> {
@@ -1290,6 +1441,7 @@ pub fn resume_all(
             &self_exe,
             host,
             name,
+            transport,
             ssh_options,
             &config.limits,
         )?;
@@ -1323,4 +1475,162 @@ pub fn resume_all(
         }
     }
     Ok(report)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    #[test]
+    fn everudp_fallback_requires_a_canonical_precommit_only_journal() {
+        assert_eq!(
+            classify_everudp_status("everudp-status-v1 state connecting\n"),
+            Some(EverudpStatusClassification {
+                precommit_only: true,
+            })
+        );
+        for unsafe_journal in [
+            "",
+            "garbage\n",
+            "everudp-status-v1 state connected\n",
+            "everudp-status-v1 state connecting\neverudp-status-v1 state connected\n",
+            "everudp-status-v1 state connecting\neverudp-status-v1 state carrying\n",
+            "everudp-status-v1 state connecting\neverssh-status-v1 reconnecting\n",
+        ] {
+            assert_ne!(
+                classify_everudp_status(unsafe_journal),
+                Some(EverudpStatusClassification {
+                    precommit_only: true,
+                }),
+                "unsafe auto fallback journal: {unsafe_journal:?}"
+            );
+        }
+        for outcome in [
+            EverudpOutcome {
+                exit: ExitKind::Code(everudp::UDP_UNREACHABLE_EXIT),
+                fallback_safe: false,
+            },
+            EverudpOutcome {
+                exit: ExitKind::Code(1),
+                fallback_safe: true,
+            },
+            EverudpOutcome {
+                exit: ExitKind::Signaled(15),
+                fallback_safe: true,
+            },
+        ] {
+            assert!(!outcome.allows_auto_fallback());
+        }
+        assert!(EverudpOutcome {
+            exit: ExitKind::Code(everudp::UDP_UNREACHABLE_EXIT),
+            fallback_safe: true,
+        }
+        .allows_auto_fallback());
+    }
+
+    #[test]
+    fn link_status_classification_ignores_transient_records() {
+        assert_eq!(
+            parse_link_status("everssh-status-v1 carrying\neverssh-status-v1 reconnecting\n"),
+            None
+        );
+        assert_eq!(
+            parse_link_status(
+                "everssh-status-v1 reconnecting\n\
+                 everssh-status-v1 cause clean-close carried=1\n"
+            ),
+            Some(LinkOutcome::CleanClose)
+        );
+        assert_eq!(
+            parse_link_status(
+                "everssh-status-v1 carrying\n\
+                 everssh-status-v1 reconnecting\n\
+                 everssh-status-v1 cause transport-failure carried=1\n"
+            ),
+            Some(LinkOutcome::TransportFailure { carried: true })
+        );
+    }
+
+    #[test]
+    fn reconnecting_status_waits_for_delayed_terminal_cause() {
+        let path = std::env::temp_dir().join(format!(
+            "eversh-status-grace-{}-{}.test",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&path, "everssh-status-v1 reconnecting\n").unwrap();
+        let writer_path = path.clone();
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(600));
+            let mut file = std::fs::OpenOptions::new()
+                .append(true)
+                .open(&writer_path)
+                .unwrap();
+            file.write_all(b"everssh-status-v1 cause transport-failure carried=1\n")
+                .unwrap();
+        });
+        let started = Instant::now();
+        let outcome = link_status_final(&path);
+        let elapsed = started.elapsed();
+        writer.join().unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(
+            outcome,
+            LinkOutcome::TransportFailure { carried: true },
+            "delayed reconnecting cause must be observed"
+        );
+        assert!(
+            elapsed >= Duration::from_millis(500),
+            "classification returned before the delayed cause: {elapsed:?}"
+        );
+    }
+
+    #[test]
+    fn non_reconnecting_status_keeps_the_prompt_bound() {
+        let path = std::env::temp_dir().join(format!(
+            "eversh-status-prompt-{}-{}.test",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::write(&path, "everssh-status-v1 carrying\n").unwrap();
+        let started = Instant::now();
+        let outcome = link_status_final(&path);
+        let elapsed = started.elapsed();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(
+            outcome,
+            LinkOutcome::TransportFailure { carried: false },
+            "a never-reconnecting file must fail toward the prompt default"
+        );
+        assert!(
+            elapsed >= LINK_STATUS_GRACE,
+            "non-reconnecting file returned before the prompt bound: {elapsed:?}"
+        );
+        assert!(
+            elapsed < LINK_STATUS_GRACE + Duration::from_millis(700),
+            "non-reconnecting file consumed the carrying grace: {elapsed:?}"
+        );
+    }
+
+    #[test]
+    fn reconnecting_status_defers_the_bounded_phase_to_the_transport() {
+        let dir = std::env::temp_dir().join(format!("eversh-supervisor-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("status-reconnecting");
+        std::fs::write(
+            &path,
+            "everssh-status-v1 carrying\neverssh-status-v1 reconnecting\n",
+        )
+        .unwrap();
+        assert!(link_status_settled(&path));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

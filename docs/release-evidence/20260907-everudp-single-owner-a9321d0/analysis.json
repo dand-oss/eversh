@@ -1,0 +1,57 @@
+{
+  "bootstrap": {
+    "block_stratified": true,
+    "resamples": 20000,
+    "upper95_reported_not_gating": true
+  },
+  "cells": {
+    "0": {
+      "cutoff": 0.9,
+      "everudp_floor": {
+        "p50_us": 392.0,
+        "p95_us": 665,
+        "summed_egress_attempts": 1616
+      },
+      "observations_per_candidate": 400,
+      "p50_ratio": 0.9503030303030303,
+      "p50_ratio_bootstrap_upper95": 1.030826140567201,
+      "packet_attempt_block_ratios": [
+        1.0149625935162094,
+        0.9901234567901235
+      ],
+      "packet_attempt_ratio": 1.0024813895781637,
+      "pass": false,
+      "zmosh_udp": {
+        "p50_us": 412.5,
+        "p95_us": 800,
+        "summed_egress_attempts": 1612
+      }
+    },
+    "5": {
+      "cutoff": 0.9,
+      "everudp_floor": {
+        "p50_us": 433.5,
+        "p95_us": 2579,
+        "summed_egress_attempts": 1851
+      },
+      "observations_per_candidate": 400,
+      "p50_ratio": 0.9988479262672811,
+      "p50_ratio_bootstrap_upper95": 1.03886925795053,
+      "packet_attempt_block_ratios": [
+        1.099767981438515,
+        1.0623529411764705
+      ],
+      "packet_attempt_ratio": 1.0811915887850467,
+      "pass": false,
+      "zmosh_udp": {
+        "p50_us": 434.0,
+        "p95_us": 50636,
+        "summed_egress_attempts": 1712
+      }
+    }
+  },
+  "criterion": "p50 ratio <= 0.90 per cell and packet-attempt ratio <= 1.60 per block and cell",
+  "pass": false,
+  "purpose": "authenticated-noq-datagram-stage-zero-cutoff",
+  "schema_version": 1
+}

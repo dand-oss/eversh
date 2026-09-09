@@ -1,0 +1,4 @@
+performance block candidate 1/3: everudp
+performance block candidate 2/3: zmosh-udp
+performance block candidate 3/3: zmosh-quic
+performance block PASS: /var/tmp/everudp-scheduler-b5d0ddc6-block0/measurement

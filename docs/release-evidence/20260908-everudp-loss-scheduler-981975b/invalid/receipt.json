@@ -1,0 +1,6 @@
+{
+  "production_qualification": false,
+  "purpose": "same-seed instrumented loss-block reproduction",
+  "reason": "FileNotFoundError: [Errno 2] No such file or directory: '/proc/668569/stat'",
+  "status": "INVALID"
+}

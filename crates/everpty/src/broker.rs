@@ -48,7 +48,7 @@ use nix::sys::signal::Signal;
 use crate::child::{self, ChildProc, ExitOutcome, SpawnSpec};
 use crate::client::{aggregate_live_bytes, ClientConn, ConnRole, SharedChunk};
 use crate::error::Error;
-use crate::frame::{self, Frame, Kind};
+use crate::frame::{self, Frame, Kind, LeaseAction};
 use crate::lifecycle::{Lifecycle, Ownership, TerminalCause};
 use crate::limits::Limits;
 use crate::session::{BoundSession, ChildMeta, SessionMeta};
@@ -211,6 +211,50 @@ struct ConnSlot {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LeaseOwner {
+    conn: ConnId,
+    client_id: u32,
+    generation: [u8; 16],
+    pid: libc::pid_t,
+    start_ticks: u64,
+    lease_id: u64,
+}
+
+enum LeasePhase {
+    Granting {
+        wire: Box<[u8]>,
+        offset: usize,
+        descriptor: Option<OwnedFd>,
+    },
+    AwaitingCommit,
+    Active,
+}
+
+struct PtyLease {
+    owner: LeaseOwner,
+    pidfd: OwnedFd,
+    phase: LeasePhase,
+    control_alive: bool,
+    revoke_sent: bool,
+}
+
+impl PtyLease {
+    fn belongs_to(&self, idx: usize, slots: &[Option<ConnSlot>]) -> bool {
+        slots.get(idx).and_then(Option::as_ref).is_some_and(|slot| {
+            slot.conn == self.owner.conn
+                && matches!(slot.client.role(), ConnRole::Writer { client_id } if client_id == self.owner.client_id)
+        })
+    }
+
+    fn descriptor_may_be_live_in_peer(&self) -> bool {
+        match &self.phase {
+            LeasePhase::Granting { descriptor, .. } => descriptor.is_none(),
+            LeasePhase::AwaitingCommit | LeasePhase::Active => true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WriterStallBand {
     HighEpisode,
     LowDeficit,
@@ -228,6 +272,7 @@ enum PollOwner {
     Listener,
     Signals,
     Master,
+    LeaseProcess { lease_id: u64 },
     Client { idx: usize, conn: ConnId },
 }
 
@@ -348,6 +393,8 @@ pub struct Broker {
     output_reservation: usize,
     master: Option<std::fs::File>,
     master_terminal_pending: bool,
+    lease: Option<PtyLease>,
+    next_lease_id: u64,
     writer_stall: Option<WriterStall>,
     accepted_total: usize,
     closed_total: usize,
@@ -441,6 +488,8 @@ impl Broker {
             output_reservation,
             master: None,
             master_terminal_pending: false,
+            lease: None,
+            next_lease_id: 1,
             writer_stall: None,
             accepted_total: 0,
             closed_total: 0,
@@ -740,8 +789,8 @@ impl Broker {
 
         // Build the complete poll set under immutable borrows, then harvest
         // identity-bound events before mutating anything.
-        let mut pfds: Vec<PollFd<'_>> = Vec::with_capacity(3 + self.slots.len());
-        let mut owners: Vec<PollOwner> = Vec::with_capacity(3 + self.slots.len());
+        let mut pfds: Vec<PollFd<'_>> = Vec::with_capacity(4 + self.slots.len());
+        let mut owners: Vec<PollOwner> = Vec::with_capacity(4 + self.slots.len());
         if !self.shutdown_requested && !self.internal_cleanup_pending && self.bound.has_listener() {
             pfds.push(PollFd::new(self.bound.listener(), PollFlags::POLLIN));
             owners.push(PollOwner::Listener);
@@ -755,6 +804,15 @@ impl Broker {
             pfds.push(PollFd::new(master.as_fd(), events));
             owners.push(PollOwner::Master);
         }
+        if let Some(lease) = self.lease.as_ref() {
+            pfds.push(PollFd::new(
+                lease.pidfd.as_fd(),
+                PollFlags::POLLIN | PollFlags::POLLERR | PollFlags::POLLHUP,
+            ));
+            owners.push(PollOwner::LeaseProcess {
+                lease_id: lease.owner.lease_id,
+            });
+        }
         for (idx, slot) in self.slots.iter().enumerate() {
             let Some(slot) = slot else { continue };
             let mut events = PollFlags::empty();
@@ -764,7 +822,10 @@ impl Broker {
             {
                 events |= PollFlags::POLLIN;
             }
-            if !slot.client.out().is_empty() || self.pending_terminal_fits(idx) {
+            if !slot.client.out().is_empty()
+                || self.pending_terminal_fits(idx)
+                || self.lease_grant_pending(idx, slot.conn)
+            {
                 events |= PollFlags::POLLOUT;
             }
             pfds.push(PollFd::new(slot.fd.as_fd(), events));
@@ -779,6 +840,7 @@ impl Broker {
         let mut listener_ready = false;
         let mut signals_ready = None;
         let mut master_ready = None;
+        let mut lease_process_ready = None;
         let mut conn_events = Vec::new();
         for (pfd, owner) in pfds.iter().zip(&owners) {
             let re = pfd.revents().unwrap_or(PollFlags::empty());
@@ -789,6 +851,9 @@ impl Broker {
                 PollOwner::Listener => listener_ready = true,
                 PollOwner::Signals => signals_ready = Some(re),
                 PollOwner::Master => master_ready = Some(re),
+                PollOwner::LeaseProcess { lease_id } => {
+                    lease_process_ready = Some((lease_id, re));
+                }
                 PollOwner::Client { idx, conn } => conn_events.push((idx, conn, re)),
             }
         }
@@ -802,6 +867,9 @@ impl Broker {
         self.expire_writer_stall(now);
 
         let mut discard_budget = self.limits.accepts_per_iteration.max(1);
+        if let Some((lease_id, re)) = lease_process_ready {
+            self.handle_lease_process_event(lease_id, re, now)?;
+        }
         if let Some(re) = signals_ready {
             self.handle_signal_events(re, now)?;
         }
@@ -994,6 +1062,9 @@ impl Broker {
 
     fn master_poll_events(&self) -> Option<PollFlags> {
         self.master.as_ref()?;
+        if self.lease.is_some() {
+            return None;
+        }
         let mut events = PollFlags::empty();
         if self.master_read_admitted() {
             events |= PollFlags::POLLIN;
@@ -1127,6 +1198,7 @@ impl Broker {
         if let Some(outcome) = observed {
             self.observed_outcome = Some(outcome);
             self.note_pty_terminal(now);
+            self.request_lease_revoke(now);
             let (signal, value) = exit_parts(outcome);
             let fx = state::reduce(
                 &mut self.runtime,
@@ -1136,6 +1208,31 @@ impl Broker {
             self.apply_effects(fx, now);
         }
         Ok(())
+    }
+
+    fn request_lease_revoke(&mut self, now: u64) {
+        let Some(owner) = self.lease.as_mut().and_then(|lease| {
+            if lease.control_alive
+                && !lease.revoke_sent
+                && matches!(lease.phase, LeasePhase::Active)
+            {
+                lease.revoke_sent = true;
+                Some(lease.owner)
+            } else {
+                None
+            }
+        }) else {
+            return;
+        };
+        self.queue_effect_frame(
+            Target::Conn(owner.conn),
+            Frame::Lease {
+                action: LeaseAction::Revoke,
+                generation: owner.generation,
+                lease_id: owner.lease_id,
+            },
+            now,
+        );
     }
 
     fn handle_signal_events(&mut self, re: PollFlags, now: u64) -> io::Result<()> {
@@ -1237,7 +1334,8 @@ impl Broker {
         // PTY bytes. WouldBlock proves the current drain complete; the
         // deadline also cuts off a continuously-writing escaped process or
         // output backpressure that would otherwise prevent WouldBlock.
-        if self.kill_phase == KillPhase::Finalized && self.master.is_some() {
+        if self.kill_phase == KillPhase::Finalized && self.master.is_some() && self.lease.is_none()
+        {
             let final_drain_expired = self
                 .pty_exit_deadline_ms
                 .is_some_and(|deadline| now >= deadline);
@@ -1790,6 +1888,10 @@ impl Broker {
             && !self.internal_cleanup_pending
         {
             self.handle_readable(idx, now, discard_budget)?;
+            // A writer frame can make the PTY writable after this
+            // iteration's poll set was built. Try the nonblocking master
+            // write now instead of requiring a second poll/wake cycle.
+            self.drain_writer_input(now)?;
         }
         if !self.slot_live(idx) {
             return Ok(());
@@ -1848,14 +1950,12 @@ impl Broker {
                 }
             }
 
-            // Frame-boundary-limited recv keeps pipelined later frames
-            // in the socket until the current one has been dispatched.
-            let want = self.slots[idx]
-                .as_ref()
-                .expect("live slot")
-                .client
-                .reader_bytes_needed()
-                .min(self.read_buf.len());
+            // Read ahead into the broker's fixed shared buffer.  The frame
+            // decoder still validates and dispatches one frame at a time,
+            // re-checking admission between frames.  This lets the common
+            // six-byte-header plus tiny payload arrive in one syscall rather
+            // than forcing a second readiness turn for every keystroke.
+            let want = self.read_buf.len();
             let n = {
                 let fd = self.slots[idx].as_ref().expect("live slot").fd.as_fd();
                 match sys::recv(fd, &mut self.read_buf[..want]) {
@@ -1890,9 +1990,9 @@ impl Broker {
             {
                 let slot = self.slots[idx].as_ref().expect("live slot");
                 // Stop consuming the moment this connection became a
-                // drainer; the bytes beyond the current frame were
-                // never recv'd (frame-boundary-limited reads), so
-                // nothing pipelined is dispatched or lost.
+                // drainer. Any read-ahead bytes are intentionally ignored;
+                // no pipelined operation after the state transition is
+                // dispatched.
                 if slot.client.is_draining() {
                     return Ok(());
                 }
@@ -1933,6 +2033,58 @@ impl Broker {
     }
 
     fn dispatch_frame(&mut self, idx: usize, frame: Frame, now: u64) {
+        match frame {
+            Frame::GatewayHello {
+                take_over,
+                name,
+                rows,
+                cols,
+                generation,
+                pid,
+                start_ticks,
+            } => {
+                self.dispatch_gateway_hello(
+                    idx,
+                    take_over,
+                    name,
+                    rows,
+                    cols,
+                    generation,
+                    pid,
+                    start_ticks,
+                    now,
+                );
+            }
+            Frame::Lease {
+                action,
+                generation,
+                lease_id,
+            } => {
+                self.dispatch_lease_control(idx, action, generation, lease_id, now);
+            }
+            frame => self.dispatch_reducer_frame(idx, frame, now),
+        }
+    }
+
+    fn dispatch_reducer_frame(&mut self, idx: usize, frame: Frame, now: u64) {
+        if self.lease.is_some()
+            && self
+                .slots
+                .get(idx)
+                .and_then(Option::as_ref)
+                .is_some_and(|slot| slot.client.role() == ConnRole::AwaitingFirstFrame)
+            && frame.kind() == Kind::Hello
+        {
+            let current_writer_id = self
+                .lease
+                .as_ref()
+                .map(|lease| lease.owner.client_id)
+                .expect("lease checked");
+            let conn = self.slots[idx].as_ref().expect("live slot").conn;
+            self.queue_effect_frame(Target::Conn(conn), Frame::Busy { current_writer_id }, now);
+            self.begin_draining(idx, now);
+            return;
+        }
         let (conn, role) = {
             let slot = self.slots[idx].as_ref().expect("live slot");
             (slot.conn, slot.client.role())
@@ -1947,6 +2099,201 @@ impl Broker {
             },
         );
         self.apply_effects(fx, now);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn dispatch_gateway_hello(
+        &mut self,
+        idx: usize,
+        take_over: bool,
+        name: String,
+        rows: u16,
+        cols: u16,
+        generation: [u8; 16],
+        pid: u32,
+        start_ticks: u64,
+        now: u64,
+    ) {
+        let Some(slot) = self.slots.get(idx).and_then(Option::as_ref) else {
+            return;
+        };
+        if slot.client.role() != ConnRole::AwaitingFirstFrame {
+            self.remove_conn(idx, now);
+            return;
+        }
+        if let Some(lease) = self.lease.as_ref() {
+            let conn = slot.conn;
+            let current_writer_id = lease.owner.client_id;
+            self.queue_effect_frame(Target::Conn(conn), Frame::Busy { current_writer_id }, now);
+            self.begin_draining(idx, now);
+            return;
+        }
+        let Ok(pid) = libc::pid_t::try_from(pid) else {
+            self.remove_conn(idx, now);
+            return;
+        };
+        let identity_valid = sys::peer_pid(slot.fd.as_fd()).is_ok_and(|peer| peer == pid)
+            && sys::proc_start_ticks(pid).is_ok_and(|ticks| ticks == start_ticks);
+        if !identity_valid {
+            self.remove_conn(idx, now);
+            return;
+        }
+        let pidfd = sys::pidfd_open(pid);
+        let hello = Frame::Hello {
+            role: frame::Role::Writer,
+            take_over,
+            name,
+            rows,
+            cols,
+        };
+        self.dispatch_reducer_frame(idx, hello, now);
+
+        let Some(slot) = self.slots.get(idx).and_then(Option::as_ref) else {
+            return;
+        };
+        let ConnRole::Writer { client_id } = slot.client.role() else {
+            return;
+        };
+        if self.runtime.state.ownership != Ownership::Writer(client_id) {
+            return;
+        }
+        let conn = slot.conn;
+        let lease_parts = pidfd.and_then(|pidfd| {
+            let descriptor = self
+                .master
+                .as_ref()
+                .ok_or_else(|| io::Error::from(io::ErrorKind::NotConnected))
+                .and_then(|master| sys::duplicate_cloexec(master.as_fd()))?;
+            let lease_id = self.allocate_lease_id().ok_or_else(|| {
+                io::Error::new(io::ErrorKind::OutOfMemory, "PTY lease id exhausted")
+            })?;
+            Ok((pidfd, descriptor, lease_id))
+        });
+        let Ok((pidfd, descriptor, lease_id)) = lease_parts else {
+            self.queue_effect_frame(
+                Target::Conn(conn),
+                Frame::Lease {
+                    action: LeaseAction::Unavailable,
+                    generation,
+                    lease_id: 0,
+                },
+                now,
+            );
+            return;
+        };
+        let wire = Frame::Lease {
+            action: LeaseAction::Grant,
+            generation,
+            lease_id,
+        }
+        .encode()
+        .into_boxed_slice();
+        self.lease = Some(PtyLease {
+            owner: LeaseOwner {
+                conn,
+                client_id,
+                generation,
+                pid,
+                start_ticks,
+                lease_id,
+            },
+            pidfd,
+            phase: LeasePhase::Granting {
+                wire,
+                offset: 0,
+                descriptor: Some(descriptor),
+            },
+            control_alive: true,
+            revoke_sent: false,
+        });
+        self.writer_stall = None;
+        self.flush_slot(idx, now);
+    }
+
+    fn allocate_lease_id(&mut self) -> Option<u64> {
+        let lease_id = self.next_lease_id;
+        if lease_id == 0 || lease_id == u64::MAX {
+            return None;
+        }
+        self.next_lease_id += 1;
+        Some(lease_id)
+    }
+
+    fn dispatch_lease_control(
+        &mut self,
+        idx: usize,
+        action: LeaseAction,
+        generation: [u8; 16],
+        lease_id: u64,
+        now: u64,
+    ) {
+        let Some(slot) = self.slots.get(idx).and_then(Option::as_ref) else {
+            return;
+        };
+        let conn = slot.conn;
+        let valid_owner = self.lease.as_ref().is_some_and(|lease| {
+            lease.belongs_to(idx, &self.slots)
+                && lease.owner.generation == generation
+                && lease.owner.lease_id == lease_id
+        });
+        if !valid_owner {
+            self.remove_conn(idx, now);
+            return;
+        }
+
+        match action {
+            LeaseAction::Commit
+                if matches!(
+                    self.lease.as_ref().map(|lease| &lease.phase),
+                    Some(LeasePhase::AwaitingCommit)
+                ) =>
+            {
+                self.lease.as_mut().expect("validated lease").phase = LeasePhase::Active;
+                self.queue_effect_frame(
+                    Target::Conn(conn),
+                    Frame::Lease {
+                        action: LeaseAction::Committed,
+                        generation,
+                        lease_id,
+                    },
+                    now,
+                );
+            }
+            LeaseAction::Barrier
+                if matches!(
+                    self.lease.as_ref().map(|lease| &lease.phase),
+                    Some(LeasePhase::Active)
+                ) =>
+            {
+                self.queue_effect_frame(
+                    Target::Conn(conn),
+                    Frame::Lease {
+                        action: LeaseAction::BarrierAck,
+                        generation,
+                        lease_id,
+                    },
+                    now,
+                );
+            }
+            LeaseAction::Release
+                if matches!(
+                    self.lease.as_ref().map(|lease| &lease.phase),
+                    Some(LeasePhase::AwaitingCommit | LeasePhase::Active)
+                ) =>
+            {
+                self.lease.take();
+                self.queue_effect_frame(
+                    Target::Conn(conn),
+                    Frame::Lease {
+                        action: LeaseAction::Released,
+                        generation,
+                        lease_id,
+                    },
+                    now,
+                );
+            }
+            _ => self.remove_conn(idx, now),
+        }
     }
 
     fn execute_spawn(&mut self, rows: u16, cols: u16, now: u64) -> bool {
@@ -2046,6 +2393,33 @@ impl Broker {
         }
     }
 
+    fn execute_signal(&mut self, signal: u8, now: u64) -> bool {
+        let Some(child) = self.child.as_ref() else {
+            self.request_internal_failure(Error::NotLive, now);
+            return false;
+        };
+        let signal = match Signal::try_from(i32::from(signal)) {
+            Ok(signal) if frame::signal_is_allowed(signal as u8) => signal,
+            _ => {
+                self.request_internal_failure(
+                    Error::Io(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "invalid process-group signal",
+                    )),
+                    now,
+                );
+                return false;
+            }
+        };
+        match child.signal_group_checked(signal) {
+            Ok(()) => true,
+            Err(error) => {
+                self.request_internal_failure(error, now);
+                false
+            }
+        }
+    }
+
     fn apply_effects(&mut self, fx: Vec<Effect>, now: u64) {
         for effect in fx {
             match effect {
@@ -2117,6 +2491,11 @@ impl Broker {
                 }
                 Effect::ApplyDimensions { rows, cols } => {
                     if !self.execute_dimensions(rows, cols, now) {
+                        break;
+                    }
+                }
+                Effect::ApplySignal { signal } => {
+                    if !self.execute_signal(signal, now) {
                         break;
                     }
                 }
@@ -2298,6 +2677,58 @@ impl Broker {
         self.flush_slot(idx, now);
     }
 
+    fn lease_grant_pending(&self, idx: usize, conn: ConnId) -> bool {
+        self.lease.as_ref().is_some_and(|lease| {
+            lease.owner.conn == conn
+                && lease.belongs_to(idx, &self.slots)
+                && matches!(lease.phase, LeasePhase::Granting { .. })
+        })
+    }
+
+    fn flush_lease_grant(&mut self, idx: usize) -> io::Result<()> {
+        let Some(slot) = self.slots.get(idx).and_then(Option::as_ref) else {
+            return Ok(());
+        };
+        if !slot.client.out().is_empty() {
+            return Ok(());
+        }
+        let socket = slot.fd.as_fd();
+        let Some(lease) = self.lease.as_mut() else {
+            return Ok(());
+        };
+        if !lease.belongs_to(idx, &self.slots) {
+            return Ok(());
+        }
+        let LeasePhase::Granting {
+            wire,
+            offset,
+            descriptor,
+        } = &mut lease.phase
+        else {
+            return Ok(());
+        };
+        let remaining = &wire[*offset..];
+        let sent = if let Some(fd) = descriptor.as_ref() {
+            sys::send_one_fd(socket, remaining, fd.as_fd())?
+        } else {
+            sys::send_no_sigpipe(socket, remaining)?
+        };
+        if sent == 0 {
+            return Err(io::Error::from(io::ErrorKind::WriteZero));
+        }
+        if descriptor.is_some() {
+            descriptor.take();
+        }
+        *offset = offset
+            .checked_add(sent)
+            .filter(|offset| *offset <= wire.len())
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "lease send overrun"))?;
+        if *offset == wire.len() {
+            lease.phase = LeasePhase::AwaitingCommit;
+        }
+        Ok(())
+    }
+
     fn flush_out_once(&mut self, idx: usize) -> io::Result<bool> {
         let Some(slot) = self.slots[idx].as_mut() else {
             return Ok(true);
@@ -2334,6 +2765,21 @@ impl Broker {
             }
             self.reconcile_writer_stall(now);
         }
+        let output_empty = self
+            .slots
+            .get(idx)
+            .and_then(Option::as_ref)
+            .is_some_and(|slot| slot.client.out().is_empty());
+        if retry_now && output_empty {
+            match self.flush_lease_grant(idx) {
+                Ok(()) => {}
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
+                Err(_) => {
+                    self.remove_conn(idx, now);
+                    return;
+                }
+            }
+        }
         let drained_done = self
             .slots
             .get(idx)
@@ -2355,6 +2801,15 @@ impl Broker {
     /// closure leaves the observer set, and already-revoked or demoted
     /// closes are harmless.
     fn remove_conn(&mut self, idx: usize, now: u64) {
+        if self.lease.as_ref().is_some_and(|lease| {
+            lease.belongs_to(idx, &self.slots) && !lease.descriptor_may_be_live_in_peer()
+        }) {
+            self.lease.take();
+        } else if let Some(lease) = self.lease.as_mut() {
+            if lease.belongs_to(idx, &self.slots) {
+                lease.control_alive = false;
+            }
+        }
         let Some(slot) = self.slots.get_mut(idx).and_then(Option::take) else {
             return;
         };
@@ -2376,6 +2831,37 @@ impl Broker {
         self.apply_effects(fx, now);
         self.reconcile_writer_stall(now);
         debug_assert!(self.aggregate_output_live_bytes() <= self.limits.aggregate_queue_bytes);
+    }
+
+    fn handle_lease_process_event(
+        &mut self,
+        lease_id: u64,
+        revents: PollFlags,
+        now: u64,
+    ) -> io::Result<()> {
+        if revents.contains(PollFlags::POLLNVAL) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "PTY lease pidfd became invalid",
+            ));
+        }
+        if !revents.intersects(PollFlags::POLLIN | PollFlags::POLLERR | PollFlags::POLLHUP) {
+            return Ok(());
+        }
+        let Some(owner) = self
+            .lease
+            .as_ref()
+            .filter(|lease| lease.owner.lease_id == lease_id)
+            .map(|lease| lease.owner)
+        else {
+            return Ok(());
+        };
+        self.lease.take();
+        if let Some(idx) = self.resolve(Target::Conn(owner.conn)) {
+            self.remove_conn(idx, now);
+        }
+        self.writer_stall = None;
+        Ok(())
     }
 
     fn resolve_observer(&self, client_id: u32) -> Option<usize> {
@@ -2500,6 +2986,19 @@ mod tests {
         }
     }
 
+    fn test_gateway_hello(generation: [u8; 16]) -> Frame {
+        let pid = std::process::id();
+        Frame::GatewayHello {
+            take_over: false,
+            name: "s1".to_owned(),
+            rows: 24,
+            cols: 80,
+            generation,
+            pid,
+            start_ticks: sys::proc_start_ticks(pid as libc::pid_t).expect("start ticks"),
+        }
+    }
+
     fn send_test_frame(stream: &mut UnixStream, frame: &Frame) {
         let wire = frame.encode();
         let mut off = 0;
@@ -2559,6 +3058,22 @@ mod tests {
         frames
     }
 
+    fn read_test_frame_blocking(stream: &mut UnixStream, limits: &Limits) -> Frame {
+        stream.set_nonblocking(false).expect("blocking");
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(1)))
+            .expect("timeout");
+        let mut header = [0_u8; frame::HEADER_LEN];
+        stream.read_exact(&mut header).expect("frame header");
+        let total = Frame::validate_header(&header, limits).expect("valid header");
+        let mut wire = vec![0_u8; total];
+        wire[..frame::HEADER_LEN].copy_from_slice(&header);
+        stream
+            .read_exact(&mut wire[frame::HEADER_LEN..])
+            .expect("frame body");
+        Frame::decode(&wire, limits).expect("decode").0
+    }
+
     fn attach_test_master(broker: &mut Broker) -> std::fs::File {
         let (master, slave) = sys::openpty(24, 80).expect("openpty");
         let mut attrs = nix::sys::termios::tcgetattr(&slave).expect("termios");
@@ -2568,6 +3083,137 @@ mod tests {
         sys::set_nonblocking(slave.as_fd()).expect("nonblocking slave");
         broker.attach_pty_master(master).expect("attach master");
         std::fs::File::from(slave)
+    }
+
+    #[test]
+    fn gateway_lease_quiesces_master_and_releases_to_framed_path() {
+        let limits = Limits::default();
+        let generation = [0x61; 16];
+        let (base, _clock, mut broker) = broker_with_limits_at(0, limits);
+        let mut slave = attach_test_master(&mut broker);
+        let mut gateway = UnixStream::connect(base.path().join("s1/socket")).expect("connect");
+        gateway.set_nonblocking(true).expect("nonblocking");
+        send_test_frame(&mut gateway, &test_gateway_hello(generation));
+        for _ in 0..8 {
+            broker.run_once(Some(0)).expect("lease grant pass");
+        }
+
+        assert!(matches!(
+            read_test_frame_blocking(&mut gateway, &limits),
+            Frame::HelloAck {
+                status: frame::AttachStatus::WriterGranted,
+                ..
+            }
+        ));
+        let expected_grant_len = Frame::Lease {
+            action: LeaseAction::Grant,
+            generation,
+            lease_id: 1,
+        }
+        .encode()
+        .len();
+        let mut grant_wire = vec![0_u8; expected_grant_len];
+        let (received, master) = sys::recv_one_fd(gateway.as_fd(), &mut grant_wire)
+            .expect("grant recv")
+            .expect("grant ready");
+        assert_eq!(received, expected_grant_len);
+        assert_eq!(
+            Frame::decode(&grant_wire, &limits).expect("grant").0,
+            Frame::Lease {
+                action: LeaseAction::Grant,
+                generation,
+                lease_id: 1,
+            }
+        );
+
+        gateway.set_nonblocking(true).expect("nonblocking again");
+        send_test_frame(
+            &mut gateway,
+            &Frame::Lease {
+                action: LeaseAction::Commit,
+                generation,
+                lease_id: 1,
+            },
+        );
+        for _ in 0..4 {
+            broker.run_once(Some(0)).expect("commit pass");
+        }
+        assert_eq!(
+            read_test_frame_blocking(&mut gateway, &limits),
+            Frame::Lease {
+                action: LeaseAction::Committed,
+                generation,
+                lease_id: 1,
+            }
+        );
+        assert!(matches!(
+            broker.lease.as_ref().map(|lease| &lease.phase),
+            Some(LeasePhase::Active)
+        ));
+
+        let mut direct_master = std::fs::File::from(master);
+        direct_master.write_all(b"input").expect("direct input");
+        let mut input = [0_u8; 5];
+        slave.read_exact(&mut input).expect("slave input");
+        assert_eq!(&input, b"input");
+
+        slave.write_all(b"output").expect("slave output");
+        for _ in 0..4 {
+            broker.run_once(Some(0)).expect("quiescent broker pass");
+        }
+        let mut output = [0_u8; 6];
+        direct_master
+            .read_exact(&mut output)
+            .expect("direct output");
+        assert_eq!(&output, b"output");
+
+        drop(direct_master);
+        gateway.set_nonblocking(true).expect("nonblocking release");
+        send_test_frame(
+            &mut gateway,
+            &Frame::Lease {
+                action: LeaseAction::Release,
+                generation,
+                lease_id: 1,
+            },
+        );
+        for _ in 0..4 {
+            broker.run_once(Some(0)).expect("release pass");
+        }
+        assert_eq!(
+            read_test_frame_blocking(&mut gateway, &limits),
+            Frame::Lease {
+                action: LeaseAction::Released,
+                generation,
+                lease_id: 1,
+            }
+        );
+        assert!(broker.lease.is_none());
+
+        slave.write_all(b"framed").expect("framed output");
+        for _ in 0..8 {
+            broker.run_once(Some(0)).expect("framed broker pass");
+        }
+        gateway.set_nonblocking(true).expect("nonblocking drain");
+        let frames = drain_test_frames(&mut gateway, &limits);
+        assert!(frames
+            .iter()
+            .any(|frame| matches!(frame, Frame::Output(bytes) if bytes == b"framed")));
+    }
+
+    #[test]
+    fn readable_writer_input_reaches_ready_master_in_same_iteration() {
+        let (base, _clock, mut broker) = broker_with_limits_at(0, Limits::default());
+        let mut writer = connect_and_grant(&base, &mut broker, crate::frame::Role::Writer, false);
+        let _ = drain_test_frames(&mut writer, &Limits::default());
+        let mut slave = attach_test_master(&mut broker);
+
+        send_test_frame(&mut writer, &Frame::Input(b"x".to_vec()));
+        broker.run_once(Some(0)).expect("writer input pass");
+
+        let mut byte = [0_u8; 1];
+        assert_eq!(slave.read(&mut byte).expect("ready master input"), 1);
+        assert_eq!(byte, *b"x");
     }
 
     fn write_test_signal_record(writer: &mut std::fs::File, signal: i32) {

@@ -1,0 +1,9 @@
+pre-outage-smoke
+RX:pre-outage-smoke
+ASYNC:outage-smoke
+during-outage-smoke
+RX:during-outage-smoke
+post-outage-smoke
+RX:post-outage-smoke
+quit
+RX:quit

@@ -1,0 +1,261 @@
+{
+  "caveat": "Within-block resampling is not independent replication. Feature-enabled OFF is not the default build. Signed userspace intervals are not exclusive CPU/kernel/network costs; do not sum stage medians.",
+  "cells": {
+    "0": {
+      "interval_ns": {
+        "client_output_sink": {
+          "negative": 0,
+          "p50": 11369,
+          "p95": 28697
+        },
+        "gateway_input_sink": {
+          "negative": 0,
+          "p50": 12620,
+          "p95": 25192
+        },
+        "gateway_to_client": {
+          "negative": 0,
+          "p50": 103440,
+          "p95": 273331
+        },
+        "pty_response": {
+          "negative": 0,
+          "p50": 100513,
+          "p95": 192705
+        },
+        "public_after_client_marker": {
+          "negative": 0,
+          "p50": 18895,
+          "p95": 98894
+        },
+        "public_to_queue": {
+          "negative": 0,
+          "p50": 120088,
+          "p95": 191728
+        },
+        "queue_to_stream": {
+          "negative": 0,
+          "p50": 9470,
+          "p95": 16400
+        },
+        "stream_to_gateway": {
+          "negative": 0,
+          "p50": 317391,
+          "p95": 511317
+        }
+      },
+      "latency_us": {
+        "off": {
+          "everudp": {
+            "p50": 691,
+            "p95": 1108
+          },
+          "zmosh-quic": {
+            "p50": 10775,
+            "p95": 11226
+          },
+          "zmosh-udp": {
+            "p50": 405,
+            "p95": 807
+          }
+        },
+        "on": {
+          "everudp": {
+            "p50": 706,
+            "p95": 1219
+          },
+          "zmosh-quic": {
+            "p50": 10776,
+            "p95": 11277
+          },
+          "zmosh-udp": {
+            "p50": 411,
+            "p95": 835
+          }
+        }
+      },
+      "on_off": {
+        "everudp": {
+          "p50": {
+            "central95": [
+              0.9942857142857143,
+              1.0718562874251496
+            ],
+            "ratio": 1.0217076700434153
+          },
+          "p95": {
+            "central95": [
+              1.028448275862069,
+              1.2157794676806084
+            ],
+            "ratio": 1.1001805054151625
+          }
+        },
+        "zmosh-quic": {
+          "p50": {
+            "central95": [
+              0.9973140687227934,
+              1.0032509752925878
+            ],
+            "ratio": 1.000092807424594
+          },
+          "p95": {
+            "central95": [
+              0.9988452655889145,
+              1.0106344950848973
+            ],
+            "ratio": 1.0045430251202565
+          }
+        },
+        "zmosh-udp": {
+          "p50": {
+            "central95": [
+              0.9523809523809523,
+              1.0847457627118644
+            ],
+            "ratio": 1.0148148148148148
+          },
+          "p95": {
+            "central95": [
+              0.9449003516998827,
+              1.1267029972752043
+            ],
+            "ratio": 1.0346964064436184
+          }
+        }
+      },
+      "samples_per_name_per_mode": 400
+    },
+    "5": {
+      "interval_ns": {
+        "client_output_sink": {
+          "negative": 0,
+          "p50": 11178,
+          "p95": 24430
+        },
+        "gateway_input_sink": {
+          "negative": 0,
+          "p50": 12549,
+          "p95": 24573
+        },
+        "gateway_to_client": {
+          "negative": 0,
+          "p50": 102584,
+          "p95": 3411673
+        },
+        "pty_response": {
+          "negative": 0,
+          "p50": 97848,
+          "p95": 183677
+        },
+        "public_after_client_marker": {
+          "negative": 0,
+          "p50": 20496,
+          "p95": 95752
+        },
+        "public_to_queue": {
+          "negative": 0,
+          "p50": 119589,
+          "p95": 195338
+        },
+        "queue_to_stream": {
+          "negative": 0,
+          "p50": 9281,
+          "p95": 14794
+        },
+        "stream_to_gateway": {
+          "negative": 0,
+          "p50": 313406,
+          "p95": 541469
+        }
+      },
+      "latency_us": {
+        "off": {
+          "everudp": {
+            "p50": 742,
+            "p95": 4156
+          },
+          "zmosh-quic": {
+            "p50": 10777,
+            "p95": 37744
+          },
+          "zmosh-udp": {
+            "p50": 414,
+            "p95": 50656
+          }
+        },
+        "on": {
+          "everudp": {
+            "p50": 705,
+            "p95": 4463
+          },
+          "zmosh-quic": {
+            "p50": 10751,
+            "p95": 62604
+          },
+          "zmosh-udp": {
+            "p50": 439,
+            "p95": 50684
+          }
+        }
+      },
+      "on_off": {
+        "everudp": {
+          "p50": {
+            "central95": [
+              0.9073107049608355,
+              1.0028530670470757
+            ],
+            "ratio": 0.9501347708894878
+          },
+          "p95": {
+            "central95": [
+              0.9125279642058165,
+              1.1569767441860466
+            ],
+            "ratio": 1.073869104908566
+          }
+        },
+        "zmosh-quic": {
+          "p50": {
+            "central95": [
+              0.9950848557915237,
+              0.9996287358455541
+            ],
+            "ratio": 0.9975874547647768
+          },
+          "p95": {
+            "central95": [
+              0.6155434729997903,
+              1.6889756360209989
+            ],
+            "ratio": 1.6586477320898685
+          }
+        },
+        "zmosh-udp": {
+          "p50": {
+            "central95": [
+              0.9929245283018868,
+              1.1578947368421053
+            ],
+            "ratio": 1.0603864734299517
+          },
+          "p95": {
+            "central95": [
+              0.9954577630957999,
+              1.0038809575668772
+            ],
+            "ratio": 1.0005527479469363
+          }
+        }
+      },
+      "samples_per_name_per_mode": 400
+    }
+  },
+  "method": "Nearest-rank quantiles; independent resampling within each fixed block; central95 on/off intervals.",
+  "qualification": false,
+  "resamples": 20000,
+  "source_sha": "31b544a8e33b06ff8563410935a6ecc4c578dbe0",
+  "status": "DIAGNOSTIC",
+  "tree_sha": "200806e0bb552c64a56732c533c13a731163050f"
+}

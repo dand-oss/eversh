@@ -1,0 +1,23 @@
+	Command being timed: "/usr/bin/env PTY_BENCH_WINDOW_DIR=/tmp/everudp-pump-beded2d-loss5-block2/everudp/window /usr/bin/taskset -c 40,42,44,46 /tmp/everudp-pump-beded2d-variant-build/artifacts/bin/pty-bench 200 100 /tmp/everudp-pump-beded2d-loss5-block2/everudp/result.json /tmp/everudp-pump-beded2d-loss5-block2/everudp/candidate.stderr -- /usr/bin/env -u EVERUDP_CLIENT_PATH_TRACE -u EVERUDP_PATH_IO_TRACE EVERSH_STATE_DIR=/tmp/everudp-pump-beded2d-loss5-block2/everudp/client-state TERM=xterm-256color /tmp/everudp-pump-beded2d-variant-build/artifacts/bin/everudp --remote-program /tmp/everudp-perf-block.LqMwNg/remote-everudp/remote-everudp connect target --session perf-p00bc0-3-everudp --ssh-option -F/tmp/everudp-perf-block.LqMwNg/client_config --status-file /tmp/everudp-pump-beded2d-loss5-block2/everudp/status.log -- /tmp/everudp-pump-beded2d-variant-build/artifacts/bin/pty-echo"
+	User time (seconds): 0.11
+	System time (seconds): 0.07
+	Percent of CPU this job got: 0%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:20.99
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 12948
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 2209
+	Voluntary context switches: 1708
+	Involuntary context switches: 6
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

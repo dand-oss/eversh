@@ -8,8 +8,10 @@ use crate::limits::Limits;
 use crate::remote::{
     base64url_encode, validate_host, validate_name, validate_origin_label, ControlRequest,
 };
-use crate::role::{EVERLINK_ROLE, EVERPTY_ROLE, EVERPTY_ROLE_VERSION};
+use crate::role::{EVERPTY_ROLE, EVERPTY_ROLE_VERSION, EVERSSH_ROLE, EVERUDP_ROLE};
 use std::ffi::OsString;
+use std::os::unix::ffi::OsStringExt;
+use std::path::Path;
 
 /// Maximum bytes for any single constructed shell word.
 const WORD_MAX: usize = 4096;
@@ -88,10 +90,10 @@ fn quote_single(word: &str) -> Result<String, Error> {
     Ok(format!("'{word}'"))
 }
 
-/// Audit one user SSH option through everlink's applicable allowlist
+/// Audit one user SSH option through everssh's applicable allowlist
 /// (design 6.4) and confirm it stays a safe single-quoted word.
 pub fn audit_ssh_option(option: &str) -> Result<(), Error> {
-    everlink::ssh_policy::audit_ssh_option(option).map_err(|_| Error::SshOptionRejected)?;
+    everssh::ssh_policy::audit_ssh_option(option).map_err(|_| Error::SshOptionRejected)?;
     if option.contains('\'') {
         return Err(Error::SshOptionRejected);
     }
@@ -99,14 +101,14 @@ pub fn audit_ssh_option(option: &str) -> Result<(), Error> {
 }
 
 /// Build the ProxyCommand string handed to the outer OpenSSH client: this
-/// process re-invoked through its everlink role. `%n` preserves the original
+/// process re-invoked through its everssh role. `%n` preserves the original
 /// destination token and `%p` the effective port, so ssh_config aliases and
 /// port resolution stay authoritative (design 6.4).
 ///
 /// `status_file`, when set, is appended as a `--status-file` ARGUMENT for
-/// the local everlink `ssh-proxy` edge (design 3, 7). OpenSSH executes the
+/// the local everssh `ssh-proxy` edge (design 3, 7). OpenSSH executes the
 /// ProxyCommand line through the user's local shell, so the path travels in
-/// everlink's own argv — a purely local handoff that no environment-
+/// everssh's own argv — a purely local handoff that no environment-
 /// forwarding policy (`SendEnv`/`AcceptEnv`) can transmit remotely and no
 /// ambient environment value can imitate. It inherits the exact same
 /// single-quote rejection discipline as every other word: quotes, control
@@ -122,7 +124,7 @@ pub fn proxy_command(
     validate_remote_eversh(remote_eversh)?;
     let mut command = quote_single(self_exe)?;
     command.push(' ');
-    command.push_str(EVERLINK_ROLE);
+    command.push_str(EVERSSH_ROLE);
     command.push_str(" ssh-proxy '%n' '%p' --remote-eversh ");
     command.push_str(&quote_single(remote_eversh)?);
     for option in ssh_options {
@@ -146,7 +148,7 @@ pub fn proxy_command(
 /// control bytes (NUL included), no percent, and bounded length. OpenSSH
 /// expands percent tokens (`%h` `%p` `%n` `%C` ...) inside quoted
 /// ProxyCommand words before the local shell sees the quotes, so a state
-/// root carrying `%` would allocate one path while the local everlink
+/// root carrying `%` would allocate one path while the local everssh
 /// edge receives another — the record would be lost. Percent is rejected
 /// outright, never escaped.
 fn safe_status_word(text: &str) -> bool {
@@ -268,7 +270,7 @@ pub fn remote_words(
 
 /// Build the complete outer `ssh` argument vector for one remote operation.
 /// The ProxyCommand option is deliberately FIRST: OpenSSH takes the first
-/// obtained value for an option, so nothing later can displace the everlink
+/// obtained value for an option, so nothing later can displace the everssh
 /// transport. User options follow (already audited), then `-t` for the live
 /// terminal path, `--`, the validated destination, and the remote words.
 pub fn outer_ssh_args(
@@ -310,10 +312,86 @@ pub fn split_raw_tokens(tokens: &[String]) -> (&[String], &[String]) {
     }
 }
 
+/// One direct everudp client operation re-executed through this same
+/// combined binary. Terminal descriptors remain inherited end to end.
+#[derive(Debug, Clone, Copy)]
+pub enum EverudpOp<'a> {
+    Connect {
+        name: &'a str,
+        take_over: bool,
+        child_argv: &'a [Vec<u8>],
+    },
+    Attach {
+        name: &'a str,
+        take_over: bool,
+    },
+    Observe {
+        name: &'a str,
+    },
+}
+
+/// Build the exact argv for `eversh __everudp ...`. This is a local re-exec,
+/// not a relay: the everudp role inherits stdio and sends terminal bytes
+/// directly over QUIC after its bounded SSH bootstrap.
+pub fn everudp_launch_args(
+    self_exe: &Path,
+    remote_eversh: &str,
+    host: &str,
+    operation: EverudpOp<'_>,
+    ssh_options: &[String],
+    status_file: Option<&Path>,
+    limits: &Limits,
+) -> Result<Vec<OsString>, Error> {
+    validate_self_exe(self_exe)?;
+    validate_remote_eversh(remote_eversh)?;
+    validate_host(host)?;
+    if status_file.is_some_and(|path| !status_word_safe(path)) {
+        return Err(Error::StatusPathUnsafe);
+    }
+    let (verb, name, take_over, child_argv) = match operation {
+        EverudpOp::Connect {
+            name,
+            take_over,
+            child_argv,
+        } => ("connect", name, take_over, Some(child_argv)),
+        EverudpOp::Attach { name, take_over } => ("attach", name, take_over, None),
+        EverudpOp::Observe { name } => ("observe", name, false, None),
+    };
+    let name = checked_name(name, limits)?;
+    let mut args = vec![
+        OsString::from(EVERUDP_ROLE),
+        OsString::from("--remote-program"),
+        OsString::from(remote_eversh),
+        OsString::from(verb),
+        OsString::from(host),
+    ];
+    if verb == "connect" {
+        args.push(OsString::from("--session"));
+    }
+    args.push(OsString::from(name));
+    if take_over {
+        args.push(OsString::from("--take-over"));
+    }
+    if let Some(path) = status_file {
+        args.push(OsString::from("--status-file"));
+        args.push(path.as_os_str().to_owned());
+    }
+    for option in ssh_options {
+        audit_ssh_option(option)?;
+        args.push(OsString::from("--ssh-option"));
+        args.push(OsString::from(option));
+    }
+    if let Some(child_argv) = child_argv.filter(|arguments| !arguments.is_empty()) {
+        args.push(OsString::from("--"));
+        args.extend(child_argv.iter().cloned().map(OsString::from_vec));
+    }
+    Ok(args)
+}
+
 /// Filter SSH options down to the subset that passes the audited allowlist
 /// (design 6.4). Raw mode's outer `ssh` invocation stays fully unaudited
 /// (the escape hatch), but only the audited subset is safe to mirror into
-/// the everlink bootstrap's ProxyCommand; a token that fails audit simply
+/// the everssh bootstrap's ProxyCommand; a token that fails audit simply
 /// stays outer-ssh-only and is never an error in raw mode.
 pub fn audited_subset(options: &[String]) -> Vec<String> {
     options
@@ -358,11 +436,15 @@ pub fn kitty_launch_args(
     self_exe: &str,
     host: &str,
     name: &str,
+    transport: &str,
     ssh_options: &[String],
     limits: &Limits,
 ) -> Result<Vec<OsString>, Error> {
     validate_host(host)?;
     let name = checked_name(name, limits)?;
+    if !matches!(transport, "everssh" | "everudp" | "auto") {
+        return Err(Error::RemoteWordInvalid);
+    }
     let mut args: Vec<OsString> = vec!["@".into()];
     if let Some(target) = listen_on {
         args.push("--to".into());
@@ -378,6 +460,10 @@ pub fn kitty_launch_args(
     args.push(host.into());
     args.push(name.into());
     args.push("--hold-on-error".into());
+    if transport != "everssh" {
+        args.push("--transport".into());
+        args.push(transport.into());
+    }
     for option in ssh_options {
         audit_ssh_option(option)?;
         args.push("--ssh-option".into());

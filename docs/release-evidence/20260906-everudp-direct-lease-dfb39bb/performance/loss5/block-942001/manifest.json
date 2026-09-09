@@ -1,0 +1,132 @@
+{
+  "affinity": "40,42,44,46",
+  "artifacts": {
+    "everudp": {
+      "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-fast-lease/builds/dfb39bb4705e5d49924a0751ece57c8f170e8336/artifacts/bin/everudp",
+      "sha256": "f57ab43d0b5837672e06ce981c5dc8bebf092b1f0410ee548f74ab9058324b96"
+    },
+    "pty-bench": {
+      "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-fast-lease/builds/dfb39bb4705e5d49924a0751ece57c8f170e8336/artifacts/bin/pty-bench",
+      "sha256": "ee716b8eff4f1b7de4b47e55f94ef9fa46bfeec844eefc2aabca24a6cddddc11"
+    },
+    "pty-echo": {
+      "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-fast-lease/builds/dfb39bb4705e5d49924a0751ece57c8f170e8336/artifacts/bin/pty-echo",
+      "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e"
+    },
+    "zmosh-quic": {
+      "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-fast-lease/builds/dfb39bb4705e5d49924a0751ece57c8f170e8336/artifacts/bin/zmosh-quic",
+      "sha256": "21d1b1001d65981bca4c5562fcca596046c3e7f978c8679c3010e169212e848d"
+    },
+    "zmosh-quic-bridge": {
+      "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-fast-lease/builds/dfb39bb4705e5d49924a0751ece57c8f170e8336/artifacts/bin/zmosh-quic-bridge",
+      "sha256": "30c2dfe55288e5ce901ecb589db51d8a9f6dc480fbc2227119e8a47f6e08ecaa"
+    },
+    "zmosh-udp": {
+      "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-fast-lease/builds/dfb39bb4705e5d49924a0751ece57c8f170e8336/artifacts/bin/zmosh-udp",
+      "sha256": "12c5a4e232294b2f32fecfc936e42a083a027b7d1cee64dfea2a79b4a8cd6298"
+    }
+  },
+  "build": {
+    "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-fast-lease/builds/dfb39bb4705e5d49924a0751ece57c8f170e8336",
+    "provenance_sha256": "ea1aef9ff4362ce2c44a7315367963be6d127b823186f5aee95f33cfe2782347"
+  },
+  "finished_utc": "2026-09-06T23:55:21Z",
+  "gap_ms": 100,
+  "governors": {
+    "after": {
+      "path": "governors-after.txt",
+      "sha256": "d93c8fa1dc7bdcc16324af98bf221124d47fdefeed685d033028696d196cd276"
+    },
+    "before": {
+      "path": "governors-before.txt",
+      "sha256": "d93c8fa1dc7bdcc16324af98bf221124d47fdefeed685d033028696d196cd276"
+    },
+    "pinned": {
+      "path": "governors-pinned.txt",
+      "sha256": "4708bc3e1d361c6b28061cb32741ba8a44a79d2cad542238e7dabf6aa23d50ae"
+    }
+  },
+  "host": {
+    "cpu_model": "Intel(R) Xeon(R) CPU E5-2697 v2 @ 2.70GHz",
+    "kernel": "Linux 7.1.8+deb14.1-amd64 x86_64 GNU/Linux"
+  },
+  "loss_evidence": {
+    "everudp": {
+      "client_egress_drop_delta": 23,
+      "receipts": {
+        "netem-everudp-client-after.txt": "f099f0f09037858acab147a7be8039ac251aa932588be0d53982b5827f7339eb",
+        "netem-everudp-client-before.txt": "5c5b976cfda6d57c0e413b6c5544e54ddb03caa880bc7288026de7265adada8f",
+        "netem-everudp-server-after.txt": "f9fb18773248318c7f9df632a094485fc05221039c315bcaf0426138bb1ce85c",
+        "netem-everudp-server-before.txt": "0a28cb57af8659e4b22689eed03755506c4cc01d15b1ceb8ed50f88eadc11ff0"
+      },
+      "server_egress_drop_delta": 26
+    },
+    "zmosh-quic": {
+      "client_egress_drop_delta": 28,
+      "receipts": {
+        "netem-zmosh-quic-client-after.txt": "17c26dcbd8ac5fb0d5ae719bf67a1e26efcd4fc01b87df1f7904047fbf65ab3d",
+        "netem-zmosh-quic-client-before.txt": "3bc0d144634a42f3fad061b633cb0d1860c0cf8daa16cc714ae170001171391a",
+        "netem-zmosh-quic-server-after.txt": "79f4602e8efd7c6f427c8babe0c53f0c90d31781cb1120fdc7e78376e6167691",
+        "netem-zmosh-quic-server-before.txt": "70fc52db6717f4f9408203d013f334b3fb3382762c0d48f1e58832b9cbb0baad"
+      },
+      "server_egress_drop_delta": 41
+    },
+    "zmosh-udp": {
+      "client_egress_drop_delta": 7,
+      "receipts": {
+        "netem-zmosh-udp-client-after.txt": "3bc0d144634a42f3fad061b633cb0d1860c0cf8daa16cc714ae170001171391a",
+        "netem-zmosh-udp-client-before.txt": "f099f0f09037858acab147a7be8039ac251aa932588be0d53982b5827f7339eb",
+        "netem-zmosh-udp-server-after.txt": "70fc52db6717f4f9408203d013f334b3fb3382762c0d48f1e58832b9cbb0baad",
+        "netem-zmosh-udp-server-before.txt": "f9fb18773248318c7f9df632a094485fc05221039c315bcaf0426138bb1ce85c"
+      },
+      "server_egress_drop_delta": 12
+    }
+  },
+  "loss_percent_each_direction": 5,
+  "order": [
+    "everudp",
+    "zmosh-udp",
+    "zmosh-quic"
+  ],
+  "results": {
+    "everudp": {
+      "path": "everudp/result.json",
+      "resources_sha256": "3e4e8cdd846259bd1c24737a09544e3db5d1d252ab69d6e1b1d8c2264e8f6e9f",
+      "samples": 100,
+      "sha256": "e0c3ae98170a121044181bc54b032dceb0d65ed314d3630553f3feea630ff1df",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transcript_failures": 0
+    },
+    "zmosh-quic": {
+      "path": "zmosh-quic/result.json",
+      "resources_sha256": "758f4cd3905d4315a8a3b10d1b82e9ba09fc9657cd50c26449a22e212a675775",
+      "samples": 100,
+      "sha256": "8664eebad718f2ee3003a46b05e2c6ddf82041652b175072bcf2f52bac339479",
+      "stderr_sha256": "ded702ba28f95aba823cbab2fc9535d962d75cefe4e47b71b5216d22105d767d",
+      "transcript_failures": 0
+    },
+    "zmosh-udp": {
+      "path": "zmosh-udp/result.json",
+      "resources_sha256": "16cf052c90a09a85706bf5adf79dc152a9beec990ff326c5b83bcd378440dd78",
+      "samples": 100,
+      "sha256": "7484b3fcb874c8ff005dc02b7ce2d5757058ce161015c988d67ae2846493671d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transcript_failures": 0
+    }
+  },
+  "schema_version": 1,
+  "seeds": {
+    "client": 942001,
+    "server": 1942004
+  },
+  "source": {
+    "dirty": true,
+    "head_sha": "dfb39bb4705e5d49924a0751ece57c8f170e8336",
+    "tree_sha": "74bf011508a86a377f93a28b01c20da70007de8a"
+  },
+  "started_utc": "2026-09-06T23:54:46Z",
+  "timer": "immediately before PTY public send; after exact byte accepted by /dev/null sink",
+  "topology": "two isolated Linux network namespaces joined by one veth pair",
+  "trials_per_candidate": 100,
+  "workload": "rotating printable byte through one compiled raw-mode PTY echo process"
+}

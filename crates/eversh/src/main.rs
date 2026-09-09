@@ -1,11 +1,12 @@
 //! eversh combined binary: pure role selection before any runtime, then the
-//! supervisor CLI, the private everpty role edge, or the everlink role edge.
+//! supervisor CLI, the private everpty role edge, or a transport role edge.
 //! CLI parsing, environment capture, diagnostics, and exit mapping live here;
-//! only the everlink role may build the single Tokio runtime.
+//! each selected transport role owns its one process-local Tokio runtime;
+//! supervisor and everpty roles build none.
 #![cfg_attr(not(test), allow(clippy::print_stderr, clippy::print_stdout))]
 
-use clap::{error::ErrorKind as ClapErrorKind, ArgAction, Parser, Subcommand};
-use eversh::command::RemoteOp;
+use clap::{error::ErrorKind as ClapErrorKind, ArgAction, Parser, Subcommand, ValueEnum};
+use eversh::command::{EverudpOp, RemoteOp};
 use eversh::role::{
     parse_everpty_role, select_role, EverptyRoleCommand, Role, EVERPTY_ROLE_VERSION,
 };
@@ -27,9 +28,16 @@ fn main() {
         .filter_map(|arg| arg.to_str().map(str::to_owned))
         .collect();
     match select_role(&role_words) {
-        Role::Everlink => {
-            let code = everlink::edge::run(
-                everlink::edge::Invocation::CombinedEversh,
+        Role::Everssh => {
+            let code = everssh::edge::run(
+                everssh::edge::Invocation::CombinedEversh,
+                args[1..].to_vec(),
+            );
+            std::process::exit(i32::from(code));
+        }
+        Role::Everudp => {
+            let code = everudp::edge::run(
+                everudp::edge::Invocation::CombinedEversh,
                 args[1..].to_vec(),
             );
             std::process::exit(i32::from(code));
@@ -352,7 +360,7 @@ fn text_list(sessions: &[everpty::session::SessionMeta]) -> String {
 #[command(
     name = "eversh",
     version,
-    about = "Roaming SSH session supervisor over everlink and everpty"
+    about = "Roaming SSH session supervisor over everssh and everpty"
 )]
 struct Cli {
     /// Remote combined eversh binary (bare PATH word or absolute path).
@@ -372,6 +380,8 @@ enum Cmd {
         session: Option<String>,
         #[arg(long = "take-over")]
         take_over: bool,
+        #[arg(long, value_enum, default_value_t = SessionTransport::Everssh)]
+        transport: SessionTransport,
         /// One audited, self-contained OpenSSH option.
         #[arg(long = "ssh-option", value_name = "OPTION", action = ArgAction::Append, allow_hyphen_values = true)]
         ssh_option: Vec<String>,
@@ -389,6 +399,8 @@ enum Cmd {
         /// Keep a failed attach visible until stdin is closed (Kitty tabs).
         #[arg(long = "hold-on-error", hide = true)]
         hold_on_error: bool,
+        #[arg(long, value_enum, default_value_t = SessionTransport::Everssh)]
+        transport: SessionTransport,
         #[arg(long = "ssh-option", value_name = "OPTION", action = ArgAction::Append, allow_hyphen_values = true)]
         ssh_option: Vec<String>,
     },
@@ -396,6 +408,8 @@ enum Cmd {
     Observe {
         host: String,
         name: String,
+        #[arg(long, value_enum, default_value_t = SessionTransport::Everssh)]
+        transport: SessionTransport,
         #[arg(long = "ssh-option", value_name = "OPTION", action = ArgAction::Append, allow_hyphen_values = true)]
         ssh_option: Vec<String>,
     },
@@ -413,6 +427,8 @@ enum Cmd {
     /// Re-attach every matching live session, one Kitty tab per session.
     ResumeAll {
         host: String,
+        #[arg(long, value_enum, default_value_t = SessionTransport::Everssh)]
+        transport: SessionTransport,
         /// Match sessions created from this local host name (default: this
         /// machine's host name).
         #[arg(long = "local-host", value_name = "NAME")]
@@ -434,14 +450,14 @@ enum Cmd {
         #[arg(long = "ssh-option", value_name = "OPTION", action = ArgAction::Append, allow_hyphen_values = true)]
         ssh_option: Vec<String>,
     },
-    /// Raw OpenSSH over everlink (never restarted automatically).
+    /// Raw OpenSSH over everssh (never restarted automatically).
     ///
     /// Tokens after `--` may contain one further literal `--`: tokens before
     /// it are outer SSH options (placed before the destination, verbatim,
     /// unaudited); tokens after it are a remote command (placed after the
     /// destination). With no inner `--`, every token is an SSH option
     /// (`eversh ssh HOST -- -4` behaves as before). Options that pass the
-    /// audited allowlist (design 6.4) are also mirrored into the everlink
+    /// audited allowlist (design 6.4) are also mirrored into the everssh
     /// bootstrap; options that fail the audit stay outer-ssh-only and are
     /// not an error in raw mode.
     Ssh {
@@ -449,6 +465,23 @@ enum Cmd {
         #[arg(last = true, value_name = "TOKENS")]
         tokens: Vec<String>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum SessionTransport {
+    Everssh,
+    Everudp,
+    Auto,
+}
+
+impl SessionTransport {
+    fn word(self) -> &'static str {
+        match self {
+            Self::Everssh => "everssh",
+            Self::Everudp => "everudp",
+            Self::Auto => "auto",
+        }
+    }
 }
 
 fn local_host_name() -> String {
@@ -478,7 +511,7 @@ fn build_config(remote_eversh: Option<String>) -> Result<Config, Error> {
         local_host: local_host_name(),
         // The same state-root precedence as the remote everpty role edge
         // (design 5.4), resolved locally: the highest-precedence candidate
-        // becomes the private root eversh creates its per-spawn everlink
+        // becomes the private root eversh creates its per-spawn everssh
         // link-status files under (design 3, 7). `None` only when no
         // candidate resolves at all (no env var and no HOME);
         // classification-carrying operations then fail closed with a clear
@@ -608,6 +641,31 @@ fn exit_kind(kind: ExitKind) -> ! {
     }
 }
 
+fn everudp_or_fallback<F>(
+    config: &Config,
+    transport: SessionTransport,
+    host: &str,
+    operation: EverudpOp<'_>,
+    ssh_options: &[String],
+    fallback: F,
+) -> Result<SessionEnd, Error>
+where
+    F: FnOnce() -> Result<SessionEnd, Error>,
+{
+    if transport == SessionTransport::Everssh {
+        return fallback();
+    }
+    let outcome = supervisor::everudp_session(config, host, operation, ssh_options)?;
+    if transport == SessionTransport::Auto && outcome.allows_auto_fallback() {
+        eprintln!("eversh: direct UDP unavailable before commit; falling back once to everssh");
+        return fallback();
+    }
+    Ok(match outcome.exit {
+        ExitKind::Code(code) => SessionEnd::Remote(code),
+        ExitKind::Signaled(signal) => SessionEnd::SshSignaled(signal),
+    })
+}
+
 /// Hold a failed Kitty-tab attach visible until the user closes the tab or
 /// presses Enter (design 7: keep failed attaches visible).
 fn hold_for_acknowledgement(code: i32) -> ! {
@@ -643,6 +701,7 @@ fn run_supervisor() -> ! {
             host,
             session,
             take_over,
+            transport,
             ssh_option,
             command,
         } => {
@@ -658,14 +717,28 @@ fn run_supervisor() -> ! {
                     arg.into_vec()
                 })
                 .collect();
-            match supervisor::connect(
+            let everudp_child = child_argv.clone();
+            match everudp_or_fallback(
                 &config,
+                transport,
                 &host,
-                &name,
-                take_over,
-                child_argv,
+                EverudpOp::Connect {
+                    name: &name,
+                    take_over,
+                    child_argv: &everudp_child,
+                },
                 &ssh_option,
-                &mut notifier,
+                || {
+                    supervisor::connect(
+                        &config,
+                        &host,
+                        &name,
+                        take_over,
+                        child_argv,
+                        &ssh_option,
+                        &mut notifier,
+                    )
+                },
             ) {
                 Ok(end) => exit_session_end(end),
                 Err(error) => exit_error(error),
@@ -676,9 +749,20 @@ fn run_supervisor() -> ! {
             name,
             take_over,
             hold_on_error,
+            transport,
             ssh_option,
         } => {
-            match supervisor::attach(&config, &host, &name, take_over, &ssh_option, &mut notifier) {
+            match everudp_or_fallback(
+                &config,
+                transport,
+                &host,
+                EverudpOp::Attach {
+                    name: &name,
+                    take_over,
+                },
+                &ssh_option,
+                || supervisor::attach(&config, &host, &name, take_over, &ssh_option, &mut notifier),
+            ) {
                 Ok(SessionEnd::Remote(0)) => std::process::exit(0),
                 Ok(end) => {
                     if hold_on_error {
@@ -704,8 +788,16 @@ fn run_supervisor() -> ! {
         Cmd::Observe {
             host,
             name,
+            transport,
             ssh_option,
-        } => match supervisor::observe(&config, &host, &name, &ssh_option, &mut notifier) {
+        } => match everudp_or_fallback(
+            &config,
+            transport,
+            &host,
+            EverudpOp::Observe { name: &name },
+            &ssh_option,
+            || supervisor::observe(&config, &host, &name, &ssh_option, &mut notifier),
+        ) {
             Ok(end) => exit_session_end(end),
             Err(error) => exit_error(error),
         },
@@ -732,11 +824,19 @@ fn run_supervisor() -> ! {
         },
         Cmd::ResumeAll {
             host,
+            transport,
             local_host,
             ssh_option,
         } => {
             let local = local_host.unwrap_or_else(|| config.local_host.clone());
-            match supervisor::resume_all(&config, &host, &local, &ssh_option, &mut notifier) {
+            match supervisor::resume_all(
+                &config,
+                &host,
+                &local,
+                transport.word(),
+                &ssh_option,
+                &mut notifier,
+            ) {
                 Ok(report) => {
                     if report.launched.is_empty()
                         && report.failures.is_empty()

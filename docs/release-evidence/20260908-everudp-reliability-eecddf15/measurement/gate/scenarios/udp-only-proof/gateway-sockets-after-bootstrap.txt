@@ -1,0 +1,4 @@
+Netid State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess
+udp   UNCONN 0      0         10.253.0.1:34021      0.0.0.0:*    users:(("everudp",pid=898334,fd=14))
+tcp   LISTEN 0      128       10.253.0.1:22453      0.0.0.0:*    users:(("sshd",pid=895335,fd=7))
+tcp   LISTEN 0      128    [fd42:253::1]:22453         [::]:*    users:(("sshd",pid=895335,fd=6))

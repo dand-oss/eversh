@@ -1,0 +1,75 @@
+[package]
+name = "everudp-quinn-eval"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Bounded, non-default Quinn engine comparison for everudp"
+build = "build.rs"
+
+[workspace]
+resolver = "2"
+
+[features]
+default = []
+cli = ["dep:clap"]
+tuning = []
+application-task-spike = []
+quic-ack-coalescing-spike = []
+quic-ack-threshold-spike = []
+
+[dependencies]
+everpty = { path = "../../crates/everpty" }
+everssh = { path = "../../crates/everssh", default-features = false }
+clap = { version = "=4.6.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"], optional = true }
+# Keep the production source's crate name while selecting Quinn 0.11.11.
+noq = { package = "quinn", version = "=0.11.11", default-features = false, features = ["runtime-tokio", "rustls-ring", "bloom"] }
+noq-proto = { package = "quinn-proto", version = "=0.11.15", default-features = false, features = ["rustls-ring", "bloom"] }
+rcgen = { version = "=0.13.2", default-features = false, features = ["ring", "zeroize"] }
+ring = "0.17"
+rustls = { version = "=0.23.43", default-features = false, features = ["ring", "std"] }
+tokio = { version = "1", features = ["rt", "net", "io-util", "time", "sync", "macros"] }
+zeroize = "1"
+
+[lib]
+name = "everudp"
+path = "../../crates/everudp/src/lib.rs"
+
+[[bin]]
+name = "everudp"
+path = "../../crates/everudp/src/main.rs"
+required-features = ["cli"]
+
+[[test]]
+name = "admission"
+path = "../../crates/everudp/tests/admission.rs"
+[[test]]
+name = "handshake"
+path = "../../crates/everudp/tests/handshake.rs"
+[[test]]
+name = "transport"
+path = "../../crates/everudp/tests/transport.rs"
+[[test]]
+name = "resume"
+path = "../../crates/everudp/tests/resume.rs"
+[[test]]
+name = "wire"
+path = "../../crates/everudp/tests/wire.rs"
+[[test]]
+name = "process"
+path = "../../crates/everudp/tests/process.rs"
+required-features = ["cli"]
+
+[profile.release]
+strip = "debuginfo"
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+panic = "unwind"
+
+[patch.crates-io]
+# everssh remains on the vendored NoQ implementation. The everudp alias above
+# is Quinn, so it is not affected by these patches.
+noq = { path = "../../vendor/noq" }
+noq-proto = { path = "../../vendor/noq-proto" }

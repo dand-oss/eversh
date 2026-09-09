@@ -1,0 +1,28 @@
+{
+  "analysis_sha256": "81c8f81f171425295bebe26264a263e34c7df03dc28798b34d33871cb10993c1",
+  "analyzer_exit_status": 1,
+  "blocks_per_cell": 6,
+  "build_provenance_sha256": "fe3f23f3ca4557be159ddb042c275ffcac9fcfbb39b9d3fa2a41c89580ed56df",
+  "candidate_count": 3,
+  "cells": [
+    0,
+    5
+  ],
+  "finished_utc": "2026-09-06T12:19:14Z",
+  "observations_per_candidate_per_cell": 1200,
+  "qualification_outcome": "FAIL",
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "cb93cf0a27de339bd444cd1692d1f6e61030868d",
+    "tree_sha": "8c5c0218b3d252f6896960dde46634fa0e1fe51a"
+  },
+  "started_utc": "2026-09-06T12:04:13Z",
+  "trials_per_candidate_per_block": 200,
+  "verdict": {
+    "all_four_comparisons_pass": false,
+    "exact_release_evidence": true,
+    "qualification_outcome": "FAIL",
+    "zero_transcript_failures": true
+  }
+}

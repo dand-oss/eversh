@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "verdict": "PASS",
+  "source": {
+    "head": "5d4c1283460586e9b4640ce10ca90d561206d3f9",
+    "tree": "070886e52959ceab13eed05b6a341400b629f86d"
+  },
+  "started_utc": "2026-09-09T02:21:14Z",
+  "completed_utc": "2026-09-09T02:21:24Z",
+  "smoke": false,
+  "twelve_hour_soak": "NOT_RUN",
+  "scenarios": [
+    {
+      "elapsed_ms": 10291,
+      "gap_notices": 1,
+      "messages": 3,
+      "mode": "overrun",
+      "responses": {
+        "RX:future-after-gap-forced-overrun": 1,
+        "RX:post-forced-overrun": 1,
+        "RX:quit": 1
+      },
+      "saw_reconnecting": true,
+      "schema_version": 1,
+      "session": "forced-overrun",
+      "stderr_bytes": 46,
+      "transcript_bytes": 172,
+      "verdict": "PASS"
+    }
+  ]
+}

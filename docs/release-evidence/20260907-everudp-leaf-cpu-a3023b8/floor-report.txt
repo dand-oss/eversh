@@ -1,0 +1,59 @@
+# To display the perf.data header info, please use --header/--header-only options.
+#
+#
+# Total Lost Samples: 0
+#
+# Samples: 677  of event 'cpu-clock:u'
+# Event count (approx.): 135427080
+#
+# Overhead  Command            Pid:Command        Shared Object  Symbol                                                                                                                                                                  IPC   [IPC Coverage]
+# ........  .............  .....................  .............  ......................................................................................................................................................................  ....................
+#
+     5.91%  everudp-floor  3647288:everudp-floor  everudp-floor  [.] noq_proto::connection::Connection::poll_transmit                                                                                                                    -      -            
+     4.14%  everudp-floor  3647288:everudp-floor  libc.so.6      [.] __internal_syscall_cancel                                                                                                                                           -      -            
+     2.66%  everudp-floor  3647349:everudp-floor  libc.so.6      [.] __internal_syscall_cancel                                                                                                                                           -      -            
+     2.51%  everudp-floor  3647349:everudp-floor  everudp-floor  [.] noq::endpoint::RecvState::poll_socket                                                                                                                               -      -            
+     2.07%  everudp-floor  3647349:everudp-floor  everudp-floor  [.] noq_proto::connection::Connection::poll_transmit                                                                                                                    -      -            
+     1.92%  everudp-floor  3647288:everudp-floor  everudp-floor  [.] noq_proto::connection::Connection::populate_packet                                                                                                                  -      -            
+     1.92%  everudp-floor  3647349:everudp-floor  everudp-floor  [.] noq_proto::connection::Connection::populate_packet                                                                                                                  -      -            
+     1.62%  everudp-floor  3647288:everudp-floor  everudp-floor  [.] noq_proto::connection::Connection::space_can_send                                                                                                                   -      -            
+     1.48%  everudp-floor  3647288:everudp-floor  everudp-floor  [.] <tracing::instrument::Instrumented<T> as core::future::future::Future>::poll                                                                                        -      -            
+     1.48%  everudp-floor  3647288:everudp-floor  everudp-floor  [.] everudp_floor::main                                                                                                                                                 -      -            
+     1.33%  everudp-floor  3647288:everudp-floor  everudp-floor  [.] everudp_floor::run_client::{{closure}}                                                                                                                              -      -            
+     1.33%  everudp-floor  3647288:everudp-floor  everudp-floor  [.] noq::endpoint::RecvState::poll_socket                                                                                                                               -      -            
+     1.33%  everudp-floor  3647349:everudp-floor  [vdso]         [.] __vdso_clock_gettime                                                                                                                                                -      -            
+     1.33%  everudp-floor  3647349:everudp-floor  everudp-floor  [.] noq_proto::connection::Connection::handle_timeout                                                                                                                   -      -            
+     1.18%  everudp-floor  3647349:everudp-floor  everudp-floor  [.] <tracing::instrument::Instrumented<T> as core::future::future::Future>::poll                                                                                        -      -            
+     1.03%  everudp-floor  3647288:everudp-floor  everudp-floor  [.] noq_proto::connection::Connection::process_payload                                                                                                                  -      -            
+     1.03%  everudp-floor  3647288:everudp-floor  everudp-floor  [.] ring_core_0_17_14__aes_hw_ctr32_encrypt_blocks                                                                                                                      -      -            
+     1.03%  everudp-floor  3647349:everudp-floor  everudp-floor  [.] everudp_floor::main                                                                                                                                                 -      -            
+     1.03%  everudp-floor  3647349:everudp-floor  everudp-floor  [.] tokio::runtime::time::wheel::Wheel::next_expiration                                                                                                                 -      -            
+     1.03%  everudp-floor  3647349:everudp-floor  libc.so.6      [.] clock_gettime@@GLIBC_2.17                                                                                                                                           -      -            
+
+
+# Samples: 404  of event 'cpu-clock:k'
+# Event count (approx.): 80816160
+#
+# Overhead  Command            Pid:Command        Shared Object      Symbol                                     IPC   [IPC Coverage]
+# ........  .............  .....................  .................  .........................................  ....................
+#
+     4.70%  everudp-floor  3647288:everudp-floor  [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore            -      -            
+     3.22%  everudp-floor  3647288:everudp-floor  [kernel.kallsyms]  [k] do_syscall_64                          -      -            
+     2.97%  everudp-floor  3647349:everudp-floor  [kernel.kallsyms]  [k] finish_task_switch.isra.0              -      -            
+     2.72%  everudp-floor  3647288:everudp-floor  [kernel.kallsyms]  [k] finish_task_switch.isra.0              -      -            
+     2.48%  everudp-floor  3647349:everudp-floor  [kernel.kallsyms]  [k] do_syscall_64                          -      -            
+     1.73%  everudp-floor  3647288:everudp-floor  [kernel.kallsyms]  [k] _raw_spin_unlock_irq                   -      -            
+     1.49%  everudp-floor  3647288:everudp-floor  [kernel.kallsyms]  [k] ip_route_input_slow                    -      -            
+     1.49%  everudp-floor  3647349:everudp-floor  [kernel.kallsyms]  [k] aa_sk_perm                             -      -            
+     1.49%  everudp-floor  3647349:everudp-floor  [kernel.kallsyms]  [k] fib_table_lookup                       -      -            
+     1.24%  everudp-floor  3647288:everudp-floor  [kernel.kallsyms]  [k] __x64_sys_epoll_wait                   -      -            
+     1.24%  everudp-floor  3647288:everudp-floor  [kernel.kallsyms]  [k] do_epoll_wait                          -      -            
+     1.24%  everudp-floor  3647349:everudp-floor  [kernel.kallsyms]  [k] __dev_queue_xmit                       -      -            
+     1.24%  everudp-floor  3647349:everudp-floor  [kernel.kallsyms]  [k] _raw_spin_unlock_irqrestore            -      -            
+     1.24%  everudp-floor  3647349:everudp-floor  [kernel.kallsyms]  [k] fdget                                  -      -            
+     1.24%  everudp-floor  3647349:everudp-floor  [kernel.kallsyms]  [k] skb_defer_free_flush                   -      -            
+
+
+#
+# (Cannot load tips.txt file, please install perf!)
+#

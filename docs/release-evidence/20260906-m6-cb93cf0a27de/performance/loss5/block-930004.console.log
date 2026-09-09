@@ -1,0 +1,4 @@
+performance block candidate 1/3: zmosh-udp
+performance block candidate 2/3: zmosh-quic
+performance block candidate 3/3: everudp
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T102238Z-cb93cf0a27de/performance/loss5/block-930004

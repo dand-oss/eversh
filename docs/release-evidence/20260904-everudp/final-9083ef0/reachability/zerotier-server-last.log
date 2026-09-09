@@ -1,0 +1,2 @@
+everudp-spike udp-server 172.30.25.5:60320
+everudp-spike association=19b668ae peer=172.30.25.4:60658

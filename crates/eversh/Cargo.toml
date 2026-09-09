@@ -9,13 +9,14 @@ description = "Multi-role supervisor binary for eversh (skeleton in M1)"
 [features]
 default = []
 # CLI support at the binary edge only; the library builds without it. The
-# combined binary dispatches to the shared everlink role edge, so the CLI
-# feature enables everlink's as well.
-cli = ["dep:clap", "everlink/cli"]
+# combined binary dispatches to both shared transport role edges, so the CLI
+# feature enables their parsers as well.
+cli = ["dep:clap", "everssh/cli", "everudp/cli"]
 
 [dependencies]
 everpty = { path = "../everpty" }
-everlink = { path = "../everlink" }
+everssh = { path = "../everssh" }
+everudp = { path = "../everudp", default-features = false }
 clap = { version = "=4.6.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"], optional = true }
 
 [dev-dependencies]

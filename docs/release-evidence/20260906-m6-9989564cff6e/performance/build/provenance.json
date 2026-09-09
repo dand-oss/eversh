@@ -1,0 +1,87 @@
+{
+  "artifacts": {
+    "everudp": {
+      "path": "artifacts/bin/everudp",
+      "sha256": "174447a3a8cadf5f3bd54e03cb1ae5a52a9ab4e2f2b0d01e481445c72c5bb50b"
+    },
+    "pty-bench": {
+      "path": "artifacts/bin/pty-bench",
+      "sha256": "ee716b8eff4f1b7de4b47e55f94ef9fa46bfeec844eefc2aabca24a6cddddc11"
+    },
+    "pty-echo": {
+      "path": "artifacts/bin/pty-echo",
+      "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e"
+    },
+    "zmosh-quic": {
+      "path": "artifacts/bin/zmosh-quic",
+      "sha256": "86d7d3143ec4d7f7a27883900ecffbb854aa031c90a5b5216772506f9aaf44cb"
+    },
+    "zmosh-quic-bridge": {
+      "path": "artifacts/bin/zmosh-quic-bridge",
+      "sha256": "d0341f6647ccd104517f9f0b8b5f48c9e046cd5aa00e27ed15c24e4a80db1c8a"
+    },
+    "zmosh-udp": {
+      "path": "artifacts/bin/zmosh-udp",
+      "sha256": "df9aa3beb6ebfcce8d9ae5a7c9e786688bc299e7a80c5b84a1f907bca7e4a268"
+    }
+  },
+  "commands": [
+    "cargo build --locked --release -p everudp --features cli",
+    "zig-0.15.2 build -Doptimize=ReleaseFast (zmosh UDP)",
+    "zig-0.16.0 build -Doptimize=ReleaseFast (zmosh QUIC)",
+    "zig-0.16.0 build --build-file zmosh-quic-bench-build.zig -Doptimize=ReleaseFast",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-bench.c -lutil",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-echo.c"
+  ],
+  "finished_utc": "2026-09-06T20:54:51Z",
+  "host": {
+    "platform": "Linux-7.1.8+deb14.1-amd64-x86_64-with-glibc2.43"
+  },
+  "inputs": {
+    "Cargo.lock": "a437a25c81c7ad09ed0ab114ab14d4c44c09efabac18e5acf6da4e0e5b916221",
+    "pty-bench.c": "bbd2f81ad095aae855ccef8ddf023a782af67bb8db9c672dafe0bbfefdca42de",
+    "pty-echo.c": "41108c62a545eb632b9dac4185c7ba8d975658c4e50bfa63b3adb91a116154d1",
+    "zmosh-quic-bench-build.zig": "87d34326fa4549871972735d3ef0f8d992b90d6cbd10efdd00611eaedbe4fdc0",
+    "zmosh-quic-bridge.zig": "fd87e46db7ad28117a6ecd706466651a97239a40d455a92a3aebbe76e7d9072d"
+  },
+  "isolation": {
+    "fresh_detached_zmosh_clones": true,
+    "isolated_cargo_target": true,
+    "isolated_zig_global_caches_per_baseline": true,
+    "isolated_zig_local_caches": true,
+    "quic_adapter_changes_tracked_baseline": false
+  },
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "9989564cff6ef9f1358aaf38516727ee76b6821d",
+    "tree_sha": "fe12ff6836e08f7dcf8fcb6ba1f18f50a180f883"
+  },
+  "started_utc": "2026-09-06T20:44:12Z",
+  "tools": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)",
+    "cc": "cc (Debian 16.2.0-1) 16.2.0",
+    "git": "git version 2.55.0",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+    "zig_0_15_2": {
+      "sha256": "2858dc89dbbfdd08cceda1b841e7fd0a793a1a67b49f150bc3d0d1de44ed7f51",
+      "version": "0.15.2"
+    },
+    "zig_0_16_0": {
+      "sha256": "2317bbb91798556d9d0f38aabdac23db83f0979b25f767259ae474546724087c",
+      "version": "0.16.0"
+    }
+  },
+  "zmosh_sources": {
+    "quic": {
+      "clean": true,
+      "commit": "21db4a4de6040b254531f2131b6f1c0cd146a7a1",
+      "tree": "38ea33069ce480a1b6465d4c49eafc59c3b6edd8"
+    },
+    "udp": {
+      "clean": true,
+      "commit": "dfc8395b5edcd237bf82712fbde879c6e8be7dfa",
+      "tree": "1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514"
+    }
+  }
+}

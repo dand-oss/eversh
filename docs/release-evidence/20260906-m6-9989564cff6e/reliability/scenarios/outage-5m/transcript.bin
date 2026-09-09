@@ -1,0 +1,9 @@
+pre-outage-5m
+RX:pre-outage-5m
+ASYNC:outage-5m
+during-outage-5m
+RX:during-outage-5m
+post-outage-5m
+RX:post-outage-5m
+quit
+RX:quit

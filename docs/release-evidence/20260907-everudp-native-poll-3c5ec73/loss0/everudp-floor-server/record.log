@@ -1,0 +1,2 @@
+[ perf record: Woken up 1 times to write data ]
+[ perf record: Captured and wrote 2.853 MB /tmp/everudp-native-poll-3c5ec73-loss0/everudp-floor-server/perf.data (768 samples) ]

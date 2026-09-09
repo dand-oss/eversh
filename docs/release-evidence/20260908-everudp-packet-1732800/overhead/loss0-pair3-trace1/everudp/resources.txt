@@ -1,0 +1,23 @@
+	Command being timed: "/usr/bin/env PTY_BENCH_WINDOW_DIR=/tmp/everudp-packet-1732800-overhead/loss0-pair3-trace1/everudp/window /usr/bin/taskset -c 40,42,44,46 /tmp/everudp-packet-1732800-build/artifacts/bin/pty-bench 200 100 /tmp/everudp-packet-1732800-overhead/loss0-pair3-trace1/everudp/result.json /tmp/everudp-packet-1732800-overhead/loss0-pair3-trace1/everudp/candidate.stderr -- /usr/bin/env -u EVERUDP_CLIENT_PATH_TRACE -u EVERUDP_PATH_IO_TRACE EVERUDP_CLIENT_PATH_TRACE=/tmp/everudp-packet-1732800-overhead/loss0-pair3-trace1/everudp/client-path-trace.json EVERUDP_PATH_IO_TRACE=1 EVERSH_STATE_DIR=/tmp/everudp-packet-1732800-overhead/loss0-pair3-trace1/everudp/client-state TERM=xterm-256color /tmp/everudp-packet-1732800-build/artifacts/bin/everudp --remote-program /tmp/everudp-perf-block.6krxZ3/remote-everudp/remote-everudp connect target --session perf-p219cc-1-everudp --ssh-option -F/tmp/everudp-perf-block.6krxZ3/client_config --status-file /tmp/everudp-packet-1732800-overhead/loss0-pair3-trace1/everudp/status.log -- /tmp/everudp-packet-1732800-build/artifacts/bin/pty-echo"
+	User time (seconds): 0.09
+	System time (seconds): 0.08
+	Percent of CPU this job got: 0%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:20.86
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 16772
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 3683
+	Voluntary context switches: 1639
+	Involuntary context switches: 4
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

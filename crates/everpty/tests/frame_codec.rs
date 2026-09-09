@@ -40,6 +40,7 @@ fn all_kinds_sample() -> Vec<Frame> {
             rows: 200,
             cols: 500,
         },
+        Frame::Signal { signal: 15 },
         Frame::Ownership(OwnershipEvent::Granted),
         Frame::Ownership(OwnershipEvent::Revoked),
         Frame::DetachWriter,

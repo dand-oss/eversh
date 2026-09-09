@@ -1,0 +1,125 @@
+{
+  "caveat": "Within-block resampling is not independent experiment replication or causal certainty. Allocation/component and production gates remain separate.",
+  "cells": {
+    "0": {
+      "candidate_baseline": {
+        "everudp-floor": {
+          "central95": [
+            0.8453865336658354,
+            1.0205198358413132
+          ],
+          "p50_ratio": 0.9201570680628273
+        },
+        "zmosh-udp": {
+          "central95": [
+            0.8883928571428571,
+            1.0161290322580645
+          ],
+          "p50_ratio": 0.9479768786127167
+        }
+      },
+      "runtimes": {
+        "baseline": {
+          "attempts": {
+            "everudp-floor": 1613,
+            "zmosh-udp": 1612
+          },
+          "numerical_floor_gate_pass": true,
+          "p50_ratio": 0.8832369942196532,
+          "p50_ratio_upper95": 0.9480048367593712,
+          "p50_us": {
+            "everudp-floor": 382.0,
+            "zmosh-udp": 432.5
+          },
+          "packet_block_ratios": [
+            1.0112219451371571,
+            0.9901234567901235
+          ],
+          "packet_ratio": 1.000620347394541
+        },
+        "candidate": {
+          "attempts": {
+            "everudp-floor": 1614,
+            "zmosh-udp": 1612
+          },
+          "numerical_floor_gate_pass": true,
+          "p50_ratio": 0.8573170731707317,
+          "p50_ratio_upper95": 0.9260204081632653,
+          "p50_us": {
+            "everudp-floor": 351.5,
+            "zmosh-udp": 410.0
+          },
+          "packet_block_ratios": [
+            0.9901234567901235,
+            1.0124688279301746
+          ],
+          "packet_ratio": 1.001240694789082
+        }
+      }
+    },
+    "5": {
+      "candidate_baseline": {
+        "everudp-floor": {
+          "central95": [
+            0.815347721822542,
+            0.9622411693057247
+          ],
+          "p50_ratio": 0.8941034897713598
+        },
+        "zmosh-udp": {
+          "central95": [
+            0.8341968911917098,
+            0.9788732394366197
+          ],
+          "p50_ratio": 0.9080717488789237
+        }
+      },
+      "runtimes": {
+        "baseline": {
+          "attempts": {
+            "everudp-floor": 1828,
+            "zmosh-udp": 1687
+          },
+          "numerical_floor_gate_pass": false,
+          "p50_ratio": 0.9316143497757847,
+          "p50_ratio_upper95": 0.9895104895104895,
+          "p50_us": {
+            "everudp-floor": 415.5,
+            "zmosh-udp": 446.0
+          },
+          "packet_block_ratios": [
+            1.1016548463356974,
+            1.065398335315101
+          ],
+          "packet_ratio": 1.0835803200948428
+        },
+        "candidate": {
+          "attempts": {
+            "everudp-floor": 1837,
+            "zmosh-udp": 1693
+          },
+          "numerical_floor_gate_pass": false,
+          "p50_ratio": 0.917283950617284,
+          "p50_ratio_upper95": 0.9799498746867168,
+          "p50_us": {
+            "everudp-floor": 371.5,
+            "zmosh-udp": 405.0
+          },
+          "packet_block_ratios": [
+            1.0892018779342723,
+            1.0808561236623069
+          ],
+          "packet_ratio": 1.0850561134081511
+        }
+      }
+    }
+  },
+  "production_adoption": false,
+  "qualification": "NOT_APPLICABLE",
+  "resamples": 20000,
+  "runtime_shas": {
+    "baseline": "1bdd3528bc4d257a1f33adc96b1fb48a97a777d9",
+    "candidate": "f90c878dfda16c86b7bd04ee255889450eedb859"
+  },
+  "status": "DIAGNOSTIC"
+}

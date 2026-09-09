@@ -1,0 +1,8 @@
+pid=4117795
+Name:	everudp-spike
+VmPeak:	    8000 kB
+VmHWM:	    4220 kB
+VmRSS:	    4220 kB
+Threads:	1
+user_ticks=0
+system_ticks=0

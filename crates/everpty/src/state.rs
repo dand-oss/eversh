@@ -14,7 +14,7 @@
 //! are positive, monotonic, and never wrap.
 //!
 //! Deferred OS effects ([`Effect::SpawnChild`], [`Effect::BeginKill`],
-//! [`Effect::ApplyDimensions`], [`Effect::Shutdown`]) are emitted here and
+//! [`Effect::ApplyDimensions`], [`Effect::ApplySignal`], [`Effect::Shutdown`]) are emitted here and
 //! executed by the commit-7 broker; this reducer itself never performs I/O.
 
 use std::fmt;
@@ -268,6 +268,10 @@ pub enum Effect {
         rows: u16,
         cols: u16,
     },
+    /// DEFERRED: deliver one allow-listed signal to the child process group.
+    ApplySignal {
+        signal: u8,
+    },
     /// DEFERRED: broker shutdown (unlink state, close all, exit).
     Shutdown,
 }
@@ -280,6 +284,7 @@ impl Effect {
             Self::SpawnChild { .. }
                 | Self::BeginKill
                 | Self::ApplyDimensions { .. }
+                | Self::ApplySignal { .. }
                 | Self::Shutdown
         )
     }
@@ -290,11 +295,14 @@ impl fmt::Debug for Effect {
         // Frame KINDS only — no frame payloads are ever printed.
         let kind = |fr: &Frame| match fr {
             Frame::Hello { .. } => "Hello",
+            Frame::GatewayHello { .. } => "GatewayHello",
             Frame::HelloAck { .. } => "HelloAck",
             Frame::Busy { .. } => "Busy",
             Frame::Input(_) => "Input",
             Frame::Output(_) => "Output",
             Frame::Resize { .. } => "Resize",
+            Frame::Signal { .. } => "Signal",
+            Frame::Lease { .. } => "Lease",
             Frame::Ownership(_) => "Ownership",
             Frame::DetachWriter => "DetachWriter",
             Frame::Kill => "Kill",
@@ -323,6 +331,7 @@ impl fmt::Debug for Effect {
             Self::SpawnChild { rows, cols } => write!(f, "SpawnChild({rows}x{cols})"),
             Self::BeginKill => write!(f, "BeginKill"),
             Self::ApplyDimensions { rows, cols } => write!(f, "ApplyDimensions({rows}x{cols})"),
+            Self::ApplySignal { signal } => write!(f, "ApplySignal({signal})"),
             Self::Shutdown => write!(f, "Shutdown"),
         }
     }
@@ -581,6 +590,9 @@ fn on_writer_frame(
                 return protocol_error(limits, conn);
             }
             vec![Effect::ApplyDimensions { rows, cols }]
+        }
+        Frame::Signal { signal } if is_current && frame::signal_is_allowed(*signal) => {
+            vec![Effect::ApplySignal { signal: *signal }]
         }
         Frame::DetachWriter if is_current => {
             // Self-detach: revoke, discard this writer's queues, tell it
@@ -1522,6 +1534,19 @@ mod tests {
             "unexpected effects: {fx:?}"
         );
 
+        // An allow-listed signal from the current writer is an ordered OS
+        // effect; the reducer never signals a process itself.
+        let fx = reduce(
+            &mut rt,
+            &limits(),
+            Event::Frame {
+                conn: 5,
+                role: ConnRole::Writer { client_id: 1 },
+                frame: &Frame::Signal { signal: 2 },
+            },
+        );
+        assert!(matches!(fx.as_slice(), [Effect::ApplySignal { signal: 2 }]));
+
         // Zero-valued Resize is a protocol error.
         for (rows, cols) in [(0, 0), (0, 80), (24, 0)] {
             let fx = reduce(
@@ -1585,6 +1610,7 @@ mod tests {
             Frame::DetachWriter,
             Frame::Input(vec![1]),
             Frame::Resize { rows: 1, cols: 1 },
+            Frame::Signal { signal: 2 },
             hello(WireRole::Observer, false, 0, 0),
         ] {
             let fx = reduce(

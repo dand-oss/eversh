@@ -1,0 +1,125 @@
+{
+  "blocks": [
+    {
+      "everudp_p50_us": 416,
+      "everudp_p95_us": 41747,
+      "manifest_sha256": "d76046cc92a863954a5aff6e4280f634646277c05b4f3e7b54388aec0bf23ad0",
+      "order": "everudp-first",
+      "p50_ratio": 0.8370221327967807,
+      "p95_ratio": 0.6860189962861932,
+      "path": "docs/release-evidence/20260904-everudp/parity/block-11001",
+      "seed": 11001,
+      "zmosh_p50_us": 497,
+      "zmosh_p95_us": 60854
+    },
+    {
+      "everudp_p50_us": 550,
+      "everudp_p95_us": 21602,
+      "manifest_sha256": "f6c240c4d100d29b5e283da847779bd7bfac564173dc8718367910a0c84c159a",
+      "order": "zmosh-first",
+      "p50_ratio": 1.1156186612576064,
+      "p95_ratio": 0.425186001653348,
+      "path": "docs/release-evidence/20260904-everudp/parity/block-11002",
+      "seed": 11002,
+      "zmosh_p50_us": 493,
+      "zmosh_p95_us": 50806
+    },
+    {
+      "everudp_p50_us": 434,
+      "everudp_p95_us": 21704,
+      "manifest_sha256": "5ac325e2458b6a75d334bd10e49814ab68f9c3cc121214ff9655d974f5f44b31",
+      "order": "everudp-first",
+      "p50_ratio": 0.9353448275862069,
+      "p95_ratio": 0.3569619420413802,
+      "path": "docs/release-evidence/20260904-everudp/parity/block-11003",
+      "seed": 11003,
+      "zmosh_p50_us": 464,
+      "zmosh_p95_us": 60802
+    },
+    {
+      "everudp_p50_us": 472,
+      "everudp_p95_us": 21474,
+      "manifest_sha256": "a1baea700f24e159f300987281e5efd5f3c1ea7b3ba847f16cc3ad73708640c6",
+      "order": "zmosh-first",
+      "p50_ratio": 0.9957805907172996,
+      "p95_ratio": 0.35323726806158706,
+      "path": "docs/release-evidence/20260904-everudp/parity/block-11004",
+      "seed": 11004,
+      "zmosh_p50_us": 474,
+      "zmosh_p95_us": 60792
+    },
+    {
+      "everudp_p50_us": 454,
+      "everudp_p95_us": 21493,
+      "manifest_sha256": "3e0a919c3f38c0228f70684e7748ea51e3700440b9c051408efff9900e4b705c",
+      "order": "everudp-first",
+      "p50_ratio": 0.9639065817409767,
+      "p95_ratio": 0.4244105683029896,
+      "path": "docs/release-evidence/20260904-everudp/parity/block-11005",
+      "seed": 11005,
+      "zmosh_p50_us": 471,
+      "zmosh_p95_us": 50642
+    },
+    {
+      "everudp_p50_us": 462,
+      "everudp_p95_us": 21653,
+      "manifest_sha256": "fb45f8a5b386ae3a99e4a0b3cd9a0c1fb52a94ececd7ddd2dc29aa3c945cc2d9",
+      "order": "zmosh-first",
+      "p50_ratio": 0.9956896551724138,
+      "p95_ratio": 0.3565512358181429,
+      "path": "docs/release-evidence/20260904-everudp/parity/block-11006",
+      "seed": 11006,
+      "zmosh_p50_us": 464,
+      "zmosh_p95_us": 60729
+    }
+  ],
+  "method": {
+    "quantile": "empirical nearest-rank ceil(p*n)-1, applied identically to both candidates",
+    "thresholds": {
+      "p50_ratio_max": 1.1,
+      "p95_ratio_max": 1.15
+    },
+    "uncertainty": "stratified independent nonparametric bootstrap within each run block"
+  },
+  "pooled": {
+    "everudp_n": 600,
+    "everudp_p50_us": 464,
+    "everudp_p95_us": 21573,
+    "p50_ratio": 0.9727463312368972,
+    "p95_ratio": 0.3548074076510641,
+    "probability_everudp_faster": 0.5617513888888889,
+    "zmosh_n": 600,
+    "zmosh_p50_us": 477,
+    "zmosh_p95_us": 60802
+  },
+  "schema_version": 1,
+  "source": {
+    "all_blocks_clean": true,
+    "artifact_sha256": {
+      "everudp": "8a04d8ed8dfa6aad95bede3fbc908efbaaac2257acc04c9545ed1975f3a59e86",
+      "zmosh": "7c2494c29f24d250eeccc445331a63bf1658d216fb3cefdb7b6c2eefa0ed97f1",
+      "zmosh_bench": "e09fb37d5990a9be14ce594be86f5486f1ecafb91b6d99e3fa112267220013d2"
+    },
+    "head_sha": "1a1029cbe115f909a8bcadc6f36ebd3f760a7d61",
+    "tree_sha": "95b7b7059d04f336d887efa5d9700068d83dc359"
+  },
+  "uncertainty": {
+    "iterations": 20000,
+    "p50_ratio_ci95": [
+      0.9222903885480572,
+      1.0252100840336134
+    ],
+    "p50_ratio_upper95": 1.014799154334038,
+    "p95_ratio_ci95": [
+      0.35330945182069146,
+      0.4272987089780231
+    ],
+    "p95_ratio_upper95": 0.42670157068062825,
+    "seed": 9015
+  },
+  "verdict": {
+    "conservative_upper95_equivalence_pass": true,
+    "exact_sha_evidence_pass": true,
+    "preregistered_point_rule_pass": true
+  }
+}

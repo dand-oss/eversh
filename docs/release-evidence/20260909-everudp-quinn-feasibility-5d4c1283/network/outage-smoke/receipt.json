@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "verdict": "PASS",
+  "source": {
+    "head": "5d4c1283460586e9b4640ce10ca90d561206d3f9",
+    "tree": "070886e52959ceab13eed05b6a341400b629f86d"
+  },
+  "started_utc": "2026-09-09T02:20:36Z",
+  "completed_utc": "2026-09-09T02:21:12Z",
+  "smoke": false,
+  "twelve_hour_soak": "NOT_RUN",
+  "scenarios": [
+    {
+      "elapsed_ms": 35808,
+      "gap_notices": 0,
+      "messages": 4,
+      "mode": "outage",
+      "observed_outage_seconds": 35,
+      "required_outage_seconds": 35,
+      "responses": {
+        "ASYNC:outage-smoke": 1,
+        "RX:during-outage-smoke": 1,
+        "RX:post-outage-smoke": 1,
+        "RX:quit": 1
+      },
+      "saw_reconnecting": true,
+      "schema_version": 1,
+      "session": "outage-smoke",
+      "stderr_bytes": 0,
+      "transcript_bytes": 160,
+      "verdict": "PASS"
+    }
+  ]
+}

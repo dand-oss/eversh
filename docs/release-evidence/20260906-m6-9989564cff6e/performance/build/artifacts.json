@@ -1,0 +1,33 @@
+{
+  "artifacts": {
+    "everudp": {
+      "sha256": "174447a3a8cadf5f3bd54e03cb1ae5a52a9ab4e2f2b0d01e481445c72c5bb50b",
+      "size_bytes": 6618816
+    },
+    "pty-bench": {
+      "sha256": "ee716b8eff4f1b7de4b47e55f94ef9fa46bfeec844eefc2aabca24a6cddddc11",
+      "size_bytes": 22032
+    },
+    "pty-echo": {
+      "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e",
+      "size_bytes": 16232
+    },
+    "zmosh-quic": {
+      "sha256": "86d7d3143ec4d7f7a27883900ecffbb854aa031c90a5b5216772506f9aaf44cb",
+      "size_bytes": 22550968
+    },
+    "zmosh-quic-bridge": {
+      "sha256": "d0341f6647ccd104517f9f0b8b5f48c9e046cd5aa00e27ed15c24e4a80db1c8a",
+      "size_bytes": 16016264
+    },
+    "zmosh-udp": {
+      "sha256": "df9aa3beb6ebfcce8d9ae5a7c9e786688bc299e7a80c5b84a1f907bca7e4a268",
+      "size_bytes": 11758800
+    }
+  },
+  "artifacts_embedded": false,
+  "disposition": "content-addressed exact-build artifacts; binaries are reproducible from the copied provenance and intentionally not embedded in release evidence",
+  "exact_build_provenance_sha256": "5372cc0cba4666253098457f6eab74c1d3a6b814efe310928d8a42dd46d11b92",
+  "schema_version": 1,
+  "source_build_manifest_sha256": "315eec7d74a7cce9820d4deb07bd13d9e54d7dd94afa30fc68b823966b59487c"
+}

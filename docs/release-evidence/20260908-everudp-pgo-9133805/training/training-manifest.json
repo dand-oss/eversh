@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "qualification": false,
+  "status": "TRAINING_FROZEN",
+  "source_sha": "eecddf15f4d8eb72f0f887cc5ec6ac5bae614bc5",
+  "local_harness_sha": "a5584f039b3601bfa4409e5570c354ae470f791a",
+  "network_harness_commit_prefix": "a2586b6",
+  "instrumented_binary_sha256": "63500d5e3d526d07b173b9f08f39b642c4173e27c69c8137b26e91b0db252e18",
+  "included_build_id": "5f264a466aaa98c8f1a300a59c1129734e7dba4a",
+  "excluded_test_runner_build_id": "698537dae179978ec68d586558f61f50b0c39a53",
+  "raw_sha256": "58987005155c5c1aa81c0ea05e7734f8a4a5caad4263f938f0911b2716ebb35c",
+  "merged_sha256": "5acb010521a87978842218737bd186a15389a5fbe2805e31b704827ae3b5d132",
+  "merge_tool": "/usr/bin/llvm-profdata-21",
+  "merge_failure_mode": "any",
+  "training_receipts": [
+    "/tmp/everudp-pgo-process-training/receipt.json",
+    "/tmp/everudp-pgo-fixture-MuGWEy/instrumented/pgo-training-receipt.json",
+    "/tmp/everudp-pgo-net-instrumented/pgo-network-training-receipt.json"
+  ],
+  "retrain_after_evaluation": false
+}

@@ -1,0 +1,232 @@
+{
+  "bootstrap": {
+    "block_stratified": true,
+    "caveat": "Within-block resampling, not independent experiment replications or causal overhead certainty.",
+    "resamples": 20000
+  },
+  "cells": {
+    "0": {
+      "cpu_clock_pair_calibration_ns": {
+        "max": 1902,
+        "median": 721.5,
+        "min": 570
+      },
+      "included_stage_trials": 400,
+      "overhead_observations": {
+        "everudp-floor": {
+          "observations_per_mode": 400,
+          "off_p50_us": 403.0,
+          "on_off_p50_ratio": 0.9392059553349876,
+          "on_off_ratio_central95": [
+            0.8680555555555556,
+            1.0012987012987014
+          ],
+          "on_p50_us": 378.5
+        },
+        "zmosh-udp": {
+          "observations_per_mode": 400,
+          "off_p50_us": 417.5,
+          "on_off_p50_ratio": 1.0119760479041917,
+          "on_off_ratio_central95": [
+            0.9462857142857143,
+            1.1037037037037036
+          ],
+          "on_p50_us": 422.5
+        }
+      },
+      "pooled_stage_medians_ns": {
+        "thread_cpu": {
+          "encoded_to_pre_offer": 1875.0,
+          "encoding": 5289.0,
+          "offer": 2279.0,
+          "offer_to_post_offer": 958.5,
+          "post_offer_reactor": 73136.5,
+          "pre_offer_reactor": 20788.0,
+          "pre_offer_to_offer": 2179.5
+        },
+        "wall": {
+          "encoded_to_pre_offer": 1936.0,
+          "encoding": 6577.0,
+          "offer": 2239.0,
+          "offer_to_post_offer": 1002.5,
+          "post_offer_reactor": 72697.5,
+          "pre_offer_reactor": 20650.5,
+          "pre_offer_to_offer": 2287.0
+        }
+      },
+      "stage_reports": {
+        "loss0-block2": {
+          "aggregate_medians_ns": {
+            "thread_cpu": {
+              "encoded_to_pre_offer": 1864.0,
+              "encoding": 5149.5,
+              "offer": 2202.5,
+              "offer_to_post_offer": 931.0,
+              "post_offer_reactor": 72240.0,
+              "pre_offer_reactor": 20462.0,
+              "pre_offer_to_offer": 2181.5
+            },
+            "wall": {
+              "encoded_to_pre_offer": 1913.0,
+              "encoding": 6439.0,
+              "offer": 2188.5,
+              "offer_to_post_offer": 961.0,
+              "post_offer_reactor": 71934.5,
+              "pre_offer_reactor": 20303.5,
+              "pre_offer_to_offer": 2294.5
+            }
+          },
+          "excluded_rows": [],
+          "included_trials": 200,
+          "limitation": "Stage intervals are observed wall and thread-CPU samples; no causal scheduler or CPU inference.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 4184197,
+          "target_tid": 4184197
+        },
+        "loss0-block3": {
+          "aggregate_medians_ns": {
+            "thread_cpu": {
+              "encoded_to_pre_offer": 1890.5,
+              "encoding": 5463.0,
+              "offer": 2412.5,
+              "offer_to_post_offer": 1015.5,
+              "post_offer_reactor": 76145.0,
+              "pre_offer_reactor": 21179.0,
+              "pre_offer_to_offer": 2179.5
+            },
+            "wall": {
+              "encoded_to_pre_offer": 1969.0,
+              "encoding": 6741.5,
+              "offer": 2371.0,
+              "offer_to_post_offer": 1054.5,
+              "post_offer_reactor": 74633.0,
+              "pre_offer_reactor": 21062.0,
+              "pre_offer_to_offer": 2281.5
+            }
+          },
+          "excluded_rows": [],
+          "included_trials": 200,
+          "limitation": "Stage intervals are observed wall and thread-CPU samples; no causal scheduler or CPU inference.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 26566,
+          "target_tid": 26566
+        }
+      }
+    },
+    "5": {
+      "cpu_clock_pair_calibration_ns": {
+        "max": 1661,
+        "median": 566.0,
+        "min": 530
+      },
+      "included_stage_trials": 400,
+      "overhead_observations": {
+        "everudp-floor": {
+          "observations_per_mode": 400,
+          "off_p50_us": 430.0,
+          "on_off_p50_ratio": 1.013953488372093,
+          "on_off_ratio_central95": [
+            0.9609644087256027,
+            1.0893719806763285
+          ],
+          "on_p50_us": 436.0
+        },
+        "zmosh-udp": {
+          "observations_per_mode": 400,
+          "off_p50_us": 420.5,
+          "on_off_p50_ratio": 1.019024970273484,
+          "on_off_ratio_central95": [
+            0.9341517857142857,
+            1.0956521739130434
+          ],
+          "on_p50_us": 428.5
+        }
+      },
+      "pooled_stage_medians_ns": {
+        "thread_cpu": {
+          "encoded_to_pre_offer": 1981.5,
+          "encoding": 5795.0,
+          "offer": 2416.0,
+          "offer_to_post_offer": 1071.5,
+          "post_offer_reactor": 79119.0,
+          "pre_offer_reactor": 21195.5,
+          "pre_offer_to_offer": 2276.5
+        },
+        "wall": {
+          "encoded_to_pre_offer": 2063.0,
+          "encoding": 7186.0,
+          "offer": 2379.5,
+          "offer_to_post_offer": 1139.5,
+          "post_offer_reactor": 78335.0,
+          "pre_offer_reactor": 21020.0,
+          "pre_offer_to_offer": 2424.5
+        }
+      },
+      "stage_reports": {
+        "loss5-block2": {
+          "aggregate_medians_ns": {
+            "thread_cpu": {
+              "encoded_to_pre_offer": 1895.0,
+              "encoding": 5473.5,
+              "offer": 2393.5,
+              "offer_to_post_offer": 1022.5,
+              "post_offer_reactor": 73326.0,
+              "pre_offer_reactor": 20676.5,
+              "pre_offer_to_offer": 2132.5
+            },
+            "wall": {
+              "encoded_to_pre_offer": 1995.5,
+              "encoding": 6809.0,
+              "offer": 2347.5,
+              "offer_to_post_offer": 1078.5,
+              "post_offer_reactor": 72134.0,
+              "pre_offer_reactor": 20591.5,
+              "pre_offer_to_offer": 2268.0
+            }
+          },
+          "excluded_rows": [],
+          "included_trials": 200,
+          "limitation": "Stage intervals are observed wall and thread-CPU samples; no causal scheduler or CPU inference.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 93071,
+          "target_tid": 93071
+        },
+        "loss5-block3": {
+          "aggregate_medians_ns": {
+            "thread_cpu": {
+              "encoded_to_pre_offer": 2052.0,
+              "encoding": 6237.5,
+              "offer": 2422.0,
+              "offer_to_post_offer": 1132.0,
+              "post_offer_reactor": 83321.0,
+              "pre_offer_reactor": 21717.5,
+              "pre_offer_to_offer": 2391.5
+            },
+            "wall": {
+              "encoded_to_pre_offer": 2172.5,
+              "encoding": 7503.5,
+              "offer": 2404.0,
+              "offer_to_post_offer": 1162.5,
+              "post_offer_reactor": 82932.0,
+              "pre_offer_reactor": 21549.0,
+              "pre_offer_to_offer": 2574.5
+            }
+          },
+          "excluded_rows": [],
+          "included_trials": 200,
+          "limitation": "Stage intervals are observed wall and thread-CPU samples; no causal scheduler or CPU inference.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 106676,
+          "target_tid": 106676
+        }
+      }
+    }
+  },
+  "production_actor_integration_authorized": false,
+  "qualification": "NOT_APPLICABLE",
+  "status": "DIAGNOSTIC"
+}

@@ -1,0 +1,99 @@
+21:21:26.801678 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x5650cd4a5980}], 1024, 939) = 1
+21:21:27.692088 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408433015]>
+21:21:27.692740 bind(17<UDP:[408433015]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("0.0.0.0")}, 16) = 0
+21:21:27.693119 connect(17<UDP:[408433015]>, {sa_family=AF_INET, sin_port=htons(39294), sin_addr=inet_addr("10.253.0.1")}, 16) = 0
+21:21:27.693467 getsockname(17<UDP:[408433015]>, {sa_family=AF_INET, sin_port=htons(56429), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.694105 socket(AF_NETLINK, SOCK_RAW|SOCK_CLOEXEC, NETLINK_ROUTE) = 18<NETLINK:[408433021]>
+21:21:27.694484 bind(18<NETLINK:[408433021]>, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 0
+21:21:27.694820 close(18<NETLINK:[408433021]>) = 0
+21:21:27.695012 close(17<UDP:[408433015]>) = 0
+21:21:27.695374 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408433027]>
+21:21:27.695703 bind(17<UDP:[408433027]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("10.253.0.2")}, 16) = 0
+21:21:27.696037 getsockname(17<UDP:[408433027]>, {sa_family=AF_INET, sin_port=htons(59273), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.696369 getsockname(10<UDP:[408438068]>, {sa_family=AF_INET, sin_port=htons(57978), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.696695 close(17<UDP:[408433027]>) = 0
+21:21:27.697088 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408433033]>
+21:21:27.697421 bind(17<UDP:[408433033]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("0.0.0.0")}, 16) = 0
+21:21:27.697747 connect(17<UDP:[408433033]>, {sa_family=AF_INET, sin_port=htons(39294), sin_addr=inet_addr("10.253.0.1")}, 16) = 0
+21:21:27.698083 getsockname(17<UDP:[408433033]>, {sa_family=AF_INET, sin_port=htons(44280), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.698411 socket(AF_NETLINK, SOCK_RAW|SOCK_CLOEXEC, NETLINK_ROUTE) = 18<NETLINK:[408433038]>
+21:21:27.698739 bind(18<NETLINK:[408433038]>, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 0
+21:21:27.699070 close(18<NETLINK:[408433038]>) = 0
+21:21:27.699259 close(17<UDP:[408433033]>) = 0
+21:21:27.699623 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408433043]>
+21:21:27.699942 bind(17<UDP:[408433043]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("10.253.0.2")}, 16) = 0
+21:21:27.700270 getsockname(17<UDP:[408433043]>, {sa_family=AF_INET, sin_port=htons(57305), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.700600 getsockname(10<UDP:[408438068]>, {sa_family=AF_INET, sin_port=htons(57978), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.700929 close(17<UDP:[408433043]>) = 0
+21:21:27.701332 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x5650cd4a5980}], 1024, 39) = 1
+21:21:27.725387 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408452441]>
+21:21:27.725986 bind(17<UDP:[408452441]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("0.0.0.0")}, 16) = 0
+21:21:27.726403 connect(17<UDP:[408452441]>, {sa_family=AF_INET, sin_port=htons(39294), sin_addr=inet_addr("10.253.0.1")}, 16) = 0
+21:21:27.726777 getsockname(17<UDP:[408452441]>, {sa_family=AF_INET, sin_port=htons(35661), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.727138 socket(AF_NETLINK, SOCK_RAW|SOCK_CLOEXEC, NETLINK_ROUTE) = 18<NETLINK:[408452442]>
+21:21:27.727547 bind(18<NETLINK:[408452442]>, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 0
+21:21:27.727970 close(18<NETLINK:[408452442]>) = 0
+21:21:27.728193 close(17<UDP:[408452441]>) = 0
+21:21:27.728576 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408452443]>
+21:21:27.728938 bind(17<UDP:[408452443]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("10.253.0.2")}, 16) = 0
+21:21:27.729310 getsockname(17<UDP:[408452443]>, {sa_family=AF_INET, sin_port=htons(44303), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.729663 getsockname(10<UDP:[408438068]>, {sa_family=AF_INET, sin_port=htons(57978), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.730002 close(17<UDP:[408452443]>) = 0
+21:21:27.730380 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408433062]>
+21:21:27.730707 bind(17<UDP:[408433062]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("0.0.0.0")}, 16) = 0
+21:21:27.731029 connect(17<UDP:[408433062]>, {sa_family=AF_INET, sin_port=htons(39294), sin_addr=inet_addr("10.253.0.1")}, 16) = 0
+21:21:27.731368 getsockname(17<UDP:[408433062]>, {sa_family=AF_INET, sin_port=htons(60040), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.731690 socket(AF_NETLINK, SOCK_RAW|SOCK_CLOEXEC, NETLINK_ROUTE) = 18<NETLINK:[408433067]>
+21:21:27.732017 bind(18<NETLINK:[408433067]>, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 0
+21:21:27.732341 close(18<NETLINK:[408433067]>) = 0
+21:21:27.732519 close(17<UDP:[408433062]>) = 0
+21:21:27.732881 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408433072]>
+21:21:27.733241 bind(17<UDP:[408433072]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("10.253.0.2")}, 16) = 0
+21:21:27.733573 getsockname(17<UDP:[408433072]>, {sa_family=AF_INET, sin_port=htons(55041), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.733908 getsockname(10<UDP:[408438068]>, {sa_family=AF_INET, sin_port=htons(57978), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.734239 close(17<UDP:[408433072]>) = 0
+21:21:27.734616 epoll_wait(3<anon_inode:[eventpoll]>, [], 1024, 6) = 0
+21:21:27.740857 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408433078]>
+21:21:27.741452 bind(17<UDP:[408433078]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("0.0.0.0")}, 16) = 0
+21:21:27.741827 connect(17<UDP:[408433078]>, {sa_family=AF_INET, sin_port=htons(39294), sin_addr=inet_addr("10.253.0.1")}, 16) = 0
+21:21:27.742182 getsockname(17<UDP:[408433078]>, {sa_family=AF_INET, sin_port=htons(44385), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.742518 socket(AF_NETLINK, SOCK_RAW|SOCK_CLOEXEC, NETLINK_ROUTE) = 18<NETLINK:[408433083]>
+21:21:27.742867 bind(18<NETLINK:[408433083]>, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 0
+21:21:27.743194 close(18<NETLINK:[408433083]>) = 0
+21:21:27.743379 close(17<UDP:[408433078]>) = 0
+21:21:27.743728 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408433088]>
+21:21:27.744060 bind(17<UDP:[408433088]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("10.253.0.2")}, 16) = 0
+21:21:27.744382 getsockname(17<UDP:[408433088]>, {sa_family=AF_INET, sin_port=htons(35803), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.744712 getsockname(10<UDP:[408438068]>, {sa_family=AF_INET, sin_port=htons(57978), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:27.745057 close(17<UDP:[408433088]>) = 0
+21:21:27.745431 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN, data=0}], 1024, 955) = 1
+21:21:27.745530 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x5650cd4a5980}], 1024, 955) = 1
+21:21:28.030234 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408433094]>
+21:21:28.031759 bind(17<UDP:[408433094]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("0.0.0.0")}, 16) = 0
+21:21:28.033494 connect(17<UDP:[408433094]>, {sa_family=AF_INET, sin_port=htons(39294), sin_addr=inet_addr("10.253.0.1")}, 16) = 0
+21:21:28.033952 getsockname(17<UDP:[408433094]>, {sa_family=AF_INET, sin_port=htons(59783), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:28.034321 socket(AF_NETLINK, SOCK_RAW|SOCK_CLOEXEC, NETLINK_ROUTE) = 18<NETLINK:[408445139]>
+21:21:28.034645 bind(18<NETLINK:[408445139]>, {sa_family=AF_NETLINK, nl_pid=0, nl_groups=00000000}, 12) = 0
+21:21:28.035670 close(18<NETLINK:[408445139]>) = 0
+21:21:28.037104 close(17<UDP:[408433094]>) = 0
+21:21:28.038880 socket(AF_INET, SOCK_DGRAM|SOCK_CLOEXEC, IPPROTO_IP) = 17<UDP:[408445144]>
+21:21:28.039333 bind(17<UDP:[408445144]>, {sa_family=AF_INET, sin_port=htons(0), sin_addr=inet_addr("10.253.0.2")}, 16) = 0
+21:21:28.039705 getsockname(17<UDP:[408445144]>, {sa_family=AF_INET, sin_port=htons(42810), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:28.040056 getsockname(10<UDP:[408438068]>, {sa_family=AF_INET, sin_port=htons(57978), sin_addr=inet_addr("10.253.0.2")}, [128 => 16]) = 0
+21:21:28.040417 close(17<UDP:[408445144]>) = 0
+21:21:28.040823 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x5650cd43eb00}, {events=EPOLLIN|EPOLLOUT, data=0x5650cd43e700}], 1024, 660) = 2
+21:21:28.355802 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x5650cd43eb00}, {events=EPOLLOUT, data=0x5650cd43e700}, {events=EPOLLOUT, data=0x5650cd43e580}, {events=EPOLLIN, data=0}], 1024, 6) = 4
+21:21:28.356215 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x5650cd43e580}], 1024, 5) = 1
+21:21:28.356495 epoll_wait(3<anon_inode:[eventpoll]>, [], 1024, 5) = 0
+21:21:28.361720 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x5650cd43e580}], 1024, 339) = 1
+21:21:28.367634 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x5650cd43e580}], 1024, 0) = 1
+21:21:28.367926 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x5650cd43e580}], 1024, 333) = 1
+21:21:28.368736 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x5650cd43e580}], 1024, 0) = 1
+21:21:28.368863 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x5650cd43e580}], 1024, 332) = 1
+21:21:28.369257 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x5650cd43e580}], 1024, 0) = 1
+21:21:28.372318 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x5650cd43eb00}, {events=EPOLLOUT, data=0x5650cd43e700}, {events=EPOLLIN|EPOLLOUT, data=0x5650cd43e580}, {events=EPOLLIN, data=0}], 1024, 0) = 4
+21:21:28.372946 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x5650cd43eb00}, {events=EPOLLOUT, data=0x5650cd43e700}, {events=EPOLLOUT, data=0x5650cd43e580}], 1024, 3) = 3
+21:21:28.373077 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x5650cd43e580}], 1024, 3) = 1
+21:21:28.373639 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x5650cd43eb00}, {events=EPOLLOUT, data=0x5650cd43e700}], 1024, 2) = 2
+21:21:28.374326 epoll_wait(3<anon_inode:[eventpoll]>, [], 1024, 1) = 0
+21:21:28.375491 epoll_wait(3<anon_inode:[eventpoll]> <detached ...>

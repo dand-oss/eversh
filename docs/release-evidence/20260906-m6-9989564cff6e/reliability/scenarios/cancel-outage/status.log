@@ -1,0 +1,7 @@
+everudp-status-v1 state connecting
+everudp-status-v1 state connected
+everudp-status-v1 state carrying
+everudp-status-v1 state disconnected ambiguous-input=0
+everudp-status-v1 state migrating
+everudp-status-v1 state reconnecting ambiguous-input=0
+everudp-status-v1 cause local-cancel carried=1 ambiguous-input=0

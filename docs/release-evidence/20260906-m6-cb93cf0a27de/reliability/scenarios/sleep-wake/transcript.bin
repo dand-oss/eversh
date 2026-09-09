@@ -1,0 +1,7 @@
+pre-sleep-wake
+RX:pre-sleep-wake
+ASYNC:sleep-wake
+post-sleep-wake
+RX:post-sleep-wake
+quit
+RX:quit

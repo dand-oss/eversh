@@ -1,0 +1,23 @@
+
+running 1 test
+active_writer_rejects_non_takeover_without_udp_fallback_code --- FAILED
+
+failures:
+
+---- active_writer_rejects_non_takeover_without_udp_fallback_code stdout ----
+
+thread 'active_writer_rejects_non_takeover_without_udp_fallback_code' (2879268) panicked at crates/everudp/tests/process.rs:473:17:
+everudp writer exit timed out; transcript-bytes=40; tail="survived\r\nOUT:survived\r\nquit\r\nOUT:quit\r\n"; stderr=; link-states=["connecting", "connected", "carrying", "disconnected", "migrating", "reconnecting"]; processes=pid=2879269 State:	S (sleeping) PPid:	2879267 Threads:	1 wait=do_epoll_wait; exit-events=2879274 active-permanent-error
+2879274 error-queue-sequence-gap
+2879274 gateway-queue-exit
+2879274 gateway-terminal-empty
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    active_writer_rejects_non_takeover_without_udp_fallback_code
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 12 filtered out; finished in 15.47s
+
+error: test failed, to rerun pass `-p everudp --test process`

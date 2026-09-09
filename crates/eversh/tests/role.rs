@@ -1,5 +1,5 @@
-//! Role-selection purity and runtime-isolation tests: every non-everlink
-//! role must leave the runtime-construction counter at zero.
+//! Role-selection purity and runtime-isolation tests. Selecting a role never
+//! constructs either transport's runtime; only the chosen edge may do so.
 #![allow(clippy::unwrap_used)]
 
 use eversh::role::{select_role, Role};
@@ -7,49 +7,46 @@ use eversh::role::{select_role, Role};
 #[test]
 fn selection_is_pure_and_exact() {
     assert_eq!(select_role(&["__everpty"]), Role::Everpty);
-    assert_eq!(select_role(&["__everlink", "server"]), Role::Everlink);
+    assert_eq!(select_role(&["__everssh", "server"]), Role::Everssh);
+    assert_eq!(select_role(&["__everudp", "connect"]), Role::Everudp);
     assert_eq!(select_role(&["connect", "host"]), Role::Supervisor);
     assert_eq!(select_role::<String>(&[]), Role::Supervisor);
     assert_eq!(select_role(&["--version"]), Role::Supervisor);
     // A role marker buried past the first few args is not a role dispatch.
     assert_eq!(
-        select_role(&["connect", "host", "--", "__everlink"]),
+        select_role(&["connect", "host", "--", "__everssh"]),
+        Role::Supervisor
+    );
+    assert_eq!(
+        select_role(&["connect", "host", "--", "__everudp"]),
         Role::Supervisor
     );
 }
 
 #[test]
-fn non_everlink_roles_never_construct_a_runtime() {
-    // The counter starts at zero in this test process; selecting every
-    // non-everlink role and running M1 dispatch logic must keep it there.
-    // (M1 dispatch is selection + documentation; no runtime is built.)
-    let before = everlink::runtime::constructions();
+fn pure_selection_never_constructs_the_everssh_runtime() {
+    let before = everssh::runtime::constructions();
     for args in [
         vec!["__everpty"],
+        vec!["__everudp"],
         vec!["attach", "host", "s"],
         vec!["list", "host"],
         vec!["--help"],
         vec![],
     ] {
-        let role = select_role(&args);
-        assert_ne!(
-            role,
-            Role::Everlink,
-            "fixture must be non-everlink: {args:?}"
-        );
-        // Supervisor/everpty dispatch performs no runtime construction.
+        let _role = select_role(&args);
     }
     assert_eq!(
-        everlink::runtime::constructions(),
+        everssh::runtime::constructions(),
         before,
-        "non-everlink roles must leave the runtime counter untouched"
+        "pure role selection must leave the runtime counter untouched"
     );
 }
 
 #[test]
-fn everlink_runtime_counter_accounts_constructions() {
+fn everssh_runtime_counter_accounts_constructions() {
     // Sanity of the counter itself (this test intentionally builds one).
-    let before = everlink::runtime::constructions();
-    let _rt = everlink::runtime::build().expect("runtime builds");
-    assert_eq!(everlink::runtime::constructions(), before + 1);
+    let before = everssh::runtime::constructions();
+    let _rt = everssh::runtime::build().expect("runtime builds");
+    assert_eq!(everssh::runtime::constructions(), before + 1);
 }

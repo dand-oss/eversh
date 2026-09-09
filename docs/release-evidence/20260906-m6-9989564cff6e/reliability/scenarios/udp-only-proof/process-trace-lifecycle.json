@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "window": {
+    "begin": "before-control-go",
+    "end": "driver-done",
+    "attached_before_go_utc": "2026-09-06T20:08:06Z",
+    "attached_at_driver_done_utc": "2026-09-06T20:08:07Z",
+    "tracers_stopped_utc": "2026-09-06T20:08:07Z"
+  },
+  "client": {
+    "tracee_pid": 675534,
+    "tracer_pid": 675631,
+    "attached_before_go": true,
+    "attached_at_driver_done": true,
+    "shutdown_signal": "SIGINT",
+    "wait_status": 130,
+    "stderr_bytes": 0,
+    "stdout_bytes": 0
+  },
+  "gateway": {
+    "tracee_pid": 675597,
+    "tracer_pid": 675641,
+    "attached_before_go": true,
+    "attached_at_driver_done": true,
+    "shutdown_signal": "SIGINT",
+    "wait_status": 130,
+    "stderr_bytes": 0,
+    "stdout_bytes": 0
+  }
+}

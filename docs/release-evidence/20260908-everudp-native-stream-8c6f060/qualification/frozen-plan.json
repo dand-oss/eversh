@@ -1,0 +1,20 @@
+{
+  "affinity": "40,42,44,46",
+  "bead": "eversh-5fc.52",
+  "build_provenance_sha256": "44464faff92806e88e78096729f2c2558b00a3cd70a079b84cec931f4e0dc0ec",
+  "governors": "cpu40 performance\ncpu42 performance\ncpu44 performance\ncpu46 performance\n",
+  "mtu": 1500,
+  "preflight_seal_sha256": "2d8778e922871661dc25895bc74cc1f30b6b2873fa8508fac748a5fc5a10aad9",
+  "purpose": "matched-reliable-stream-floor",
+  "schema_version": 1,
+  "seeds": [
+    13000001,
+    13000002,
+    13050001,
+    13050002
+  ],
+  "source": {
+    "head_sha": "8c6f060d4799c38fdd1fa7399a137d8b64d8fc8c",
+    "tree_sha": "88bd4d5fcbfa442617ec4f6be444ee6035f34435"
+  }
+}

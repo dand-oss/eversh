@@ -1,0 +1,7 @@
+error: unexpected argument '-F' found
+
+  tip: to pass '-F' as a value, use '-- -F'
+
+Usage: everudp-stream-floor client [OPTIONS] --runtime <RUNTIME> <DESTINATION>
+
+For more information, try '--help'.

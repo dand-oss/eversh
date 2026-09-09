@@ -1,0 +1,213 @@
+{
+  "caveat": "Within-block resampling is not independent experimental replication. Four blocks/cell do not satisfy the frozen six-block production qualification.",
+  "cells": {
+    "0": {
+      "latency_us": {
+        "baseline": {
+          "everudp": {
+            "p50": 707,
+            "p95": 1155
+          },
+          "zmosh-quic": {
+            "p50": 10746,
+            "p95": 11194
+          },
+          "zmosh-udp": {
+            "p50": 385,
+            "p95": 790
+          }
+        },
+        "variant": {
+          "everudp": {
+            "p50": 625,
+            "p95": 1041
+          },
+          "zmosh-quic": {
+            "p50": 10751,
+            "p95": 11192
+          },
+          "zmosh-udp": {
+            "p50": 396,
+            "p95": 801
+          }
+        }
+      },
+      "packet_attempts": {
+        "baseline": [
+          {
+            "block": 1,
+            "everudp": 1607,
+            "zmosh-quic": 2019,
+            "zmosh-udp": 802
+          },
+          {
+            "block": 4,
+            "everudp": 1601,
+            "zmosh-quic": 2032,
+            "zmosh-udp": 802
+          }
+        ],
+        "variant": [
+          {
+            "block": 2,
+            "everudp": 1599,
+            "zmosh-quic": 2050,
+            "zmosh-udp": 802
+          },
+          {
+            "block": 3,
+            "everudp": 1609,
+            "zmosh-quic": 2044,
+            "zmosh-udp": 802
+          }
+        ]
+      },
+      "samples_per_name_per_role": 400,
+      "variant_baseline": {
+        "everudp": {
+          "p50": {
+            "central95": [
+              0.847124824684432,
+              0.9325681492109039
+            ],
+            "ratio": 0.884016973125884
+          },
+          "p95": {
+            "central95": [
+              0.8597402597402597,
+              0.9591474245115453
+            ],
+            "ratio": 0.9012987012987013
+          }
+        },
+        "zmosh-quic": {
+          "p50": {
+            "central95": [
+              0.9975856625499118,
+              1.0029825706030384
+            ],
+            "ratio": 1.000465289410013
+          },
+          "p95": {
+            "central95": [
+              0.9942165673102589,
+              1.0046403712296983
+            ],
+            "ratio": 0.9998213328568876
+          }
+        },
+        "zmosh-udp": {
+          "p50": {
+            "central95": [
+              0.98,
+              1.0740740740740742
+            ],
+            "ratio": 1.0285714285714285
+          },
+          "p95": {
+            "central95": [
+              0.9509803921568627,
+              1.08203125
+            ],
+            "ratio": 1.0139240506329115
+          }
+        }
+      },
+      "versus_controls": {
+        "baseline": {
+          "zmosh-quic": {
+            "p50": 0.06579192257584217,
+            "p95": 0.1031802751474004
+          },
+          "zmosh-udp": {
+            "p50": 1.8363636363636364,
+            "p95": 1.4620253164556962
+          }
+        },
+        "variant": {
+          "zmosh-quic": {
+            "p50": 0.0581341270579481,
+            "p95": 0.09301286633309507
+          },
+          "zmosh-udp": {
+            "p50": 1.5782828282828283,
+            "p95": 1.299625468164794
+          }
+        }
+      }
+    },
+    "5": {
+      "comparative_inference": false,
+      "complete_blocks": {
+        "baseline": [
+          {
+            "block": 4,
+            "latency_us": {
+              "everudp": {
+                "p50": 746,
+                "p95": 4317
+              },
+              "zmosh-quic": {
+                "p50": 10776,
+                "p95": 38621
+              },
+              "zmosh-udp": {
+                "p50": 419,
+                "p95": 50550
+              }
+            }
+          }
+        ],
+        "variant": [
+          {
+            "block": 2,
+            "latency_us": {
+              "everudp": {
+                "p50": 665,
+                "p95": 3932
+              },
+              "zmosh-quic": {
+                "p50": 10768,
+                "p95": 37014
+              },
+              "zmosh-udp": {
+                "p50": 419,
+                "p95": 50525
+              }
+            }
+          },
+          {
+            "block": 3,
+            "latency_us": {
+              "everudp": {
+                "p50": 650,
+                "p95": 4270
+              },
+              "zmosh-quic": {
+                "p50": 10753,
+                "p95": 37615
+              },
+              "zmosh-udp": {
+                "p50": 406,
+                "p95": 50566
+              }
+            }
+          }
+        ]
+      },
+      "failed_block": 1,
+      "partial_responses_retained_not_pooled": 400,
+      "status": "INCOMPLETE"
+    }
+  },
+  "incomplete_cells": {
+    "5": "Frozen zmosh QUIC warm-up failed in block1; no replacement."
+  },
+  "method": "Nearest-rank quantiles; independent resampling within each fixed block; central 95% variant/baseline intervals.",
+  "production_adoption": false,
+  "qualification": false,
+  "resamples": 20000,
+  "source_sha": "5f9a0057213b3dc8b562c5c8959ea661868a3277",
+  "status": "INCOMPLETE_DIAGNOSTIC",
+  "tree_sha": "084738b2b60747a6dccc2994fddccf07d9f053af"
+}

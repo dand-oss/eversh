@@ -2,7 +2,8 @@
 //!
 //! Every OS interface everpty touches goes through this module. Direct
 //! `libc` is used only where nix 0.31.3 is insufficient: the
-//! TIOCGWINSZ/TIOCSWINSZ/TIOCSCTTY ioctls, `send(MSG_NOSIGNAL)`, dirfd
+//! TIOCGWINSZ/TIOCSWINSZ/TIOCSCTTY ioctls, `send(MSG_NOSIGNAL)`,
+//! `sendmsg`/`recvmsg` for one bounded `SCM_RIGHTS` capability, `pidfd_open`, dirfd
 //! directory enumeration (`fdopendir`/`readdir` — nix's `dir::Dir`
 //! sits behind the unpinned `dir` feature), and the post-fork child
 //! sequence (signal reset, `dup2`, `close`, `write`, `_exit`, and the
@@ -272,6 +273,45 @@ pub struct AttachSignals {
     old_actions: Vec<(libc::c_int, libc::sigaction)>,
 }
 
+/// Typed attach-side signal classification for terminal-owning clients.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AttachSignal {
+    Interrupt,
+    Terminate,
+    Hangup,
+    Quit,
+    Suspend,
+    Continue,
+    WindowChange,
+}
+
+impl AttachSignal {
+    pub const fn number(self) -> i32 {
+        match self {
+            Self::Interrupt => libc::SIGINT,
+            Self::Terminate => libc::SIGTERM,
+            Self::Hangup => libc::SIGHUP,
+            Self::Quit => libc::SIGQUIT,
+            Self::Suspend => libc::SIGTSTP,
+            Self::Continue => libc::SIGCONT,
+            Self::WindowChange => libc::SIGWINCH,
+        }
+    }
+
+    pub fn from_number(signal: i32) -> Option<Self> {
+        match signal {
+            libc::SIGINT => Some(Self::Interrupt),
+            libc::SIGTERM => Some(Self::Terminate),
+            libc::SIGHUP => Some(Self::Hangup),
+            libc::SIGQUIT => Some(Self::Quit),
+            libc::SIGTSTP => Some(Self::Suspend),
+            libc::SIGCONT => Some(Self::Continue),
+            libc::SIGWINCH => Some(Self::WindowChange),
+            _ => None,
+        }
+    }
+}
+
 impl AttachSignals {
     pub fn fd(&self) -> BorrowedFd<'_> {
         self.fd.as_fd()
@@ -383,6 +423,15 @@ pub fn attach_signals() -> io::Result<AttachSignals> {
         set,
         old_mask,
         old_actions,
+    })
+}
+
+/// Reads and classifies one signal from an attach-side signalfd.
+pub fn read_attach_signal(signals: &AttachSignals) -> io::Result<Option<AttachSignal>> {
+    read_signalfd(signals.fd())?.map_or(Ok(None), |signal| {
+        AttachSignal::from_number(signal)
+            .map(Some)
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "unexpected attach signal"))
     })
 }
 
@@ -796,6 +845,14 @@ pub fn peer_uid(fd: BorrowedFd<'_>) -> io::Result<libc::uid_t> {
     Ok(creds.uid())
 }
 
+/// `getsockopt(SO_PEERCRED)` (nix `socket`): the connecting peer's process
+/// id. Callers must pair this reuseable numeric id with [`proc_start_ticks`]
+/// before treating it as a process identity.
+pub fn peer_pid(fd: BorrowedFd<'_>) -> io::Result<libc::pid_t> {
+    let creds = getsockopt(&fd, PeerCredentials).map_err(io::Error::other)?;
+    Ok(creds.pid())
+}
+
 /// Effective uid of this process (nix `user`).
 pub fn effective_uid() -> libc::uid_t {
     nix::unistd::geteuid().as_raw() as libc::uid_t
@@ -818,6 +875,176 @@ pub fn send_no_sigpipe(fd: BorrowedFd<'_>, buf: &[u8]) -> io::Result<usize> {
         return Err(io::Error::last_os_error());
     }
     Ok(n as usize)
+}
+
+/// Sends nonempty bytes with exactly one descriptor through an AF_UNIX
+/// stream. A positive return transfers the descriptor capability with the
+/// first returned byte; a zero-length carrier is refused because Linux does
+/// not deliver stream ancillary data without ordinary data.
+pub fn send_one_fd(
+    socket: BorrowedFd<'_>,
+    bytes: &[u8],
+    descriptor: BorrowedFd<'_>,
+) -> io::Result<usize> {
+    if bytes.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "SCM_RIGHTS carrier must be nonempty",
+        ));
+    }
+    let mut iov = libc::iovec {
+        iov_base: bytes.as_ptr().cast_mut().cast(),
+        iov_len: bytes.len(),
+    };
+    let control_len = unsafe { libc::CMSG_SPACE(std::mem::size_of::<RawFd>() as _) as usize };
+    let mut control = [0_usize; 8];
+    if control_len > std::mem::size_of_val(&control) {
+        return Err(io::Error::other("SCM_RIGHTS control buffer is too small"));
+    }
+    let mut message: libc::msghdr = unsafe { std::mem::zeroed() };
+    message.msg_iov = &mut iov;
+    message.msg_iovlen = 1;
+    message.msg_control = control.as_mut_ptr().cast();
+    message.msg_controllen = control_len;
+    let header = unsafe { libc::CMSG_FIRSTHDR(&message) };
+    if header.is_null() {
+        return Err(io::Error::other("SCM_RIGHTS header is unavailable"));
+    }
+    unsafe {
+        (*header).cmsg_level = libc::SOL_SOCKET;
+        (*header).cmsg_type = libc::SCM_RIGHTS;
+        (*header).cmsg_len = libc::CMSG_LEN(std::mem::size_of::<RawFd>() as _) as usize;
+        std::ptr::write_unaligned(
+            libc::CMSG_DATA(header).cast::<RawFd>(),
+            descriptor.as_raw_fd(),
+        );
+    }
+    let sent = unsafe { libc::sendmsg(socket.as_raw_fd(), &message, libc::MSG_NOSIGNAL) };
+    if sent < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(sent as usize)
+}
+
+/// Receives stream bytes and at most one `SCM_RIGHTS` descriptor. The
+/// ancillary buffer has fixed capacity for several descriptors so hostile
+/// multi-fd messages can be parsed and every installed descriptor closed
+/// before the call fails. `Ok(None)` is nonblocking EAGAIN.
+pub fn recv_optional_fd(
+    socket: BorrowedFd<'_>,
+    bytes: &mut [u8],
+) -> io::Result<Option<(usize, Option<OwnedFd>)>> {
+    if bytes.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "SCM_RIGHTS receive buffer must be nonempty",
+        ));
+    }
+    let mut iov = libc::iovec {
+        iov_base: bytes.as_mut_ptr().cast(),
+        iov_len: bytes.len(),
+    };
+    // Aligned, fixed storage: enough to observe and reject up to eight fds.
+    // Linux closes descriptors truncated beyond msg_controllen.
+    let mut control = [0_usize; 16];
+    let mut message: libc::msghdr = unsafe { std::mem::zeroed() };
+    message.msg_iov = &mut iov;
+    message.msg_iovlen = 1;
+    message.msg_control = control.as_mut_ptr().cast();
+    message.msg_controllen = std::mem::size_of_val(&control);
+    let received = loop {
+        let result =
+            unsafe { libc::recvmsg(socket.as_raw_fd(), &mut message, libc::MSG_CMSG_CLOEXEC) };
+        if result >= 0 {
+            break result as usize;
+        }
+        let error = io::Error::last_os_error();
+        if error.kind() == io::ErrorKind::Interrupted {
+            continue;
+        }
+        if error.kind() == io::ErrorKind::WouldBlock {
+            return Ok(None);
+        }
+        return Err(error);
+    };
+    if received == 0 {
+        return Err(io::Error::from(io::ErrorKind::UnexpectedEof));
+    }
+
+    let mut descriptors = Vec::new();
+    let mut invalid = message.msg_flags & libc::MSG_CTRUNC != 0;
+    let mut header = unsafe { libc::CMSG_FIRSTHDR(&message) };
+    while !header.is_null() {
+        let value = unsafe { &*header };
+        let minimum = unsafe { libc::CMSG_LEN(0) as usize };
+        if value.cmsg_len < minimum {
+            invalid = true;
+            break;
+        }
+        let data_len = value.cmsg_len - minimum;
+        if value.cmsg_level != libc::SOL_SOCKET
+            || value.cmsg_type != libc::SCM_RIGHTS
+            || data_len == 0
+            || data_len % std::mem::size_of::<RawFd>() != 0
+        {
+            invalid = true;
+        } else {
+            let count = data_len / std::mem::size_of::<RawFd>();
+            let data = unsafe { libc::CMSG_DATA(header).cast::<RawFd>() };
+            for index in 0..count {
+                let raw = unsafe { std::ptr::read_unaligned(data.add(index)) };
+                if raw < 0 {
+                    invalid = true;
+                } else {
+                    // SAFETY: SCM_RIGHTS installed a new descriptor owned by
+                    // this process. It is wrapped immediately so every error
+                    // path closes it.
+                    descriptors.push(unsafe { OwnedFd::from_raw_fd(raw) });
+                }
+            }
+        }
+        header = unsafe { libc::CMSG_NXTHDR(&message, header) };
+    }
+    if invalid || descriptors.len() > 1 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected at most one untruncated SCM_RIGHTS descriptor",
+        ));
+    }
+    let descriptor = descriptors.pop().map(ensure_fd_above_stdio).transpose()?;
+    Ok(Some((received, descriptor)))
+}
+
+/// Strict exactly-one descriptor wrapper around [`recv_optional_fd`].
+pub fn recv_one_fd(
+    socket: BorrowedFd<'_>,
+    bytes: &mut [u8],
+) -> io::Result<Option<(usize, OwnedFd)>> {
+    match recv_optional_fd(socket, bytes)? {
+        Some((received, Some(descriptor))) => Ok(Some((received, descriptor))),
+        Some((_received, None)) => Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "expected exactly one SCM_RIGHTS descriptor",
+        )),
+        None => Ok(None),
+    }
+}
+
+/// Opens a close-on-exec Linux pidfd for an identity-checked process. The
+/// descriptor becomes poll-readable only after that process exits.
+pub fn pidfd_open(pid: libc::pid_t) -> io::Result<OwnedFd> {
+    if pid <= 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "pidfd process id must be positive",
+        ));
+    }
+    let raw = unsafe { libc::syscall(libc::SYS_pidfd_open, pid, 0_u32) };
+    if raw < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: pidfd_open returned a fresh owned descriptor.
+    ensure_fd_above_stdio(unsafe { OwnedFd::from_raw_fd(raw as RawFd) })
 }
 
 // ---------------------------------------------------------------------------
@@ -901,6 +1128,12 @@ pub fn write_fd(fd: BorrowedFd<'_>, buf: &[u8]) -> io::Result<usize> {
             Err(error) => return Err(io::Error::from(error)),
         }
     }
+}
+
+/// Linux PTY masters report `EIO` after the last slave closes. Keep this
+/// platform interpretation in the audited syscall layer.
+pub fn is_pty_terminal_error(error: &io::Error) -> bool {
+    error.raw_os_error() == Some(libc::EIO)
 }
 
 /// Creates a nonblocking+CLOEXEC Unix stream and starts `connect(2)` on
@@ -1572,6 +1805,17 @@ pub fn ensure_fd_above_stdio(fd: OwnedFd) -> io::Result<OwnedFd> {
     Ok(unsafe { OwnedFd::from_raw_fd(raw) })
 }
 
+/// Duplicates a descriptor at 3 or above with close-on-exec set. The
+/// duplicate shares file status flags with the source and is suitable for
+/// registering caller-owned stdio or signalfd handles with an async reactor.
+pub fn duplicate_cloexec(fd: BorrowedFd<'_>) -> io::Result<OwnedFd> {
+    use std::os::fd::FromRawFd;
+    let raw =
+        nix::fcntl::fcntl(fd, nix::fcntl::FcntlArg::F_DUPFD_CLOEXEC(3)).map_err(io::Error::from)?;
+    // SAFETY: F_DUPFD_CLOEXEC returned a new descriptor owned by this call.
+    Ok(unsafe { OwnedFd::from_raw_fd(raw) })
+}
+
 /// `fcntl(F_GETFL)` + `fcntl(F_SETFL, +O_NONBLOCK)` (nix) — the PTY
 /// master must never block the broker loop.
 pub fn set_nonblocking(fd: BorrowedFd<'_>) -> io::Result<()> {
@@ -2086,7 +2330,101 @@ mod tests {
         use std::os::unix::net::UnixStream;
         let (a, b) = UnixStream::pair().expect("pair");
         assert_eq!(peer_uid(a.as_fd()).expect("uid"), effective_uid());
+        assert_eq!(
+            peer_pid(a.as_fd()).expect("pid"),
+            std::process::id() as libc::pid_t
+        );
         drop((a, b));
+    }
+
+    #[test]
+    fn one_fd_transfer_is_exact_cloexec_and_rejects_bad_cardinality() {
+        use std::io::Read;
+        use std::os::fd::AsRawFd;
+        use std::os::unix::net::UnixStream;
+
+        let (sender, receiver) = UnixStream::pair().expect("pair");
+        let mut source = std::fs::File::open("/dev/null").expect("source");
+        assert_eq!(
+            send_one_fd(sender.as_fd(), b"lease", source.as_fd()).expect("send"),
+            5
+        );
+        let mut carrier = [0_u8; 16];
+        let (received, descriptor) = recv_one_fd(receiver.as_fd(), &mut carrier)
+            .expect("receive")
+            .expect("ready");
+        assert_eq!(&carrier[..received], b"lease");
+        let descriptor_flags = nix::fcntl::fcntl(&descriptor, nix::fcntl::FcntlArg::F_GETFD)
+            .expect("descriptor flags");
+        assert_ne!(descriptor_flags & libc::FD_CLOEXEC, 0);
+        let mut transferred = std::fs::File::from(descriptor);
+        let mut byte = [0_u8; 1];
+        assert_eq!(transferred.read(&mut byte).expect("read /dev/null"), 0);
+
+        let (sender, receiver) = UnixStream::pair().expect("pair two");
+        let rights = [source.as_raw_fd(), source.as_raw_fd()];
+        let mut carrier_byte = *b"x";
+        let mut vector = libc::iovec {
+            iov_base: carrier_byte.as_mut_ptr().cast(),
+            iov_len: carrier_byte.len(),
+        };
+        let control_len =
+            unsafe { libc::CMSG_SPACE(std::mem::size_of_val(&rights) as libc::c_uint) as usize };
+        let mut control = [0_usize; 8];
+        assert!(control_len <= std::mem::size_of_val(&control));
+        let mut message: libc::msghdr = unsafe { std::mem::zeroed() };
+        message.msg_iov = &mut vector;
+        message.msg_iovlen = 1;
+        message.msg_control = control.as_mut_ptr().cast();
+        message.msg_controllen = control_len;
+        let header = unsafe { libc::CMSG_FIRSTHDR(&message) };
+        assert!(!header.is_null());
+        unsafe {
+            (*header).cmsg_level = libc::SOL_SOCKET;
+            (*header).cmsg_type = libc::SCM_RIGHTS;
+            (*header).cmsg_len =
+                libc::CMSG_LEN(std::mem::size_of_val(&rights) as libc::c_uint) as usize;
+            std::ptr::copy_nonoverlapping(
+                rights.as_ptr(),
+                libc::CMSG_DATA(header).cast::<RawFd>(),
+                rights.len(),
+            );
+        }
+        assert_eq!(
+            unsafe { libc::sendmsg(sender.as_raw_fd(), &message, libc::MSG_NOSIGNAL) },
+            1
+        );
+        assert_eq!(
+            recv_one_fd(receiver.as_fd(), &mut carrier)
+                .expect_err("two descriptors must fail")
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
+
+        let (sender, receiver) = UnixStream::pair().expect("pair none");
+        send_no_sigpipe(sender.as_fd(), b"x").expect("send no descriptor");
+        assert_eq!(
+            recv_one_fd(receiver.as_fd(), &mut carrier)
+                .expect_err("missing descriptor must fail")
+                .kind(),
+            io::ErrorKind::InvalidData
+        );
+        let _ = source.read(&mut byte);
+    }
+
+    #[test]
+    fn pidfd_binds_a_live_process_identity() {
+        let pid = std::process::id() as libc::pid_t;
+        let descriptor = pidfd_open(pid).expect("pidfd");
+        let flags = nix::fcntl::fcntl(&descriptor, nix::fcntl::FcntlArg::F_GETFD)
+            .expect("descriptor flags");
+        assert_ne!(flags & libc::FD_CLOEXEC, 0);
+        let mut poll = [PollFd::new(descriptor.as_fd(), PollFlags::POLLIN)];
+        assert_eq!(super::poll(&mut poll, Some(0)).expect("poll"), 0);
+        assert_eq!(
+            proc_start_ticks(pid).expect("start ticks"),
+            proc_start_ticks(pid).expect("stable")
+        );
     }
 
     #[test]

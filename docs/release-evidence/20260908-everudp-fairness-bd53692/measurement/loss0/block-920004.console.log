@@ -1,0 +1,4 @@
+performance block candidate 1/3: zmosh-udp
+performance block candidate 2/3: zmosh-quic
+performance block candidate 3/3: everudp
+performance block PASS: /tmp/everudp-fairness-performance-bd53692/loss0/block-920004

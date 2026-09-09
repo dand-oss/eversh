@@ -1,0 +1,25 @@
+{
+  "binary_sha256": "a70b52c3851e7723282ec4c79a85b6809057d475a04266e1c7520d40ea19dd04",
+  "command": [
+    "sudo",
+    "-n",
+    "/usr/bin/env",
+    "-u",
+    "EVERUDP_ONLY",
+    "-u",
+    "EVERUDP_ALLOW_DIRTY",
+    "-u",
+    "EVERUDP_RUN_12H_SOAK",
+    "EVERUDP_SMOKE=0",
+    "EVERUDP_BIN=/tmp/everudp-pgo-baseline/target/x86_64-unknown-linux-gnu/release/everudp",
+    "/usr/bin/bash",
+    "/tmp/eversh-pgo-source/crates/everudp/tests/net/test-reliability.sh",
+    "/tmp/everudp-full-reliability-eecddf15/gate"
+  ],
+  "exit_code": 0,
+  "product_qualification": false,
+  "runner_sha256": "1f292bee02f0eba8745c6e4c43673ad20302ffe486ba4270099b92e65608314f",
+  "scope": "full reliability only",
+  "source_sha": "eecddf15f4d8eb72f0f887cc5ec6ac5bae614bc5",
+  "status": "PASS"
+}

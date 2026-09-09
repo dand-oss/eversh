@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "source": {
+    "head_sha": "25439e3596811694686874bfa2a50eb1cb3673a0",
+    "tree_sha": "9084af9cdb5e277d2f28383b5540da2a6c554f59",
+    "clean": true
+  },
+  "started_utc": "2026-09-07T23:19:30Z",
+  "completion_observed_utc": "2026-09-07T23:21:11Z",
+  "cargo_features": ["cli", "path-io-diagnostics"],
+  "artifact_sha256": "934da4e1f64233722e86e129de5bb103c7fda084a02fa66bb5a029b816bbed95",
+  "logs": {
+    "logs/everudp-build.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "logs/everudp-build.stderr": "4624fb3d8cb88045135ca79245da5a63632cb4b0302be9560954b66d2044c46b"
+  },
+  "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+  "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+  "command": "CARGO_TARGET_DIR=/tmp/everudp-io-25439e3-target cargo build --locked --release -p everudp --features cli,path-io-diagnostics"
+}

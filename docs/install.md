@@ -1,9 +1,10 @@
-# Installing and upgrading eversh v1
+# Installing and upgrading eversh v2
 
-eversh is three Rust executables built from one workspace: the combined
+eversh is four Rust executables built from one workspace: the combined
 multi-role `eversh` (the user-facing supervisor), standalone `everpty` (the
-PTY session broker), and standalone `everlink` (the QUIC ProxyCommand).
-V1 targets Linux with directly reachable UDP between the client and the
+PTY session broker), standalone `everssh` (the QUIC ProxyCommand), and
+standalone `everudp` (the direct-QUIC terminal transport).
+V2 targets Linux with directly reachable UDP between the client and the
 remote host (including ZeroTier or Tailscale overlay addresses).
 
 ## Build
@@ -11,12 +12,12 @@ remote host (including ZeroTier or Tailscale overlay addresses).
 Requirements: Rust 1.88 or newer (the release is qualified with 1.95.0) and
 a Linux host.
 
-    cargo build --release --locked --features everpty/cli,everlink/cli,eversh/cli
+    cargo build --release --locked --features everpty/cli,everssh/cli,everudp/cli,eversh/cli
 
-The three binaries land in `target/release/{eversh,everpty,everlink}`.
+The four binaries land in `target/release/{eversh,everpty,everssh,everudp}`.
 Every `[[bin]]` is gated behind its own crate's `cli` feature and no single
-crate's feature implies the other two (`eversh/cli` enables `everlink/cli`
-but not `everpty/cli`), so the feature-less build produces none of them;
+crate's feature implies all the others (`eversh/cli` enables `everssh/cli`
+and `everudp/cli` but not `everpty/cli`), so the feature-less build produces none of them;
 the command above is the exact release-build invocation the qualification
 receipt uses.
 Release artifact hashes for a qualified build are recorded in the release
@@ -26,7 +27,7 @@ qualification receipt under `target/qualification/eversh/`.
 
 Local (client) host: place `eversh` on `PATH` (for example
 `~/.local/bin/eversh`). The supervisor re-invokes its own executable with a
-private `__everlink` role marker for the everlink transport role, so a
+private `__everssh` role marker for the everssh transport role, so a
 single installed binary is sufficient locally.
 
 Remote host: v1 does not upload, install, or update remote binaries
@@ -37,20 +38,49 @@ on the login `PATH`, or you must point at it explicitly:
 
 `--remote-eversh WORD_OR_PATH` is a global flag (valid on every subcommand)
 naming the remote combined binary as a bare `PATH` word or an absolute path;
-it defaults to `eversh`. The standalone `everpty` and `everlink` binaries
+it defaults to `eversh`. The standalone `everpty` and `everssh` binaries
 are optional operator tools; the combined binary serves both roles
 remotely.
 
 ## Use
 
-    eversh [--remote-eversh WORD_OR_PATH] connect HOST [--session NAME] [--take-over] [--ssh-option OPTION]... [-- COMMAND...]
-    eversh [--remote-eversh WORD_OR_PATH] attach  HOST NAME [--take-over] [--ssh-option OPTION]...
-    eversh [--remote-eversh WORD_OR_PATH] observe HOST NAME [--ssh-option OPTION]...
+    eversh [--remote-eversh WORD_OR_PATH] connect HOST [--session NAME] [--transport everssh|everudp|auto] [--take-over] [--ssh-option OPTION]... [-- COMMAND...]
+    eversh [--remote-eversh WORD_OR_PATH] attach  HOST NAME [--transport everssh|everudp|auto] [--take-over] [--ssh-option OPTION]...
+    eversh [--remote-eversh WORD_OR_PATH] observe HOST NAME [--transport everssh|everudp|auto] [--ssh-option OPTION]...
     eversh [--remote-eversh WORD_OR_PATH] list    HOST [--local-host NAME] [--json] [--ssh-option OPTION]...
-    eversh [--remote-eversh WORD_OR_PATH] resume-all HOST [--local-host NAME] [--ssh-option OPTION]...
+    eversh [--remote-eversh WORD_OR_PATH] resume-all HOST [--local-host NAME] [--transport everssh|everudp|auto] [--ssh-option OPTION]...
     eversh [--remote-eversh WORD_OR_PATH] detach  HOST NAME [--ssh-option OPTION]...
     eversh [--remote-eversh WORD_OR_PATH] kill    HOST NAME [--ssh-option OPTION]...
     eversh ssh     HOST [-- SSH_OPTIONS... [-- COMMAND...]]
+    everudp [--remote-program WORD_OR_PATH] connect HOST [--session NAME] [--take-over] [--ssh-option OPTION]... [-- COMMAND...]
+    everudp [--remote-program WORD_OR_PATH] attach  HOST NAME [--take-over] [--ssh-option OPTION]...
+    everudp [--remote-program WORD_OR_PATH] observe HOST NAME [--ssh-option OPTION]...
+
+### Direct terminal transport (`--transport`)
+
+`connect`, `attach`, `observe`, and `resume-all` accept
+`--transport everssh|everudp|auto`; the default remains `everssh`. With
+`everudp`, SSH is used only for the authenticated bootstrap and for
+low-frequency recovery control: after the QUIC association commits, every
+terminal byte travels directly over TLS 1.3 QUIC streams on UDP between the
+local terminal and a persistent per-session gateway on the remote host, which
+owns the everpty writer and reconnects for the entire PTY lifetime (contract:
+[plans/everudp-v1.md](../plans/everudp-v1.md)). The remote host needs the
+same combined `eversh` binary as for everssh; the standalone `everudp`
+executable is an optional operator tool that exposes the same three commands.
+
+Strict `--transport everudp` allows three seconds for the initial UDP/QUIC
+commit and exits with 69 (`EX_UNAVAILABLE`) if it cannot commit before raw
+terminal mode, before terminal traffic, and before gateway writer ownership is
+taken. `--transport auto` catches exactly that pre-commit exit, prints one
+visible fallback line, and invokes everssh once; it never falls back after
+traffic, during reconnect, on authentication or protocol errors, or when an
+existing gateway owns the writer.
+
+Measured interactive latency on the qualification host is recorded in the
+contract's release decision: everudp's keystroke round trip is a fraction of
+a millisecond slower than the custom-UDP zmosh baseline at zero loss and
+more than ten times better at the 95th percentile under 5 percent loss.
 
 OpenSSH remains authoritative for authentication, host keys, ssh_config,
 aliases, ports, agents, and certificates. eversh injects only its own
@@ -60,13 +90,13 @@ first-obtained-value semantics); configure ports and identities in
 `--ssh-option -F/path/to/config`, `--ssh-option -oConnectTimeout=7`).
 `--ssh-option` is accepted on `connect`, `attach`, `observe`, `list`,
 `resume-all`, `detach`, and `kill`; each value is audited by
-`everlink::ssh_policy::audit_ssh_option` (the same `ALLOWED_O` allowlist
-documented in `crates/everlink/src/ssh_policy.rs`) before it is threaded
-through to both the outer `ssh` invocation and the everlink bootstrap —
+`everssh::ssh_policy::audit_ssh_option` (the same `ALLOWED_O` allowlist
+documented in `crates/everssh/src/ssh_policy.rs`) before it is threaded
+through to both the outer `ssh` invocation and the everssh bootstrap —
 anything else, including `-oProxyCommand=...` or `-J`, is rejected before
 any process is spawned — ProxyJump configurations are rejected with a clear
 diagnostic (design section 8); the UDP endpoint must be directly reachable.
-`eversh ssh` (raw passthrough over everlink) takes its trailing tokens
+`eversh ssh` (raw passthrough over everssh) takes its trailing tokens
 verbatim and unaudited; see the note below.
 
 `resume-all` opens one Kitty tab per matching live session, targeting
@@ -76,7 +106,7 @@ every partial failure is reported.
 **Raw mode's inner separator:** the tokens after `eversh ssh HOST --` may
 contain one further literal `--`: tokens before it are passed to the outer
 `ssh` client verbatim as SSH options (unaudited; the subset that passes the
-`--ssh-option` audit is also mirrored into the everlink bootstrap), and
+`--ssh-option` audit is also mirrored into the everssh bootstrap), and
 tokens after it become the remote command, placed after the destination.
 With no inner `--`, every token is an SSH option — `eversh ssh HOST -- -4`
 behaves exactly as before. Raw `eversh ssh` is never retried and never
@@ -88,7 +118,7 @@ itself left it.
 private per-spawn link-status file under eversh's state root —
 `$EVERSH_STATE_DIR`, else `$XDG_RUNTIME_DIR/eversh`, else
 `$XDG_STATE_HOME/eversh`, else `~/.local/state/eversh` (directory `0700`,
-files `0600`). The file's path travels to the local everlink ProxyCommand
+files `0600`). The file's path travels to the local everssh ProxyCommand
 edge as a `--status-file` argument — never an environment variable — so no
 ambient or remotely forwardable value can instrument a spawn. If no state
 root resolves at all, or the root's path cannot travel as that argument
@@ -103,10 +133,35 @@ is decided by wire protocol versions, not file names (design section 8):
 - A running everpty broker survives an on-disk binary replacement; later
   clients must speak the broker's live protocol version and fail closed with
   a clear diagnostic otherwise, without disturbing the broker.
-- everlink's bootstrap record and QUIC application protocol
-  (`eversh-link/1`) are versioned; mismatches fail closed on stderr.
+- everssh's bootstrap record (`everssh v2`) and QUIC application protocol
+  (`everssh-link/2`) are versioned; mismatches fail closed on stderr and
+  require coordinated endpoint upgrade — there is no automatic old-protocol
+  fallback. A compatible association survives connection loss for its
+  configured 360-second lease, retransmitting only bounded opaque frames
+  retained until cumulatively acknowledged; after terminal association
+  failure, the interactive eversh supervisor uses its bounded fresh-SSH
+  reattach path.
 - The private eversh remote-role grammar is versioned (`v1`); a version
   mismatch names the component and version and exits without side effects.
+
+### Coordinated upgrade across the pre-v2 product
+
+The pinned pre-v2 product (commit `43e80cc`, binary `everlink`, bootstrap
+prefix `everlink v1`, ALPN `eversh-link/1`) is not wire-compatible with the
+current `everssh v2` product. Both whole-product directions fail closed
+before carrying traffic:
+
+- a v2 client that receives an `everlink v1` bootstrap record reports
+  `unsupported protocol version; coordinated everssh upgrade required`;
+- a pre-v2 client that receives an `everssh v2` record rejects it at its
+  bootstrap boundary;
+- renamed role markers (`__everlink` versus `__everssh`) fail before
+  protocol negotiation.
+
+These paths are covered by `crates/everssh/tests/version_skew.rs` and
+`crates/everssh/tests/net/test-version-skew.sh`. Install matching versions
+on both endpoints in one maintenance action; v1 never falls back, uploads a
+remote binary, or negotiates an old protocol automatically.
 
 Upgrade the remote host with the same operator mechanism you use for any
 remote binary; there is no self-update or upgrade agent in v1.

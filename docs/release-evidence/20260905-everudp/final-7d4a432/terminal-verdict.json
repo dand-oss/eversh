@@ -1,0 +1,215 @@
+{
+  "availability": {
+    "reachability_rows": [
+      {
+        "attempts": 20,
+        "environment": "direct-ipv4",
+        "minimum": 19,
+        "note": "independent one-association processes",
+        "successes": 20,
+        "verdict": "PASS"
+      },
+      {
+        "attempts": 20,
+        "environment": "direct-ipv6",
+        "minimum": 19,
+        "note": "independent one-association processes",
+        "successes": 20,
+        "verdict": "PASS"
+      },
+      {
+        "attempts": 20,
+        "environment": "udp-blocked",
+        "minimum": 20,
+        "note": "exact handshake-timeout diagnostic below 3000ms",
+        "successes": 20,
+        "verdict": "PASS"
+      },
+      {
+        "attempts": 20,
+        "environment": "full-cone",
+        "minimum": 19,
+        "note": "independent one-association processes",
+        "successes": 20,
+        "verdict": "PASS"
+      },
+      {
+        "attempts": 20,
+        "environment": "restricted-cone",
+        "minimum": 19,
+        "note": "independent one-association processes",
+        "successes": 20,
+        "verdict": "PASS"
+      },
+      {
+        "attempts": 20,
+        "environment": "port-restricted-cone",
+        "minimum": 19,
+        "note": "independent one-association processes",
+        "successes": 20,
+        "verdict": "PASS"
+      },
+      {
+        "attempts": 20,
+        "environment": "symmetric",
+        "minimum": 18,
+        "note": "independent one-association processes",
+        "successes": 20,
+        "verdict": "PASS"
+      },
+      {
+        "attempts": 20,
+        "environment": "zerotier",
+        "minimum": 18,
+        "note": "distinct hosts badger to bugger over zt3middjio/zt3middjio",
+        "successes": 20,
+        "verdict": "PASS"
+      },
+      {
+        "attempts": 20,
+        "environment": "tailscale",
+        "minimum": 18,
+        "note": "fewer than two running peers: local=MISSING,bugger.a=STOPPED,bagger.a=MISSING",
+        "successes": 0,
+        "verdict": "UNAVAILABLE"
+      },
+      {
+        "attempts": 1,
+        "environment": "everssh-fallback",
+        "minimum": 1,
+        "note": "exactly 1 transition after 20/20 diagnosed UDP failures",
+        "successes": 1,
+        "verdict": "PASS"
+      }
+    ],
+    "tailscale": "UNAVAILABLE"
+  },
+  "component_sha256": {
+    "build_provenance": "8c487a809b4e7eac583d7af4c64ba071374484ac20234e9d97c9e6aa839960e6",
+    "controls_analysis": "7368dfb66e63e7830553fbcae77dc008c7af4ffa57f723c918e02d1ca5a12ecb",
+    "controls_checksums": "b063419c2420f3443971724d21d91c3953447f40d1da37df59ee851adae0c0d5",
+    "controls_receipt": "526c051437edc331b24ba863b786d00542efffc69b331b258db8bab8417acca8",
+    "oracle": "95d3e100f9b46f132e5b83996f504693ff77a608e795c0cb295efd59a3af0ce9",
+    "oracle_raw_runs": "698d04a6a26e6948a4d55fcd87aab9609e51e880ad441a6095c6be9c8a42b2ec",
+    "parity_analysis": "4aa4c82e264c3db95448f5f8effc5ef4be45abec1ec70441f6977cf7e751e2b1",
+    "parity_checksums": "69eee5327e3dceeccc91bca7f33985f394b5f308f0c7921a7ad98727d6ae7294",
+    "parity_receipt": "f6e1ed717696be39b835d749a5a0eaf3000f93b0ed7ad298ee5619a5914f0a8b",
+    "reachability_checksums": "9a62eee6fd168ecc992cc4d21115ac7baa5092f369ba03562a5d31f03bef6de0",
+    "reachability_receipt": "2e31d7930b5e957c64436f0919eadbee199baef2ce98b012c934bc0600191d66"
+  },
+  "integrity": {
+    "closure_verifier_exit": 1,
+    "closure_verifier_expected_rejection": "closure verification failed: control matrix zmosh point rule failed",
+    "controls_measurement_integrity_pass": true,
+    "controls_outage_gate_pass": true,
+    "controls_resource_gate_pass": true,
+    "fresh_isolated_source_builds": true,
+    "oracle_pass": true,
+    "oracle_raw_runs_recomputed": 30,
+    "parity_exact_sha_evidence_pass": true,
+    "parity_observed_loss_evidence_pass": true,
+    "pinned_zmosh_source": {
+      "commit": "dfc8395b5edcd237bf82712fbde879c6e8be7dfa",
+      "tree": "1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514"
+    },
+    "pre_rejection_checks": "verify-closure.py checks current clean source, fresh artifact hashes, inventories, byte-identical controls/parity analyzer re-execution, receipt-to-child relations, raw oracle derivation, and reachability derivation before evaluating this gate",
+    "reachability": "PASS"
+  },
+  "performance": {
+    "conditional_scope": "six fixed seeds on one host and one isolated network-namespace topology",
+    "controls_loss5_everssh": {
+      "bootstrap": {
+        "iterations": 20000,
+        "p50_ratio_ci95": [
+          0.020570502102649844,
+          0.20176266918476551
+        ],
+        "p50_ratio_upper95": 0.18633931381806737,
+        "p95_ratio_ci95": [
+          0.03269046642046232,
+          2.03125
+        ],
+        "p95_ratio_upper95": 1.947066064833812,
+        "seed": 9015
+      },
+      "frozen_point_rule_pass": false,
+      "point": {
+        "p50_ratio": 0.1126005361930295,
+        "p95_ratio": 0.9622087773162362
+      },
+      "thresholds": {
+        "p50_ratio_max": 0.5,
+        "p95_ratio_max": 0.67
+      }
+    },
+    "controls_loss5_zmosh": {
+      "bootstrap": {
+        "iterations": 20000,
+        "p50_ratio_ci95": [
+          0.9256198347107438,
+          1.8314285714285714
+        ],
+        "p50_ratio_upper95": 1.7756232686980609,
+        "p95_ratio_ci95": [
+          0.002218515142655683,
+          41.54191033138402
+        ],
+        "p95_ratio_upper95": 34.6520325203252,
+        "seed": 9016
+      },
+      "frozen_point_rule_pass": false,
+      "point": {
+        "p50_ratio": 1.2727272727272727,
+        "p95_ratio": 0.06108369018751326
+      },
+      "thresholds": {
+        "p50_ratio_max": 1.1,
+        "p95_ratio_max": 1.15
+      }
+    },
+    "parity_pooled": {
+      "everudp_n": 600,
+      "everudp_p50_us": 456,
+      "everudp_p95_us": 21315,
+      "p50_ratio": 1.2773109243697478,
+      "p95_ratio": 0.35121685972746297,
+      "probability_everudp_faster": 0.3532263888888889,
+      "zmosh_n": 600,
+      "zmosh_p50_us": 357,
+      "zmosh_p95_us": 60689
+    },
+    "parity_uncertainty": {
+      "iterations": 20000,
+      "p50_ratio_ci95": [
+        1.2144846796657383,
+        1.3380281690140845
+      ],
+      "p50_ratio_upper95": 1.3276353276353277,
+      "p95_ratio_ci95": [
+        0.33689099713410414,
+        0.4233863793614708
+      ],
+      "p95_ratio_upper95": 0.4227081847714127,
+      "seed": 9015
+    },
+    "parity_verdict": {
+      "conservative_upper95_equivalence_pass": false,
+      "exact_sha_evidence_pass": true,
+      "observed_loss_evidence_pass": true,
+      "preregistered_point_rule_pass": false
+    }
+  },
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "7d4a43244f0287dddd3d01231994b375f2113c0e",
+    "tree_sha": "47cdeea34120cad4b88b991f4a8098f4d349ee5c"
+  },
+  "verdict": {
+    "all_preregistered_performance_thresholds_pass": false,
+    "decision": "NOT-BUILD",
+    "evidence_integrity_reached_registered_performance_gate": true,
+    "reason": "everudp p50/zmosh p50 exceeded the frozen 1.10 ratio in both the control and pooled parity gates",
+    "requested_zmosh_parity_proven": false
+  }
+}

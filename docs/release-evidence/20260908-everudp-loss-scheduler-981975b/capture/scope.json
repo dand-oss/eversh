@@ -1,0 +1,66 @@
+{
+  "before": {
+    "client": {
+      "affinity": [
+        40,
+        42,
+        44,
+        46
+      ],
+      "pid": 756545,
+      "start_ticks": "147290161",
+      "tids": [
+        756545
+      ],
+      "time_namespace": [
+        5,
+        4026531834
+      ]
+    },
+    "gateway": {
+      "affinity": [
+        40,
+        42,
+        44,
+        46
+      ],
+      "pid": 756700,
+      "start_ticks": "147290197",
+      "tids": [
+        756700,
+        756701
+      ],
+      "time_namespace": [
+        5,
+        4026531834
+      ]
+    }
+  },
+  "boot_id": "a379fc1e-ec8d-4f5c-afaa-4bbe88d1fced",
+  "command": [
+    "/tmp/eversh-profile-tools.m4Ikm3/extracted/usr/bin/perf",
+    "record",
+    "-a",
+    "--synth",
+    "no",
+    "--clockid",
+    "mono",
+    "-e",
+    "sched:sched_waking",
+    "--filter",
+    "pid == 756545 || pid == 756700",
+    "-e",
+    "sched:sched_wakeup",
+    "--filter",
+    "pid == 756545 || pid == 756700",
+    "-e",
+    "sched:sched_switch",
+    "--filter",
+    "prev_pid == 756545 || next_pid == 756545 || prev_pid == 756700 || next_pid == 756700",
+    "-o",
+    "/tmp/everudp-loss-scheduler-15s-981975b/private-perf.data",
+    "--",
+    "/usr/bin/sleep",
+    "15"
+  ]
+}

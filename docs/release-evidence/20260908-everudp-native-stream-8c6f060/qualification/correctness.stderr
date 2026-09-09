@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.20s
+     Running unittests src/lib.rs (target/debug/deps/everudp-9b67ce1b7815fe0b)
+     Running tests/stream_floor_admission.rs (target/debug/deps/stream_floor_admission-f7d0344a829f4795)
+     Running tests/stream_floor_io.rs (target/debug/deps/stream_floor_io-f477062d92407dac)
+     Running tests/stream_floor_native.rs (target/debug/deps/stream_floor_native-76a55c6e34746942)
+     Running tests/stream_floor_native_echo.rs (target/debug/deps/stream_floor_native_echo-f4ae17d8782beae4)
+     Running tests/stream_floor_native_run.rs (target/debug/deps/stream_floor_native_run-cbd2f5bf1fc87b30)
+     Running tests/stream_floor_ordinary.rs (target/debug/deps/stream_floor_ordinary-09db7f5b2c967932)
+     Running unittests examples/everudp-stream-floor.rs (target/debug/examples/everudp_stream_floor-d0d7c5bcbc816b24)

@@ -44,7 +44,7 @@ pub enum Error {
     ListOutputInvalid,
     /// Supervisor limits failed validation.
     LimitsInvalid,
-    /// The private per-spawn everlink link-status channel could not be
+    /// The private per-spawn everssh link-status channel could not be
     /// allocated for a classification-carrying spawn (design 3, 7): the
     /// operation fails closed with this local error BEFORE any ssh child
     /// exists, because an uninstrumented spawn's missing record would

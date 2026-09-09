@@ -6,9 +6,9 @@ set -Eeuo pipefail
 # This drives the COMPLETE real chain, unprivileged, with no fakes:
 #   local `eversh connect` (real TTY via /usr/bin/script)
 #     -> real /usr/bin/ssh with eversh's injected ProxyCommand
-#     -> `eversh __everlink ssh-proxy` (real QUIC/UDP on an isolated address;
+#     -> `eversh __everssh ssh-proxy` (real QUIC/UDP on an isolated address;
 #        its inner bootstrap ssh reuses the SAME -F config and launches
-#        `eversh __everlink __bootstrap-parent-v1` on the isolated sshd)
+#        `eversh __everssh __bootstrap-parent-v1` on the isolated sshd)
 #     -> the outer ssh session (through the QUIC proxy, back to the SAME
 #        isolated sshd via its 127.0.0.1 listener), `-t` allocated, running
 #        `eversh __everpty v1 attach-or-create ...` against a REAL everpty
@@ -27,6 +27,7 @@ set -Eeuo pipefail
 readonly AWK_TOOL=/usr/bin/awk
 readonly BASH_TOOL=/usr/bin/bash
 readonly CAT_TOOL=/usr/bin/cat
+readonly PYTHON3=/usr/bin/python3
 readonly CHMOD_TOOL=/usr/bin/chmod
 readonly CUT_TOOL=/usr/bin/cut
 readonly GREP_TOOL=/usr/bin/grep
@@ -65,10 +66,9 @@ done
 
 # The whole run (sshd startup, seven scenarios, health checks, cleanup) must
 # fit well under the watchdog; the watchdog is a hard outer safety net, not
-# the expected duration. Sized for the r3 reconnect budget: scenario 2's
-# Busy-retry is now deadline-governed, so its reattach legitimately lands
-# ~t+30s (remote QUIC idle timeout) rather than ~t+12s.
-readonly WATCHDOG_SECONDS=240
+# the expected duration. Scenario 2 spans the released v2 association's
+# bounded drain: ~20s remote stall + 360s renewed lease + finalize slack.
+readonly WATCHDOG_SECONDS=900
 readonly READINESS_POLL_ATTEMPTS=100
 readonly POLL_SECONDS=5
 readonly BATCH_TIMEOUT_SECONDS=10
@@ -77,7 +77,7 @@ readonly SCENARIO1_TIMEOUT_SECONDS=20
 readonly AUTH_FAIL_TIMEOUT_SECONDS=20
 readonly TICK_WAIT_SECONDS=15
 readonly KILL_POLL_SECONDS=6
-readonly REATTACH_WAIT_SECONDS=40
+readonly REATTACH_WAIT_SECONDS=420
 readonly SETTLE_SECONDS_MS=350
 readonly ATTACH_BUSY_TIMEOUT_SECONDS=15
 readonly BG_READY_ATTEMPTS=60
@@ -125,7 +125,7 @@ EXPECTED_ORIGIN=
 
 # ---------------------------------------------------------------------------
 # Identity-tuple process capture / validated reaping (capture_identity
-# pattern), generalized from crates/everlink/tests/net/test-openssh.sh.
+# pattern), generalized from crates/everssh/tests/net/test-openssh.sh.
 # ---------------------------------------------------------------------------
 
 capture_identity() {
@@ -330,13 +330,13 @@ proc_cmdline_has() {
     return 0
 }
 
-# Find the live `<eversh-bin> __everlink ssh-proxy` process descending from
+# Find the live `<eversh-bin> __everssh ssh-proxy` process descending from
 # the harness's own tracked ancestor pid (never trusting argv alone).
 find_ssh_proxy_pid() {
     local ancestor=$1 max_depth=$2 proc pid
     for proc in /proc/[0-9]*; do
         pid=${proc##*/}
-        proc_cmdline_has "$pid" __everlink ssh-proxy || continue
+        proc_cmdline_has "$pid" __everssh ssh-proxy || continue
         pid_is_descendant "$pid" "$ancestor" "$max_depth" || continue
         printf '%s\n' "$pid"
         return 0
@@ -376,7 +376,7 @@ run_bounded() {
 
 # ---------------------------------------------------------------------------
 # Isolated non-loopback address selection (mirrors
-# crates/everlink/tests/net/test-openssh.sh)
+# crates/everssh/tests/net/test-openssh.sh)
 # ---------------------------------------------------------------------------
 
 valid_ipv4_literal() {
@@ -517,7 +517,8 @@ prepare_isolated_sshd() {
         'X11Forwarding no' \
         'AllowAgentForwarding no' \
         'PermitTunnel no' \
-        'AllowTcpForwarding no' \
+        'AllowTcpForwarding yes' \
+        'PermitOpen 127.0.0.1:*' \
         'GatewayPorts no' \
         'UseDNS no' \
         'PermitUserEnvironment no' \
@@ -1193,11 +1194,321 @@ scenario_auth_failure() {
         snap_content=$("$CAT_TOOL" "$snap_f")
         [[ -n $snap_content ]] || continue
         captured_final=1
-        [[ $snap_content == 'everlink-status-v1 cause clean-close carried=0' ]] \
+        [[ $snap_content == 'everssh-status-v1 cause clean-close carried=0' ]] \
             || die "scenario7: captured status record mismatch: '$snap_content'"
     done
     (( captured_final == 1 )) \
         || printf 'scenario7: status file not captured in final state; content assert skipped\n' >&2
+}
+
+# ---------------------------------------------------------------------------
+# Scenario 8: concurrent connect atomicity — exactly one broker/child
+# ---------------------------------------------------------------------------
+
+scenario_concurrent_connect() {
+    local name=m5s3atomic
+    local first_wrapper="$TMP_ROOT/s8.first.wrap.sh" first_log="$TMP_ROOT/s8.first.log"
+    local second_wrapper="$TMP_ROOT/s8.second.wrap.sh" second_log="$TMP_ROOT/s8.second.log"
+    local listout="$TMP_ROOT/s8.list.json" listerr="$TMP_ROOT/s8.list.err"
+    local killout="$TMP_ROOT/s8.kill.out" killerr="$TMP_ROOT/s8.kill.err"
+    local -a argv=(
+        "$EVERSH_BIN" connect "$ALIAS" --session "$name"
+        --remote-eversh "$EVERSH_BIN" --ssh-option -F"$CLIENT_CONFIG"
+        -- /bin/sh -c "$TICK_SCRIPT"
+    )
+    write_exec_wrapper "$first_wrapper" "${argv[@]}"
+    write_exec_wrapper "$second_wrapper" "${argv[@]}"
+    launch_interactive "$first_wrapper" "$first_log" \
+        || die "scenario8: failed to launch first connect"
+    local first_pid=$BG_PID
+    launch_interactive "$second_wrapper" "$second_log" \
+        || die "scenario8: failed to launch second connect"
+    local second_pid=$BG_PID
+
+    # Exactly one competitor may own the writer; the other must terminate
+    # visibly with Busy rather than silently attaching or creating a child.
+    local deadline=$((SECONDS + TICK_WAIT_SECONDS)) winner= loser_pid=
+    while (( SECONDS < deadline )); do
+        if ! kill -0 "$first_pid" 2>/dev/null; then
+            winner=second loser_pid=$first_pid
+            break
+        fi
+        if ! kill -0 "$second_pid" 2>/dev/null; then
+            winner=first loser_pid=$second_pid
+            break
+        fi
+        "$SLEEP_TOOL" 0.1
+    done
+    [[ -n $winner ]] || die "scenario8: neither concurrent connect resolved as Busy"
+    local winner_log winner_pid loser_log
+    if [[ $winner == first ]]; then
+        winner_log=$first_log winner_pid=$first_pid loser_log=$second_log
+    else
+        winner_log=$second_log winner_pid=$second_pid loser_log=$first_log
+    fi
+    wait_for_tick_count "$winner_log" 4 "$TICK_WAIT_SECONDS" \
+        || die "scenario8: winning connect never carried ticks"
+    local loser_status=0
+    builtin wait "$loser_pid" 2>/dev/null || loser_status=$?
+    [[ $loser_status -eq 3 ]] \
+        || die "scenario8: loser exit=$loser_status (want 3, Busy)"
+    local loser_ticks
+    loser_ticks=$(extract_ticks "$loser_log" | "$AWK_TOOL" 'END { print NR + 0 }')
+    [[ $loser_ticks -eq 0 ]] || die "scenario8: Busy loser emitted $loser_ticks ticks"
+
+    run_list_json "$listout" "$listerr" || die "scenario8: list failed"
+    json_has_name "$listout" "$name" || die "scenario8: session missing after race"
+    local broker count
+    broker=$(broker_pid_for "$listout" "$name")
+    [[ $broker =~ ^[0-9]+$ ]] || die "scenario8: missing broker pid"
+    count=$("$GREP_TOOL" -oE '"name":"'"$name"'"' "$listout" | "$GREP_TOOL" -c .)
+    [[ $count -eq 1 ]] || die "scenario8: duplicate session records ($count)"
+
+    if ! run_batch "$KILL_TIMEOUT_SECONDS" "$killout" "$killerr" kill "$ALIAS" "$name"; then
+        die "scenario8: kill failed"
+    fi
+    local status=0
+    builtin wait "$winner_pid" 2>/dev/null || status=$?
+    [[ $status -eq 41 ]] || die "scenario8: winner wrapped exit=$status (want 41)"
+}
+
+# ---------------------------------------------------------------------------
+# Scenario 9: explicit takeover — old writer survives as observer
+# ---------------------------------------------------------------------------
+
+scenario_explicit_takeover() {
+    local name=m5s3takeover
+    local holder_wrapper="$TMP_ROOT/s9.holder.wrap.sh" holder_log="$TMP_ROOT/s9.holder.log"
+    local takeover_wrapper="$TMP_ROOT/s9.takeover.wrap.sh" takeover_log="$TMP_ROOT/s9.takeover.log"
+    local listout="$TMP_ROOT/s9.list.json" listerr="$TMP_ROOT/s9.list.err"
+    local killout="$TMP_ROOT/s9.kill.out" killerr="$TMP_ROOT/s9.kill.err"
+    local -a holder_argv=(
+        "$EVERSH_BIN" connect "$ALIAS" --session "$name"
+        --remote-eversh "$EVERSH_BIN" --ssh-option -F"$CLIENT_CONFIG"
+        -- /bin/sh -c "$TICK_SCRIPT"
+    )
+    write_exec_wrapper "$holder_wrapper" "${holder_argv[@]}"
+    launch_interactive "$holder_wrapper" "$holder_log" \
+        || die "scenario9: failed to launch holder"
+    local holder_pid=$BG_PID
+    wait_for_tick_count "$holder_log" 4 "$TICK_WAIT_SECONDS" \
+        || die "scenario9: holder never carried ticks"
+
+    local -a takeover_argv=(
+        "$EVERSH_BIN" attach "$ALIAS" "$name" --take-over
+        --remote-eversh "$EVERSH_BIN" --ssh-option -F"$CLIENT_CONFIG"
+    )
+    write_exec_wrapper "$takeover_wrapper" "${takeover_argv[@]}"
+    launch_interactive "$takeover_wrapper" "$takeover_log" \
+        || die "scenario9: failed to launch takeover attach"
+    local takeover_pid=$BG_PID
+    wait_for_tick_count "$takeover_log" 4 "$TICK_WAIT_SECONDS" \
+        || die "scenario9: takeover attach never acquired the writer"
+    kill -0 "$holder_pid" 2>/dev/null \
+        || die "scenario9: prior writer exited instead of becoming observer"
+
+    run_list_json "$listout" "$listerr" || die "scenario9: list failed"
+    json_has_name "$listout" "$name" || die "scenario9: session missing"
+    local count
+    count=$("$GREP_TOOL" -oE '"name":"'"$name"'"' "$listout" | "$GREP_TOOL" -c .)
+    [[ $count -eq 1 ]] || die "scenario9: duplicate session records ($count)"
+
+    if ! run_batch "$KILL_TIMEOUT_SECONDS" "$killout" "$killerr" kill "$ALIAS" "$name"; then
+        die "scenario9: kill failed"
+    fi
+    local holder_status=0 takeover_status=0
+    builtin wait "$holder_pid" 2>/dev/null || holder_status=$?
+    builtin wait "$takeover_pid" 2>/dev/null || takeover_status=$?
+    [[ $holder_status -eq 41 ]] \
+        || die "scenario9: holder wrapped exit=$holder_status (want 41)"
+    [[ $takeover_status -eq 41 ]] \
+        || die "scenario9: takeover wrapped exit=$takeover_status (want 41)"
+}
+
+# ---------------------------------------------------------------------------
+# Scenario 10: raw ssh transport kill — one outer OpenSSH, never replaced
+# ---------------------------------------------------------------------------
+
+scenario_raw_ssh_never_replaced() {
+    local s10_bin="$TMP_ROOT/s10.bin"
+    local s10_ssh="$s10_bin/ssh"
+    local count_file="$TMP_ROOT/s10.ssh-count"
+    local pid_file="$TMP_ROOT/s10.eversh-pid"
+    local wrapper="$TMP_ROOT/s10.wrap.sh" log="$TMP_ROOT/s10.log"
+    local status proxy_pid proxy_start proxy_exe proxy_pgrp max_pre
+
+    "$MKDIR_TOOL" -m 700 -- "$s10_bin" || die "scenario10: shim dir creation failed"
+    {
+        printf '#!/usr/bin/bash\n'
+        printf 'echo "$PPID" >> %q\n' "$count_file"
+        printf 'exec %q "$@"\n' "$SSH_TOOL"
+    } > "$s10_ssh"
+    "$CHMOD_TOOL" 700 -- "$s10_ssh" || die "scenario10: ssh shim creation failed"
+    : > "$count_file"
+    "$CHMOD_TOOL" 600 -- "$count_file"
+
+    {
+        printf '#!/usr/bin/bash\nset -Eeuo pipefail\n'
+        printf 'export PATH=%q:"$PATH"\n' "$s10_bin"
+        printf 'echo "$$" > %q\n' "$pid_file"
+        printf '%q rows 24 cols 80 -echo -echoctl 2>/dev/null || :\n' "$STTY_TOOL"
+        printf 'exec'
+        local a
+        for a in "$EVERSH_BIN" ssh "$ALIAS" \
+            --remote-eversh "$EVERSH_BIN" \
+            -- "-F$CLIENT_CONFIG" -- /bin/sh -c "$TICK_SCRIPT"; do
+            printf ' %q' "$a"
+        done
+        printf '\n'
+    } > "$wrapper"
+    "$CHMOD_TOOL" 700 -- "$wrapper" || die "scenario10: wrapper creation failed"
+
+    launch_interactive "$wrapper" "$log" \
+        || die "scenario10: failed to launch raw ssh wrapper"
+    local raw_pid=$BG_PID
+    wait_for_tick_count "$log" 4 "$TICK_WAIT_SECONDS" \
+        || die "scenario10: raw ssh never carried ticks"
+    local eversh_pid
+    eversh_pid=$("$CAT_TOOL" "$pid_file")
+    [[ $eversh_pid =~ ^[0-9]+$ ]] || die "scenario10: bad eversh pid '$eversh_pid'"
+
+    proxy_pid=$(find_ssh_proxy_pid "$raw_pid" 10) \
+        || die "scenario10: could not locate raw ssh-proxy"
+    capture_identity "$proxy_pid" || die "scenario10: proxy identity vanished"
+    proxy_start=$CAP_START proxy_exe=$CAP_EXE proxy_pgrp=$CAP_PGRP
+    builtin kill -KILL "$proxy_pid" 2>/dev/null || die "scenario10: proxy kill failed"
+    poll_owned_gone "$proxy_pid" "$proxy_start" "$proxy_exe" "$proxy_pgrp" "$KILL_POLL_SECONDS" \
+        || die "scenario10: proxy did not disappear"
+    max_pre=$(last_tick "$log")
+    [[ $max_pre =~ ^[0-9]+$ ]] || die "scenario10: no pre-kill tick"
+
+    status=0
+    builtin wait "$raw_pid" 2>/dev/null || status=$?
+    (( status != 0 )) || die "scenario10: raw ssh unexpectedly succeeded after transport kill"
+
+    local supervisor_ssh=0 total_ssh=0 line
+    while IFS= read -r line; do
+        [[ -n $line ]] || continue
+        total_ssh=$((total_ssh + 1))
+        [[ $line == "$eversh_pid" ]] && supervisor_ssh=$((supervisor_ssh + 1))
+    done < "$count_file"
+    (( supervisor_ssh == 1 )) || die \
+"scenario10: supervisor spawned ssh $supervisor_ssh times (want exactly 1)"
+    # Exactly three invocations are the correct raw-mode process shape: the
+    # supervisor's one outer ssh, plus the proxy's effective-config `ssh -G`
+    # query and one bootstrap ssh. Any fourth spawn would be a replacement
+    # operation after the terminal transport kill.
+    (( total_ssh == 3 )) || die \
+"scenario10: unexpected ssh invocations: $total_ssh (want outer + query + bootstrap = 3)"
+    "$GREP_TOOL" -q -F -- 'probing' "$log" \
+        && die "scenario10: raw ssh unexpectedly probed"
+    "$GREP_TOOL" -q -F -- 'reattaching' "$log" \
+        && die "scenario10: raw ssh unexpectedly reattached"
+    local after_ticks
+    after_ticks=$(extract_ticks "$log" | "$AWK_TOOL" -v max="$max_pre" \
+        '$1 + 0 > max { n++ } END { print n + 0 }')
+    [[ $after_ticks -eq 0 ]] \
+        || die "scenario10: output arrived after terminal transport kill ($after_ticks)"
+}
+
+# ---------------------------------------------------------------------------
+# Scenario 11: raw local forwarding is never replaced after transport kill
+# ---------------------------------------------------------------------------
+
+scenario_forward_never_replaced() {
+    local s11_bin="$TMP_ROOT/s11.bin"
+    local s11_ssh="$s11_bin/ssh"
+    local count_file="$TMP_ROOT/s11.ssh-count"
+    local pid_file="$TMP_ROOT/s11.eversh-pid"
+    local wrapper="$TMP_ROOT/s11.wrap.sh" log="$TMP_ROOT/s11.log"
+    local status proxy_pid proxy_start proxy_exe proxy_pgrp
+
+    "$MKDIR_TOOL" -m 700 -- "$s11_bin" || die "scenario11: shim dir creation failed"
+    {
+        printf '#!/usr/bin/bash\n'
+        printf 'echo "$PPID" >> %q\n' "$count_file"
+        printf 'exec %q "$@"\n' "$SSH_TOOL"
+    } > "$s11_ssh"
+    "$CHMOD_TOOL" 700 -- "$s11_ssh" || die "scenario11: ssh shim creation failed"
+    : > "$count_file"
+    "$CHMOD_TOOL" 600 -- "$count_file"
+
+    # Forward the isolated sshd back to a random local port, then keep the
+    # raw forwarding session alive without a remote command.
+    local forward_port
+    forward_port=$("$PYTHON3" -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()' 2>/dev/null || true)
+    [[ $forward_port =~ ^[0-9]+$ ]] || die "scenario11: no free local port"
+    {
+        printf '#!/usr/bin/bash\nset -Eeuo pipefail\n'
+        printf 'export PATH=%q:"$PATH"\n' "$s11_bin"
+        printf 'echo "$$" > %q\n' "$pid_file"
+        printf 'exec'
+        local a
+        for a in "$EVERSH_BIN" ssh "$ALIAS" \
+            --remote-eversh "$EVERSH_BIN" \
+            -- "-F$CLIENT_CONFIG" -o ClearAllForwardings=no \
+            "-L127.0.0.1:$forward_port:127.0.0.1:$ISOLATED_PORT" -N; do
+            printf ' %q' "$a"
+        done
+        printf '\n'
+    } > "$wrapper"
+    "$CHMOD_TOOL" 700 -- "$wrapper" || die "scenario11: wrapper creation failed"
+
+    launch_interactive "$wrapper" "$log" \
+        || die "scenario11: failed to launch forwarding wrapper"
+    local forward_pid=$BG_PID
+    local deadline=$((SECONDS + 10)) probe_ok=0
+    while (( SECONDS < deadline )); do
+        if run_bounded "$BASH_TOOL" -c \
+            'exec 3<>/dev/tcp/127.0.0.1/$1; IFS= read -r -n 4 banner <&3; [[ $banner == SSH- ]]' \
+            probe "$forward_port" >/dev/null 2>&1; then
+            probe_ok=1
+            break
+        fi
+        "$SLEEP_TOOL" 0.2
+    done
+    if (( probe_ok != 1 )); then
+        "$SS_TOOL" -ltnp "sport = :$forward_port" >&2 || :
+        ps -p "$forward_pid" -o pid,stat,args >&2 || :
+        cat "$log" >&2 || :
+        die "scenario11: forwarded sshd never answered"
+    fi
+
+    local eversh_pid
+    eversh_pid=$("$CAT_TOOL" "$pid_file")
+    [[ $eversh_pid =~ ^[0-9]+$ ]] || die "scenario11: bad eversh pid"
+    proxy_pid=$(find_ssh_proxy_pid "$forward_pid" 10) \
+        || die "scenario11: could not locate forwarding proxy"
+    capture_identity "$proxy_pid" || die "scenario11: proxy identity vanished"
+    proxy_start=$CAP_START proxy_exe=$CAP_EXE proxy_pgrp=$CAP_PGRP
+    builtin kill -KILL "$proxy_pid" 2>/dev/null || die "scenario11: proxy kill failed"
+    poll_owned_gone "$proxy_pid" "$proxy_start" "$proxy_exe" "$proxy_pgrp" "$KILL_POLL_SECONDS" \
+        || die "scenario11: proxy did not disappear"
+
+    status=0
+    builtin wait "$forward_pid" 2>/dev/null || status=$?
+    (( status != 0 )) || die "scenario11: forwarding session unexpectedly succeeded"
+    if run_bounded "$BASH_TOOL" -c \
+        'exec 3<>/dev/tcp/127.0.0.1/$1; IFS= read -r -n 4 banner <&3; [[ $banner == SSH- ]]' \
+        probe "$forward_port" >/dev/null 2>&1; then
+        die "scenario11: forwarded listener survived terminal transport kill"
+    fi
+
+    local supervisor_ssh=0 total_ssh=0 line
+    while IFS= read -r line; do
+        [[ -n $line ]] || continue
+        total_ssh=$((total_ssh + 1))
+        [[ $line == "$eversh_pid" ]] && supervisor_ssh=$((supervisor_ssh + 1))
+    done < "$count_file"
+    (( supervisor_ssh == 1 )) || die \
+"scenario11: supervisor spawned ssh $supervisor_ssh times (want exactly 1)"
+    (( total_ssh == 3 )) || die \
+"scenario11: unexpected ssh invocations: $total_ssh (want outer + query + bootstrap = 3)"
+    "$GREP_TOOL" -q -F -- 'probing' "$log" \
+        && die "scenario11: forwarding unexpectedly probed"
+    "$GREP_TOOL" -q -F -- 'reattaching' "$log" \
+        && die "scenario11: forwarding unexpectedly reattached"
+    return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -1340,6 +1651,10 @@ scenario_session_gone
 scenario_busy_visible
 scenario_list_detach
 scenario_auth_failure
+scenario_concurrent_connect
+scenario_explicit_takeover
+scenario_raw_ssh_never_replaced
+scenario_forward_never_replaced
 scenario_cleanup_health
 
 exit 0

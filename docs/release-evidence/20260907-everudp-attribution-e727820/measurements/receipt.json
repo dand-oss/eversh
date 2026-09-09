@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "status": "DIAGNOSTIC",
+  "capture_complete": true,
+  "attribution_status": "INCOMPLETE",
+  "architecture_decision": "UNKNOWN",
+  "production_actor_integration_authorized": false,
+  "qualification_pass": false,
+  "candidate": {
+    "head_sha": "e727820c5d36496ef673c7045a02d18eec20ebf0",
+    "tree_sha": "2d79f5d0fb83d9c4094914dcb06a5a8cd7f93d81",
+    "dirty_during_collection": false
+  },
+  "completed_blocks": 12,
+  "measured_responses": 4800,
+  "transcript_failures": 0,
+  "schedule": "For loss 0 and 5: block1 plain/instrumented/traced, floor then zmosh; block2 traced/instrumented/plain, zmosh then floor. Seeds 89301..89306 and 89401..89406. 200 trials per candidate, 100ms gaps.",
+  "verified": [
+    "Every block SHA256SUMS and clean candidate source/tree identity",
+    "Preregistered seeds, candidate order, loss cell and tracing mode",
+    "Build provenance and binary hashes; one common zmosh and PTY control artifact set",
+    "Public timing boundaries reproduce every reported sample by integer ceiling",
+    "Raw root-netem sent-plus-dropped attempt totals reproduce manifest accounting"
+  ],
+  "limitations": [
+    "NoQ markers have no request/packet correlation; driver-to-transmit attribution is not established",
+    "Resource totals cover whole-run benchmark and waited client descendants, not detached server or post-warmup windows",
+    "Driver poll counts are not task-wakeup counts",
+    "Two reversed blocks per mode exhibit material variation; instrumentation overhead causality is not established",
+    "Floor workload has no remote PTY; this is not production qualification",
+    "Independent host workloads were present; exclusive machine use is not claimed"
+  ]
+}

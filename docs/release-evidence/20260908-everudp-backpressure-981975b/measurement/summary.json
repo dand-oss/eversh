@@ -1,0 +1,40 @@
+{
+  "cells": {
+    "0": {
+      "everudp": {
+        "p50_us": 566.0,
+        "p95_us": 1002,
+        "samples": 400
+      },
+      "zmosh-quic": {
+        "p50_us": 614.0,
+        "p95_us": 1087,
+        "samples": 400
+      },
+      "zmosh-udp": {
+        "p50_us": 389.0,
+        "p95_us": 732,
+        "samples": 400
+      }
+    },
+    "5": {
+      "everudp": {
+        "p50_us": 844.0,
+        "p95_us": 8375,
+        "samples": 400
+      },
+      "zmosh-quic": {
+        "p50_us": 657.0,
+        "p95_us": 36932,
+        "samples": 400
+      },
+      "zmosh-udp": {
+        "p50_us": 386.0,
+        "p95_us": 50545,
+        "samples": 400
+      }
+    }
+  },
+  "production_qualification": false,
+  "purpose": "client-backpressure-fix"
+}

@@ -1,0 +1,128 @@
+
+running 60 tests
+test association::tests::observers_cannot_enter_the_input_reducer ... ok
+test client_link::classification_tests::only_link_loss_is_transient_and_protocol_truncation_is_terminal ... ok
+test client_runner::tests::process_exit_mapping_is_bounded_and_stable ... ok
+test client_link::classification_tests::terminal_ack_accepts_only_the_gateway_normal_close_race ... ok
+test client_runner::tests::recovery_never_recreates_the_original_command ... ok
+test client_runner::tests::recovery_keeps_network_loss_temporary_but_terminates_auth_pin_and_protocol ... ok
+test edge::tests::standalone_and_combined_remote_roles_cannot_be_confused ... ok
+test floor_control::tests::malformed_headers_fail_before_payload_and_latch ... ok
+test floor_control_writer::tests::failure_and_invalid_count_scrub_and_latch ... ok
+test client_driver::tests::disconnected_driver_consumes_local_cancellation_and_restores_signal_mask ... ok
+test floor_pump::tests::observed_counter_overflow_is_sticky_until_explicit_reset ... ok
+test client_driver::tests::terminal_outcome_and_protocol_failure_restore_local_state ... ok
+test floor_pump::tests::deferred_receive_is_bounded_and_returns_second_datagram ... ok
+test floor_pump::tests::limits_are_nonzero_and_default_to_one_connection ... ok
+test floor_pump::tests::observed_deferred_processing_is_not_mistaken_for_idle ... ok
+test floor_pump::tests::pending_transmit_stays_pinned_until_full_confirmation_and_recycles ... ok
+test floor_reactor::observation_tests::overflow_does_not_wrap_and_remains_invalid_until_reset ... ok
+test floor_control_writer::tests::every_partial_write_retains_exact_suffix_across_backpressure ... ok
+test edge::tests::private_roles_have_exact_versioned_grammar ... ok
+test floor_reactor::observation_tests::segment_error_still_emits_end_edge ... ok
+test floor_control::tests::every_truncation_is_terminal_and_scrubbed ... ok
+test gateway::tests::lifecycle_commits_writer_only_after_authenticated_transition ... ok
+test floor_socket::tests::loopback_preserves_payload_and_receive_metadata_without_runtime ... ok
+test floor_socket::tests::stream_batch_cap_matches_ordinary_without_changing_datagram_floor ... ok
+test floor_socket::tests::raw_send_error_is_not_reported_as_acceptance ... ok
+test identity::tests::malformed_private_key_is_typed ... ok
+test reconnect::tests::ssh_recovery_starts_at_thirty_seconds_then_is_rate_limited_for_a_minute ... ok
+test route::tests::late_fallback_tick_is_classified_as_process_wake ... ok
+test floor_control::tests::every_split_preserves_following_bytes_and_scrubs_storage ... ok
+test stream_floor_fd::tests::native_descriptor_preserves_would_block_bytes_and_eof ... ok
+test reconnect::tests::retry_prefix_is_exact_and_tail_is_bounded_jitter_forever ... ok
+test stream_floor_handshake::tests::neither_side_is_ready_before_full_authenticated_reply ... ok
+test stream_floor_handshake::tests::invalid_header_and_premature_completion_fail_closed ... ok
+test stream_floor_handshake::tests::rejected_admission_never_stages_reply_or_allows_retry ... ok
+test stream_floor_native_run::tests::local_readiness_preserves_eof_and_signal_ownership ... ok
+test stream_floor_io::tests::reader_caps_large_payload_chunks ... ok
+test stream_floor_protocol::tests::layout_rejects_extra_duplicate_and_wrong_initiator_streams ... ok
+test stream_floor_protocol::tests::server_hello_must_match_fresh_writer_and_zero_state ... ok
+test terminal::tests::empty_async_signal_read_preserves_would_block ... ok
+test transport::stream_floor_config_tests::locked_transport_debug_receipt_has_no_datagram_buffers_even_all_features ... ok
+test pty::tests::ordered_operations_and_events_cross_the_broker_edge_exactly ... ok
+test stream_floor_app::tests::client_source_frames_offsets_and_backpressures_until_complete ... ok
+test stream_floor_io::tests::malformed_record_latches_error_and_cannot_be_reused ... ok
+test stream_floor_io::tests::writer_retains_suffix_across_zero_and_partial_writes ... ok
+test stream_floor_io::tests::reader_never_consumes_next_record_and_reports_truncation ... ok
+test floor_reactor::observation_tests::blocked_udp_send_retains_exact_packet_until_one_real_acceptance ... ok
+test stream_floor_native_run::tests::saturated_output_waits_until_peer_drains ... ok
+test transport::stream_floor_config_tests::stream_configs_share_pinned_protocol_types_without_starting_drivers ... ok
+test stream_floor_app::tests::sequence_kind_and_sink_overcommit_fail_closed ... ok
+test stream_floor_io::tests::writer_reuses_storage_and_caps_each_application_write ... ok
+test stream_floor_app::tests::client_source_rejects_overread_overflow_and_overwriting_pending_input ... ok
+test stream_floor_io::tests::writer_rejects_overcommit_and_cannot_replace_pending_record ... ok
+test stream_floor_fd::tests::ordinary_descriptor_rearms_after_cancelled_pending_read ... ok
+test client_driver::tests::full_input_queue_defers_resize_then_preserves_its_order ... ok
+test client_driver::tests::pending_gap_is_written_to_stderr_exactly_once ... ok
+test stream_floor_app::tests::relay_and_sink_hold_records_across_partial_and_zero_acceptance ... ok
+test stream_floor_io::tests::every_split_and_truncation_preserves_record_and_failure_state ... ok
+test association::tests::input_ack_is_queued_only_after_sink_commit ... ok
+test association::tests::output_ack_is_idempotent_and_gap_is_replay_queued_before_buffering ... ok
+test reconnect::tests::gateway_replacement_drops_and_reports_ambiguous_old_input ... ok
+
+test result: ok. 60 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+
+running 1 test
+test ordinary_stream_admission_uses_tls_spki_and_one_use_bindings ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+
+running 4 tests
+test native_stop_sending_latches_writer_failure ... ok
+test native_truncated_fin_and_reset_remain_errors ... ok
+test ordinary_records_cross_receive_window_and_finish_without_datagrams ... ok
+test native_records_cross_receive_window_and_finish_without_datagrams ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.13s
+
+
+running 4 tests
+test native_handshake_rejects_expired_deadline_before_connection_work ... ok
+test native_silent_server_waits_then_closes_at_deadline ... ok
+test native_handshake_admits_pinned_writer_and_returns_control_stream ... ok
+test native_bad_token_sequence_and_early_fin_close_and_latch ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 4 tests
+test native_echo_rejects_replacement_input_after_stream_credit_returns ... ok
+test native_echo_stop_reset_and_control_eof_are_terminal ... ok
+test native_client_rearms_local_readiness_and_delivers_exact_bytes ... ok
+test native_echo_control_progresses_while_output_blocked_then_exact_data_resumes ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.11s
+
+
+running 1 test
+test native_owner_delivers_six_mib_over_authenticated_udp_and_real_descriptors ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.31s
+
+
+running 10 tests
+test negotiated_profile_uses_live_tls_and_rejects_missing_or_mismatched_properties ... ok
+test wrong_token_is_rejected_and_connection_is_closed ... ok
+test nonzero_control_sequence_is_rejected_before_admission ... ok
+test valid_client_and_server_handshake_retain_control_streams ... ok
+test silent_peer_times_out_and_is_closed ... ok
+test ordinary_server_completion_retains_control_while_local_sink_is_pending ... ok
+test ordinary_echo_stop_reset_and_control_eof_close_the_connection ... ok
+test ordinary_client_loop_delivers_exact_data_through_bounded_local_io ... ok
+test ordinary_client_loop_uses_real_unbuffered_descriptors ... ok
+test authenticated_three_stream_echo_preserves_large_data_and_control ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.65s
+
+
+running 4 tests
+test stream_profile::tests::private_receipt_is_exclusive_and_rejects_unsafe_directory ... ok
+test tests::bootstrap_runtime_is_a_policy_approved_positional_word ... ok
+test tests::cli_requires_explicit_runtime_and_accepts_both_modes ... ok
+test tests::server_record_eof_precedes_authenticated_echo_and_peer_close ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+

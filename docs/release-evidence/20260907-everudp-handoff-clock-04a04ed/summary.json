@@ -1,0 +1,71 @@
+{
+  "status": "DIAGNOSTIC",
+  "qualification": "NOT_APPLICABLE",
+  "integration_authorized": false,
+  "blocks": [
+    {
+      "block": "loss0-block1-traced",
+      "uncertainty_ns": 123,
+      "input_handoff_median_us": {
+        "lower": 100.2365,
+        "upper": 100.3595
+      },
+      "output_handoff_median_us": {
+        "lower": 50.8485,
+        "upper": 50.9715
+      },
+      "public_median_us": {
+        "everudp-floor": 415.0,
+        "zmosh-udp": 423.5
+      }
+    },
+    {
+      "block": "loss0-block2-traced",
+      "uncertainty_ns": 150,
+      "input_handoff_median_us": {
+        "lower": 108.9625,
+        "upper": 109.1125
+      },
+      "output_handoff_median_us": {
+        "lower": 53.5885,
+        "upper": 53.7385
+      },
+      "public_median_us": {
+        "everudp-floor": 423.0,
+        "zmosh-udp": 416.5
+      }
+    },
+    {
+      "block": "loss5-block1-traced",
+      "uncertainty_ns": 165,
+      "input_handoff_median_us": {
+        "lower": 104.8005,
+        "upper": 104.9655
+      },
+      "output_handoff_median_us": {
+        "lower": 48.7315,
+        "upper": 48.8965
+      },
+      "public_median_us": {
+        "everudp-floor": 428.5,
+        "zmosh-udp": 505.0
+      }
+    },
+    {
+      "block": "loss5-block2-traced",
+      "uncertainty_ns": 251,
+      "input_handoff_median_us": {
+        "lower": 99.8595,
+        "upper": 100.1105
+      },
+      "output_handoff_median_us": {
+        "lower": 49.884,
+        "upper": 50.135
+      },
+      "public_median_us": {
+        "everudp-floor": 434.5,
+        "zmosh-udp": 450.5
+      }
+    }
+  ]
+}

@@ -1,0 +1,254 @@
+{
+  "bootstrap": {
+    "block_stratified": true,
+    "caveat": "Within-block resampling, not independent experiment replications or causal overhead certainty.",
+    "resamples": 20000
+  },
+  "cells": {
+    "0": {
+      "cpu_clock_pair_calibration_ns": {
+        "max": 1545,
+        "median": 660.0,
+        "min": 638
+      },
+      "following_top_nonidle_observations": 0,
+      "included_stage_trials": 400,
+      "overhead_observations": {
+        "everudp-floor": {
+          "observations_per_mode": 400,
+          "off_p50_us": 410.5,
+          "on_off_p50_ratio": 1.0401948842874542,
+          "on_off_ratio_central95": [
+            0.9678899082568807,
+            1.101010101010101
+          ],
+          "on_p50_us": 427.0
+        },
+        "zmosh-udp": {
+          "observations_per_mode": 400,
+          "off_p50_us": 424.5,
+          "on_off_p50_ratio": 0.9469964664310954,
+          "on_off_ratio_central95": [
+            0.9037122969837587,
+            1.0024449877750612
+          ],
+          "on_p50_us": 402.0
+        }
+      },
+      "pooled_phase_medians_ns": {
+        "following_loop_top": {
+          "event_drain": {
+            "cpu_ns": 790.0,
+            "wall_ns": 791.0
+          },
+          "pump": {
+            "cpu_ns": 1762.0,
+            "wall_ns": 1732.0
+          },
+          "receive": {
+            "cpu_ns": 2101.5,
+            "wall_ns": 2087.0
+          },
+          "segment": {
+            "cpu_ns": 781.5,
+            "wall_ns": 791.5
+          },
+          "send": {
+            "cpu_ns": 0.0,
+            "wall_ns": 0.0
+          }
+        },
+        "initial_post_offer": {
+          "event_drain": {
+            "cpu_ns": 1030.0,
+            "wall_ns": 1033.5
+          },
+          "pump": {
+            "cpu_ns": 39643.5,
+            "wall_ns": 39213.5
+          },
+          "receive": {
+            "cpu_ns": 4540.5,
+            "wall_ns": 4511.0
+          },
+          "segment": {
+            "cpu_ns": 979.5,
+            "wall_ns": 976.0
+          },
+          "send": {
+            "cpu_ns": 36736.0,
+            "wall_ns": 35957.0
+          }
+        }
+      },
+      "pooled_step_medians_ns": {
+        "following_loop_top": {
+          "thread_cpu": 9707.0,
+          "wall": 9714.0
+        },
+        "initial_post_offer": {
+          "thread_cpu": 97142.5,
+          "wall": 97382.0
+        }
+      },
+      "pooled_unattributed_medians_ns": {
+        "following_loop_top": {
+          "cpu_ns": 4180.0,
+          "wall_ns": 4193.5
+        },
+        "initial_post_offer": {
+          "cpu_ns": 8643.5,
+          "wall_ns": 9435.5
+        }
+      },
+      "stage_reports": {
+        "loss0-block2": {
+          "excluded_rows": [],
+          "included_sequences": 200,
+          "integration_authorized": false,
+          "limitation": "Step durations include event draining. Sequential wall/CPU samples and work counters do not prove a turn can be skipped or establish causal savings. Warmup and excluded pairs are not aggregated.",
+          "partition_limitation": "Same-step phase sums exclude inter-phase instrumentation and other work. Unattributed intervals are not causal overhead; do not subtract independent medians.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 3084478,
+          "target_tid": 3084478
+        },
+        "loss0-block3": {
+          "excluded_rows": [],
+          "included_sequences": 200,
+          "integration_authorized": false,
+          "limitation": "Step durations include event draining. Sequential wall/CPU samples and work counters do not prove a turn can be skipped or establish causal savings. Warmup and excluded pairs are not aggregated.",
+          "partition_limitation": "Same-step phase sums exclude inter-phase instrumentation and other work. Unattributed intervals are not causal overhead; do not subtract independent medians.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 3093801,
+          "target_tid": 3093801
+        }
+      }
+    },
+    "5": {
+      "cpu_clock_pair_calibration_ns": {
+        "max": 3766,
+        "median": 1363.5,
+        "min": 569
+      },
+      "following_top_nonidle_observations": 0,
+      "included_stage_trials": 400,
+      "overhead_observations": {
+        "everudp-floor": {
+          "observations_per_mode": 400,
+          "off_p50_us": 414.5,
+          "on_off_p50_ratio": 1.074788902291918,
+          "on_off_ratio_central95": [
+            1.0023474178403755,
+            1.158974358974359
+          ],
+          "on_p50_us": 445.5
+        },
+        "zmosh-udp": {
+          "observations_per_mode": 400,
+          "off_p50_us": 445.5,
+          "on_off_p50_ratio": 1.0404040404040404,
+          "on_off_ratio_central95": [
+            0.9596602972399151,
+            1.1377314814814814
+          ],
+          "on_p50_us": 463.5
+        }
+      },
+      "pooled_phase_medians_ns": {
+        "following_loop_top": {
+          "event_drain": {
+            "cpu_ns": 738.0,
+            "wall_ns": 739.5
+          },
+          "pump": {
+            "cpu_ns": 1687.0,
+            "wall_ns": 1653.5
+          },
+          "receive": {
+            "cpu_ns": 1984.0,
+            "wall_ns": 1983.0
+          },
+          "segment": {
+            "cpu_ns": 730.0,
+            "wall_ns": 734.0
+          },
+          "send": {
+            "cpu_ns": 0.0,
+            "wall_ns": 0.0
+          }
+        },
+        "initial_post_offer": {
+          "event_drain": {
+            "cpu_ns": 1081.5,
+            "wall_ns": 1093.0
+          },
+          "pump": {
+            "cpu_ns": 44362.5,
+            "wall_ns": 44070.0
+          },
+          "receive": {
+            "cpu_ns": 4656.5,
+            "wall_ns": 4627.0
+          },
+          "segment": {
+            "cpu_ns": 994.5,
+            "wall_ns": 991.5
+          },
+          "send": {
+            "cpu_ns": 35908.0,
+            "wall_ns": 35719.0
+          }
+        }
+      },
+      "pooled_step_medians_ns": {
+        "following_loop_top": {
+          "thread_cpu": 9144.0,
+          "wall": 9152.0
+        },
+        "initial_post_offer": {
+          "thread_cpu": 100329.0,
+          "wall": 100402.0
+        }
+      },
+      "pooled_unattributed_medians_ns": {
+        "following_loop_top": {
+          "cpu_ns": 3858.0,
+          "wall_ns": 3930.5
+        },
+        "initial_post_offer": {
+          "cpu_ns": 8658.0,
+          "wall_ns": 9333.5
+        }
+      },
+      "stage_reports": {
+        "loss5-block2": {
+          "excluded_rows": [],
+          "included_sequences": 200,
+          "integration_authorized": false,
+          "limitation": "Step durations include event draining. Sequential wall/CPU samples and work counters do not prove a turn can be skipped or establish causal savings. Warmup and excluded pairs are not aggregated.",
+          "partition_limitation": "Same-step phase sums exclude inter-phase instrumentation and other work. Unattributed intervals are not causal overhead; do not subtract independent medians.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 3159223,
+          "target_tid": 3159223
+        },
+        "loss5-block3": {
+          "excluded_rows": [],
+          "included_sequences": 200,
+          "integration_authorized": false,
+          "limitation": "Step durations include event draining. Sequential wall/CPU samples and work counters do not prove a turn can be skipped or establish causal savings. Warmup and excluded pairs are not aggregated.",
+          "partition_limitation": "Same-step phase sums exclude inter-phase instrumentation and other work. Unattributed intervals are not causal overhead; do not subtract independent medians.",
+          "qualification": "NOT_APPLICABLE",
+          "status": "DIAGNOSTIC",
+          "target_pid": 3168586,
+          "target_tid": 3168586
+        }
+      }
+    }
+  },
+  "production_actor_integration_authorized": false,
+  "qualification": "NOT_APPLICABLE",
+  "status": "DIAGNOSTIC"
+}

@@ -1,0 +1,156 @@
+{
+  "affinity": "40,42,44,46",
+  "artifacts": {
+    "everudp": {
+      "path": "/tmp/everudp-fairness-build-bd53692/artifacts/bin/everudp",
+      "sha256": "436d2a603ed0e008556ea80b0d368d4def23dfe59da7e62206e35838ddba7818"
+    },
+    "pty-bench": {
+      "path": "/tmp/everudp-fairness-build-bd53692/artifacts/bin/pty-bench",
+      "sha256": "76595f49b48e5dd3907cedb05f6f69035cf6ec8299e2b879ff77a681959d3358"
+    },
+    "pty-echo": {
+      "path": "/tmp/everudp-fairness-build-bd53692/artifacts/bin/pty-echo",
+      "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e"
+    },
+    "zmosh-quic": {
+      "path": "/tmp/everudp-fairness-build-bd53692/artifacts/bin/zmosh-quic",
+      "sha256": "7966e70933dce69e9280550e4dfab4162cc587adeb1b8065a32250ca0fec4048"
+    },
+    "zmosh-quic-bridge": {
+      "path": "/tmp/everudp-fairness-build-bd53692/artifacts/bin/zmosh-quic-bridge",
+      "sha256": "e1ef6a2522cef9258640549e493059efa396eb97df5c181c6ba149749e096702"
+    },
+    "zmosh-udp": {
+      "path": "/tmp/everudp-fairness-build-bd53692/artifacts/bin/zmosh-udp",
+      "sha256": "f86886c5a5c2035950e247d475c0f78d7fd74154f0fdc192d687641309e69b65"
+    }
+  },
+  "build": {
+    "path": "/tmp/everudp-fairness-build-bd53692",
+    "provenance_sha256": "70510c124f25d29ab79f9f09c1f00339c551bd4d2fed1c37b6b5a8d89b3e0912"
+  },
+  "diagnostic_tracing": false,
+  "finished_utc": "2026-09-08T14:44:00Z",
+  "gap_ms": 100,
+  "governors": {
+    "after": {
+      "path": "governors-after.txt",
+      "sha256": "d93c8fa1dc7bdcc16324af98bf221124d47fdefeed685d033028696d196cd276"
+    },
+    "before": {
+      "path": "governors-before.txt",
+      "sha256": "d93c8fa1dc7bdcc16324af98bf221124d47fdefeed685d033028696d196cd276"
+    },
+    "pinned": {
+      "path": "governors-pinned.txt",
+      "sha256": "4708bc3e1d361c6b28061cb32741ba8a44a79d2cad542238e7dabf6aa23d50ae"
+    }
+  },
+  "host": {
+    "cpu_model": "Intel(R) Xeon(R) CPU E5-2697 v2 @ 2.70GHz",
+    "kernel": "Linux 7.1.8+deb14.1-amd64 x86_64 GNU/Linux"
+  },
+  "loss_evidence": {
+    "everudp": {
+      "client_egress_drop_delta": 0,
+      "client_egress_packet_delta": 800,
+      "measurement_window": "post-warmup-start-barrier-to-pre-teardown-finish-barrier",
+      "packet_definition": "summed root-netem sent-plus-drop attempts in both directions; sent-only legacy field excludes netem drops",
+      "receipts": {
+        "netem-everudp-client-after.txt": "9001e8519e135f40a5e81d706bfbf02de42fbc58095d7ed029feb5125f18c090",
+        "netem-everudp-client-before.txt": "abf5585f036a257a764682283a33f91a3088e93cdd99352dbf627d92470297ff",
+        "netem-everudp-server-after.txt": "31bc6dd672582b7b9359e8a551c73fb74fc44f81182f20647434d81d08171ce3",
+        "netem-everudp-server-before.txt": "e3744597b579ccfeb20e59ac33637f45218c8eca14c8e742d80753eed9fc0f27"
+      },
+      "server_egress_drop_delta": 0,
+      "server_egress_packet_delta": 801,
+      "summed_egress_attempt_delta": 1601,
+      "summed_egress_packet_delta": 1601
+    },
+    "zmosh-quic": {
+      "client_egress_drop_delta": 0,
+      "client_egress_packet_delta": 818,
+      "measurement_window": "post-warmup-start-barrier-to-pre-teardown-finish-barrier",
+      "packet_definition": "summed root-netem sent-plus-drop attempts in both directions; sent-only legacy field excludes netem drops",
+      "receipts": {
+        "netem-zmosh-quic-client-after.txt": "e9c4213efce9747a527df171f4cd8873e21467b103c7247d8eb9fdd14d7854f1",
+        "netem-zmosh-quic-client-before.txt": "d7ef7088aec7ec91af391ef79b0b5d18f03e98d350a86a415b6e7db3c41fc251",
+        "netem-zmosh-quic-server-after.txt": "7353fcc29dcdc9d5167e1a954ef8cb22657acdf2e7df20e9df1506a2aee27a20",
+        "netem-zmosh-quic-server-before.txt": "9a6fb6d0f2b5f781f619f8d4267c637ac0197be0ea4d88eca712a90911e95a66"
+      },
+      "server_egress_drop_delta": 0,
+      "server_egress_packet_delta": 1201,
+      "summed_egress_attempt_delta": 2019,
+      "summed_egress_packet_delta": 2019
+    },
+    "zmosh-udp": {
+      "client_egress_drop_delta": 0,
+      "client_egress_packet_delta": 405,
+      "measurement_window": "post-warmup-start-barrier-to-pre-teardown-finish-barrier",
+      "packet_definition": "summed root-netem sent-plus-drop attempts in both directions; sent-only legacy field excludes netem drops",
+      "receipts": {
+        "netem-zmosh-udp-client-after.txt": "081d2b6255a39e72f098a047f223faa889b83033a7576b8ec1a07b4a208bbf91",
+        "netem-zmosh-udp-client-before.txt": "08697073bea22d8a3b358bb6b2907631c9d44c71a604ce918bac43a25d66d5b6",
+        "netem-zmosh-udp-server-after.txt": "976532640d8e1a63fed4cb6fd24951b1eb45d4f25ef2b444232678ae1a4561b7",
+        "netem-zmosh-udp-server-before.txt": "81424124acdc3d292705e47839cf577f672c3f936318d9725fa88b17557f392c"
+      },
+      "server_egress_drop_delta": 0,
+      "server_egress_packet_delta": 405,
+      "summed_egress_attempt_delta": 810,
+      "summed_egress_packet_delta": 810
+    }
+  },
+  "loss_percent_each_direction": 0,
+  "native_stage_tracing": false,
+  "order": [
+    "zmosh-udp",
+    "zmosh-quic",
+    "everudp"
+  ],
+  "production_io_tracing": false,
+  "production_path_tracing": false,
+  "reactor_partition_tracing": false,
+  "reactor_work_tracing": false,
+  "results": {
+    "everudp": {
+      "path": "everudp/result.json",
+      "resources_sha256": "b9154e3a6c2f1513703aa2b39570fd00f2ff334c8a7afb20a8873bad9465ee50",
+      "samples": 200,
+      "sha256": "9c5bf4a7cfb4272f1d8659637f1e01d11de6e16879c741f2d15b6bac2deab4fb",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transcript_failures": 0
+    },
+    "zmosh-quic": {
+      "path": "zmosh-quic/result.json",
+      "resources_sha256": "9856f56cc6031360532ff7c8ca70b71cc112c2764861bf0dd3b4a8d247da975e",
+      "samples": 200,
+      "sha256": "37ebe5c7042c54e6d935c2ffd1e9b0995c0c56c0f55db2dec761be9a70a56e5c",
+      "stderr_sha256": "18f76c58ac0b8d8a120a88e84c1f84a73c8ae21e3952b2f78301a56b091922e0",
+      "transcript_failures": 0
+    },
+    "zmosh-udp": {
+      "path": "zmosh-udp/result.json",
+      "resources_sha256": "b31dc6e591910d945eca37ab7703f8e3ba0a500f290fb06d129a110290e8f1a5",
+      "samples": 200,
+      "sha256": "3227c89f5a9e5cfd48b19262b4757dd4c594db46983f839252aac9e1f6cc35ad",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "transcript_failures": 0
+    }
+  },
+  "schema_version": 1,
+  "seeds": {
+    "client": 920004,
+    "server": 1920007
+  },
+  "source": {
+    "dirty": false,
+    "head_sha": "bd53692a23e498408f55ee30b03309017a923a4c",
+    "tree_sha": "629c6efb4cd6f8c8b960f3d82d2578ead498561b"
+  },
+  "started_utc": "2026-09-08T14:42:57Z",
+  "timer": "immediately before PTY public send; after exact byte accepted by /dev/null sink",
+  "topology": "two isolated Linux network namespaces joined by one veth pair",
+  "trials_per_candidate": 200,
+  "workload": "rotating printable byte through one compiled raw-mode PTY echo process"
+}

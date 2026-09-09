@@ -1,0 +1,62 @@
+performance qualification: loss=0 block=1/6 order=everudp,zmosh-udp,zmosh-quic
+performance block candidate 1/3: everudp
+performance block candidate 2/3: zmosh-udp
+performance block candidate 3/3: zmosh-quic
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920001
+performance qualification: loss=0 block=2/6 order=everudp,zmosh-quic,zmosh-udp
+performance block candidate 1/3: everudp
+performance block candidate 2/3: zmosh-quic
+performance block candidate 3/3: zmosh-udp
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920002
+performance qualification: loss=0 block=3/6 order=zmosh-udp,everudp,zmosh-quic
+performance block candidate 1/3: zmosh-udp
+performance block candidate 2/3: everudp
+performance block candidate 3/3: zmosh-quic
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920003
+performance qualification: loss=0 block=4/6 order=zmosh-udp,zmosh-quic,everudp
+performance block candidate 1/3: zmosh-udp
+performance block candidate 2/3: zmosh-quic
+performance block candidate 3/3: everudp
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920004
+performance qualification: loss=0 block=5/6 order=zmosh-quic,everudp,zmosh-udp
+performance block candidate 1/3: zmosh-quic
+performance block candidate 2/3: everudp
+performance block candidate 3/3: zmosh-udp
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920005
+performance qualification: loss=0 block=6/6 order=zmosh-quic,zmosh-udp,everudp
+performance block candidate 1/3: zmosh-quic
+performance block candidate 2/3: zmosh-udp
+performance block candidate 3/3: everudp
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920006
+performance qualification: loss=5 block=1/6 order=everudp,zmosh-udp,zmosh-quic
+performance block candidate 1/3: everudp
+performance block candidate 2/3: zmosh-udp
+performance block candidate 3/3: zmosh-quic
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930001
+performance qualification: loss=5 block=2/6 order=everudp,zmosh-quic,zmosh-udp
+performance block candidate 1/3: everudp
+performance block candidate 2/3: zmosh-quic
+performance block candidate 3/3: zmosh-udp
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930002
+performance qualification: loss=5 block=3/6 order=zmosh-udp,everudp,zmosh-quic
+performance block candidate 1/3: zmosh-udp
+performance block candidate 2/3: everudp
+performance block candidate 3/3: zmosh-quic
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930003
+performance qualification: loss=5 block=4/6 order=zmosh-udp,zmosh-quic,everudp
+performance block candidate 1/3: zmosh-udp
+performance block candidate 2/3: zmosh-quic
+performance block candidate 3/3: everudp
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930004
+performance qualification: loss=5 block=5/6 order=zmosh-quic,everudp,zmosh-udp
+performance block candidate 1/3: zmosh-quic
+performance block candidate 2/3: everudp
+performance block candidate 3/3: zmosh-udp
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930005
+performance qualification: loss=5 block=6/6 order=zmosh-quic,zmosh-udp,everudp
+performance block candidate 1/3: zmosh-quic
+performance block candidate 2/3: zmosh-udp
+performance block candidate 3/3: everudp
+performance block PASS: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930006
+{"cells":{"0":{"blocks":[{"manifest_sha256":"b957ae28ddce4aabe8dcec4ddc403483674d2614785fbc111f3bb1686896a500","order":["everudp","zmosh-udp","zmosh-quic"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920001","seed":920001},{"manifest_sha256":"15d4fce297c17919498e0aee5695e7c75113aea971a44bae11aeec89637fbc13","order":["everudp","zmosh-quic","zmosh-udp"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920002","seed":920002},{"manifest_sha256":"77cd1404a0ac386c31bef728954b3613270d821a6888a10adb4f68d598af8d5a","order":["zmosh-udp","everudp","zmosh-quic"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920003","seed":920003},{"manifest_sha256":"ce8f62177b7e6ad84838de0a40b77fdc32b6811f8abb4f1df4d91a69a58b15b2","order":["zmosh-udp","zmosh-quic","everudp"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920004","seed":920004},{"manifest_sha256":"7770c98b9a87f6444ba5bb1a6ca6c2380cd815e1913bd1617c12a69663e4d16a","order":["zmosh-quic","everudp","zmosh-udp"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920005","seed":920005},{"manifest_sha256":"063268b5182b27093b9ddbee59b87bed22bf8a82b52662c026446edbea82e861","order":["zmosh-quic","zmosh-udp","everudp"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss0/block-920006","seed":920006}],"comparisons":{"zmosh-quic":{"baseline":"zmosh-quic","bootstrap":{"iterations":20000,"method":"independent resampling within each candidate-order block stratum","p50_ratio_interval_95":[0.06970035361995161,0.07334076965978807],"p50_ratio_upper95":0.07286922576447626,"p95_ratio_interval_95":[0.11085491308974814,0.11512895506514224],"p95_ratio_upper95":0.11417427533020122,"seed":1163284481},"gate":{"p50_point_at_most_1_00":true,"p50_upper95_at_most_1_10":true,"p95_upper95_at_most_1_00":true,"pass":true},"point":{"baseline_p50_us":10757,"baseline_p95_us":11272,"everudp_p50_us":768,"everudp_p95_us":1263,"p50_ratio":0.07139537045644696,"p95_ratio":0.11204755145493257},"sample_count_per_implementation":1200},"zmosh-udp":{"baseline":"zmosh-udp","bootstrap":{"iterations":20000,"method":"independent resampling within each candidate-order block stratum","p50_ratio_interval_95":[1.7833333333333334,1.9189189189189189],"p50_ratio_upper95":1.9066339066339066,"p95_ratio_interval_95":[1.4315068493150684,1.5520195838433293],"p95_ratio_upper95":1.543030303030303,"seed":1163284480},"gate":{"p50_point_at_most_1_00":false,"p50_upper95_at_most_1_10":false,"p95_upper95_at_most_1_00":false,"pass":false},"point":{"baseline_p50_us":414,"baseline_p95_us":858,"everudp_p50_us":768,"everudp_p95_us":1263,"p50_ratio":1.855072463768116,"p95_ratio":1.472027972027972},"sample_count_per_implementation":1200}}},"5":{"blocks":[{"manifest_sha256":"87493ef47939e2f404370732451cebbe2e389f740cc13c673ab4df98efae0a6c","order":["everudp","zmosh-udp","zmosh-quic"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930001","seed":930001},{"manifest_sha256":"419e4b67b934c2c50bc1ff1b62b85abb33a1fa0fb822928f7504fed573b2264a","order":["everudp","zmosh-quic","zmosh-udp"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930002","seed":930002},{"manifest_sha256":"59ae0ebb02d1b35bb8a7496e81ee34efe9a75abc4d3d7630073ca89b5f64ab7f","order":["zmosh-udp","everudp","zmosh-quic"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930003","seed":930003},{"manifest_sha256":"eedaa2feffa347be4e46ef2e82e69798ea4ed4775aab4d2eb612b7c8fb7d7a4e","order":["zmosh-udp","zmosh-quic","everudp"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930004","seed":930004},{"manifest_sha256":"152ef1665b34ad91cbc1fcb00c8b16dbb876892fbf7151f7ee4ffeb8b5188975","order":["zmosh-quic","everudp","zmosh-udp"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930005","seed":930005},{"manifest_sha256":"6460679cb855d1b0c6b45592a925d68063e8613a6ba3db9504ec877937f91fe4","order":["zmosh-quic","zmosh-udp","everudp"],"path":"/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance/loss5/block-930006","seed":930006}],"comparisons":{"zmosh-quic":{"baseline":"zmosh-quic","bootstrap":{"iterations":20000,"method":"independent resampling within each candidate-order block stratum","p50_ratio_interval_95":[0.07184466019417475,0.0779816513761468],"p50_ratio_upper95":0.07754084741068956,"p95_ratio_interval_95":[0.06895445284048066,0.11937026177457273],"p95_ratio_upper95":0.11760554175924716,"seed":1163284986},"gate":{"p50_point_at_most_1_00":true,"p50_upper95_at_most_1_10":true,"p95_upper95_at_most_1_00":true,"pass":true},"point":{"baseline_p50_us":10864,"baseline_p95_us":61926,"everudp_p50_us":815,"everudp_p95_us":4435,"p50_ratio":0.07501840942562592,"p95_ratio":0.0716177372993573},"sample_count_per_implementation":1200},"zmosh-udp":{"baseline":"zmosh-udp","bootstrap":{"iterations":20000,"method":"independent resampling within each candidate-order block stratum","p50_ratio_interval_95":[1.5433070866141732,1.7852494577006508],"p50_ratio_upper95":1.7657266811279826,"p95_ratio_interval_95":[0.08428877657377726,0.09166223901450302],"p95_ratio_upper95":0.09089300460068421,"seed":1163284985},"gate":{"p50_point_at_most_1_00":false,"p50_upper95_at_most_1_10":false,"p95_upper95_at_most_1_00":true,"pass":false},"point":{"baseline_p50_us":495,"baseline_p95_us":50768,"everudp_p50_us":815,"everudp_p95_us":4435,"p50_ratio":1.6464646464646464,"p95_ratio":0.08735817838008195},"sample_count_per_implementation":1200}}}},"verdict":{"all_four_comparisons_pass":false,"exact_release_evidence":true,"qualification_outcome":"FAIL","zero_transcript_failures":true}}
+performance qualification FAIL (sealed evidence retained): /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T191136Z-9989564cff6e/performance

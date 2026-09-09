@@ -1,0 +1,108 @@
+{
+  "artifacts": {
+    "everudp-stream-floor": {
+      "path": "artifacts/bin/everudp-stream-floor",
+      "sha256": "e909ab3d9a56ce2ddb332463ba7476d61b0698ef948a35e08cdac5156c7da2e9"
+    },
+    "pty-bench": {
+      "path": "artifacts/bin/pty-bench",
+      "sha256": "76595f49b48e5dd3907cedb05f6f69035cf6ec8299e2b879ff77a681959d3358"
+    },
+    "pty-echo": {
+      "path": "artifacts/bin/pty-echo",
+      "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e"
+    },
+    "zmosh-udp": {
+      "path": "artifacts/bin/zmosh-udp",
+      "sha256": "30be074b47bfc7db062c01a4057897760d25d1948dd737cdca2ea76f0d275c04"
+    }
+  },
+  "commands": [
+    "env -i PATH HOME RUSTUP_HOME CARGO_HOME=(empty isolated directory) CARGO_TARGET_DIR=(isolated) CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_PANIC=unwind CARGO_PROFILE_RELEASE_OPT_LEVEL=3 RUSTFLAGS='' CARGO_ENCODED_RUSTFLAGS='' cargo build --locked --release -p everudp --no-default-features --features cli,stream-floor --example everudp-stream-floor (cwd=archived source)",
+    "zig-0.15.2 build -Doptimize=ReleaseFast (zmosh UDP)",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-bench.c -lutil",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-echo.c"
+  ],
+  "everudp_build": {
+    "cargo_features": [
+      "cli",
+      "stream-floor"
+    ],
+    "default_features": false,
+    "diagnostic_build": false,
+    "profile": {
+      "codegen_units": 1,
+      "lto": "fat",
+      "opt_level": 3,
+      "panic": "unwind",
+      "rustflags": "",
+      "target_cpu": "portable default"
+    },
+    "runtime_modes": [
+      "ordinary",
+      "native"
+    ],
+    "target": "example everudp-stream-floor"
+  },
+  "finished_utc": "2026-09-08T11:49:06Z",
+  "host": {
+    "platform": "Linux-7.1.8+deb14.1-amd64-x86_64-with-glibc2.43"
+  },
+  "inputs": {
+    "Cargo.lock": "036f87a810d709762a25451d5442bb1d55de6fd1080e45a255676d101d5e322b",
+    "builder": "f5a1733a6c913a9b3590544e6a8cf5f72eb2c511cf10ec79ca04fdc10ae17c38",
+    "everudp-stream-floor.rs": "7e7681c5374245d0db0e2789609b218969ecbe4b27495c6dedb145a8747254a2",
+    "pty-bench.c": "07a94f06c5fe222ecadacb0b1450e507d01777b9958be7859f84a652332f31cc",
+    "pty-echo.c": "41108c62a545eb632b9dac4185c7ba8d975658c4e50bfa63b3adb91a116154d1"
+  },
+  "isolation": {
+    "archived_eversh_source": true,
+    "cleared_cargo_environment": true,
+    "empty_cargo_home": true,
+    "fresh_detached_zmosh_clone": true,
+    "isolated_cargo_target": true,
+    "isolated_zig_global_cache": true,
+    "isolated_zig_local_cache": true
+  },
+  "purpose": "matched-noq-reliable-stream-floor",
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "8c6f060d4799c38fdd1fa7399a137d8b64d8fc8c",
+    "tree_sha": "88bd4d5fcbfa442617ec4f6be444ee6035f34435"
+  },
+  "started_utc": "2026-09-08T11:44:14Z",
+  "tool_binaries": {
+    "cargo": {
+      "path": "/usr/bin/cargo",
+      "sha256": "eab5512c7d143d409a09388a47edfe8c330b2fb5d1a8baee10996cb0c17a0d4e"
+    },
+    "cc": {
+      "path": "/usr/bin/x86_64-linux-gnu-gcc-16",
+      "sha256": "f835734c0e7a17d87dec3ee306730195e3775c28a5f8da75c82ea72a780456d3"
+    },
+    "git": {
+      "path": "/usr/bin/git",
+      "sha256": "07a55b56936312b25c6d6a9fa1d5e8d5672fb588ac1bb26e8dd0b9b61a7bac7b"
+    },
+    "rustc": {
+      "path": "/usr/bin/rustc",
+      "sha256": "d8cb5537ada4fcee501c986afbc40910df7d8598892e3fcaabbefb500393a053"
+    }
+  },
+  "tools": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+    "cc": "cc (Debian 16.2.0-1) 16.2.0",
+    "git": "git version 2.55.0",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+    "zig_0_15_2": {
+      "sha256": "2858dc89dbbfdd08cceda1b841e7fd0a793a1a67b49f150bc3d0d1de44ed7f51",
+      "version": "0.15.2"
+    }
+  },
+  "zmosh_source": {
+    "clean": true,
+    "commit": "dfc8395b5edcd237bf82712fbde879c6e8be7dfa",
+    "tree": "1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514"
+  }
+}

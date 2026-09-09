@@ -1,0 +1,210 @@
+{
+  "attribution": "UNKNOWN",
+  "blocks": [
+    {
+      "block": 1,
+      "everudp_median_us": 366.0,
+      "floor_over_zmosh": 0.9786096256684492,
+      "loss_percent": 0,
+      "mode": "plain",
+      "zmosh_median_us": 374.0
+    },
+    {
+      "block": 1,
+      "everudp_median_us": 356.0,
+      "floor_over_zmosh": 0.9047013977128335,
+      "loss_percent": 0,
+      "mode": "instrumented",
+      "zmosh_median_us": 393.5
+    },
+    {
+      "block": 1,
+      "everudp_median_us": 360.0,
+      "floor_over_zmosh": 0.933852140077821,
+      "loss_percent": 0,
+      "mode": "traced",
+      "zmosh_median_us": 385.5
+    },
+    {
+      "block": 2,
+      "everudp_median_us": 379.0,
+      "floor_over_zmosh": 1.0039735099337748,
+      "loss_percent": 0,
+      "mode": "plain",
+      "zmosh_median_us": 377.5
+    },
+    {
+      "block": 2,
+      "everudp_median_us": 367.0,
+      "floor_over_zmosh": 0.8843373493975903,
+      "loss_percent": 0,
+      "mode": "instrumented",
+      "zmosh_median_us": 415.0
+    },
+    {
+      "block": 2,
+      "everudp_median_us": 361.0,
+      "floor_over_zmosh": 0.9704301075268817,
+      "loss_percent": 0,
+      "mode": "traced",
+      "zmosh_median_us": 372.0
+    },
+    {
+      "block": 1,
+      "everudp_median_us": 432.0,
+      "floor_over_zmosh": 1.0105263157894737,
+      "loss_percent": 5,
+      "mode": "plain",
+      "zmosh_median_us": 427.5
+    },
+    {
+      "block": 1,
+      "everudp_median_us": 375.5,
+      "floor_over_zmosh": 0.8682080924855491,
+      "loss_percent": 5,
+      "mode": "instrumented",
+      "zmosh_median_us": 432.5
+    },
+    {
+      "block": 1,
+      "everudp_median_us": 397.0,
+      "floor_over_zmosh": 0.9497607655502392,
+      "loss_percent": 5,
+      "mode": "traced",
+      "zmosh_median_us": 418.0
+    },
+    {
+      "block": 2,
+      "everudp_median_us": 413.0,
+      "floor_over_zmosh": 0.9987908101571947,
+      "loss_percent": 5,
+      "mode": "plain",
+      "zmosh_median_us": 413.5
+    },
+    {
+      "block": 2,
+      "everudp_median_us": 351.5,
+      "floor_over_zmosh": 0.7943502824858757,
+      "loss_percent": 5,
+      "mode": "instrumented",
+      "zmosh_median_us": 442.5
+    },
+    {
+      "block": 2,
+      "everudp_median_us": 401.0,
+      "floor_over_zmosh": 1.028205128205128,
+      "loss_percent": 5,
+      "mode": "traced",
+      "zmosh_median_us": 390.0
+    }
+  ],
+  "collection": {
+    "blocks": 12,
+    "common_artifacts": {
+      "pty-bench": "0f082f7ec8a761dfdb16d9e4a04e74bf0af3c0afedf54aaa57b7bbe2f2b977eb",
+      "pty-echo": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e",
+      "zmosh-udp": "9f53eeec6b33ee17bb678f0c6cce24cbd79284d89733f5fbfafd8c37cf4c516d"
+    },
+    "common_source": {
+      "head_sha": "a3023b8ed41b13e82dfb578bad358dd2e5e95433",
+      "tree_sha": "b2a505f5024d33937e80cd46dbd14bf344314419"
+    },
+    "responses": 4800
+  },
+  "interpretation": [
+    "Ratios are descriptive medians from two reversed blocks per loss/mode, not a qualification result.",
+    "Disjoint seeds and host variation prevent identifying pure causal tracing overhead.",
+    "Block ratios are paired by schedule/order, not paired per-trial latencies.",
+    "No cross-process timestamp subtraction or network-only attribution is made."
+  ],
+  "mode_comparisons": [
+    {
+      "block": 1,
+      "comparison": "instrumented_over_plain",
+      "denominator_median_us": 366.0,
+      "loss_percent": 0,
+      "normalized_floor_over_zmosh_ratio": 0.9244762916519118,
+      "numerator_median_us": 356.0,
+      "ratio": 0.9726775956284153
+    },
+    {
+      "block": 1,
+      "comparison": "traced_over_instrumented",
+      "denominator_median_us": 356.0,
+      "loss_percent": 0,
+      "normalized_floor_over_zmosh_ratio": 1.0322213964062432,
+      "numerator_median_us": 360.0,
+      "ratio": 1.0112359550561798
+    },
+    {
+      "block": 2,
+      "comparison": "instrumented_over_plain",
+      "denominator_median_us": 379.0,
+      "loss_percent": 0,
+      "normalized_floor_over_zmosh_ratio": 0.880837333502877,
+      "numerator_median_us": 367.0,
+      "ratio": 0.9683377308707124
+    },
+    {
+      "block": 2,
+      "comparison": "traced_over_instrumented",
+      "denominator_median_us": 367.0,
+      "loss_percent": 0,
+      "normalized_floor_over_zmosh_ratio": 1.0973528463859834,
+      "numerator_median_us": 361.0,
+      "ratio": 0.9836512261580381
+    },
+    {
+      "block": 1,
+      "comparison": "instrumented_over_plain",
+      "denominator_median_us": 432.0,
+      "loss_percent": 5,
+      "normalized_floor_over_zmosh_ratio": 0.8591642581888246,
+      "numerator_median_us": 375.5,
+      "ratio": 0.8692129629629629
+    },
+    {
+      "block": 1,
+      "comparison": "traced_over_instrumented",
+      "denominator_median_us": 375.5,
+      "loss_percent": 5,
+      "normalized_floor_over_zmosh_ratio": 1.093932173370116,
+      "numerator_median_us": 397.0,
+      "ratio": 1.0572569906790945
+    },
+    {
+      "block": 2,
+      "comparison": "instrumented_over_plain",
+      "denominator_median_us": 413.0,
+      "loss_percent": 5,
+      "normalized_floor_over_zmosh_ratio": 0.7953119656365849,
+      "numerator_median_us": 351.5,
+      "ratio": 0.851089588377724
+    },
+    {
+      "block": 2,
+      "comparison": "traced_over_instrumented",
+      "denominator_median_us": 351.5,
+      "loss_percent": 5,
+      "normalized_floor_over_zmosh_ratio": 1.2943976365028995,
+      "numerator_median_us": 401.0,
+      "ratio": 1.1408250355618776
+    }
+  ],
+  "qualification": "UNCHANGED",
+  "sensitivity_by_loss": {
+    "0": {
+      "instrumented_over_plain_max": 0.9726775956284153,
+      "instrumented_over_plain_min": 0.9683377308707124,
+      "traced_over_instrumented_max": 1.0112359550561798,
+      "traced_over_instrumented_min": 0.9836512261580381
+    },
+    "5": {
+      "instrumented_over_plain_max": 0.8692129629629629,
+      "instrumented_over_plain_min": 0.851089588377724,
+      "traced_over_instrumented_max": 1.1408250355618776,
+      "traced_over_instrumented_min": 1.0572569906790945
+    }
+  },
+  "status": "DIAGNOSTIC"
+}

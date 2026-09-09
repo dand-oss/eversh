@@ -1,0 +1,247 @@
+{
+  "bootstrap": {
+    "block_stratified": true,
+    "resamples": 20000,
+    "seed_base": 76000,
+    "upper95_reported_not_gating": true
+  },
+  "cells": {
+    "0": {
+      "blocks": [
+        {
+          "latency": {
+            "everudp-stream-native": {
+              "p50_us": 496.0,
+              "p95_us": 847.0
+            },
+            "everudp-stream-ordinary": {
+              "p50_us": 552.0,
+              "p95_us": 899.0
+            },
+            "zmosh-udp": {
+              "p50_us": 415.5,
+              "p95_us": 795.0
+            }
+          },
+          "order": [
+            "everudp-stream-native",
+            "everudp-stream-ordinary",
+            "zmosh-udp"
+          ],
+          "packet_attempt_ratios_vs_zmosh_udp": {
+            "everudp-stream-native": 1.0099750623441397,
+            "everudp-stream-ordinary": 1.0,
+            "zmosh-udp": 1.0
+          },
+          "packet_attempts": {
+            "everudp-stream-native": 810,
+            "everudp-stream-ordinary": 802,
+            "zmosh-udp": 802
+          },
+          "samples_per_candidate": 200
+        },
+        {
+          "latency": {
+            "everudp-stream-native": {
+              "p50_us": 506.5,
+              "p95_us": 827.0
+            },
+            "everudp-stream-ordinary": {
+              "p50_us": 545.0,
+              "p95_us": 898.0
+            },
+            "zmosh-udp": {
+              "p50_us": 422.0,
+              "p95_us": 831.0
+            }
+          },
+          "order": [
+            "zmosh-udp",
+            "everudp-stream-ordinary",
+            "everudp-stream-native"
+          ],
+          "packet_attempt_ratios_vs_zmosh_udp": {
+            "everudp-stream-native": 0.9864532019704434,
+            "everudp-stream-ordinary": 0.9876847290640394,
+            "zmosh-udp": 1.0
+          },
+          "packet_attempts": {
+            "everudp-stream-native": 801,
+            "everudp-stream-ordinary": 802,
+            "zmosh-udp": 812
+          },
+          "samples_per_candidate": 200
+        }
+      ],
+      "bootstrap": {
+        "native_vs_zmosh_udp_p50_upper95": 1.2386780905752754,
+        "resamples": 20000,
+        "seed": 76000,
+        "upper95_reported_not_gating": true
+      },
+      "gate": {
+        "native_packet_ratio_each_block_at_most_1_60": true,
+        "native_packet_ratio_pooled_at_most_1_60": true,
+        "native_vs_zmosh_udp_p50_at_most_0_90": false,
+        "pass": false
+      },
+      "latency": {
+        "everudp-stream-native": {
+          "p50_us": 503.5,
+          "p95_us": 842.0
+        },
+        "everudp-stream-ordinary": {
+          "p50_us": 549.5,
+          "p95_us": 899.0
+        },
+        "zmosh-udp": {
+          "p50_us": 418.0,
+          "p95_us": 824.0
+        }
+      },
+      "observations_per_candidate": 400,
+      "packet_attempt_ratios_vs_zmosh_udp": {
+        "everudp-stream-native": 0.9981412639405205,
+        "everudp-stream-ordinary": 0.9938042131350682,
+        "zmosh-udp": 1.0
+      },
+      "packet_attempts": {
+        "everudp-stream-native": 1611,
+        "everudp-stream-ordinary": 1604,
+        "zmosh-udp": 1614
+      },
+      "ratios": {
+        "native_vs_ordinary": {
+          "p50": 0.916287534121929,
+          "p95": 0.9365962180200222
+        },
+        "native_vs_zmosh_udp": {
+          "p50": 1.2045454545454546,
+          "p95": 1.0218446601941749
+        }
+      }
+    },
+    "5": {
+      "blocks": [
+        {
+          "latency": {
+            "everudp-stream-native": {
+              "p50_us": 543.5,
+              "p95_us": 3843.0
+            },
+            "everudp-stream-ordinary": {
+              "p50_us": 530.5,
+              "p95_us": 29868.0
+            },
+            "zmosh-udp": {
+              "p50_us": 431.0,
+              "p95_us": 50806.0
+            }
+          },
+          "order": [
+            "everudp-stream-native",
+            "everudp-stream-ordinary",
+            "zmosh-udp"
+          ],
+          "packet_attempt_ratios_vs_zmosh_udp": {
+            "everudp-stream-native": 1.2080378250591017,
+            "everudp-stream-ordinary": 1.1513002364066194,
+            "zmosh-udp": 1.0
+          },
+          "packet_attempts": {
+            "everudp-stream-native": 1022,
+            "everudp-stream-ordinary": 974,
+            "zmosh-udp": 846
+          },
+          "samples_per_candidate": 200
+        },
+        {
+          "latency": {
+            "everudp-stream-native": {
+              "p50_us": 571.0,
+              "p95_us": 3846.0
+            },
+            "everudp-stream-ordinary": {
+              "p50_us": 585.0,
+              "p95_us": 3936.0
+            },
+            "zmosh-udp": {
+              "p50_us": 448.0,
+              "p95_us": 50610.0
+            }
+          },
+          "order": [
+            "zmosh-udp",
+            "everudp-stream-ordinary",
+            "everudp-stream-native"
+          ],
+          "packet_attempt_ratios_vs_zmosh_udp": {
+            "everudp-stream-native": 1.1512309495896835,
+            "everudp-stream-ordinary": 1.1254396248534584,
+            "zmosh-udp": 1.0
+          },
+          "packet_attempts": {
+            "everudp-stream-native": 982,
+            "everudp-stream-ordinary": 960,
+            "zmosh-udp": 853
+          },
+          "samples_per_candidate": 200
+        }
+      ],
+      "bootstrap": {
+        "native_vs_zmosh_udp_p50_upper95": 1.3526570048309179,
+        "resamples": 20000,
+        "seed": 76005,
+        "upper95_reported_not_gating": true
+      },
+      "gate": {
+        "native_packet_ratio_each_block_at_most_1_60": true,
+        "native_packet_ratio_pooled_at_most_1_60": true,
+        "native_vs_zmosh_udp_p50_at_most_0_90": false,
+        "pass": false
+      },
+      "latency": {
+        "everudp-stream-native": {
+          "p50_us": 550.0,
+          "p95_us": 3846.0
+        },
+        "everudp-stream-ordinary": {
+          "p50_us": 555.0,
+          "p95_us": 4180.0
+        },
+        "zmosh-udp": {
+          "p50_us": 440.5,
+          "p95_us": 50693.0
+        }
+      },
+      "observations_per_candidate": 400,
+      "packet_attempt_ratios_vs_zmosh_udp": {
+        "everudp-stream-native": 1.179517363154797,
+        "everudp-stream-ordinary": 1.1383166568569747,
+        "zmosh-udp": 1.0
+      },
+      "packet_attempts": {
+        "everudp-stream-native": 2004,
+        "everudp-stream-ordinary": 1934,
+        "zmosh-udp": 1699
+      },
+      "ratios": {
+        "native_vs_ordinary": {
+          "p50": 0.990990990990991,
+          "p95": 0.9200956937799043
+        },
+        "native_vs_zmosh_udp": {
+          "p50": 1.2485811577752555,
+          "p95": 0.0758684631014144
+        }
+      }
+    }
+  },
+  "purpose": "matched-reliable-stream-floor-quantitative",
+  "quantitative_gate_status": "FAIL",
+  "schema_version": 1,
+  "thresholds": {
+    "p50_native_udp_max": 0.9,
+    "packet_ratio_max": 1.6
+  }
+}

@@ -21,7 +21,7 @@
 //! production budgets: `retry_attempts_max` in-episode attempts and an
 //! invocation-wide `episode_restarts_max` cap on carried-death episode
 //! restarts. This gate's SIGUSR1 kill is an UNCLEAN transport death: the fake
-//! ssh (simulating the local everlink edge) has already written `carrying` to
+//! ssh (simulating the local everssh edge) has already written `carrying` to
 //! its per-spawn link-status file but dies without any terminal `cause`
 //! record, so the supervisor classifies the exit as a transport failure with
 //! `carried=0` — the SAME episode continues and the cycle's probe + attach
@@ -103,7 +103,7 @@ fn binary() -> &'static OsStr {
 /// The fake ssh script (kept byte-identical to `supervisor_linux.rs`'s
 /// current script, including every mode this gate never exercises, so the two
 /// fixtures never silently drift apart). What this gate relies on: it
-/// captures argv NUL-separated plus its pid, simulates the LOCAL everlink
+/// captures argv NUL-separated plus its pid, simulates the LOCAL everssh
 /// link-status file protocol (extracting the `--status-file` path from the
 /// ProxyCommand option value — never the environment — writing `carrying`
 /// before a non-probe exec and a terminal `cause` record on a natural exit),
@@ -134,7 +134,7 @@ done
 
 # The per-spawn status path arrives as a --status-file argument inside the
 # ProxyCommand option value (never an environment variable): extract it the
-# same way the real everlink edge receives it after the local shell splits
+# same way the real everssh edge receives it after the local shell splits
 # the ProxyCommand line.
 status_file=
 for arg in "$@"; do
@@ -148,11 +148,11 @@ done
 
 status_carrying() {
   [ -n "$status_file" ] || return 0
-  printf 'everlink-status-v1 carrying\n' >> "$status_file" 2>/dev/null || true
+  printf 'everssh-status-v1 carrying\n' >> "$status_file" 2>/dev/null || true
 }
 status_cause() {
   [ -n "$status_file" ] || return 0
-  printf 'everlink-status-v1 cause %s carried=%s\n' "$1" "$2" >> "$status_file" 2>/dev/null || true
+  printf 'everssh-status-v1 cause %s carried=%s\n' "$1" "$2" >> "$status_file" 2>/dev/null || true
 }
 
 mode=run

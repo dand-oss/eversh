@@ -1,0 +1,42 @@
+{
+  "analysis": {
+    "path": "analysis.json",
+    "sha256": "53f4c9691af601c6a2f4c1a6513af179e94bd8aacabc541f5111f0c185084508"
+  },
+  "blocks": [
+    {
+      "manifest_sha256": "ae286c1452bcd3bf372986f97d6c3de802c5cd048462c9b0509befc5fb0280a9",
+      "path": "loss0-block1",
+      "sha256sums_sha256": "38c42e304e641236ad86d7cb92c6b96b0cade91cd6e25211b76e9273df630a89"
+    },
+    {
+      "manifest_sha256": "0249cbcc229cd03d40a84ed77bc1af4965b7a87971190620deb01faeb22c0a04",
+      "path": "loss0-block2",
+      "sha256sums_sha256": "198fe9ac867db64bf729bf0177a3f2c4a8b96c3c4985002b5de9073dc8b4c26e"
+    },
+    {
+      "manifest_sha256": "af4d2e19cfbef09ceaaafe6147cc00f00a450dad78ce710f2c8a2e10136ae7f8",
+      "path": "loss5-block1",
+      "sha256sums_sha256": "d3824ee786f0a103da4172488f44fff4b31ed37fdd6f6f572c5526b81700cfc6"
+    },
+    {
+      "manifest_sha256": "db2951f6a3bea7fff359530836a8fc733e9c86c8f92d503caf4379a376cffe8f",
+      "path": "loss5-block2",
+      "sha256sums_sha256": "3b71581594a3a402ea3ee3b6a94158413ee048f813c556862138366970813735"
+    }
+  ],
+  "candidate": {
+    "head_sha": "9b67a67a4834daea193af4e6a4270e6155dac048",
+    "tree_sha": "b27b3f9aeae8be9970f7894491b4d2b0045eae74"
+  },
+  "finished_utc": "2026-09-07T17:11:26Z",
+  "invalid_reasons": [
+    "Required allocation/component attribution is not yet collected and validated (eversh-5fc.20)"
+  ],
+  "production_actor_integration_authorized": false,
+  "quantitative_gate_status": "FAIL",
+  "schema_version": 1,
+  "stage_zero_only": true,
+  "started_utc": "2026-09-07T17:08:15Z",
+  "status": "INVALID"
+}

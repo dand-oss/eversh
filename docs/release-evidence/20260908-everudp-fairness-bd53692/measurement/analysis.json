@@ -1,0 +1,300 @@
+{
+  "artifacts": {
+    "everudp": "436d2a603ed0e008556ea80b0d368d4def23dfe59da7e62206e35838ddba7818",
+    "pty_bench": "76595f49b48e5dd3907cedb05f6f69035cf6ec8299e2b879ff77a681959d3358",
+    "pty_echo": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e",
+    "zmosh_quic": "7966e70933dce69e9280550e4dfab4162cc587adeb1b8065a32250ca0fec4048",
+    "zmosh_quic_bridge": "e1ef6a2522cef9258640549e493059efa396eb97df5c181c6ba149749e096702",
+    "zmosh_udp": "f86886c5a5c2035950e247d475c0f78d7fd74154f0fdc192d687641309e69b65"
+  },
+  "build_provenance_sha256": "70510c124f25d29ab79f9f09c1f00339c551bd4d2fed1c37b6b5a8d89b3e0912",
+  "cells": {
+    "0": {
+      "blocks": [
+        {
+          "manifest_sha256": "dea5e09cf06ff535eb2141915f11c04ef1cfc74c605da8a037e858214977c5de",
+          "order": [
+            "everudp",
+            "zmosh-udp",
+            "zmosh-quic"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss0/block-920001",
+          "seed": 920001
+        },
+        {
+          "manifest_sha256": "f4f6566d9e5243911333b880b7119d6548659983dabcdd516a5f42b6fdfd5a6e",
+          "order": [
+            "everudp",
+            "zmosh-quic",
+            "zmosh-udp"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss0/block-920002",
+          "seed": 920002
+        },
+        {
+          "manifest_sha256": "d72c45f967b2e057536581c22a88ea65c6b7a977d2ffc7c23b1f9797069d6fd3",
+          "order": [
+            "zmosh-udp",
+            "everudp",
+            "zmosh-quic"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss0/block-920003",
+          "seed": 920003
+        },
+        {
+          "manifest_sha256": "b7f898859744eb7962e5be2d758700f20a66aa3394d1421c05398fe56eed9c84",
+          "order": [
+            "zmosh-udp",
+            "zmosh-quic",
+            "everudp"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss0/block-920004",
+          "seed": 920004
+        },
+        {
+          "manifest_sha256": "6998634a27cf0738957535be633e78e85f2fa1c639cfd896780b5a7ec3e9c598",
+          "order": [
+            "zmosh-quic",
+            "everudp",
+            "zmosh-udp"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss0/block-920005",
+          "seed": 920005
+        },
+        {
+          "manifest_sha256": "1240f109e2dca51a994ec92ae1f7d412a4d58258b426e302a340c278691dfbc2",
+          "order": [
+            "zmosh-quic",
+            "zmosh-udp",
+            "everudp"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss0/block-920006",
+          "seed": 920006
+        }
+      ],
+      "comparisons": {
+        "zmosh-quic": {
+          "baseline": "zmosh-quic",
+          "bootstrap": {
+            "iterations": 20000,
+            "method": "independent resampling within each candidate-order block stratum",
+            "p50_ratio_interval_95": [
+              0.9394463667820069,
+              0.9788359788359788
+            ],
+            "p50_ratio_upper95": 0.9753954305799648,
+            "p95_ratio_interval_95": [
+              0.8851224105461394,
+              0.962474645030426
+            ],
+            "p95_ratio_upper95": 0.9554896142433235,
+            "seed": 1163284481
+          },
+          "gate": {
+            "p50_point_at_most_1_00": true,
+            "p50_upper95_at_most_1_10": true,
+            "p95_upper95_at_most_1_00": true,
+            "pass": true
+          },
+          "point": {
+            "baseline_p50_us": 574,
+            "baseline_p95_us": 1041,
+            "everudp_p50_us": 550,
+            "everudp_p95_us": 957,
+            "p50_ratio": 0.9581881533101045,
+            "p95_ratio": 0.9193083573487032
+          },
+          "sample_count_per_implementation": 1200
+        },
+        "zmosh-udp": {
+          "baseline": "zmosh-udp",
+          "bootstrap": {
+            "iterations": 20000,
+            "method": "independent resampling within each candidate-order block stratum",
+            "p50_ratio_interval_95": [
+              1.4103896103896103,
+              1.4750656167979002
+            ],
+            "p50_ratio_upper95": 1.470899470899471,
+            "p95_ratio_interval_95": [
+              1.1127098321342925,
+              1.2032218091697646
+            ],
+            "p95_ratio_upper95": 1.1955445544554455,
+            "seed": 1163284480
+          },
+          "gate": {
+            "p50_point_at_most_1_00": false,
+            "p50_upper95_at_most_1_10": false,
+            "p95_upper95_at_most_1_00": false,
+            "pass": false
+          },
+          "point": {
+            "baseline_p50_us": 382,
+            "baseline_p95_us": 828,
+            "everudp_p50_us": 550,
+            "everudp_p95_us": 957,
+            "p50_ratio": 1.4397905759162304,
+            "p95_ratio": 1.1557971014492754
+          },
+          "sample_count_per_implementation": 1200
+        }
+      }
+    },
+    "5": {
+      "blocks": [
+        {
+          "manifest_sha256": "1ae3859997802174db5d1a1ea55c580f42b44eb3f53509cb1e211b10b7760266",
+          "order": [
+            "everudp",
+            "zmosh-udp",
+            "zmosh-quic"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss5/block-930001",
+          "seed": 930001
+        },
+        {
+          "manifest_sha256": "606fc2cfedbfeabeb21d37a4a6829f3500261461314fa998c916048f49cdbe5e",
+          "order": [
+            "everudp",
+            "zmosh-quic",
+            "zmosh-udp"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss5/block-930002",
+          "seed": 930002
+        },
+        {
+          "manifest_sha256": "be500a8bb1cbb019d8b25133588196b80405f416cc34f5149a0825db9ed49f1c",
+          "order": [
+            "zmosh-udp",
+            "everudp",
+            "zmosh-quic"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss5/block-930003",
+          "seed": 930003
+        },
+        {
+          "manifest_sha256": "c1a768c1c684e7bcc210685a07c8b380f36c53d96e9cd5ae6543567bc50cbb7b",
+          "order": [
+            "zmosh-udp",
+            "zmosh-quic",
+            "everudp"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss5/block-930004",
+          "seed": 930004
+        },
+        {
+          "manifest_sha256": "9af857e319a959c72fd3334fdb79c4e8dec48f6cb8692ada68b81ef58ac55700",
+          "order": [
+            "zmosh-quic",
+            "everudp",
+            "zmosh-udp"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss5/block-930005",
+          "seed": 930005
+        },
+        {
+          "manifest_sha256": "f08c9ed59c8502df6adba992c34ccb49dba4878065820562432268df578c39f8",
+          "order": [
+            "zmosh-quic",
+            "zmosh-udp",
+            "everudp"
+          ],
+          "path": "/tmp/everudp-fairness-performance-bd53692/loss5/block-930006",
+          "seed": 930006
+        }
+      ],
+      "comparisons": {
+        "zmosh-quic": {
+          "baseline": "zmosh-quic",
+          "bootstrap": {
+            "iterations": 20000,
+            "method": "independent resampling within each candidate-order block stratum",
+            "p50_ratio_interval_95": [
+              0.9183006535947712,
+              0.9641638225255973
+            ],
+            "p50_ratio_upper95": 0.959731543624161,
+            "p95_ratio_interval_95": [
+              0.0730755247699049,
+              0.07632113027866677
+            ],
+            "p95_ratio_upper95": 0.07606178345168144,
+            "seed": 1163284986
+          },
+          "gate": {
+            "p50_point_at_most_1_00": true,
+            "p50_upper95_at_most_1_10": true,
+            "p95_upper95_at_most_1_00": true,
+            "pass": true
+          },
+          "point": {
+            "baseline_p50_us": 597,
+            "baseline_p95_us": 52218,
+            "everudp_p50_us": 562,
+            "everudp_p95_us": 3876,
+            "p50_ratio": 0.9413735343383585,
+            "p95_ratio": 0.07422727795013213
+          },
+          "sample_count_per_implementation": 1200
+        },
+        "zmosh-udp": {
+          "baseline": "zmosh-udp",
+          "bootstrap": {
+            "iterations": 20000,
+            "method": "independent resampling within each candidate-order block stratum",
+            "p50_ratio_interval_95": [
+              1.4177215189873418,
+              1.4871134020618557
+            ],
+            "p50_ratio_upper95": 1.4829396325459319,
+            "p95_ratio_interval_95": [
+              0.07533042258529743,
+              0.07847471677258912
+            ],
+            "p95_ratio_upper95": 0.07828752224639114,
+            "seed": 1163284985
+          },
+          "gate": {
+            "p50_point_at_most_1_00": false,
+            "p50_upper95_at_most_1_10": false,
+            "p95_upper95_at_most_1_00": true,
+            "pass": false
+          },
+          "point": {
+            "baseline_p50_us": 387,
+            "baseline_p95_us": 50626,
+            "everudp_p50_us": 562,
+            "everudp_p95_us": 3876,
+            "p50_ratio": 1.4521963824289406,
+            "p95_ratio": 0.07656145063801209
+          },
+          "sample_count_per_implementation": 1200
+        }
+      }
+    }
+  },
+  "method": {
+    "blocks_per_cell": 6,
+    "bootstrap_iterations": 20000,
+    "observations_per_block": 200,
+    "thresholds": {
+      "p50_point_ratio_max": 1.0,
+      "p50_ratio_upper95_max": 1.1,
+      "p95_ratio_upper95_max": 1.0
+    },
+    "trials_per_implementation_per_cell": 1200
+  },
+  "schema_version": 1,
+  "source": {
+    "all_blocks_clean": true,
+    "head_sha": "bd53692a23e498408f55ee30b03309017a923a4c",
+    "tree_sha": "629c6efb4cd6f8c8b960f3d82d2578ead498561b"
+  },
+  "verdict": {
+    "all_four_comparisons_pass": false,
+    "exact_release_evidence": true,
+    "qualification_outcome": "FAIL",
+    "zero_transcript_failures": true
+  }
+}

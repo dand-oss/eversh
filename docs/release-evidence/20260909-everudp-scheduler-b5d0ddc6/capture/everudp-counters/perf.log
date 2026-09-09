@@ -1,0 +1,5 @@
+Events disabled
+Events enabled
+Events disabled
+[ perf record: Woken up 7 times to write data ]
+[ perf record: Captured and wrote 7.982 MB /var/tmp/everudp-scheduler-b5d0ddc6-block0/everudp-counters/private-perf.data (11274 samples) ]

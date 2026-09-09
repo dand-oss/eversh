@@ -1,0 +1,10 @@
+{
+  "production_qualification": false,
+  "purpose": "zmosh-quic-adapter-correction",
+  "schema_version": 1,
+  "source": {
+    "head_sha": "5c065b4024b6c14a117ebed516500b5a020b467f",
+    "tree_sha": "e5f78f0145748ffa92e360b0dc02f5e8341acd81"
+  },
+  "status": "MEASURED"
+}

@@ -1,0 +1,7 @@
+source_commit=dfc8395b5edcd237bf82712fbde879c6e8be7dfa
+source_tree=1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514
+zig=0.15.2
+binary=/tmp/zmosh-059-out/bin/zmosh
+binary_sha256=7c2494c29f24d250eeccc445331a63bf1658d216fb3cefdb7b6c2eefa0ed97f1
+version=0.5.9
+protocol=XChaCha20-Poly1305 encrypted UDP (zmosh native, not Mosh SSP)

@@ -1,0 +1,7 @@
+{
+  "build_root": "/tmp/everudp-stream-build-eb22013",
+  "build_seal_sha256": "8362124c7638188dcddfff8500d99c8d5dd53aa5c94384d613915a43e16dc269",
+  "plan_sha256": "5290c61daf12ce04b87423cb5749ad0a1ddb56eb172c550277b6015b2eb92bc7",
+  "preflight_root": "/tmp/everudp-stream-preflight-eb22013",
+  "preflight_seal_sha256": "00f5ada4c5197bf440d8b5d2c023ad3f804475f9fa1329bc8da745a7ecbfb8d5"
+}

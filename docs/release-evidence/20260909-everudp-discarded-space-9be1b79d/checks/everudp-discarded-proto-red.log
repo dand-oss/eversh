@@ -1,0 +1,141 @@
+   Compiling cfg-if v1.0.4
+   Compiling proc-macro2 v1.0.106
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.45
+   Compiling libc v0.2.186
+   Compiling typenum v1.19.0
+   Compiling version_check v0.9.5
+   Compiling wasm-bindgen-shared v0.2.121
+   Compiling rustversion v1.0.22
+   Compiling shlex v1.3.0
+   Compiling find-msvc-tools v0.1.9
+   Compiling once_cell v1.21.4
+   Compiling getrandom v0.3.4
+   Compiling pin-project-lite v0.2.16
+   Compiling bumpalo v3.20.2
+   Compiling itoa v1.0.18
+   Compiling libm v0.2.16
+   Compiling serde_core v1.0.228
+   Compiling zerocopy v0.8.27
+   Compiling subtle v2.6.1
+   Compiling powerfmt v0.2.0
+   Compiling autocfg v1.5.0
+   Compiling num-conv v0.2.0
+   Compiling time-core v0.1.8
+   Compiling futures-task v0.3.31
+   Compiling num_threads v0.1.7
+   Compiling slab v0.4.11
+   Compiling futures-core v0.3.31
+   Compiling zeroize v1.8.2
+   Compiling untrusted v0.9.0
+   Compiling regex-syntax v0.8.6
+   Compiling zmij v1.0.21
+   Compiling cpufeatures v0.2.17
+   Compiling rand_core v0.10.0
+   Compiling pin-utils v0.1.0
+   Compiling portable-atomic v1.13.1
+   Compiling opaque-debug v0.3.1
+   Compiling serde v1.0.228
+   Compiling getrandom v0.4.2
+   Compiling serde_json v1.0.150
+   Compiling unicode-segmentation v1.12.0
+   Compiling nu-ansi-term v0.50.3
+   Compiling cpufeatures v0.3.0
+   Compiling thiserror v2.0.17
+   Compiling log v0.4.31
+   Compiling base64 v0.22.1
+   Compiling lazy_static v1.5.0
+   Compiling unicode-xid v0.2.6
+   Compiling memchr v2.8.0
+   Compiling rustls v0.23.33
+   Compiling thread_local v1.1.9
+   Compiling sharded-slab v0.1.7
+   Compiling unarray v0.1.4
+   Compiling siphasher v1.0.1
+   Compiling tinyvec_macros v0.1.1
+   Compiling bitflags v2.9.4
+   Compiling oorandom v11.1.5
+   Compiling cc v1.2.62
+   Compiling tracing-core v0.1.34
+   Compiling wasm-bindgen-test-shared v0.2.121
+   Compiling chacha20 v0.10.0
+   Compiling deranged v0.5.4
+   Compiling cast v0.3.0
+   Compiling rustls-pki-types v1.12.0
+   Compiling foldhash v0.2.0
+   Compiling rand_pcg v0.10.1
+   Compiling tinyvec v1.10.0
+   Compiling testresult v0.4.1
+   Compiling assert_matches v1.5.0
+   Compiling hex-literal v0.4.1
+   Compiling rustc-hash v2.1.1
+   Compiling lru-slab v0.1.2
+   Compiling sorted-index-buffer v0.2.0
+   Compiling bytes v1.11.1
+   Compiling futures-util v0.3.31
+   Compiling identity-hash v0.1.0
+   Compiling pem v3.0.5
+   Compiling generic-array v0.14.7
+   Compiling num-traits v0.2.19
+   Compiling convert_case v0.10.0
+   Compiling tracing v0.1.41
+   Compiling wasm-bindgen v0.2.121
+   Compiling syn v2.0.117
+   Compiling ring v0.17.14
+   Compiling fastbloom v0.17.0
+   Compiling getrandom v0.2.16
+   Compiling rand_core v0.9.3
+   Compiling time v0.3.47
+   Compiling rand v0.10.1
+   Compiling crypto-common v0.1.7
+   Compiling inout v0.1.4
+   Compiling universal-hash v0.5.1
+   Compiling aead v0.5.2
+   Compiling rand v0.9.2
+   Compiling rand_xorshift v0.4.0
+   Compiling cipher v0.4.4
+   Compiling polyval v0.6.2
+   Compiling ghash v0.5.1
+   Compiling ctr v0.9.2
+   Compiling aes v0.8.4
+   Compiling regex-automata v0.4.11
+   Compiling ppv-lite86 v0.2.21
+   Compiling aes-gcm v0.10.3
+   Compiling rand_chacha v0.9.0
+   Compiling proptest v1.9.0
+   Compiling yasna v0.6.0
+   Compiling rustls-webpki v0.103.13
+   Compiling rcgen v0.14.8
+   Compiling matchers v0.2.0
+   Compiling tracing-subscriber v0.3.20
+   Compiling wasm-bindgen-macro-support v0.2.121
+   Compiling structmeta-derive v0.3.0
+   Compiling serde_derive v1.0.228
+   Compiling async-trait v0.1.89
+   Compiling derive_more-impl v2.1.0
+   Compiling wasm-bindgen-test-macro v0.3.71
+   Compiling thiserror-impl v2.0.17
+   Compiling enum-assoc v1.3.0
+   Compiling structmeta v0.3.0
+   Compiling derive-ex v0.1.8
+   Compiling wasm-bindgen-macro v0.2.121
+   Compiling derive_more v2.1.0
+   Compiling test-strategy v0.4.3
+   Compiling js-sys v0.3.98
+   Compiling wasm-bindgen-futures v0.4.71
+   Compiling wasm-bindgen-test v0.3.71
+   Compiling noq-proto v1.1.1 (/tmp/everudp-discarded-proto.WOwUxJ/vendor/noq-proto)
+error[E0599]: no method named `assert_discarded_space_noop` found for mutable reference `&mut connection::Connection` in the current scope
+   --> src/tests/mod.rs:177:34
+    |
+177 |     pair.client_conn_mut(client).assert_discarded_space_noop(now);
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `&mut connection::Connection`
+
+error[E0599]: no method named `assert_discarded_space_noop` found for mutable reference `&mut connection::Connection` in the current scope
+   --> src/tests/mod.rs:178:34
+    |
+178 |     pair.server_conn_mut(server).assert_discarded_space_noop(now);
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^ method not found in `&mut connection::Connection`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `noq-proto` (lib test) due to 2 previous errors

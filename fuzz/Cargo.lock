@@ -209,8 +209,36 @@ dependencies = [
 ]
 
 [[package]]
-name = "everlink"
+name = "everpty"
+version = "0.2.0"
+dependencies = [
+ "libc",
+ "nix",
+]
+
+[[package]]
+name = "eversh"
+version = "0.2.0"
+dependencies = [
+ "everpty",
+ "everssh",
+ "everudp",
+]
+
+[[package]]
+name = "eversh-fuzz"
 version = "0.1.0"
+dependencies = [
+ "everpty",
+ "eversh",
+ "everssh",
+ "everudp",
+ "libfuzzer-sys",
+]
+
+[[package]]
+name = "everssh"
+version = "0.2.0"
 dependencies = [
  "noq",
  "rcgen",
@@ -221,29 +249,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "everpty"
-version = "0.1.0"
+name = "everudp"
+version = "0.2.0"
 dependencies = [
- "libc",
- "nix",
-]
-
-[[package]]
-name = "eversh"
-version = "0.1.0"
-dependencies = [
- "everlink",
  "everpty",
-]
-
-[[package]]
-name = "eversh-fuzz"
-version = "0.1.0"
-dependencies = [
- "everlink",
- "everpty",
- "eversh",
- "libfuzzer-sys",
+ "everssh",
+ "noq",
+ "rcgen",
+ "ring",
+ "tokio",
+ "zeroize",
 ]
 
 [[package]]

@@ -1,0 +1,14 @@
+starting parity block 1/6 (seed 13001)
+parity block complete: /tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13001
+starting parity block 2/6 (seed 13002)
+parity block complete: /tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13002
+starting parity block 3/6 (seed 13003)
+parity block complete: /tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13003
+starting parity block 4/6 (seed 13004)
+parity block complete: /tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13004
+starting parity block 5/6 (seed 13005)
+parity block complete: /tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13005
+starting parity block 6/6 (seed 13006)
+parity block complete: /tmp/everudp-final-9083ef0.3e7Oo8/final/parity/block-13006
+{"pooled":{"everudp_n":600,"everudp_p50_us":457,"everudp_p95_us":21347,"p50_ratio":0.9641350210970464,"p95_ratio":0.3503241158611635,"probability_everudp_faster":0.5790861111111111,"zmosh_n":600,"zmosh_p50_us":474,"zmosh_p95_us":60935},"uncertainty":{"iterations":20000,"p50_ratio_ci95":[0.9103869653767821,1.0086767895878526],"p50_ratio_upper95":1.0021276595744681,"p95_ratio_ci95":[0.34681209977235133,0.4212622368705001],"p95_ratio_upper95":0.42030094363682735,"seed":9015},"verdict":{"conservative_upper95_equivalence_pass":true,"exact_sha_evidence_pass":true,"observed_loss_evidence_pass":true,"preregistered_point_rule_pass":true}}
+parity qualification complete: /tmp/everudp-final-9083ef0.3e7Oo8/final/parity

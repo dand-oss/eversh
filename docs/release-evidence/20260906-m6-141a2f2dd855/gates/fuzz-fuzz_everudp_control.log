@@ -1,0 +1,50 @@
+warning: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everssh/Cargo.toml: `lints.rust.rust-2018-idioms` is deprecated in favor of `lints.rust.rust_2018_idioms` and will not work in a future edition
+warning: `everssh` (manifest) generated 1 warning
+warning: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everpty/Cargo.toml: `lints.rust.rust-2018-idioms` is deprecated in favor of `lints.rust.rust_2018_idioms` and will not work in a future edition
+warning: `everpty` (manifest) generated 1 warning
+warning: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everudp/Cargo.toml: `lints.rust.rust-2018-idioms` is deprecated in favor of `lints.rust.rust_2018_idioms` and will not work in a future edition
+warning: `everudp` (manifest) generated 1 warning
+warning: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/eversh/Cargo.toml: `lints.rust.rust-2018-idioms` is deprecated in favor of `lints.rust.rust_2018_idioms` and will not work in a future edition
+warning: `eversh` (manifest) generated 1 warning
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.10s
+warning: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everssh/Cargo.toml: `lints.rust.rust-2018-idioms` is deprecated in favor of `lints.rust.rust_2018_idioms` and will not work in a future edition
+warning: `everssh` (manifest) generated 1 warning
+warning: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everpty/Cargo.toml: `lints.rust.rust-2018-idioms` is deprecated in favor of `lints.rust.rust_2018_idioms` and will not work in a future edition
+warning: `everpty` (manifest) generated 1 warning
+warning: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everudp/Cargo.toml: `lints.rust.rust-2018-idioms` is deprecated in favor of `lints.rust.rust_2018_idioms` and will not work in a future edition
+warning: `everudp` (manifest) generated 1 warning
+warning: /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/eversh/Cargo.toml: `lints.rust.rust-2018-idioms` is deprecated in favor of `lints.rust.rust_2018_idioms` and will not work in a future edition
+warning: `eversh` (manifest) generated 1 warning
+    Finished `release` profile [optimized + debuginfo] target(s) in 0.08s
+     Running `/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/cache/fuzz-target/x86_64-unknown-linux-gnu/release/fuzz_everudp_control -artifact_prefix=/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/fuzz/artifacts/fuzz_everudp_control/ -max_total_time=61 -timeout=10 -artifact_prefix=/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T053718Z-141a2f2dd855/fuzz/fuzz_everudp_control/artifacts/ -max_len=4096 -print_final_stats=1 -verbosity=0 /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T053718Z-141a2f2dd855/fuzz/fuzz_everudp_control/corpus`
+INFO: Running with entropic power schedule (0xFF, 100).
+INFO:        0 files found in /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260906T053718Z-141a2f2dd855/fuzz/fuzz_everudp_control/corpus
+INFO: A corpus is not provided, starting from an empty corpus
+	NEW_FUNC[1/2]: 0x562049b69960  (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/cache/fuzz-target/x86_64-unknown-linux-gnu/release/fuzz_everudp_control+0x193960) (BuildId: c98fade6abadf2b7ffd847affda3dff70c24739b)
+	NEW_FUNC[2/2]: 0x562049b70370  (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/cache/fuzz-target/x86_64-unknown-linux-gnu/release/fuzz_everudp_control+0x19a370) (BuildId: c98fade6abadf2b7ffd847affda3dff70c24739b)
+	NEW_FUNC[1/1]: 0x562049b6c6e0  (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/cache/fuzz-target/x86_64-unknown-linux-gnu/release/fuzz_everudp_control+0x1966e0) (BuildId: c98fade6abadf2b7ffd847affda3dff70c24739b)
+	NEW_FUNC[1/2]: 0x562049b68870  (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/cache/fuzz-target/x86_64-unknown-linux-gnu/release/fuzz_everudp_control+0x192870) (BuildId: c98fade6abadf2b7ffd847affda3dff70c24739b)
+	NEW_FUNC[2/2]: 0x562049b68ca0  (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/cache/fuzz-target/x86_64-unknown-linux-gnu/release/fuzz_everudp_control+0x192ca0) (BuildId: c98fade6abadf2b7ffd847affda3dff70c24739b)
+	NEW_FUNC[1/1]: 0x562049b6b610  (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/cache/fuzz-target/x86_64-unknown-linux-gnu/release/fuzz_everudp_control+0x195610) (BuildId: c98fade6abadf2b7ffd847affda3dff70c24739b)
+	NEW_FUNC[1/2]: 0x562049b0d120  (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/cache/fuzz-target/x86_64-unknown-linux-gnu/release/fuzz_everudp_control+0x137120) (BuildId: c98fade6abadf2b7ffd847affda3dff70c24739b)
+	NEW_FUNC[2/2]: 0x562049b6bb50  (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/cache/fuzz-target/x86_64-unknown-linux-gnu/release/fuzz_everudp_control+0x195b50) (BuildId: c98fade6abadf2b7ffd847affda3dff70c24739b)
+###### Recommended dictionary. ######
+"\377\377\377\377\377\377\377\004" # Uses: 149649
+"\015\000\000\000\000\000\000\000" # Uses: 148618
+"\001\000\000\000\000\000\000\000" # Uses: 149437
+"\001\000" # Uses: 88171
+"\377\377\377\377" # Uses: 87880
+"\000\000\000\000" # Uses: 88098
+"\000\000\000\000\000\000\000\022" # Uses: 88111
+"\000\000" # Uses: 87833
+"\016\020\000\000\000\000\000\000" # Uses: 87771
+"\001\000\000\000" # Uses: 88432
+"\002\000\000\000" # Uses: 88319
+"\001\000\000\001" # Uses: 87738
+"a\000\000\000\000\000\000\000" # Uses: 86666
+###### End of recommended dictionary. ######
+stat::number_of_executed_units: 14028500
+stat::average_exec_per_sec:     226266
+stat::new_units_added:          230
+stat::slowest_unit_time_sec:    0
+stat::peak_rss_mb:              585

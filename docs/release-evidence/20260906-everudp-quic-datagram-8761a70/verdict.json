@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "verdict": "FAIL",
+  "release_receipt": false,
+  "candidate": {
+    "commit": "8761a7059add297ad19218ea63f4fa3998c7d6c8",
+    "tree": "d2bd23efbfc8b5ecd6bb6fef629eecfb3ee5fcc1",
+    "binary_sha256": "378e40d34f6d1d4273794e6a534ff61ff7f3407b7ae2b4bd6f7dbb6ca1c63e75",
+    "cargo_features": [
+      "cli",
+      "datagram-spike"
+    ]
+  },
+  "contract": {
+    "minimum_observations_per_implementation_per_cell": 200,
+    "maximum_p50_ratio_vs_zmosh_udp": 0.9
+  },
+  "cells": {
+    "loss0": {
+      "observations_per_implementation": 200,
+      "everudp_p50_us": 686,
+      "everudp_p95_us": 1204,
+      "zmosh_udp_p50_us": 380,
+      "zmosh_udp_p95_us": 746,
+      "p50_ratio": 1.8052631579,
+      "pass": false
+    },
+    "loss5": {
+      "observations_per_implementation": 200,
+      "everudp_p50_us": 761,
+      "everudp_p95_us": 1381,
+      "zmosh_udp_p50_us": 404,
+      "zmosh_udp_p95_us": 50677,
+      "p50_ratio": 1.8836633663,
+      "pass": false
+    }
+  },
+  "transcript_failures": 0,
+  "decision": "Close the immediate speculative DATAGRAM plus authoritative stream architecture; require a separately reviewed transport contract revision."
+}

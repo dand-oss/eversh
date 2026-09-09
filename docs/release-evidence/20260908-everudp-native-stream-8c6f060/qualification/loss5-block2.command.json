@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everudp/tests/net/bench-performance-block.sh",
+    "200",
+    "5",
+    "13050002",
+    "/tmp/everudp-stream-qualification-8c6f060/loss5-block2",
+    "zmosh-udp,everudp-stream-ordinary,everudp-stream-native"
+  ],
+  "exit_code": 0
+}

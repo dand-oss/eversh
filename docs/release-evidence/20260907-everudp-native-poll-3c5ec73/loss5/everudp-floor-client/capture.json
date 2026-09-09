@@ -1,0 +1,67 @@
+{
+  "status": "DIAGNOSTIC",
+  "qualification": "NOT_APPLICABLE",
+  "identity": {
+    "pid": 2479401,
+    "start_ticks": "139795620",
+    "boot_id": "a379fc1e-ec8d-4f5c-afaa-4bbe88d1fced",
+    "time_namespace": [
+      5,
+      4026531834
+    ],
+    "tids": [
+      2479401
+    ],
+    "affinity": [
+      40,
+      42,
+      44,
+      46
+    ]
+  },
+  "source_build": {
+    "clean": true,
+    "head_sha": "a9321d0060cc726b27fcde89ca7d31e9519c5425",
+    "tree_sha": "1be0df9798a56d8c307e32d82e74352f4ea0db6a"
+  },
+  "harness_head": "3c5ec736295de4d1f770752a0fe4e88e5304340b",
+  "clock": "CLOCK_MONOTONIC",
+  "duration_seconds": 10,
+  "command": [
+    "sudo",
+    "-n",
+    "env",
+    "LD_LIBRARY_PATH=/tmp/eversh-profile-tools.m4Ikm3/extracted/usr/lib/x86_64-linux-gnu",
+    "DEBUGINFOD_URLS=",
+    "/tmp/eversh-profile-tools.m4Ikm3/extracted/usr/bin/perf",
+    "record",
+    "-a",
+    "--synth",
+    "no",
+    "--clockid",
+    "mono",
+    "-e",
+    "syscalls:sys_enter_poll",
+    "--filter",
+    "common_pid == 2479401",
+    "-e",
+    "syscalls:sys_exit_poll",
+    "--filter",
+    "common_pid == 2479401",
+    "-e",
+    "syscalls:sys_enter_read",
+    "--filter",
+    "common_pid == 2479401",
+    "-e",
+    "syscalls:sys_exit_read",
+    "--filter",
+    "common_pid == 2479401",
+    "-o",
+    "/tmp/everudp-native-poll-3c5ec73-loss5/everudp-floor-client/perf.data",
+    "--",
+    "/usr/bin/sleep",
+    "10"
+  ],
+  "perf_sha256": "83e79d866c65499c16302d8e27900955868609908be2bbe0d1afed02f082decb",
+  "scope": "PID-filtered poll/read boundaries; no payloads; exported pointer fields removed"
+}

@@ -1,0 +1,1202 @@
+1397848.302263354:  syscalls:sys_exit_poll: 0x1
+1397848.302270802: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397848.302275783:  syscalls:sys_exit_read: 0x1
+1397848.302322721: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.302324752:  syscalls:sys_exit_poll: 0x0
+1397848.302399461: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397848.302531516:  syscalls:sys_exit_poll: 0x1
+1397848.302556197: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.302558961:  syscalls:sys_exit_poll: 0x0
+1397848.302562801: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397848.327667156:  syscalls:sys_exit_poll: 0x1
+1397848.327733721: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397848.402833279:  syscalls:sys_exit_poll: 0x1
+1397848.402838631: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397848.402842599:  syscalls:sys_exit_read: 0x1
+1397848.402882152: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.402884451:  syscalls:sys_exit_poll: 0x0
+1397848.402956670: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397848.403079554:  syscalls:sys_exit_poll: 0x1
+1397848.403118587: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.403120521:  syscalls:sys_exit_poll: 0x0
+1397848.403124314: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397848.428193072:  syscalls:sys_exit_poll: 0x0
+1397848.428270995: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397848.503444789:  syscalls:sys_exit_poll: 0x1
+1397848.503448773: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397848.503452765:  syscalls:sys_exit_read: 0x1
+1397848.503468208: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.503483744:  syscalls:sys_exit_poll: 0x0
+1397848.503525127: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397848.503733136:  syscalls:sys_exit_poll: 0x1
+1397848.503758277: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.503760321:  syscalls:sys_exit_poll: 0x0
+1397848.503764350: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397848.528849410:  syscalls:sys_exit_poll: 0x0
+1397848.528924485: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397848.604029450:  syscalls:sys_exit_poll: 0x1
+1397848.604035216: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397848.604039483:  syscalls:sys_exit_read: 0x1
+1397848.604071313: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.604074005:  syscalls:sys_exit_poll: 0x0
+1397848.604121504: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397848.604256923:  syscalls:sys_exit_poll: 0x1
+1397848.604294062: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.604297032:  syscalls:sys_exit_poll: 0x0
+1397848.604301623: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397848.629353231:  syscalls:sys_exit_poll: 0x1
+1397848.629410232: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397848.704584523:  syscalls:sys_exit_poll: 0x1
+1397848.704599477: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397848.704609594:  syscalls:sys_exit_read: 0x1
+1397848.704640031: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.704646288:  syscalls:sys_exit_poll: 0x0
+1397848.704738010: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397848.704956382:  syscalls:sys_exit_poll: 0x1
+1397848.705016133: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.705031994:  syscalls:sys_exit_poll: 0x0
+1397848.705042117: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397848.730122370:  syscalls:sys_exit_poll: 0x0
+1397848.730278213: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397848.805275910:  syscalls:sys_exit_poll: 0x1
+1397848.805283523: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397848.805288384:  syscalls:sys_exit_read: 0x1
+1397848.805305832: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.805308696:  syscalls:sys_exit_poll: 0x0
+1397848.805353668: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397848.805491187:  syscalls:sys_exit_poll: 0x1
+1397848.805551165: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.805556316:  syscalls:sys_exit_poll: 0x0
+1397848.805566463: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397848.830638298:  syscalls:sys_exit_poll: 0x0
+1397848.830723903: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397848.905834417:  syscalls:sys_exit_poll: 0x1
+1397848.905841595: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397848.905845865:  syscalls:sys_exit_read: 0x1
+1397848.905879562: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.905882200:  syscalls:sys_exit_poll: 0x0
+1397848.905962143: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397848.906082690:  syscalls:sys_exit_poll: 0x1
+1397848.906116388: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397848.906119128:  syscalls:sys_exit_poll: 0x0
+1397848.906124177: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397848.931231016:  syscalls:sys_exit_poll: 0x0
+1397848.931391133: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397849.006393120:  syscalls:sys_exit_poll: 0x1
+1397849.006396604: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397849.006400266:  syscalls:sys_exit_read: 0x1
+1397849.006415084: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.006417468:  syscalls:sys_exit_poll: 0x0
+1397849.006458549: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397849.006522203:  syscalls:sys_exit_poll: 0x1
+1397849.006550673: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.006552913:  syscalls:sys_exit_poll: 0x0
+1397849.006556976: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397849.031667433:  syscalls:sys_exit_poll: 0x0
+1397849.031812737: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397849.106778730:  syscalls:sys_exit_poll: 0x1
+1397849.106784637: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397849.106789431:  syscalls:sys_exit_read: 0x1
+1397849.106807152: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.106810205:  syscalls:sys_exit_poll: 0x0
+1397849.106860042: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397849.106943648:  syscalls:sys_exit_poll: 0x1
+1397849.106974970: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.106978187:  syscalls:sys_exit_poll: 0x0
+1397849.106983333: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397849.132035486:  syscalls:sys_exit_poll: 0x0
+1397849.132366676: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397849.207242580:  syscalls:sys_exit_poll: 0x1
+1397849.207249743: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397849.207254930:  syscalls:sys_exit_read: 0x1
+1397849.207286356: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.207289293:  syscalls:sys_exit_poll: 0x0
+1397849.207366174: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397849.207462652:  syscalls:sys_exit_poll: 0x1
+1397849.207488025: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.207489928:  syscalls:sys_exit_poll: 0x0
+1397849.207493711: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397849.232567451:  syscalls:sys_exit_poll: 0x0
+1397849.232637533: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397849.307838087:  syscalls:sys_exit_poll: 0x1
+1397849.307850538: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397849.307860178:  syscalls:sys_exit_read: 0x1
+1397849.307912496: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.307919056:  syscalls:sys_exit_poll: 0x0
+1397849.308083242: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397849.308171995:  syscalls:sys_exit_poll: 0x1
+1397849.308198347: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.308200536:  syscalls:sys_exit_poll: 0x0
+1397849.308204253: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397849.333271318:  syscalls:sys_exit_poll: 0x0
+1397849.333354532: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397849.408534784:  syscalls:sys_exit_poll: 0x1
+1397849.408544927: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397849.408553818:  syscalls:sys_exit_read: 0x1
+1397849.408588192: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.408594048:  syscalls:sys_exit_poll: 0x0
+1397849.408692431: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397849.408903805:  syscalls:sys_exit_poll: 0x1
+1397849.408963707: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.408969034:  syscalls:sys_exit_poll: 0x0
+1397849.408978820: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397849.434020665:  syscalls:sys_exit_poll: 0x1
+1397849.434093845: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397849.509254360:  syscalls:sys_exit_poll: 0x1
+1397849.509280125: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397849.509285725:  syscalls:sys_exit_read: 0x1
+1397849.509311976: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.509315545:  syscalls:sys_exit_poll: 0x0
+1397849.509376410: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397849.509469591:  syscalls:sys_exit_poll: 0x1
+1397849.509501582: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.509504262:  syscalls:sys_exit_poll: 0x0
+1397849.509509166: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397849.534575754:  syscalls:sys_exit_poll: 0x0
+1397849.534692275: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397849.609741619:  syscalls:sys_exit_poll: 0x1
+1397849.609752848: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397849.609761031:  syscalls:sys_exit_read: 0x1
+1397849.609806074: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.609810149:  syscalls:sys_exit_poll: 0x0
+1397849.609927592: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397849.610057139:  syscalls:sys_exit_poll: 0x1
+1397849.610114334: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.610119789:  syscalls:sys_exit_poll: 0x0
+1397849.610129496: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397849.635177948:  syscalls:sys_exit_poll: 0x1
+1397849.635272015: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397849.710477836:  syscalls:sys_exit_poll: 0x1
+1397849.710488493: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397849.710498363:  syscalls:sys_exit_read: 0x1
+1397849.710542678: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.710548458:  syscalls:sys_exit_poll: 0x0
+1397849.710644660: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397849.710884166:  syscalls:sys_exit_poll: 0x1
+1397849.711042733: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.711047318:  syscalls:sys_exit_poll: 0x0
+1397849.711055134: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397849.736125423:  syscalls:sys_exit_poll: 0x0
+1397849.736174140: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397849.811453824:  syscalls:sys_exit_poll: 0x1
+1397849.811464441: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397849.811486730:  syscalls:sys_exit_read: 0x1
+1397849.811537284: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.811544248:  syscalls:sys_exit_poll: 0x0
+1397849.811672357: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397849.811833779:  syscalls:sys_exit_poll: 0x1
+1397849.811859174: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.811861219:  syscalls:sys_exit_poll: 0x0
+1397849.811864932: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397849.836962202:  syscalls:sys_exit_poll: 0x0
+1397849.837125872: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397849.912118470:  syscalls:sys_exit_poll: 0x1
+1397849.912123386: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397849.912127349:  syscalls:sys_exit_read: 0x1
+1397849.912147810: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.912150279:  syscalls:sys_exit_poll: 0x0
+1397849.912203168: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397849.912281537:  syscalls:sys_exit_poll: 0x1
+1397849.912307501: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397849.912309633:  syscalls:sys_exit_poll: 0x0
+1397849.912313538: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397849.937418913:  syscalls:sys_exit_poll: 0x0
+1397849.937498080: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397850.012525943:  syscalls:sys_exit_poll: 0x1
+1397850.012531976: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397850.012535951:  syscalls:sys_exit_read: 0x1
+1397850.012564626: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.012567034:  syscalls:sys_exit_poll: 0x0
+1397850.012645927: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397850.012737334:  syscalls:sys_exit_poll: 0x1
+1397850.012763522: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.012765719:  syscalls:sys_exit_poll: 0x0
+1397850.012769640: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397850.037831196:  syscalls:sys_exit_poll: 0x0
+1397850.037937532: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397850.113130573:  syscalls:sys_exit_poll: 0x1
+1397850.113141553: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397850.113150820:  syscalls:sys_exit_read: 0x1
+1397850.113188364: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.113194164:  syscalls:sys_exit_poll: 0x0
+1397850.113304224: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397850.113473284:  syscalls:sys_exit_poll: 0x1
+1397850.113534482: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.113539839:  syscalls:sys_exit_poll: 0x0
+1397850.113564015: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397850.138662546:  syscalls:sys_exit_poll: 0x0
+1397850.138825503: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397850.213864607:  syscalls:sys_exit_poll: 0x1
+1397850.213875427: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397850.213882974:  syscalls:sys_exit_read: 0x1
+1397850.213920462: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.213925628:  syscalls:sys_exit_poll: 0x0
+1397850.214026984: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397850.214285910:  syscalls:sys_exit_poll: 0x1
+1397850.214370292: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.214376525:  syscalls:sys_exit_poll: 0x0
+1397850.214386962: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397850.239481239:  syscalls:sys_exit_poll: 0x1
+1397850.239636486: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397850.314758098:  syscalls:sys_exit_poll: 0x1
+1397850.314767701: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397850.314776782:  syscalls:sys_exit_read: 0x1
+1397850.314806676: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.314826933:  syscalls:sys_exit_poll: 0x0
+1397850.314872515: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397850.315049798:  syscalls:sys_exit_poll: 0x1
+1397850.315137277: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.315143213:  syscalls:sys_exit_poll: 0x0
+1397850.315153794: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397850.340973019:  syscalls:sys_exit_poll: 0x0
+1397850.341036397: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397850.415414797:  syscalls:sys_exit_poll: 0x1
+1397850.415422428: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397850.415426682:  syscalls:sys_exit_read: 0x1
+1397850.415458657: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.415460842:  syscalls:sys_exit_poll: 0x0
+1397850.415556530: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397850.415671555:  syscalls:sys_exit_poll: 0x1
+1397850.415696941: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.415699021:  syscalls:sys_exit_poll: 0x0
+1397850.415702927: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397850.440810008:  syscalls:sys_exit_poll: 0x1
+1397850.440896233: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397850.515939176:  syscalls:sys_exit_poll: 0x1
+1397850.515944929: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397850.515949432:  syscalls:sys_exit_read: 0x1
+1397850.515977597: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.515980474:  syscalls:sys_exit_poll: 0x0
+1397850.516094185: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397850.516244836:  syscalls:sys_exit_poll: 0x1
+1397850.516280272: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.516284116:  syscalls:sys_exit_poll: 0x0
+1397850.516290966: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397850.541360693:  syscalls:sys_exit_poll: 0x1
+1397850.541535291: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397850.616507565:  syscalls:sys_exit_poll: 0x1
+1397850.616511285: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397850.616514483:  syscalls:sys_exit_read: 0x1
+1397850.616531094: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.616533071:  syscalls:sys_exit_poll: 0x0
+1397850.616585603: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397850.616693610:  syscalls:sys_exit_poll: 0x1
+1397850.616718233: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.616720496:  syscalls:sys_exit_poll: 0x0
+1397850.616724597: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397850.641818791:  syscalls:sys_exit_poll: 0x0
+1397850.641966251: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397850.716982734:  syscalls:sys_exit_poll: 0x1
+1397850.716991463: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397850.716997503:  syscalls:sys_exit_read: 0x1
+1397850.717016235: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.717019714:  syscalls:sys_exit_poll: 0x0
+1397850.717073283: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397850.717174888:  syscalls:sys_exit_poll: 0x1
+1397850.717207059: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.717210392:  syscalls:sys_exit_poll: 0x0
+1397850.717215356: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397850.742289901:  syscalls:sys_exit_poll: 0x0
+1397850.742376606: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397850.817561534:  syscalls:sys_exit_poll: 0x1
+1397850.817569468: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397850.817574127:  syscalls:sys_exit_read: 0x1
+1397850.817590584: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.817593594:  syscalls:sys_exit_poll: 0x0
+1397850.817681192: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397850.817950128:  syscalls:sys_exit_poll: 0x1
+1397850.818030566: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.818036293:  syscalls:sys_exit_poll: 0x0
+1397850.818046440: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397850.843146997:  syscalls:sys_exit_poll: 0x1
+1397850.843305754: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397850.918447596:  syscalls:sys_exit_poll: 0x1
+1397850.918457927: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397850.918467747:  syscalls:sys_exit_read: 0x1
+1397850.918501478: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.918507374:  syscalls:sys_exit_poll: 0x0
+1397850.918598460: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397850.918711014:  syscalls:sys_exit_poll: 0x1
+1397850.918767894: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397850.918771061:  syscalls:sys_exit_poll: 0x0
+1397850.918775854: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x0000001b
+1397850.944090041:  syscalls:sys_exit_poll: 0x1
+1397850.944131789: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397851.019131390:  syscalls:sys_exit_poll: 0x1
+1397851.019141410: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397851.019150557:  syscalls:sys_exit_read: 0x1
+1397851.019181314: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.019187448:  syscalls:sys_exit_poll: 0x0
+1397851.019280927: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397851.019555383:  syscalls:sys_exit_poll: 0x1
+1397851.019635898: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.019641711:  syscalls:sys_exit_poll: 0x0
+1397851.019659332: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397851.044672384:  syscalls:sys_exit_poll: 0x1
+1397851.044746258: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397851.119938755:  syscalls:sys_exit_poll: 0x1
+1397851.119942831: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397851.119946615:  syscalls:sys_exit_read: 0x1
+1397851.119965311: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.119968344:  syscalls:sys_exit_poll: 0x0
+1397851.120039353: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397851.120155232:  syscalls:sys_exit_poll: 0x1
+1397851.120180154: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.120182205:  syscalls:sys_exit_poll: 0x0
+1397851.120186321: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397851.145271348:  syscalls:sys_exit_poll: 0x0
+1397851.145417408: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397851.220370251:  syscalls:sys_exit_poll: 0x1
+1397851.220377054: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397851.220380900:  syscalls:sys_exit_read: 0x1
+1397851.220412096: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.220415145:  syscalls:sys_exit_poll: 0x0
+1397851.220491328: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397851.220588178:  syscalls:sys_exit_poll: 0x1
+1397851.220618486: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.220620784:  syscalls:sys_exit_poll: 0x0
+1397851.220624799: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397851.245726541:  syscalls:sys_exit_poll: 0x1
+1397851.245796789: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397851.320918527:  syscalls:sys_exit_poll: 0x1
+1397851.320926685: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397851.320932257:  syscalls:sys_exit_read: 0x1
+1397851.320970222: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.320975161:  syscalls:sys_exit_poll: 0x0
+1397851.321094845: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397851.321242064:  syscalls:sys_exit_poll: 0x1
+1397851.321296717: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.321300316:  syscalls:sys_exit_poll: 0x0
+1397851.321307983: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397851.346354284:  syscalls:sys_exit_poll: 0x1
+1397851.346436228: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397851.421572424:  syscalls:sys_exit_poll: 0x1
+1397851.421578652: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397851.421582727:  syscalls:sys_exit_read: 0x1
+1397851.421596968: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.421599339:  syscalls:sys_exit_poll: 0x0
+1397851.421636902: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397851.421722268:  syscalls:sys_exit_poll: 0x1
+1397851.421756916: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.421759625:  syscalls:sys_exit_poll: 0x0
+1397851.421763847: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397851.446858796:  syscalls:sys_exit_poll: 0x0
+1397851.447018327: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397851.522042654:  syscalls:sys_exit_poll: 0x1
+1397851.522052674: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397851.522061648:  syscalls:sys_exit_read: 0x1
+1397851.522093605: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.522099745:  syscalls:sys_exit_poll: 0x0
+1397851.522192187: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397851.522349214:  syscalls:sys_exit_poll: 0x1
+1397851.522407062: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.522412269:  syscalls:sys_exit_poll: 0x0
+1397851.522421899: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397851.547518765:  syscalls:sys_exit_poll: 0x0
+1397851.547683749: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397851.622813759:  syscalls:sys_exit_poll: 0x1
+1397851.622822882: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397851.622831836:  syscalls:sys_exit_read: 0x1
+1397851.622861826: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.622867477:  syscalls:sys_exit_poll: 0x0
+1397851.622956859: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397851.623190917:  syscalls:sys_exit_poll: 0x1
+1397851.623232283: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.623235389:  syscalls:sys_exit_poll: 0x0
+1397851.623240879: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397851.648327385:  syscalls:sys_exit_poll: 0x0
+1397851.648486752: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397851.723540415:  syscalls:sys_exit_poll: 0x1
+1397851.723545649: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397851.723551032:  syscalls:sys_exit_read: 0x1
+1397851.723569517: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.723572804:  syscalls:sys_exit_poll: 0x0
+1397851.723622838: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397851.723705487:  syscalls:sys_exit_poll: 0x1
+1397851.723736714: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.723739260:  syscalls:sys_exit_poll: 0x0
+1397851.723744258: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397851.748843241:  syscalls:sys_exit_poll: 0x0
+1397851.748998394: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397851.824087926:  syscalls:sys_exit_poll: 0x1
+1397851.824092295: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397851.824096444:  syscalls:sys_exit_read: 0x1
+1397851.824111605: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.824114297:  syscalls:sys_exit_poll: 0x0
+1397851.824158100: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397851.824418034:  syscalls:sys_exit_poll: 0x1
+1397851.824510614: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.824513660:  syscalls:sys_exit_poll: 0x0
+1397851.824519216: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397851.849600704:  syscalls:sys_exit_poll: 0x1
+1397851.849685051: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397851.924752398:  syscalls:sys_exit_poll: 0x1
+1397851.924756892: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397851.924761561:  syscalls:sys_exit_read: 0x1
+1397851.924778499: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.924781310:  syscalls:sys_exit_poll: 0x0
+1397851.924845164: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397851.924938833:  syscalls:sys_exit_poll: 0x1
+1397851.924985097: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397851.924987972:  syscalls:sys_exit_poll: 0x0
+1397851.924993226: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397851.950089191:  syscalls:sys_exit_poll: 0x0
+1397851.950240314: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397852.025345757:  syscalls:sys_exit_poll: 0x1
+1397852.025355617: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397852.025365214:  syscalls:sys_exit_read: 0x1
+1397852.025398921: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.025404658:  syscalls:sys_exit_poll: 0x0
+1397852.025498927: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.025643387:  syscalls:sys_exit_poll: 0x1
+1397852.025676241: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.025678938:  syscalls:sys_exit_poll: 0x0
+1397852.025683984: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397852.050777898:  syscalls:sys_exit_poll: 0x0
+1397852.050928265: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397852.126001103:  syscalls:sys_exit_poll: 0x1
+1397852.126010987: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397852.126020580:  syscalls:sys_exit_read: 0x1
+1397852.126057431: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.126063138:  syscalls:sys_exit_poll: 0x0
+1397852.126173410: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.126436366:  syscalls:sys_exit_poll: 0x1
+1397852.126516545: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.126522422:  syscalls:sys_exit_poll: 0x0
+1397852.126532558: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397852.151630818:  syscalls:sys_exit_poll: 0x1
+1397852.151787125: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397852.226909510:  syscalls:sys_exit_poll: 0x1
+1397852.226914419: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397852.226918105:  syscalls:sys_exit_read: 0x1
+1397852.226937297: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.226939581:  syscalls:sys_exit_poll: 0x0
+1397852.226988179: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.227063012:  syscalls:sys_exit_poll: 0x1
+1397852.227095818: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.227097942:  syscalls:sys_exit_poll: 0x0
+1397852.227101894: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397852.252165787:  syscalls:sys_exit_poll: 0x1
+1397852.252229735: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397852.327400752:  syscalls:sys_exit_poll: 0x1
+1397852.327406291: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397852.327410380:  syscalls:sys_exit_read: 0x1
+1397852.327429102: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.327431616:  syscalls:sys_exit_poll: 0x0
+1397852.327563110: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.327748135:  syscalls:sys_exit_poll: 0x1
+1397852.327819120: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.327825193:  syscalls:sys_exit_poll: 0x1
+1397852.327866441: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.327870831:  syscalls:sys_exit_poll: 0x0
+1397852.327880404: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397852.352950380:  syscalls:sys_exit_poll: 0x0
+1397852.353008285: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397852.428108624:  syscalls:sys_exit_poll: 0x1
+1397852.428117042: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397852.428121609:  syscalls:sys_exit_read: 0x1
+1397852.428154143: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.428157124:  syscalls:sys_exit_poll: 0x0
+1397852.428229728: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.428339357:  syscalls:sys_exit_poll: 0x1
+1397852.428366527: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.428368596:  syscalls:sys_exit_poll: 0x0
+1397852.428387829: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397852.453474244:  syscalls:sys_exit_poll: 0x1
+1397852.453558024: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397852.528715015:  syscalls:sys_exit_poll: 0x1
+1397852.528724874: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397852.528729647:  syscalls:sys_exit_read: 0x1
+1397852.528761970: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.528764632:  syscalls:sys_exit_poll: 0x0
+1397852.528840201: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.529020624:  syscalls:sys_exit_poll: 0x1
+1397852.529061053: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.529078231:  syscalls:sys_exit_poll: 0x0
+1397852.529083214: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397852.554135545:  syscalls:sys_exit_poll: 0x1
+1397852.554228436: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397852.629338980:  syscalls:sys_exit_poll: 0x1
+1397852.629343169: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397852.629347281:  syscalls:sys_exit_read: 0x1
+1397852.629361732: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.629363872:  syscalls:sys_exit_poll: 0x0
+1397852.629427213: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.629667112:  syscalls:sys_exit_poll: 0x1
+1397852.629742061: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.629744061:  syscalls:sys_exit_poll: 0x0
+1397852.629748208: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397852.654813497:  syscalls:sys_exit_poll: 0x1
+1397852.654907959: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397852.730013470:  syscalls:sys_exit_poll: 0x1
+1397852.730033732: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397852.730041725:  syscalls:sys_exit_read: 0x1
+1397852.730072118: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.730092510:  syscalls:sys_exit_poll: 0x0
+1397852.730168601: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.730272643:  syscalls:sys_exit_poll: 0x1
+1397852.730338791: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.730344108:  syscalls:sys_exit_poll: 0x0
+1397852.730353718: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397852.755417897:  syscalls:sys_exit_poll: 0x1
+1397852.755497866: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397852.830725599:  syscalls:sys_exit_poll: 0x1
+1397852.830732545: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397852.830737263:  syscalls:sys_exit_read: 0x1
+1397852.830752644: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.830755466:  syscalls:sys_exit_poll: 0x0
+1397852.830849304: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.831103923:  syscalls:sys_exit_poll: 0x1
+1397852.831169557: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.831172623:  syscalls:sys_exit_poll: 0x0
+1397852.831178063: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397852.856204675:  syscalls:sys_exit_poll: 0x1
+1397852.856283413: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397852.931578802:  syscalls:sys_exit_poll: 0x1
+1397852.931586184: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397852.931590434:  syscalls:sys_exit_read: 0x1
+1397852.931613929: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.931616659:  syscalls:sys_exit_poll: 0x0
+1397852.931675690: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397852.931777819:  syscalls:sys_exit_poll: 0x1
+1397852.931838797: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397852.931844081:  syscalls:sys_exit_poll: 0x0
+1397852.931853811: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397852.956934128:  syscalls:sys_exit_poll: 0x0
+1397852.957028991: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397853.032101740:  syscalls:sys_exit_poll: 0x1
+1397853.032106334: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397853.032110282:  syscalls:sys_exit_read: 0x1
+1397853.032143190: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.032145718:  syscalls:sys_exit_poll: 0x0
+1397853.032196022: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397853.032270957:  syscalls:sys_exit_poll: 0x1
+1397853.032295816: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.032298076:  syscalls:sys_exit_poll: 0x0
+1397853.032301920: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397853.057400269:  syscalls:sys_exit_poll: 0x0
+1397853.057549579: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397853.132562073:  syscalls:sys_exit_poll: 0x1
+1397853.132571087: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397853.132579474:  syscalls:sys_exit_read: 0x1
+1397853.132611731: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.132617524:  syscalls:sys_exit_poll: 0x0
+1397853.132713353: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397853.132875814:  syscalls:sys_exit_poll: 0x1
+1397853.132933765: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.132939152:  syscalls:sys_exit_poll: 0x0
+1397853.132948672: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397853.158018007:  syscalls:sys_exit_poll: 0x1
+1397853.158144331: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397853.233319368:  syscalls:sys_exit_poll: 0x1
+1397853.233330725: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397853.233340379:  syscalls:sys_exit_read: 0x1
+1397853.233380356: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.233386143:  syscalls:sys_exit_poll: 0x0
+1397853.233492162: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397853.233665190:  syscalls:sys_exit_poll: 0x1
+1397853.233738163: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.233742224:  syscalls:sys_exit_poll: 0x0
+1397853.233749814: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397853.258815598:  syscalls:sys_exit_poll: 0x1
+1397853.258925743: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397853.333975442:  syscalls:sys_exit_poll: 0x1
+1397853.333980446: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397853.333985123:  syscalls:sys_exit_read: 0x1
+1397853.334006364: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.334023405:  syscalls:sys_exit_poll: 0x0
+1397853.334081216: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397853.334162327:  syscalls:sys_exit_poll: 0x1
+1397853.334192817: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.334195278:  syscalls:sys_exit_poll: 0x0
+1397853.334199633: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397853.359264373:  syscalls:sys_exit_poll: 0x0
+1397853.359351291: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397853.434454068:  syscalls:sys_exit_poll: 0x1
+1397853.434461329: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397853.434465390:  syscalls:sys_exit_read: 0x1
+1397853.434497566: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.434500508:  syscalls:sys_exit_poll: 0x0
+1397853.434574903: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397853.434689112:  syscalls:sys_exit_poll: 0x1
+1397853.434723018: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.434739864:  syscalls:sys_exit_poll: 0x0
+1397853.434745401: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397853.459835937:  syscalls:sys_exit_poll: 0x0
+1397853.459907802: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397853.535046385:  syscalls:sys_exit_poll: 0x1
+1397853.535054968: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397853.535062012:  syscalls:sys_exit_read: 0x1
+1397853.535098689: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.535103616:  syscalls:sys_exit_poll: 0x0
+1397853.535202445: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397853.535385856:  syscalls:sys_exit_poll: 0x1
+1397853.535443531: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.535450147:  syscalls:sys_exit_poll: 0x0
+1397853.535459918: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397853.560530024:  syscalls:sys_exit_poll: 0x1
+1397853.560623754: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397853.635822744:  syscalls:sys_exit_poll: 0x1
+1397853.635835804: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397853.635846131:  syscalls:sys_exit_read: 0x1
+1397853.635905489: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.635910486:  syscalls:sys_exit_poll: 0x0
+1397853.636092610: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397853.636307735:  syscalls:sys_exit_poll: 0x1
+1397853.636369883: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.636376746:  syscalls:sys_exit_poll: 0x0
+1397853.636386603: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397853.661487786:  syscalls:sys_exit_poll: 0x0
+1397853.661693221: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397853.736749324:  syscalls:sys_exit_poll: 0x1
+1397853.736759911: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397853.736765693:  syscalls:sys_exit_read: 0x1
+1397853.736806867: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.736810584:  syscalls:sys_exit_poll: 0x0
+1397853.736925125: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397853.737146518:  syscalls:sys_exit_poll: 0x1
+1397853.737181073: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.737183694:  syscalls:sys_exit_poll: 0x0
+1397853.737188965: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397853.762278905:  syscalls:sys_exit_poll: 0x0
+1397853.762407673: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397853.837488284:  syscalls:sys_exit_poll: 0x1
+1397853.837497003: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397853.837501344:  syscalls:sys_exit_read: 0x1
+1397853.837542105: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.837545383:  syscalls:sys_exit_poll: 0x0
+1397853.837650230: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397853.837781206:  syscalls:sys_exit_poll: 0x1
+1397853.837809441: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.837811519:  syscalls:sys_exit_poll: 0x0
+1397853.837815417: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397853.862903338:  syscalls:sys_exit_poll: 0x0
+1397853.863018251: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397853.938013572:  syscalls:sys_exit_poll: 0x1
+1397853.938020496: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397853.938024070:  syscalls:sys_exit_read: 0x1
+1397853.938056195: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.938058629:  syscalls:sys_exit_poll: 0x0
+1397853.938130605: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397853.938267727:  syscalls:sys_exit_poll: 0x1
+1397853.938299881: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397853.938302486:  syscalls:sys_exit_poll: 0x0
+1397853.938307368: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397853.963432192:  syscalls:sys_exit_poll: 0x0
+1397853.963508720: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397854.038565022:  syscalls:sys_exit_poll: 0x1
+1397854.038569777: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397854.038574089:  syscalls:sys_exit_read: 0x1
+1397854.038590443: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.038593147:  syscalls:sys_exit_poll: 0x0
+1397854.038652178: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397854.038719683:  syscalls:sys_exit_poll: 0x1
+1397854.038744162: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.038746561:  syscalls:sys_exit_poll: 0x0
+1397854.038750560: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397854.063849569:  syscalls:sys_exit_poll: 0x0
+1397854.063994919: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397854.139065694:  syscalls:sys_exit_poll: 0x1
+1397854.139079328: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397854.139089185:  syscalls:sys_exit_read: 0x1
+1397854.139146609: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.139152743:  syscalls:sys_exit_poll: 0x0
+1397854.139310933: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397854.139614373:  syscalls:sys_exit_poll: 0x1
+1397854.139704482: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.139710725:  syscalls:sys_exit_poll: 0x0
+1397854.139721639: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397854.164812735:  syscalls:sys_exit_poll: 0x1
+1397854.164974716: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397854.239994817:  syscalls:sys_exit_poll: 0x1
+1397854.240025173: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397854.240031508:  syscalls:sys_exit_read: 0x1
+1397854.240065121: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.240068341:  syscalls:sys_exit_poll: 0x0
+1397854.240148060: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397854.240256163:  syscalls:sys_exit_poll: 0x1
+1397854.240288660: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.240291209:  syscalls:sys_exit_poll: 0x0
+1397854.240296034: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397854.265368206:  syscalls:sys_exit_poll: 0x0
+1397854.265455395: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397854.340482394:  syscalls:sys_exit_poll: 0x1
+1397854.340486670: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397854.340490291:  syscalls:sys_exit_read: 0x1
+1397854.340521694: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.340524056:  syscalls:sys_exit_poll: 0x0
+1397854.340574788: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397854.340690937:  syscalls:sys_exit_poll: 0x1
+1397854.340735809: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.340740716:  syscalls:sys_exit_poll: 0x0
+1397854.340749032: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397854.365842891:  syscalls:sys_exit_poll: 0x0
+1397854.365998622: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397854.440999761:  syscalls:sys_exit_poll: 0x1
+1397854.441004985: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397854.441010085:  syscalls:sys_exit_read: 0x1
+1397854.441026807: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.441029660:  syscalls:sys_exit_poll: 0x0
+1397854.441088008: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397854.441212439:  syscalls:sys_exit_poll: 0x1
+1397854.441251132: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.441253561:  syscalls:sys_exit_poll: 0x0
+1397854.441258231: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397854.466358771:  syscalls:sys_exit_poll: 0x0
+1397854.466509058: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397854.541520138:  syscalls:sys_exit_poll: 0x1
+1397854.541531631: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397854.541537824:  syscalls:sys_exit_read: 0x1
+1397854.541575886: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.541580906:  syscalls:sys_exit_poll: 0x0
+1397854.541677632: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397854.541808895:  syscalls:sys_exit_poll: 0x1
+1397854.541845866: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.541848839:  syscalls:sys_exit_poll: 0x0
+1397854.541853040: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397854.566920147:  syscalls:sys_exit_poll: 0x0
+1397854.567029809: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397854.642093844:  syscalls:sys_exit_poll: 0x1
+1397854.642102639: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397854.642109286:  syscalls:sys_exit_read: 0x1
+1397854.642149701: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.642152900:  syscalls:sys_exit_poll: 0x0
+1397854.642257463: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397854.642368079:  syscalls:sys_exit_poll: 0x1
+1397854.642401777: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.642405539:  syscalls:sys_exit_poll: 0x0
+1397854.642412477: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397854.667494503:  syscalls:sys_exit_poll: 0x0
+1397854.667743795: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397854.742732546:  syscalls:sys_exit_poll: 0x1
+1397854.742749823: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397854.742761760:  syscalls:sys_exit_read: 0x1
+1397854.742817738: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.742825108:  syscalls:sys_exit_poll: 0x0
+1397854.742986665: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397854.743359653:  syscalls:sys_exit_poll: 0x1
+1397854.743462982: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.743472469:  syscalls:sys_exit_poll: 0x0
+1397854.743490013: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397854.768600163:  syscalls:sys_exit_poll: 0x1
+1397854.768794981: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397854.843775379:  syscalls:sys_exit_poll: 0x1
+1397854.843781966: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397854.843786598:  syscalls:sys_exit_read: 0x1
+1397854.843822484: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.843827017:  syscalls:sys_exit_poll: 0x0
+1397854.843959905: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397854.844133107:  syscalls:sys_exit_poll: 0x1
+1397854.844163945: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.844166382:  syscalls:sys_exit_poll: 0x0
+1397854.844170981: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397854.869244858:  syscalls:sys_exit_poll: 0x0
+1397854.869345345: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397854.944350470:  syscalls:sys_exit_poll: 0x1
+1397854.944355616: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397854.944377078:  syscalls:sys_exit_read: 0x1
+1397854.944396690: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.944399517:  syscalls:sys_exit_poll: 0x0
+1397854.944464050: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397854.944558236:  syscalls:sys_exit_poll: 0x1
+1397854.944597930: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397854.944602242:  syscalls:sys_exit_poll: 0x0
+1397854.944610882: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397854.969695519:  syscalls:sys_exit_poll: 0x1
+1397854.969792413: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397855.044861424:  syscalls:sys_exit_poll: 0x1
+1397855.044866273: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397855.044870923:  syscalls:sys_exit_read: 0x1
+1397855.044888275: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.044891162:  syscalls:sys_exit_poll: 0x0
+1397855.044939339: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397855.045021129:  syscalls:sys_exit_poll: 0x1
+1397855.045050980: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.045053743:  syscalls:sys_exit_poll: 0x0
+1397855.045058680: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397855.070156600:  syscalls:sys_exit_poll: 0x1
+1397855.070218150: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397855.145375932:  syscalls:sys_exit_poll: 0x1
+1397855.145387005: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397855.145395995:  syscalls:sys_exit_read: 0x1
+1397855.145435216: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.145441006:  syscalls:sys_exit_poll: 0x0
+1397855.145546332: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397855.145766774:  syscalls:sys_exit_poll: 0x1
+1397855.145826689: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.145831682:  syscalls:sys_exit_poll: 0x0
+1397855.145841309: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397855.170941803:  syscalls:sys_exit_poll: 0x0
+1397855.171002974: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397855.246095640:  syscalls:sys_exit_poll: 0x1
+1397855.246100441: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397855.246103917:  syscalls:sys_exit_read: 0x1
+1397855.246125351: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.246127949:  syscalls:sys_exit_poll: 0x0
+1397855.246215695: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397855.246438480:  syscalls:sys_exit_poll: 0x1
+1397855.246524892: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.246528194:  syscalls:sys_exit_poll: 0x0
+1397855.246534930: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397855.271550684:  syscalls:sys_exit_poll: 0x1
+1397855.271689101: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397855.346688585:  syscalls:sys_exit_poll: 0x1
+1397855.346692820: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397855.346696582:  syscalls:sys_exit_read: 0x1
+1397855.346713625: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.346717361:  syscalls:sys_exit_poll: 0x0
+1397855.346767744: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397855.346852871:  syscalls:sys_exit_poll: 0x1
+1397855.346886034: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.346889799:  syscalls:sys_exit_poll: 0x0
+1397855.346897384: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397855.371975246:  syscalls:sys_exit_poll: 0x1
+1397855.372059111: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397855.447174141:  syscalls:sys_exit_poll: 0x1
+1397855.447180406: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397855.447184737:  syscalls:sys_exit_read: 0x1
+1397855.447214807: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.447216967:  syscalls:sys_exit_poll: 0x0
+1397855.447286868: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397855.447383043:  syscalls:sys_exit_poll: 0x1
+1397855.447407899: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.447410627:  syscalls:sys_exit_poll: 0x0
+1397855.447414548: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397855.472475742:  syscalls:sys_exit_poll: 0x0
+1397855.472540979: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397855.547728109:  syscalls:sys_exit_poll: 0x1
+1397855.547734921: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397855.547738918:  syscalls:sys_exit_read: 0x1
+1397855.547766490: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.547768869:  syscalls:sys_exit_poll: 0x0
+1397855.547836483: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397855.547927243:  syscalls:sys_exit_poll: 0x1
+1397855.547953444: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.547955669:  syscalls:sys_exit_poll: 0x0
+1397855.547959564: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397855.573032884:  syscalls:sys_exit_poll: 0x0
+1397855.573129709: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397855.648169463:  syscalls:sys_exit_poll: 0x1
+1397855.648179256: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397855.648188070:  syscalls:sys_exit_read: 0x1
+1397855.648222181: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.648228164:  syscalls:sys_exit_poll: 0x0
+1397855.648317203: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397855.648500437:  syscalls:sys_exit_poll: 0x1
+1397855.648561685: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.648570052:  syscalls:sys_exit_poll: 0x0
+1397855.648587606: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397855.673651306:  syscalls:sys_exit_poll: 0x1
+1397855.673728723: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397855.748950602:  syscalls:sys_exit_poll: 0x1
+1397855.748960709: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397855.748969949:  syscalls:sys_exit_read: 0x1
+1397855.749003510: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.749009210:  syscalls:sys_exit_poll: 0x0
+1397855.749104739: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397855.749271516:  syscalls:sys_exit_poll: 0x1
+1397855.749330881: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.749336061:  syscalls:sys_exit_poll: 0x0
+1397855.749345394: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397855.774415540:  syscalls:sys_exit_poll: 0x1
+1397855.774487503: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397855.849669192:  syscalls:sys_exit_poll: 0x1
+1397855.849675593: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397855.849680359:  syscalls:sys_exit_read: 0x1
+1397855.849725114: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.849727453:  syscalls:sys_exit_poll: 0x0
+1397855.849793007: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397855.849883710:  syscalls:sys_exit_poll: 0x1
+1397855.849924117: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.849926272:  syscalls:sys_exit_poll: 0x0
+1397855.849930041: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397855.875011062:  syscalls:sys_exit_poll: 0x0
+1397855.875154122: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397855.950409152:  syscalls:sys_exit_poll: 0x1
+1397855.950419675: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397855.950429302:  syscalls:sys_exit_read: 0x1
+1397855.950467086: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.950473076:  syscalls:sys_exit_poll: 0x0
+1397855.950579346: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397855.950797340:  syscalls:sys_exit_poll: 0x1
+1397855.950857679: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397855.950862999:  syscalls:sys_exit_poll: 0x0
+1397855.950872739: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397855.975972522:  syscalls:sys_exit_poll: 0x0
+1397855.976122520: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397856.051145079:  syscalls:sys_exit_poll: 0x1
+1397856.051150524: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397856.051154272:  syscalls:sys_exit_read: 0x1
+1397856.051176391: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.051178882:  syscalls:sys_exit_poll: 0x0
+1397856.051228696: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397856.051318118:  syscalls:sys_exit_poll: 0x1
+1397856.051357691: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.051359903:  syscalls:sys_exit_poll: 0x0
+1397856.051363784: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397856.076429793:  syscalls:sys_exit_poll: 0x0
+1397856.076501763: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397856.151693635:  syscalls:sys_exit_poll: 0x1
+1397856.151703232: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397856.151712582:  syscalls:sys_exit_read: 0x1
+1397856.151744689: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.151750599:  syscalls:sys_exit_poll: 0x0
+1397856.151840798: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397856.152085246:  syscalls:sys_exit_poll: 0x1
+1397856.152116975: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.152119600:  syscalls:sys_exit_poll: 0x0
+1397856.152124528: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397856.177197464:  syscalls:sys_exit_poll: 0x0
+1397856.177277687: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397856.252304285:  syscalls:sys_exit_poll: 0x1
+1397856.252309244: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397856.252313247:  syscalls:sys_exit_read: 0x1
+1397856.252333799: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.252352386:  syscalls:sys_exit_poll: 0x0
+1397856.252421094: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397856.252555752:  syscalls:sys_exit_poll: 0x1
+1397856.252587336: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.252590064:  syscalls:sys_exit_poll: 0x0
+1397856.252595273: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397856.277657851:  syscalls:sys_exit_poll: 0x0
+1397856.277720944: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397856.352946846:  syscalls:sys_exit_poll: 0x1
+1397856.352954309: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397856.352958687:  syscalls:sys_exit_read: 0x1
+1397856.352990326: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.352993344:  syscalls:sys_exit_poll: 0x0
+1397856.353064714: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397856.353234184:  syscalls:sys_exit_poll: 0x1
+1397856.353276560: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.353279511:  syscalls:sys_exit_poll: 0x0
+1397856.353284889: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397856.378354263:  syscalls:sys_exit_poll: 0x1
+1397856.378441828: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397856.453620138:  syscalls:sys_exit_poll: 0x1
+1397856.453625117: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397856.453629718:  syscalls:sys_exit_read: 0x1
+1397856.453649090: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.453651924:  syscalls:sys_exit_poll: 0x0
+1397856.453700626: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397856.453788921:  syscalls:sys_exit_poll: 0x1
+1397856.453849513: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.453852638:  syscalls:sys_exit_poll: 0x0
+1397856.453857775: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x0000001b
+1397856.479142947:  syscalls:sys_exit_poll: 0x1
+1397856.479219635: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397856.554257554:  syscalls:sys_exit_poll: 0x1
+1397856.554262533: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397856.554266792:  syscalls:sys_exit_read: 0x1
+1397856.554284547: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.554287245:  syscalls:sys_exit_poll: 0x0
+1397856.554336370: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397856.554612848:  syscalls:sys_exit_poll: 0x1
+1397856.554693473: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.554699196:  syscalls:sys_exit_poll: 0x0
+1397856.554709816: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397856.579769846:  syscalls:sys_exit_poll: 0x1
+1397856.579854502: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397856.655038481:  syscalls:sys_exit_poll: 0x1
+1397856.655045333: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397856.655051555:  syscalls:sys_exit_read: 0x1
+1397856.655085307: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.655090455:  syscalls:sys_exit_poll: 0x0
+1397856.655173711: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397856.655358545:  syscalls:sys_exit_poll: 0x1
+1397856.655430502: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.655438479:  syscalls:sys_exit_poll: 0x0
+1397856.655453585: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397856.680490019:  syscalls:sys_exit_poll: 0x1
+1397856.680581237: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397856.755728243:  syscalls:sys_exit_poll: 0x1
+1397856.755734522: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397856.755738602:  syscalls:sys_exit_read: 0x1
+1397856.755769071: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.755771865:  syscalls:sys_exit_poll: 0x0
+1397856.755857368: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397856.755951107:  syscalls:sys_exit_poll: 0x1
+1397856.755977434: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.755979697:  syscalls:sys_exit_poll: 0x0
+1397856.755983589: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397856.781086596:  syscalls:sys_exit_poll: 0x0
+1397856.781250163: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397856.856153559:  syscalls:sys_exit_poll: 0x1
+1397856.856157619: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397856.856161180:  syscalls:sys_exit_read: 0x1
+1397856.856174160: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.856176567:  syscalls:sys_exit_poll: 0x0
+1397856.856224495: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397856.856297293:  syscalls:sys_exit_poll: 0x1
+1397856.856321456: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.856323567:  syscalls:sys_exit_poll: 0x0
+1397856.856327477: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397856.881424368:  syscalls:sys_exit_poll: 0x0
+1397856.881569275: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397856.956516728:  syscalls:sys_exit_poll: 0x1
+1397856.956521110: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397856.956524847:  syscalls:sys_exit_read: 0x1
+1397856.956540123: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.956542551:  syscalls:sys_exit_poll: 0x0
+1397856.956594984: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397856.956673134:  syscalls:sys_exit_poll: 0x1
+1397856.956697083: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397856.956699332:  syscalls:sys_exit_poll: 0x0
+1397856.956703264: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397856.981774873:  syscalls:sys_exit_poll: 0x0
+1397856.981900554: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397857.056944270:  syscalls:sys_exit_poll: 0x1
+1397857.056948015: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397857.056951282:  syscalls:sys_exit_read: 0x1
+1397857.056964098: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.056966076:  syscalls:sys_exit_poll: 0x0
+1397857.057001074: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397857.057104505:  syscalls:sys_exit_poll: 0x1
+1397857.057129050: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.057146591:  syscalls:sys_exit_poll: 0x0
+1397857.057152351: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397857.082252848:  syscalls:sys_exit_poll: 0x0
+1397857.082401661: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397857.157346771:  syscalls:sys_exit_poll: 0x1
+1397857.157353110: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397857.157358969:  syscalls:sys_exit_read: 0x1
+1397857.157381426: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.157385391:  syscalls:sys_exit_poll: 0x0
+1397857.157436790: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397857.157520303:  syscalls:sys_exit_poll: 0x1
+1397857.157551357: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.157554395:  syscalls:sys_exit_poll: 0x0
+1397857.157559491: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397857.182656059:  syscalls:sys_exit_poll: 0x0
+1397857.182808819: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397857.257863071:  syscalls:sys_exit_poll: 0x1
+1397857.257872451: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397857.257881404:  syscalls:sys_exit_read: 0x1
+1397857.257912495: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.257918319:  syscalls:sys_exit_poll: 0x0
+1397857.258011531: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397857.258269030:  syscalls:sys_exit_poll: 0x1
+1397857.258348778: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.258354648:  syscalls:sys_exit_poll: 0x0
+1397857.258365115: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397857.283465126:  syscalls:sys_exit_poll: 0x1
+1397857.283621943: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397857.358807880:  syscalls:sys_exit_poll: 0x1
+1397857.358817227: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397857.358826191:  syscalls:sys_exit_read: 0x1
+1397857.358856988: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.358862565:  syscalls:sys_exit_poll: 0x0
+1397857.358951927: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397857.359194899:  syscalls:sys_exit_poll: 0x1
+1397857.359274081: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.359279938:  syscalls:sys_exit_poll: 0x0
+1397857.359290488: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397857.384344031:  syscalls:sys_exit_poll: 0x1
+1397857.384489614: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397857.459717970:  syscalls:sys_exit_poll: 0x1
+1397857.459727243: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397857.459736187:  syscalls:sys_exit_read: 0x1
+1397857.459768728: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.459785541:  syscalls:sys_exit_poll: 0x0
+1397857.459877237: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397857.460142217:  syscalls:sys_exit_poll: 0x1
+1397857.460195803: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.460199103:  syscalls:sys_exit_poll: 0x0
+1397857.460204294: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397857.485261173:  syscalls:sys_exit_poll: 0x1
+1397857.485328760: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397857.560623358:  syscalls:sys_exit_poll: 0x1
+1397857.560630195: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397857.560634119:  syscalls:sys_exit_read: 0x1
+1397857.560660560: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.560663209:  syscalls:sys_exit_poll: 0x0
+1397857.560743991: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397857.560862599:  syscalls:sys_exit_poll: 0x1
+1397857.560888729: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.560890778:  syscalls:sys_exit_poll: 0x0
+1397857.560894631: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397857.585966723:  syscalls:sys_exit_poll: 0x0
+1397857.586056415: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397857.661226338:  syscalls:sys_exit_poll: 0x1
+1397857.661245062: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397857.661255609:  syscalls:sys_exit_read: 0x1
+1397857.661298156: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.661305613:  syscalls:sys_exit_poll: 0x0
+1397857.661408739: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397857.661691552:  syscalls:sys_exit_poll: 0x1
+1397857.661778307: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.661784744:  syscalls:sys_exit_poll: 0x0
+1397857.661795831: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397857.686808273:  syscalls:sys_exit_poll: 0x1
+1397857.686911463: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397857.762189882:  syscalls:sys_exit_poll: 0x1
+1397857.762205699: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397857.762216269:  syscalls:sys_exit_read: 0x1
+1397857.762247433: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.762253800:  syscalls:sys_exit_poll: 0x0
+1397857.762348669: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397857.762589601:  syscalls:sys_exit_poll: 0x1
+1397857.762670236: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.762677413:  syscalls:sys_exit_poll: 0x0
+1397857.762688253: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397857.787764499:  syscalls:sys_exit_poll: 0x1
+1397857.787915403: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397857.862990604:  syscalls:sys_exit_poll: 0x1
+1397857.862995819: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397857.863000494:  syscalls:sys_exit_read: 0x1
+1397857.863017868: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.863020868:  syscalls:sys_exit_poll: 0x0
+1397857.863079911: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397857.863181715:  syscalls:sys_exit_poll: 0x1
+1397857.863211469: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.863213996:  syscalls:sys_exit_poll: 0x0
+1397857.863218954: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397857.888288164:  syscalls:sys_exit_poll: 0x0
+1397857.888406754: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397857.963546500:  syscalls:sys_exit_poll: 0x1
+1397857.963561027: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397857.963571307:  syscalls:sys_exit_read: 0x1
+1397857.963623365: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.963629555:  syscalls:sys_exit_poll: 0x0
+1397857.963785705: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397857.964059251:  syscalls:sys_exit_poll: 0x1
+1397857.964101944: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397857.964104603:  syscalls:sys_exit_poll: 0x0
+1397857.964109753: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397857.989178204:  syscalls:sys_exit_poll: 0x0
+1397857.989281473: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397858.064287426:  syscalls:sys_exit_poll: 0x1
+1397858.064297478: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397858.064303136:  syscalls:sys_exit_read: 0x1
+1397858.064339253: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397858.064342982:  syscalls:sys_exit_poll: 0x0
+1397858.064432774: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397858.064595494:  syscalls:sys_exit_poll: 0x1
+1397858.064627885: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397858.064630594:  syscalls:sys_exit_poll: 0x0
+1397858.064635585: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397858.089714108:  syscalls:sys_exit_poll: 0x0
+1397858.089835275: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397858.164882157:  syscalls:sys_exit_poll: 0x1
+1397858.164889965: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397858.164894584:  syscalls:sys_exit_read: 0x1
+1397858.164933120: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397858.164935644:  syscalls:sys_exit_poll: 0x0
+1397858.165027243: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397858.165178149:  syscalls:sys_exit_poll: 0x1
+1397858.165209582: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397858.165212157:  syscalls:sys_exit_poll: 0x0
+1397858.165216773: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397858.190286088:  syscalls:sys_exit_poll: 0x0
+1397858.190425086: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710
+1397858.265441402:  syscalls:sys_exit_poll: 0x1
+1397858.265449003: syscalls:sys_enter_read: fd: 0x00000000, count: 0x00010000
+1397858.265453943:  syscalls:sys_exit_read: 0x1
+1397858.265492561: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397858.265495024:  syscalls:sys_exit_poll: 0x0
+1397858.265585660: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000002
+1397858.265733502:  syscalls:sys_exit_poll: 0x1
+1397858.265762003: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000000
+1397858.265764369:  syscalls:sys_exit_poll: 0x0
+1397858.265768662: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00000019
+1397858.290866373:  syscalls:sys_exit_poll: 0x0
+1397858.291070958: syscalls:sys_enter_poll: nfds: 0x00000004, timeout_msecs: 0x00002710

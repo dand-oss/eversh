@@ -1,0 +1,88 @@
+{
+  "finished_utc": "2026-09-05T03:20:59Z",
+  "method": {
+    "association_scope": "each probe uses a fresh one-association server process",
+    "loss": "100% symmetric netem on both egress paths",
+    "minimum_outage_seconds": 5,
+    "server_binary_sha256": "0a781d1785254147f61f90dbda02ce17164278f69e543ba85c1b54c6b85cce30"
+  },
+  "observed": {
+    "attempts": [
+      {
+        "attempt": 1,
+        "elapsed_ms": 109,
+        "exit_code": 0,
+        "phase": "pre"
+      },
+      {
+        "attempt": 1,
+        "elapsed_ms": 2017,
+        "exit_code": 1,
+        "phase": "outage"
+      },
+      {
+        "attempt": 2,
+        "elapsed_ms": 2013,
+        "exit_code": 1,
+        "phase": "outage"
+      },
+      {
+        "attempt": 3,
+        "elapsed_ms": 2014,
+        "exit_code": 1,
+        "phase": "outage"
+      },
+      {
+        "attempt": 1,
+        "elapsed_ms": 110,
+        "exit_code": 0,
+        "phase": "recovery"
+      }
+    ],
+    "outage_duration_ms": 6373,
+    "outage_failure_count": 3,
+    "post_restore_attempts": 1,
+    "post_restore_recovery_ms": 216
+  },
+  "receipt_files": {
+    "attempts.tsv": "ca68b9355b6f2d849ad4663bc78a71dcbf6962f5a83d39dd0e7bb7432d681abb",
+    "netem-client-outage-after.txt": "17a28faf848a9e634aa63ebff240e4a233fc98808417a3078f81ff63df101374",
+    "netem-client-outage-before.txt": "ab85c6a1e18497b8ab38acf32dd6021c3fa254c0a9ae5b2ab9d4fd645ef1f11d",
+    "netem-server-outage-after.txt": "db4b93269f738f7a0bd06e43bf5d795d04cb53445657e84f9099f22ab665cc45",
+    "netem-server-outage-before.txt": "41c284c00cbf13bdad639333670f23fbac78d4743d5fff2b973a8cc65f366e6f",
+    "outage-1-client.stderr": "de00c81b7f2205fd7ba2720961e0c998229010b8c715837a7636f98a1a83733e",
+    "outage-1-client.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "outage-1-server.stderr": "b78b18fa2d283e1c2cf36d0937635345f339284eec2ecd00649c24523f2ba19c",
+    "outage-1-server.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "outage-2-client.stderr": "de00c81b7f2205fd7ba2720961e0c998229010b8c715837a7636f98a1a83733e",
+    "outage-2-client.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "outage-2-server.stderr": "b78b18fa2d283e1c2cf36d0937635345f339284eec2ecd00649c24523f2ba19c",
+    "outage-2-server.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "outage-3-client.stderr": "de00c81b7f2205fd7ba2720961e0c998229010b8c715837a7636f98a1a83733e",
+    "outage-3-client.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "outage-3-server.stderr": "b78b18fa2d283e1c2cf36d0937635345f339284eec2ecd00649c24523f2ba19c",
+    "outage-3-server.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pre-1-client.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "pre-1-client.stdout": "bd04d33c33b41f7889149a1a074368403691fa256340cca1668447590ce5f0ed",
+    "pre-1-server.stderr": "fab80c807d4b052d3356a72897e490eb8e2c4d70951a247a087a0175d0711a3c",
+    "pre-1-server.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "recovery-1-client.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "recovery-1-client.stdout": "6894a5df3580085bd3496f9d441fab2c5f363e40620e1e7729d003d90867113e",
+    "recovery-1-server.stderr": "8acbd994aba8dbdb76c19ac37c7305bfd064051a4327543aff9593adf681d38d",
+    "recovery-1-server.stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "schema_version": 1,
+  "source": {
+    "dirty": false,
+    "head_sha": "7d4a43244f0287dddd3d01231994b375f2113c0e",
+    "tree_sha": "47cdeea34120cad4b88b991f4a8098f4d349ee5c"
+  },
+  "started_utc": "2026-09-05T03:20:52Z",
+  "verdict": {
+    "bounded_diagnosed_failures_pass": true,
+    "outage_duration_pass": true,
+    "outage_gate_pass": true,
+    "post_restore_recovery_pass": true,
+    "preflight_pass": true
+  }
+}

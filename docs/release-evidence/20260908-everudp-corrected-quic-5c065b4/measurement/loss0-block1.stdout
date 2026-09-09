@@ -1,0 +1,4 @@
+performance block candidate 1/3: everudp
+performance block candidate 2/3: zmosh-udp
+performance block candidate 3/3: zmosh-quic
+performance block PASS: /tmp/everudp-corrected-control-5c065b4/loss0-block1

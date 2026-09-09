@@ -1,0 +1,29 @@
+{
+  "analysis_sha256": "c9ea2b478c29e7ae649ef4e675c5d9c628ab55bf4f2f39bdc7e466d2394271ee",
+  "analyzer_exit_status": 1,
+  "blocks_per_cell": 6,
+  "build_artifact_manifest_sha256": "58feb8dadaf3cc9ac9d39cbac899850a511132c0f0a36cd6b51b9fdb97779173",
+  "build_provenance_sha256": "5372cc0cba4666253098457f6eab74c1d3a6b814efe310928d8a42dd46d11b92",
+  "candidate_count": 3,
+  "cells": [
+    0,
+    5
+  ],
+  "finished_utc": "2026-09-06T21:09:56Z",
+  "observations_per_candidate_per_cell": 1200,
+  "qualification_outcome": "FAIL",
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "9989564cff6ef9f1358aaf38516727ee76b6821d",
+    "tree_sha": "fe12ff6836e08f7dcf8fcb6ba1f18f50a180f883"
+  },
+  "started_utc": "2026-09-06T20:54:54Z",
+  "trials_per_candidate_per_block": 200,
+  "verdict": {
+    "all_four_comparisons_pass": false,
+    "exact_release_evidence": true,
+    "qualification_outcome": "FAIL",
+    "zero_transcript_failures": true
+  }
+}

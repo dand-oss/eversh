@@ -1,0 +1,4 @@
+cpu40 schedutil
+cpu42 schedutil
+cpu44 schedutil
+cpu46 schedutil

@@ -1,0 +1,3 @@
+qdisc netem 895f: root refcnt 49 limit 1000 delay 10ms  5ms loss 5% duplicate 2% reorder 2% 50% seed 914021 gap 1
+ Sent 40449 bytes 168 pkt (dropped 4, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0

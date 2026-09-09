@@ -1,0 +1,8 @@
+source_sha=9083ef07292acbf6ef55ce065968ecaf14d6a74d
+source_tree=e7b0678cfc198a1a314341af0c4940547bf578b3
+spike_sha256=9f50504c479f43ee2f5edddf04b93e5e2f9fe01000e299024cd654680e2ba5f8
+eversh_sha256=e4ec813a04e85915784bde85a38dbc8337bcb857d7e3b25372520ec33a3f90f5
+started_utc=2026-09-05T01:56:44Z
+finished_utc=2026-09-05T01:58:05Z
+host=badger
+Linux badger 7.1.8+deb14.1-amd64 #1 SMP PREEMPT_DYNAMIC Debian 7.1.8-2 (2026-08-15) x86_64 GNU/Linux

@@ -1,0 +1,23 @@
+	Command being timed: "/usr/bin/env PTY_BENCH_WINDOW_DIR=/tmp/everudp-stream-qualification-8c6f060/loss0-block1/everudp-stream-ordinary/window /usr/bin/taskset -c 40,42,44,46 /tmp/everudp-stream-build-8c6f060/artifacts/bin/pty-bench 200 100 /tmp/everudp-stream-qualification-8c6f060/loss0-block1/everudp-stream-ordinary/result.json /tmp/everudp-stream-qualification-8c6f060/loss0-block1/everudp-stream-ordinary/candidate.stderr -- /usr/bin/env TERM=xterm-256color /tmp/everudp-stream-build-8c6f060/artifacts/bin/everudp-stream-floor client target --runtime ordinary --session perf-p6c441-2-everudp_stream_ordinary --remote-program /tmp/everudp-perf-block.PkbOfG/remote-everudp-stream/remote-everudp-stream --ssh-option=-F/tmp/everudp-perf-block.PkbOfG/client_config"
+	User time (seconds): 0.06
+	System time (seconds): 0.05
+	Percent of CPU this job got: 0%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:20.82
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 8060
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 1581
+	Voluntary context switches: 1434
+	Involuntary context switches: 2
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

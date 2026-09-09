@@ -1,0 +1,46 @@
+   Compiling everudp v0.1.0 (/var/tmp/everudp-ack-hold-source.76htF1/repo/crates/everudp)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.15s
+     Running unittests src/lib.rs (/tmp/everudp-discarded-candidate-target/debug/deps/everudp-34ceada4b89fd08b)
+
+running 38 tests
+test association::tests::observers_cannot_enter_the_input_reducer ... ok
+test client_link::classification_tests::only_link_loss_is_transient_and_protocol_truncation_is_terminal ... ok
+test client_runner::tests::process_exit_mapping_is_bounded_and_stable ... ok
+test client_link::classification_tests::terminal_ack_accepts_only_the_gateway_normal_close_race ... ok
+test client_runner::tests::recovery_never_recreates_the_original_command ... ok
+test client_runner::tests::recovery_keeps_network_loss_temporary_but_terminates_auth_pin_and_protocol ... ok
+test client_driver::tests::disconnected_driver_consumes_local_cancellation_and_restores_signal_mask ... ok
+test edge::tests::standalone_and_combined_remote_roles_cannot_be_confused ... ok
+test edge::tests::application_owner_awaits_completion_and_preserves_errors ... ok
+test gateway::tests::lifecycle_commits_writer_only_after_authenticated_transition ... ok
+test edge::tests::application_owner_preserves_panic_and_drops_owned_state ... ok
+test client_driver::tests::terminal_outcome_and_protocol_failure_restore_local_state ... ok
+test gateway_runner::fairness_tests::committed_bytes_request_only_the_experimental_pty_probe ... ok
+test gateway_runner::fairness_tests::immediate_pty_probe_polls_ready_and_pending_only_once ... ok
+test gateway_runner::fairness_tests::outer_selector_pending_poll_registers_every_source_without_rotating ... ok
+test gateway_runner::fairness_tests::outer_selector_services_every_continuously_ready_class ... ok
+test gateway_runner::fairness_tests::outer_selector_skips_blocked_link_without_starving_pty ... ok
+test identity::tests::malformed_private_key_is_typed ... ok
+test gateway_runner::fairness_tests::terminal_selector_does_not_starve_resume_admission ... ok
+test reconnect::tests::ssh_recovery_starts_at_thirty_seconds_then_is_rate_limited_for_a_minute ... ok
+test edge::tests::private_roles_have_exact_versioned_grammar ... ok
+test route::tests::late_fallback_tick_is_classified_as_process_wake ... ok
+test terminal::tests::empty_async_signal_read_preserves_would_block ... ok
+test transport::ack_policy_tests::actual_client_and_server_ack_configuration_matches_selected_policy ... ok
+test reconnect::tests::retry_prefix_is_exact_and_tail_is_bounded_jitter_forever ... ok
+test pty::tests::ordered_operations_and_events_cross_the_broker_edge_exactly ... ok
+test client_driver::tests::full_input_queue_defers_resize_then_preserves_its_order ... ok
+test client_driver::tests::pending_gap_is_written_to_stderr_exactly_once ... ok
+test association::tests::output_ack_is_idempotent_and_gap_is_replay_queued_before_buffering ... ok
+test association::tests::input_ack_is_queued_only_after_sink_commit ... ok
+test gateway_runner::fairness_tests::ready_control_does_not_skip_output_poll ... ok
+test client_link::backpressure_tests::partial_input_write_resumes_at_accepted_byte_offset ... ok
+test client_link::backpressure_tests::control_delivery_deadline_includes_blocked_flush ... ok
+test client_link::backpressure_tests::detach_delivery_deadline_includes_initial_blocked_flush ... ok
+test reconnect::tests::gateway_replacement_drops_and_reports_ambiguous_old_input ... ok
+test client_driver::backpressure_tests::blocked_input_keeps_output_and_local_cancel_live ... ok
+test gateway_runner::fairness_tests::committed_inbound_yields_one_outbound_turn_before_more_input ... ok
+test gateway_runner::fairness_tests::already_pending_associations_receive_round_robin_service ... ok
+
+test result: ok. 38 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s
+

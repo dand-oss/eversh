@@ -1,0 +1,132 @@
+{
+  "artifacts": {
+    "everudp": {
+      "path": "artifacts/bin/everudp",
+      "sha256": "38021a6e887de3a5806410a4c525a2049715cf470354cd8cf36caa6c3a3fc6e7"
+    },
+    "pty-bench": {
+      "path": "artifacts/bin/pty-bench",
+      "sha256": "76595f49b48e5dd3907cedb05f6f69035cf6ec8299e2b879ff77a681959d3358"
+    },
+    "pty-echo": {
+      "path": "artifacts/bin/pty-echo",
+      "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e"
+    },
+    "zmosh-quic": {
+      "path": "artifacts/bin/zmosh-quic",
+      "sha256": "91a0ce31f6161bf67ea60fc19f145af8967b94d65e58846a48afd53a7d14565b"
+    },
+    "zmosh-quic-bridge": {
+      "path": "artifacts/bin/zmosh-quic-bridge",
+      "sha256": "69898c247d4f4d17295d8fefb1e72257165ae9a00e6219b412e92d3f5d928a3c"
+    },
+    "zmosh-udp": {
+      "path": "artifacts/bin/zmosh-udp",
+      "sha256": "9e1ac57433f2102dc100dc89771b4f56b2ee00d1f92538c39fb1afb5be4188f7"
+    }
+  },
+  "commands": [
+    "CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_PANIC=unwind CARGO_PROFILE_RELEASE_OPT_LEVEL=3 RUSTFLAGS='' CARGO_ENCODED_RUSTFLAGS='' cargo build --locked --release -p everudp --features cli,application-task-spike,stream-delivery-spike,quic-ack-threshold-spike",
+    "reuse_performance_controls.py: verify sealed ordinary control bundle and copy five controls"
+  ],
+  "control_reuse": {
+    "artifacts": {
+      "pty-bench": {
+        "path": "artifacts/bin/pty-bench",
+        "sha256": "76595f49b48e5dd3907cedb05f6f69035cf6ec8299e2b879ff77a681959d3358"
+      },
+      "pty-echo": {
+        "path": "artifacts/bin/pty-echo",
+        "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e"
+      },
+      "zmosh-quic": {
+        "path": "artifacts/bin/zmosh-quic",
+        "sha256": "91a0ce31f6161bf67ea60fc19f145af8967b94d65e58846a48afd53a7d14565b"
+      },
+      "zmosh-quic-bridge": {
+        "path": "artifacts/bin/zmosh-quic-bridge",
+        "sha256": "69898c247d4f4d17295d8fefb1e72257165ae9a00e6219b412e92d3f5d928a3c"
+      },
+      "zmosh-udp": {
+        "path": "artifacts/bin/zmosh-udp",
+        "sha256": "9e1ac57433f2102dc100dc89771b4f56b2ee00d1f92538c39fb1afb5be4188f7"
+      }
+    },
+    "provenance_path": "provenance-inputs/control.json",
+    "provenance_sha256": "90ea3a5510f475281f84267c130d5ccec2c026a932744e28250538524ccfd243",
+    "source": {
+      "clean": true,
+      "head_sha": "abccb1c81ed142ae494839e9827e50ae68268d24",
+      "tree_sha": "81f44e2c933a6b33c5afdccf49513ecdf0e4c9a5"
+    }
+  },
+  "everudp_build": {
+    "cargo_features": [
+      "cli",
+      "application-task-spike",
+      "stream-delivery-spike",
+      "quic-ack-threshold-spike"
+    ],
+    "profile": {
+      "codegen_units": 1,
+      "encoded_rustflags": "",
+      "lto": "fat",
+      "opt_level": 3,
+      "panic": "unwind",
+      "rustflags": "",
+      "target_cpu": "portable default"
+    }
+  },
+  "finished_utc": "2026-09-08T23:02:31Z",
+  "host": {
+    "platform": "Linux-7.1.8+deb14.1-amd64-x86_64-with-glibc2.43"
+  },
+  "inputs": {
+    "Cargo.lock": "036f87a810d709762a25451d5442bb1d55de6fd1080e45a255676d101d5e322b",
+    "pty-bench.c": "07a94f06c5fe222ecadacb0b1450e507d01777b9958be7859f84a652332f31cc",
+    "pty-echo.c": "41108c62a545eb632b9dac4185c7ba8d975658c4e50bfa63b3adb91a116154d1",
+    "zmosh-quic-bench-build.zig": "349e79d7e9d1e897844391e12866487359067060eae9f35a9a8f5ef6c0cfa111",
+    "zmosh-quic-bridge.zig": "c89900d8d719a20b206f9084293c6168d851d247c4378fbca82879bb566ff3ef"
+  },
+  "isolation": {
+    "fresh_detached_zmosh_clones": false,
+    "isolated_cargo_target": true,
+    "isolated_zig_global_caches_per_baseline": false,
+    "isolated_zig_local_caches": false,
+    "quic_adapter_changes_tracked_baseline": false,
+    "sealed_control_reuse": true
+  },
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "e786e0cf3ff9a1ff41177cd0f5ed56f69e3b490a",
+    "tree_sha": "9544fc2e4ca45b21075e456bf2fd0c3e076e1ef9"
+  },
+  "started_utc": "2026-09-08T23:00:20Z",
+  "tools": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+    "cc": "cc (Debian 16.2.0-1) 16.2.0",
+    "git": "git version 2.55.0",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+    "zig_0_15_2": {
+      "sha256": "2858dc89dbbfdd08cceda1b841e7fd0a793a1a67b49f150bc3d0d1de44ed7f51",
+      "version": "0.15.2"
+    },
+    "zig_0_16_0": {
+      "sha256": "2317bbb91798556d9d0f38aabdac23db83f0979b25f767259ae474546724087c",
+      "version": "0.16.0"
+    }
+  },
+  "zmosh_sources": {
+    "quic": {
+      "clean": true,
+      "commit": "21db4a4de6040b254531f2131b6f1c0cd146a7a1",
+      "tree": "38ea33069ce480a1b6465d4c49eafc59c3b6edd8"
+    },
+    "udp": {
+      "clean": true,
+      "commit": "dfc8395b5edcd237bf82712fbde879c6e8be7dfa",
+      "tree": "1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514"
+    }
+  }
+}

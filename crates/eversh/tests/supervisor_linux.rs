@@ -39,7 +39,7 @@ fn binary() -> &'static OsStr {
 }
 
 /// The fake ssh script: captures argv NUL-separated plus its pid and
-/// environment, honors a mode file, and simulates the LOCAL everlink
+/// environment, honors a mode file, and simulates the LOCAL everssh
 /// link-status file protocol eversh's supervisor now reads (design 3, 7)
 /// instead of any remote channel — including merging what a real remote
 /// role's stderr would produce into the SAME stream as stdout whenever a
@@ -47,14 +47,14 @@ fn binary() -> &'static OsStr {
 /// on an in-band-stderr assumption fails here the same way it would against
 /// real OpenSSH. The status path is extracted from the `--status-file`
 /// argument inside the ProxyCommand option value, exactly as the real
-/// everlink edge receives it from its own argv after the local shell splits
+/// everssh edge receives it from its own argv after the local shell splits
 /// the ProxyCommand line — never from the environment.
 ///
 /// Modes: `run` (default) actually execs the remote command, writing
 /// `carrying` before (for non-probe ops) and a terminal `cause clean-close
 /// carried=1` after it exits naturally; SIGUSR1 kills the exec'd child and
 /// exits 255 without writing a terminal record (mirroring an uncatchable
-/// SIGKILL to a real everlink process), publishing `FAKE_SSH_NEXT_MODE` as
+/// SIGKILL to a real everssh process), publishing `FAKE_SSH_NEXT_MODE` as
 /// the next mode when set. `fail255` writes `cause clean-close
 /// carried=0` and exits 255 (an ordinary SSH-level failure/rejection — also
 /// used to make a probe report Unreachable, which never reads the file).
@@ -99,7 +99,7 @@ done
 
 # The per-spawn status path arrives as a --status-file argument inside the
 # ProxyCommand option value (never an environment variable): extract it the
-# same way the real everlink edge receives it after the local shell splits
+# same way the real everssh edge receives it after the local shell splits
 # the ProxyCommand line.
 status_file=
 for arg in "$@"; do
@@ -113,11 +113,11 @@ done
 
 status_carrying() {
   [ -n "$status_file" ] || return 0
-  printf 'everlink-status-v1 carrying\n' >> "$status_file" 2>/dev/null || true
+  printf 'everssh-status-v1 carrying\n' >> "$status_file" 2>/dev/null || true
 }
 status_cause() {
   [ -n "$status_file" ] || return 0
-  printf 'everlink-status-v1 cause %s carried=%s\n' "$1" "$2" >> "$status_file" 2>/dev/null || true
+  printf 'everssh-status-v1 cause %s carried=%s\n' "$1" "$2" >> "$status_file" 2>/dev/null || true
 }
 
 mode=run
@@ -125,6 +125,12 @@ mode=run
 
 if [ "$mode" = fail255 ]; then
   status_cause clean-close 0
+  exit 255
+fi
+if [ "$mode" = terminalcarried ]; then
+  if [ "$is_probe" -eq 1 ]; then exit 0; fi
+  status_cause transport-failure 1
+  printf %s run > "$FAKE_SSH_MODE_FILE" 2>/dev/null || true
   exit 255
 fi
 if [ "$mode" = hang ]; then
@@ -354,7 +360,7 @@ impl Fixture {
 
 /// A minor finding repair: no captured supervisor-invoked process
 /// environment may carry a bootstrap token (a 64-hex-character run) or a raw
-/// bootstrap record line (`everlink v1 ...`) — the supervisor never places
+/// bootstrap record line (`everssh v1 ...`) — the supervisor never places
 /// secrets in argv or environment (design 3, 4, 10).
 fn assert_no_secret_env(fixture: &Fixture, kind: &str) {
     let entries = fixture.captured_env(kind);
@@ -370,7 +376,7 @@ fn assert_no_secret_env(fixture: &Fixture, kind: &str) {
             "captured {kind} environment leaked a 64-hex token: {text}"
         );
         assert!(
-            !value.starts_with("everlink v1 "),
+            !value.starts_with("everssh v1 "),
             "captured {kind} environment leaked a bootstrap record: {text}"
         );
     }
@@ -761,7 +767,7 @@ fn percent_state_root_fails_closed_before_any_ssh_spawn() {
     fixture.set_mode("run");
     // A state root whose own path contains a percent token: OpenSSH
     // expands `%h` inside the quoted --status-file ProxyCommand word
-    // before the local shell sees the quotes, so everlink would receive
+    // before the local shell sees the quotes, so everssh would receive
     // (and write) a DIFFERENT path than the supervisor allocated.
     let hostile = fixture.base.join("st%hate");
     fs::create_dir_all(&hostile).unwrap();
@@ -1430,6 +1436,105 @@ fn reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating() {
     run_isolated("reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating");
 }
 
+#[test]
+fn carried_terminal_failure_waits_association_drain_before_probing() {
+    if is_isolated_worker("carried_terminal_failure_waits_association_drain_before_probing") {
+        carried_terminal_failure_waits_association_drain_before_probing_worker();
+        return;
+    }
+    run_isolated("carried_terminal_failure_waits_association_drain_before_probing");
+}
+
+fn carried_terminal_failure_waits_association_drain_before_probing_worker() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let mut setup = spawn_interactive(
+        &fixture,
+        "drain-setup",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "drain1",
+            "--",
+            "/bin/sh",
+            "-c",
+            TICK_SCRIPT,
+        ],
+    );
+    let mut seen = Vec::new();
+    read_until(&mut setup.master, &mut seen, b"READY", "drain setup ready");
+    let detached = fixture
+        .command()
+        .args(["detach", "testhost", "drain1"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        detached.status.code(),
+        Some(0),
+        "setup detach failed: {}",
+        String::from_utf8_lossy(&detached.stderr)
+    );
+    let status = wait_bounded(&mut setup.child, "drain setup after detach");
+    assert_eq!(status.code(), Some(1));
+
+    fixture.set_mode("terminalcarried");
+    std::env::set_var("EVERSH_STATE_DIR", &fixture.state);
+    std::env::set_var("FAKE_CAPTURE_DIR", &fixture.capture);
+    std::env::set_var("FAKE_SSH_MODE_FILE", &fixture.mode_file);
+    let _stdin_guard = BlockingStdin::install();
+    let limits = eversh::Limits {
+        association_drain_ms: 300,
+        retry_deadline_ms: 5_000,
+        retry_backoff_base_ms: 10,
+        retry_backoff_cap_ms: 20,
+        ..eversh::Limits::default()
+    };
+    let config = library_config(&fixture, limits);
+    let count_probes = |fixture: &Fixture| {
+        fixture
+            .captures("ssh")
+            .into_iter()
+            .filter(|(_, argv)| argv.iter().any(|argument| argument == "probe"))
+            .count()
+    };
+    let before = count_probes(&fixture);
+    let handle = std::thread::spawn(move || {
+        let mut notifier = SilentNotifier;
+        eversh::supervisor::attach(&config, "testhost", "drain1", false, &[], &mut notifier)
+    });
+
+    let drain_deadline = Instant::now() + Duration::from_millis(200);
+    while Instant::now() < drain_deadline {
+        assert!(
+            count_probes(&fixture) == before,
+            "probe ran before association drain"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let probe_deadline = Instant::now() + Duration::from_secs(3);
+    while count_probes(&fixture) == before {
+        assert!(
+            Instant::now() < probe_deadline,
+            "probe did not run after drain"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let killed = fixture
+        .command()
+        .args(["kill", "testhost", "drain1"])
+        .output()
+        .unwrap();
+    assert_eq!(
+        killed.status.code(),
+        Some(0),
+        "kill failed: {}",
+        String::from_utf8_lossy(&killed.stderr)
+    );
+    let end = handle.join().unwrap().unwrap();
+    assert_eq!(end, SessionEnd::Remote(41));
+}
+
 fn reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating_worker() {
     // Finding 1: a reattach that persistently reports Busy is retried
     // against the episode's OWN deadline, never the attempt budget and
@@ -1440,6 +1545,7 @@ fn reattach_busy_persisting_ends_at_the_episode_deadline_never_escalating_worker
 
     let limits = eversh::Limits {
         retry_deadline_ms: 5_000,
+        association_drain_ms: 10,
         retry_backoff_base_ms: 50,
         retry_backoff_cap_ms: 100,
         ..eversh::Limits::default()
@@ -1513,7 +1619,7 @@ fn busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases() {
 
 fn busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases_worker() {
     // Finding 1, the S3 shape: after a path death the remote writer slot is
-    // legitimately held for a long window (everlink's idle timeout), so a
+    // legitimately held for a long window (everssh's idle timeout), so a
     // reattach keeps reporting Busy. With the deadline governing the busy
     // path, the supervisor must still be reattaching WELL past the old
     // 5-attempt budget when the slot finally releases — and then succeed,
@@ -1525,6 +1631,7 @@ fn busy_retries_span_past_the_old_attempt_budget_until_the_writer_releases_worke
     let limits = eversh::Limits {
         // Generous deadline: the release must land well inside it.
         retry_deadline_ms: 30_000,
+        association_drain_ms: 10,
         retry_backoff_base_ms: 50,
         retry_backoff_cap_ms: 100,
         ..eversh::Limits::default()
@@ -1626,9 +1733,9 @@ fn raw_ssh_passes_through_and_never_retries() {
     let argv = &captures[0].1;
     assert_eq!(argv[0], "-o");
     assert!(argv[1].starts_with("ProxyCommand='"));
-    assert!(argv[1].contains("__everlink ssh-proxy '%n' '%p' --remote-eversh 'eversh'"));
+    assert!(argv[1].contains("__everssh ssh-proxy '%n' '%p' --remote-eversh 'eversh'"));
     // `-L` fails the audited allowlist: it must never be mirrored into the
-    // everlink bootstrap, but raw mode must not error over it either
+    // everssh bootstrap, but raw mode must not error over it either
     // (finding 4).
     assert!(
         !argv[1].contains("--ssh-option"),
@@ -1739,7 +1846,7 @@ fn list_filters_by_origin_and_resume_all_reports_partial_failure() {
     // visible and the exit reports it.
     let resumed = fixture
         .command()
-        .args(["resume-all", "testhost"])
+        .args(["resume-all", "testhost", "--transport", "everudp"])
         .env("KITTY_LISTEN_ON", "unix:/tmp/kitty-test.sock")
         .env("FAKE_KITTY_FAIL", "res2")
         .output()
@@ -1771,7 +1878,15 @@ fn list_filters_by_origin_and_resume_all_reports_partial_failure() {
         );
         assert_eq!(
             argv[9..],
-            ["attach", "testhost", name, "--hold-on-error"].map(str::to_owned)
+            [
+                "attach",
+                "testhost",
+                name,
+                "--hold-on-error",
+                "--transport",
+                "everudp",
+            ]
+            .map(str::to_owned)
         );
     }
 
@@ -1848,10 +1963,10 @@ fn everpty_role_grammar_and_version_fail_closed_at_the_binary() {
         .unwrap();
     assert_eq!(output.status.code(), Some(5));
 
-    // The everlink role dispatches to the shared edge.
+    // The everssh role dispatches to the shared edge.
     let output = fixture
         .command()
-        .args(["__everlink", "--help"])
+        .args(["__everssh", "--help"])
         .output()
         .unwrap();
     assert_eq!(output.status.code(), Some(0));
@@ -2052,6 +2167,7 @@ fn reconnect_deadline_bounds_a_hung_probe_worker() {
 
     let limits = eversh::Limits {
         retry_deadline_ms: 2_500,
+        association_drain_ms: 10,
         retry_backoff_base_ms: 50,
         retry_backoff_cap_ms: 100,
         retry_attempts_max: 10,
@@ -2307,6 +2423,7 @@ fn episode_restarts_after_a_carrying_reattach_dies_again_worker() {
         // it happens fast — under heavy parallel test-suite load, process
         // spawn overhead alone can dominate a tight deadline/backoff.
         retry_deadline_ms: 120_000,
+        association_drain_ms: 10,
         retry_backoff_base_ms: 50,
         retry_backoff_cap_ms: 100,
         retry_attempts_max: 1,

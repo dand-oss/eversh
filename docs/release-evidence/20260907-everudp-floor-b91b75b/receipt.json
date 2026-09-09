@@ -1,0 +1,38 @@
+{
+  "analysis": {
+    "path": "analysis.json",
+    "sha256": "ef8834d164100c92087a40f939e256248d82bd0f03edd3c32b18698c35aaf6be"
+  },
+  "blocks": [
+    {
+      "manifest_sha256": "03344cbfaf1e27092887ca7bfdeced7f33e51d6122e82616fd3d9749691d0e8c",
+      "path": "loss0-block1",
+      "sha256sums_sha256": "b4a99e2eb5f02f20d13063ccbdedd7628374d7d23422d81785924f1a906f0ba2"
+    },
+    {
+      "manifest_sha256": "0a4b4dc4863562313aa47a64364f02923af9a42230e0b6aaea9e8628e3fee37a",
+      "path": "loss0-block2",
+      "sha256sums_sha256": "03da6b0959e8e89feb4f618e941f4498ed3cddd1f7ab95706ebf1dbbde5f726a"
+    },
+    {
+      "manifest_sha256": "7a98ab81139544faa9f4c4ad32adeec978a903c0cc56c03edea0f247763366cc",
+      "path": "loss5-block1",
+      "sha256sums_sha256": "67ff75af8d13ed3c30a97a237a72e913ed8bed77ffe71d00ba836d814216c891"
+    },
+    {
+      "manifest_sha256": "72ca177254f33b4468b8331a8b06da0979748736e4e47515a21c88a312da78f4",
+      "path": "loss5-block2",
+      "sha256sums_sha256": "e7aabd4c0f2a5e177944b10f35bbdb3d2ce952dc1f0736cd8587a3ccacc4a1b9"
+    }
+  ],
+  "candidate": {
+    "head_sha": "b91b75be9820d4a28547d84b9de14d3f511ec536",
+    "tree_sha": "de788b28783a71aeaadc19bc691449f0f8595511"
+  },
+  "finished_utc": "2026-09-07T06:51:52Z",
+  "production_actor_integration_authorized": false,
+  "schema_version": 1,
+  "stage_zero_only": true,
+  "started_utc": "2026-09-07T06:48:57Z",
+  "status": "FAIL"
+}

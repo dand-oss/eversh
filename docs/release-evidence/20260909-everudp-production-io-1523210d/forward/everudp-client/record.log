@@ -1,0 +1,2 @@
+[ perf record: Woken up 1 times to write data ]
+[ perf record: Captured and wrote 2.941 MB /tmp/everudp-production-io-1523210d-forward/everudp-client/perf.data (2864 samples) ]

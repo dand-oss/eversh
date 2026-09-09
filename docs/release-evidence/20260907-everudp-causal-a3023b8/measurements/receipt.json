@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "status": "DIAGNOSTIC",
+  "capture_complete": true,
+  "attribution_status": "PARTIAL",
+  "architecture_decision": "No runtime replacement selected; isolated server wake handoff is too small to explain the observed headroom gap",
+  "qualification_pass": false,
+  "production_actor_integration_authorized": false,
+  "candidate": {
+    "head_sha": "a3023b8ed41b13e82dfb578bad358dd2e5e95433",
+    "tree_sha": "b2a505f5024d33937e80cd46dbd14bf344314419",
+    "dirty_during_collection": false
+  },
+  "completed_blocks": 12,
+  "measured_responses": 4800,
+  "transcript_failures": 0,
+  "seeds": "89601..89606 at 0% loss, 89701..89706 at 5% loss",
+  "schedule": "200 trials per candidate per block,100ms gaps; block1 plain/instrumented/traced and floor then zmosh; block2 traced/instrumented/plain and zmosh then floor",
+  "scheduling_eligible_trials": [200, 200, 178, 173],
+  "server_queue_to_driver_median_us": [3.5095, 3.6675, 3.6585, 3.558],
+  "limitations": [
+    "Scheduling spans measure unique response readiness to first same-connection driver service, not a particular UDP packet or actual OS task wakeup",
+    "Resource windows include post-warmup trial gaps and export control, not just timed per-request CPU",
+    "Two reversed blocks do not isolate pure causal tracing overhead; build-mode and host variation remain",
+    "Independent host workloads were active; exclusive machine use is not claimed",
+    "Protocol processing, socket cost, and client-side scheduling remain incompletely attributed",
+    "This echo floor has no remote PTY and does not qualify production behavior"
+  ]
+}

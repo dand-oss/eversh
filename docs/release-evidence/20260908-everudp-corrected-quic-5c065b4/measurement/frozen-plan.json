@@ -1,0 +1,35 @@
+{
+  "affinity": "40,42,44,46",
+  "build_provenance_sha256": "26946fc3f1af7f49c63b0277f514223d0b7a58e6935a3020a96420cfdbab14ed",
+  "collector_sha256": "7c1cc1064142e55036a341fe39f7754cfd50091e731c5550f38d3c6c72f268e6",
+  "gap_ms": 100,
+  "losses": [
+    0,
+    5
+  ],
+  "orders": [
+    [
+      "everudp",
+      "zmosh-udp",
+      "zmosh-quic"
+    ],
+    [
+      "zmosh-quic",
+      "zmosh-udp",
+      "everudp"
+    ]
+  ],
+  "production_qualification": false,
+  "purpose": "zmosh-quic-adapter-correction",
+  "seeds": [
+    15000001,
+    15000002,
+    15050001,
+    15050002
+  ],
+  "source": {
+    "head_sha": "5c065b4024b6c14a117ebed516500b5a020b467f",
+    "tree_sha": "e5f78f0145748ffa92e360b0dc02f5e8341acd81"
+  },
+  "trials_per_name_per_block": 200
+}

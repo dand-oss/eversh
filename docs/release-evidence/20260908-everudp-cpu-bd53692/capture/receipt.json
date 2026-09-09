@@ -1,0 +1,5 @@
+{
+  "production_qualification": false,
+  "reason": "ValueError: lost samples",
+  "status": "INVALID"
+}

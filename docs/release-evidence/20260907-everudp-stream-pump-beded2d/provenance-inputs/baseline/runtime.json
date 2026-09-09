@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "source": {
+    "head_sha": "beded2d447eb055099fb992eaf7d30ea9ef8e7f7",
+    "tree_sha": "2022d0738cd07d1506179134ef5f8fe0b866199f",
+    "clean": true
+  },
+  "started_utc": "2026-09-08T00:07:09Z",
+  "finished_utc": "2026-09-08T00:08:06Z",
+  "cargo_features": [
+    "cli"
+  ],
+  "target": "/tmp/everudp-pump-beded2d-baseline-target",
+  "artifact_sha256": "89eeb262fe42deb95ca17ecdc0aa05c1f009d749c6ae5b5b1dc9acc844afcdd2",
+  "logs": {
+    "stdout": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr": "3d4cf0b59b46f3ec52349bcceaed6c8fccdae0d4ef0538116fbc835eeec8becf"
+  },
+  "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+  "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+  "command": "CARGO_TARGET_DIR=/tmp/everudp-pump-beded2d-baseline-target cargo build --locked --release -p everudp --features cli"
+}

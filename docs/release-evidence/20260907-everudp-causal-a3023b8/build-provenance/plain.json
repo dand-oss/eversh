@@ -1,0 +1,80 @@
+{
+  "artifacts": {
+    "everudp-floor": {
+      "path": "artifacts/bin/everudp-floor",
+      "sha256": "c331dd5769dabc8130abbd6df44a60758cd83f259d078e6ca77276e9072a2b25"
+    },
+    "pty-bench": {
+      "path": "artifacts/bin/pty-bench",
+      "sha256": "0f082f7ec8a761dfdb16d9e4a04e74bf0af3c0afedf54aaa57b7bbe2f2b977eb"
+    },
+    "pty-echo": {
+      "path": "artifacts/bin/pty-echo",
+      "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e"
+    },
+    "zmosh-udp": {
+      "path": "artifacts/bin/zmosh-udp",
+      "sha256": "b3be6d514bba9e2cd13fcc4331e770955db94d8bea9a1f40a754b14dec7e5d46"
+    }
+  },
+  "commands": [
+    "CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_PANIC=abort RUSTFLAGS='' CARGO_ENCODED_RUSTFLAGS='' cargo build --locked --release -p everudp --features cli,reliable-datagram-spike --example everudp-floor",
+    "zig-0.15.2 build -Doptimize=ReleaseFast (zmosh UDP)",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-bench.c -lutil",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-echo.c"
+  ],
+  "everudp_build": {
+    "cargo_features": [
+      "cli",
+      "reliable-datagram-spike"
+    ],
+    "diagnostic_build": false,
+    "profile": {
+      "codegen_units": 1,
+      "lto": "fat",
+      "panic": "abort",
+      "rustflags": "",
+      "target_cpu": "portable default"
+    },
+    "target": "example everudp-floor"
+  },
+  "finished_utc": "2026-09-07T10:57:20Z",
+  "host": {
+    "platform": "Linux-7.1.8+deb14.1-amd64-x86_64-with-glibc2.43"
+  },
+  "inputs": {
+    "Cargo.lock": "334c21b2b5a1ed72f863d1286786400e736276adfd7d800aae8c7cb944549cce",
+    "everudp-floor.rs": "dd6cb3b96da4561cb93794d494282ffe64a9eeca4611a1207655e15987790c3d",
+    "pty-bench.c": "fb6232c61d4dfb8249896c02b63d9bb1c4d32d91ce451d13595540b796663e7d",
+    "pty-echo.c": "41108c62a545eb632b9dac4185c7ba8d975658c4e50bfa63b3adb91a116154d1"
+  },
+  "isolation": {
+    "fresh_detached_zmosh_clone": true,
+    "isolated_cargo_target": true,
+    "isolated_zig_global_cache": true,
+    "isolated_zig_local_cache": true
+  },
+  "purpose": "authenticated-noq-datagram-stage-zero-floor",
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "a3023b8ed41b13e82dfb578bad358dd2e5e95433",
+    "tree_sha": "b2a505f5024d33937e80cd46dbd14bf344314419"
+  },
+  "started_utc": "2026-09-07T10:52:47Z",
+  "tools": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+    "cc": "cc (Debian 16.2.0-1) 16.2.0",
+    "git": "git version 2.55.0",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+    "zig_0_15_2": {
+      "sha256": "2858dc89dbbfdd08cceda1b841e7fd0a793a1a67b49f150bc3d0d1de44ed7f51",
+      "version": "0.15.2"
+    }
+  },
+  "zmosh_source": {
+    "clean": true,
+    "commit": "dfc8395b5edcd237bf82712fbde879c6e8be7dfa",
+    "tree": "1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514"
+  }
+}

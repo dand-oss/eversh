@@ -1,0 +1,14 @@
+{
+  "candidate": {
+    "head_sha": "eb22013026c8ad10ad2c9462602183eaefb71ab9",
+    "tree_sha": "ab55956c03e194dbad5ed59402696eafa562dece"
+  },
+  "finished_utc": "2026-09-08T11:42:20.986309+00:00",
+  "integration_proposal_eligible": false,
+  "production_actor_integration_authorized": false,
+  "production_qualification": false,
+  "purpose": "matched-reliable-stream-floor",
+  "reason": "ValueError: loss0-block1 failed with exit 1; inspect private logs",
+  "schema_version": 1,
+  "status": "INVALID"
+}

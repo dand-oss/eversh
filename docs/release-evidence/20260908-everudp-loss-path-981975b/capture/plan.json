@@ -1,0 +1,18 @@
+{
+  "affinity": "40,42,44,46",
+  "capture_seconds": 15,
+  "collector_sha256": "b11e655c353e13b76d196ca6c3a14ea46ac946dde8dc6c6ee2e6df151a2fa24c",
+  "command": [
+    "/tmp/eversh-loss-capture-981975b/crates/everudp/tests/net/bench-performance-block.sh",
+    "200",
+    "5",
+    "18050002",
+    "/tmp/everudp-loss-path-scheduler-981975b/measurement",
+    "zmosh-quic,zmosh-udp,everudp"
+  ],
+  "instrumented": true,
+  "perf_sha256": "83e79d866c65499c16302d8e27900955868609908be2bbe0d1afed02f082decb",
+  "production_qualification": false,
+  "scope": "client and gateway main-thread scheduler events plus seven production boundary markers; broker/fixture scheduling not captured; no terminal payloads, argv exports or stacks",
+  "source": "981975bceed8a315b3c827406dc8c5be029ec272"
+}

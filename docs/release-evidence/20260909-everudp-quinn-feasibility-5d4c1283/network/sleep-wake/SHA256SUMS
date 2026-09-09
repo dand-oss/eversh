@@ -1,0 +1,14 @@
+6125585c7fd5f3aca282fff8b6b40a9e82e073acd4db28ed504b00c01ddbaee7  ./receipt.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./scenarios/sleep-wake/client.stderr
+89db239225f95ac1df97be1887aea731759a41b6a33d6d14ec2becb219db3e26  ./scenarios/sleep-wake/control/client-pid
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./scenarios/sleep-wake/control/go
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./scenarios/sleep-wake/control/ready
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./scenarios/sleep-wake/control/restore
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./scenarios/sleep-wake/driver.stderr
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./scenarios/sleep-wake/driver.stdout
+2cdc6f9d36a58f18a213645611a70d4f0573ea837f8b0b4e75cf7669f1132325  ./scenarios/sleep-wake/result.json
+17f72e13ac8b7c0aa6102de8a7ed47acb58e024b9ebf6da25ebcce29f4196a69  ./scenarios/sleep-wake/status.log
+2bef46992aeca1f7804a26f1baac7598b58f412b214bfb8e9a0182ae494ef40b  ./scenarios/sleep-wake/transcript.bin
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./sshd.stderr
+32ccea93634a1282b0caf086eb233d7ffafa8ba70a71a93113634eb378d49cac  ./topology-client.json
+72fc4c253009d57132d12aeca4bd38f51b331607f2aabe5af6ca17ce8d8d2f94  ./topology-server.json

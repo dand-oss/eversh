@@ -1,0 +1,23 @@
+	Command being timed: "/usr/bin/env PTY_BENCH_WINDOW_DIR=/tmp/everudp-production-io-1523210d-reverse/measurement/zmosh-quic/window /usr/bin/taskset -c 40,42,44,46 /tmp/everudp-pty-ready-4221bc14-A-build/artifacts/bin/pty-bench 200 100 /tmp/everudp-production-io-1523210d-reverse/measurement/zmosh-quic/result.json /tmp/everudp-production-io-1523210d-reverse/measurement/zmosh-quic/candidate.stderr -- /tmp/everudp-production-io-1523210d-source.X0jzMh/crates/everudp/tests/net/launch-zmosh-quic.sh target 10.246.0.1 /tmp/everudp-perf-block.eJs6vT/client_config /tmp/everudp-perf-block.eJs6vT/remote-zmosh-quic/remote-zmosh perf-p2620a-1-zmosh_quic /tmp/everudp-pty-ready-4221bc14-A-build/artifacts/bin/pty-echo /tmp/everudp-pty-ready-4221bc14-A-build/artifacts/bin/zmosh-quic-bridge /tmp/everudp-production-io-1523210d-reverse/measurement/zmosh-quic/connect.log /tmp/everudp-production-io-1523210d-reverse/measurement/zmosh-quic/server.stderr"
+	User time (seconds): 0.11
+	System time (seconds): 0.06
+	Percent of CPU this job got: 0%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:20.83
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 8380
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 2427
+	Voluntary context switches: 3421
+	Involuntary context switches: 22
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 0
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

@@ -1,0 +1,76 @@
+{
+  "artifacts": {
+    "eversh": {
+      "path": "artifacts/bin/eversh",
+      "sha256": "e4ec813a04e85915784bde85a38dbc8337bcb857d7e3b25372520ec33a3f90f5"
+    },
+    "everudp": {
+      "path": "artifacts/bin/everudp-spike",
+      "sha256": "0a781d1785254147f61f90dbda02ce17164278f69e543ba85c1b54c6b85cce30"
+    },
+    "zmosh": {
+      "path": "artifacts/bin/zmosh",
+      "sha256": "f2d7b1a2badc58f7fee1d5d17c56f58e3648972c1935dbcf59b35eccf1dab887"
+    },
+    "zmosh_bench": {
+      "path": "artifacts/bin/zmosh-bench",
+      "sha256": "e7081c213129299b06c6d879c1b4ac73b7f981d6cebc1715ff9875b011089b10"
+    },
+    "zmosh_header": {
+      "path": "artifacts/include/zmosh/zmosh.h",
+      "sha256": "75a62c860702c8c143941ad722ab25389529604ac61e447f217044aa8071a4af"
+    },
+    "zmosh_library": {
+      "path": "artifacts/lib/libzmosh.a",
+      "sha256": "cd93077c6dbca115d63b4479227ed5a48cfdb5f7244631c81b9e2ca31b582b54"
+    }
+  },
+  "build": {
+    "commands": [
+      "cargo build --locked --release -p eversh --features cli",
+      "cargo build --locked --release --manifest-path spikes/everudp/Cargo.toml",
+      "zig build -Doptimize=ReleaseFast",
+      "zig build lib -Doptimize=ReleaseFast",
+      "cc -O3 -Wall -Wextra -Werror -no-pie zmosh-bench.c libzmosh.a -lpthread"
+    ],
+    "eversh_profile": "release",
+    "everudp_profile": "release",
+    "fresh_output": true,
+    "isolated_cargo_targets": true,
+    "isolated_zig_caches": true,
+    "zmosh_optimize": "ReleaseFast"
+  },
+  "finished_utc": "2026-09-05T03:14:33Z",
+  "host": {
+    "platform": "Linux-7.1.8+deb14.1-amd64-x86_64-with-glibc2.43"
+  },
+  "inputs": {
+    "root_cargo_lock": {
+      "sha256": "138a8eed1b52115d1eb105389643692f0a4f03678f571c53acf5fa5d5e7bdc10"
+    },
+    "spike_cargo_lock": {
+      "sha256": "e85614161f97b49dc9dba01aedd565e47c25eb52c680553ec15da96efb28478a"
+    },
+    "zmosh_bench_source": {
+      "sha256": "f995cc56fb2a78fcd5952b6063a4cb742a9caf2b7a55afe79a179521a3b78516"
+    }
+  },
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "7d4a43244f0287dddd3d01231994b375f2113c0e",
+    "tree_sha": "47cdeea34120cad4b88b991f4a8098f4d349ee5c"
+  },
+  "started_utc": "2026-09-05T03:10:25Z",
+  "tools": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)",
+    "cc": "cc (Debian 16.2.0-1) 16.2.0\nCopyright (C) 2026 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.",
+    "git": "git version 2.55.0",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)",
+    "zig": "0.15.2"
+  },
+  "zmosh_source": {
+    "commit": "dfc8395b5edcd237bf82712fbde879c6e8be7dfa",
+    "tree": "1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514"
+  }
+}

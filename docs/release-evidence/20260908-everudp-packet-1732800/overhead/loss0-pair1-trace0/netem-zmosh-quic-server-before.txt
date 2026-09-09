@@ -1,0 +1,3 @@
+qdisc netem 8974: root refcnt 49 limit 1000 seed 211910005
+ Sent 9047 bytes 53 pkt (dropped 0, overlimits 0 requeues 0) 
+ backlog 0b 0p requeues 0

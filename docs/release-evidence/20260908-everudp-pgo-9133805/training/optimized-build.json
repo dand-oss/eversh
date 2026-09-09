@@ -1,0 +1,37 @@
+{
+  "binary": "/tmp/everudp-pgo-use/target/x86_64-unknown-linux-gnu/release/everudp",
+  "binary_sha256": "913380578f08504470e0265a581844761c24e0afdf3c64330634a88fbc6be607",
+  "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21) (built from a source tarball)\n",
+  "command": [
+    "cargo",
+    "build",
+    "--locked",
+    "--release",
+    "--target",
+    "x86_64-unknown-linux-gnu",
+    "--manifest-path",
+    "/tmp/eversh-pgo-source/Cargo.toml",
+    "-p",
+    "everudp",
+    "--features",
+    "cli"
+  ],
+  "plan": {
+    "flags": [
+      "-Cprofile-use=/tmp/everudp-pgo-frozen-4A72Mm/production.profdata",
+      "-Cllvm-args=-pgo-warn-missing-function"
+    ],
+    "phase": "use",
+    "profile": "/tmp/everudp-pgo-frozen-4A72Mm/production.profdata",
+    "profile_sha256": "5acb010521a87978842218737bd186a15389a5fbe2805e31b704827ae3b5d132",
+    "target": "x86_64-unknown-linux-gnu"
+  },
+  "qualification": false,
+  "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (built from a source tarball)\nbinary: rustc\ncommit-hash: 59807616e1fa2540724bfbac14d7976d7e4a3860\ncommit-date: 2026-04-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.95.0\nLLVM version: 21.1.8\n",
+  "schema_version": 1,
+  "source": {
+    "head_sha": "eecddf15f4d8eb72f0f887cc5ec6ac5bae614bc5",
+    "tree_sha": "a0a4cde8acdcd0e2ef45d750d1184d89a689d250"
+  },
+  "status": "BUILT"
+}

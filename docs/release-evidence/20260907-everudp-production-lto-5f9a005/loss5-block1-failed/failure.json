@@ -1,0 +1,19 @@
+{
+  "status": "FAILED_BEFORE_MEASUREMENT",
+  "qualification": false,
+  "source_sha": "5f9a0057213b3dc8b562c5c8959ea661868a3277",
+  "loss": 5,
+  "block": 1,
+  "role": "baseline",
+  "seed": 1126701,
+  "failed_candidate": "zmosh-quic",
+  "reason": "warm-up marker absent; bridge awaiting_ack; start barrier unavailable",
+  "omitted": [
+    {
+      "path": "zmosh-quic/connect.log",
+      "reason": "contains ephemeral authentication credential",
+      "sha256": "3a7be0c67776813569bf978dc2b9766f2a46026d2fb1d953341a67016d2400aa"
+    }
+  ],
+  "replacement_run": false
+}

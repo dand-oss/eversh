@@ -4,8 +4,8 @@
 # isolated toolchain installed by `fuzz/qualify-m3.sh setup` (including the
 # nightly toolchain and cargo-fuzz); runs the full deterministic gate set,
 # three supervisor_linux stability rounds, the eversh resource-bounds test,
-# the production OpenSSH end-to-end gate, all eight protocol fuzz targets,
-# and reproducible release packaging.
+# the production OpenSSH end-to-end gate, the whole-product version-skew
+# gate, all eight protocol fuzz targets, and reproducible release packaging.
 set -Eeuo pipefail
 
 umask 077
@@ -19,9 +19,9 @@ readonly ROOT=$(
     pwd -P
 )
 readonly FUZZ_DIR="$ROOT/fuzz"
-readonly EVERLINK_QUAL_ROOT="$ROOT/target/qualification/everlink"
+readonly EVERSSH_QUAL_ROOT="$ROOT/target/qualification/everssh"
 readonly QUAL_ROOT="$ROOT/target/qualification/eversh"
-readonly TOOL_ROOT="$EVERLINK_QUAL_ROOT/tools"
+readonly TOOL_ROOT="$EVERSSH_QUAL_ROOT/tools"
 readonly RUSTUP_HOME="$TOOL_ROOT/rustup"
 readonly CARGO_HOME="$TOOL_ROOT/cargo"
 readonly CARGO_BIN="$CARGO_HOME/bin"
@@ -43,23 +43,25 @@ readonly -a FUZZ_TARGETS=(
     fuzz_frame
     fuzz_bootstrap_record
     fuzz_auth_frame
+    fuzz_resume_handshake
     fuzz_remote_control
     fuzz_metadata
     fuzz_proc_stat
-    fuzz_everlink_close_sequence
-    fuzz_everlink_stream_boundary
+    fuzz_everssh_close_sequence
+    fuzz_everssh_stream_boundary
 )
-readonly -a FUZZ_MAX_LENGTHS=(4096 4096 4096 4096 4096 4096 256 4096)
-readonly -a RELEASE_BINARIES=(everpty everlink eversh)
+readonly -a FUZZ_MAX_LENGTHS=(4096 4096 4096 4096 4096 4096 4096 256 4096)
+readonly -a RELEASE_BINARIES=(everpty everssh eversh)
 # All three release binaries are feature-gated behind their crate's `cli`
-# feature (eversh/cli enables everlink/cli but not everpty/cli), so every
+# feature (eversh/cli enables everssh/cli but not everpty/cli), so every
 # release build must enable all three explicitly.
-readonly RELEASE_FEATURES="everpty/cli,everlink/cli,eversh/cli"
+readonly RELEASE_FEATURES="everpty/cli,everssh/cli,eversh/cli"
 
 COMMAND=run
 JSON_OUTPUT=0
 RUN_ROOT=
 RECEIPT_PATH=
+VERIFY_RECEIPT=
 CURRENT_STAGE=startup
 CURRENT_LOG=
 ACTIVE_PID=0
@@ -78,9 +80,19 @@ Usage: fuzz/qualify-m5.sh [run] [--json]
   run     Require a clean commit, then run the full M5 release qualification:
           deterministic gates, three supervisor_linux stability rounds, the
           eversh resource-bounds test, the production OpenSSH end-to-end
-          gate, dependency/licence audits, all eight protocol fuzz targets
-          (build + 61s campaign each), and reproducible release packaging.
+          gate, the whole-product version-skew gate, dependency/licence
+          audits, all eight protocol fuzz targets (build + 61s campaign
+          each), and reproducible release packaging.
   --json  Print the sanitized JSON receipt instead of the one-line summary.
+
+verify-receipts RECEIPT
+        Fail unless the receipt is a PASS receipt binding every required
+        subreceipt log by SHA-256 and every listed log still exists with
+        exactly that hash.
+
+self-test
+        Prove verify-receipts accepts a valid receipt and rejects missing,
+        tampered, or incomplete subreceipt bindings without running M5.
 
 Requires the isolated toolchain from `fuzz/qualify-m3.sh setup`, including
 the nightly toolchain and cargo-fuzz. No raw tool output reaches stdout or
@@ -92,6 +104,15 @@ EOF
 parse_arguments() {
     if (($# > 0)) && [[ $1 != --* ]]; then
         COMMAND=$1
+        shift
+    fi
+    if [[ $COMMAND == verify-receipts ]]; then
+        (( $# == 1 )) || {
+            printf 'eversh M5 qualification: verify-receipts requires one receipt path\n' >&2
+            usage >&2
+            exit 2
+        }
+        VERIFY_RECEIPT=$1
         shift
     fi
     while (($# > 0)); do
@@ -110,7 +131,7 @@ parse_arguments() {
         shift
     done
     case $COMMAND in
-        run) ;;
+        run | verify-receipts | self-test) ;;
         *)
             printf 'eversh M5 qualification: invalid command\n' >&2
             usage >&2
@@ -276,6 +297,67 @@ verify_final_identity() {
         || fail "$stage" 1 "$log_path"
 }
 
+required_subreceipts() {
+    /usr/bin/printf '%s\n' \
+        git-diff-check \
+        root-fmt \
+        root-check \
+        root-clippy \
+        root-test \
+        eversh-resource-bounds \
+        eversh-e2e-openssh \
+        everssh-migration-netns \
+        everssh-openssh-slice5a \
+        everssh-version-skew \
+        everssh-composed-netns-b1 \
+        everssh-composed-netns-b2 \
+        documentation-compat \
+        root-no-default-libs \
+        msrv-check \
+        aarch64-check \
+        cargo-deny-root \
+        cargo-deny-fuzz \
+        fuzz-fmt \
+        fuzz-check \
+        fuzz-clippy \
+        release-build \
+        release-build-reproducibility
+}
+
+verify_receipts() {
+    local receipt=$1 name path expected actual verdict
+    [[ -f $receipt ]] || return 1
+    verdict=$(/usr/bin/jq -r '.verdict // ""' "$receipt")
+    [[ $verdict == PASS ]] || return 1
+    while IFS= read -r name; do
+        path=$(/usr/bin/jq -r --arg name "$name" \
+            '.subreceipts[$name].log // ""' "$receipt")
+        expected=$(/usr/bin/jq -r --arg name "$name" \
+            '.subreceipts[$name].sha256 // ""' "$receipt")
+        [[ -n $path && -n $expected && $expected =~ ^[0-9a-f]{64}$ ]] || return 1
+        [[ -f $path ]] || return 1
+        actual=$(/usr/bin/sha256sum "$path")
+        actual=${actual%% *}
+        [[ $actual == "$expected" ]] || return 1
+    done < <(required_subreceipts)
+    return 0
+}
+
+build_subreceipt_json() {
+    local gate_dir=$1 name path hash
+    local tsv="$gate_dir/subreceipts.tsv"
+    : >"$tsv"
+    while IFS= read -r name; do
+        path="$gate_dir/$name.log"
+        [[ -f $path ]] || fail "subreceipt-missing-$name" 1 "$path"
+        hash=$(/usr/bin/sha256sum "$path")
+        hash=${hash%% *}
+        /usr/bin/printf '%s\t%s\t%s\n' "$name" "$path" "$hash" >>"$tsv"
+    done < <(required_subreceipts)
+    /usr/bin/jq -R -s 'split("\n") | map(select(length > 0) | split("\t"))
+        | map({(.[0]): {log: .[1], sha256: .[2]}}) | add' "$tsv"
+}
+
 extract_stat() {
     local name=$1 log_path=$2 value
     value=$(/usr/bin/sed -n "s/^stat::$name:[[:space:]]*//p" "$log_path" \
@@ -391,7 +473,7 @@ run_qualification() {
     validate_tools || {
         /usr/bin/mkdir -p -- "$QUAL_ROOT/runs"
         RECEIPT_PATH="$QUAL_ROOT/runs/missing-tools.json"
-        fail validate-tools 1 "$EVERLINK_QUAL_ROOT/setup/raw.log"
+        fail validate-tools 1 "$EVERSSH_QUAL_ROOT/setup/raw.log"
     }
 
     HEAD_SHA=$(/usr/bin/git -C "$ROOT" rev-parse HEAD)
@@ -414,6 +496,15 @@ run_qualification() {
         "$RUN_ROOT" "$campaign_dir/raw" "$campaign_dir/records" \
         "$gate_dir" "$build_target" "$release_dir" "$release_b_dir"
     started=$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)
+
+    # The netns gate needs root while Slice 5A refuses it: this aggregator
+    # stays unprivileged and requires passwordless sudo for exactly that
+    # subreceipt. Unavailable privilege is a FAIL, never a skip.
+    /usr/bin/sudo -n true 2>/dev/null || {
+        /usr/bin/mkdir -p -- "$QUAL_ROOT/runs"
+        RECEIPT_PATH="$QUAL_ROOT/runs/sudo-required.json"
+        fail sudo-for-netns-required 1 ''
+    }
 
     export RUSTUP_HOME CARGO_HOME
     export PATH="$CARGO_BIN:/usr/bin:/bin"
@@ -453,6 +544,60 @@ run_qualification() {
     e2e_tail=$(/usr/bin/tail -n 1 "$e2e_log")
     [[ $e2e_tail == 'eversh M5 production OpenSSH path: PASS'* ]] \
         || fail eversh-e2e-openssh-receipt 1 "$e2e_log"
+
+    migration_script="$ROOT/crates/everssh/tests/net/test-migration.sh"
+    migration_log="$gate_dir/everssh-migration-netns.log"
+    run_logged everssh-migration-netns "$migration_log" "$ROOT" \
+        /usr/bin/sudo -n /usr/bin/bash "$migration_script"
+    migration_tail=$(/usr/bin/tail -n 1 "$migration_log")
+    [[ $migration_tail == 'everssh Slice 4 production netns/veth gate: PASS' ]] \
+        || fail everssh-migration-netns-receipt 1 "$migration_log"
+
+    openssh_script="$ROOT/crates/everssh/tests/net/test-openssh.sh"
+    openssh_log="$gate_dir/everssh-openssh-slice5a.log"
+    run_logged everssh-openssh-slice5a "$openssh_log" "$ROOT" \
+        /usr/bin/bash "$openssh_script"
+    openssh_tail=$(/usr/bin/tail -n 1 "$openssh_log")
+    [[ $openssh_tail == 'EverSSH Slice 5A production OpenSSH path: PASS' ]] \
+        || fail everssh-openssh-slice5a-receipt 1 "$openssh_log"
+
+    skew_script="$ROOT/crates/everssh/tests/net/test-version-skew.sh"
+    skew_log="$gate_dir/everssh-version-skew.log"
+    run_logged everssh-version-skew "$skew_log" "$ROOT" \
+        /usr/bin/bash "$skew_script"
+    skew_tail=$(/usr/bin/tail -n 1 "$skew_log")
+    [[ $skew_tail == 'everssh version-skew whole-product gate: PASS'* ]] \
+        || fail everssh-version-skew-receipt 1 "$skew_log"
+
+    composed_netns_script="$ROOT/crates/eversh/tests/net/test-composed-netns.sh"
+    for composed_mode in b1 b2; do
+        composed_log="$gate_dir/everssh-composed-netns-$composed_mode.log"
+        run_logged "everssh-composed-netns-$composed_mode" "$composed_log" "$ROOT" \
+            /usr/bin/sudo -n /usr/bin/bash "$composed_netns_script" "$composed_mode"
+        composed_tail=$(/usr/bin/tail -n 1 "$composed_log")
+        case $composed_mode in
+            b1) [[ $composed_tail == 'eversh composed B1 outage continuity: PASS' ]] ;;
+            b2) [[ $composed_tail == 'everssh composed B2 terminal fallback: PASS'* ]] ;;
+        esac \
+            || fail "everssh-composed-netns-$composed_mode-receipt" 1 "$composed_log"
+    done
+
+    doc_compat_log="$gate_dir/documentation-compat.log"
+    : >"$doc_compat_log"
+    doc_compat_status=0
+    if /usr/bin/grep -R -n 'everssh-link/1' \
+        "$ROOT/README.md" "$ROOT/docs/install.md" >>"$doc_compat_log" 2>&1; then
+        /usr/bin/printf 'stale v1 ALPN remains in live documentation\n' >>"$doc_compat_log"
+        doc_compat_status=1
+    fi
+    if /usr/bin/grep -R -n 'does not retry\|no replay\|never replay' \
+        "$ROOT/README.md" "$ROOT/docs/install.md" >>"$doc_compat_log" 2>&1; then
+        /usr/bin/printf 'stale one-shot transport claims remain in live documentation\n' \
+            >>"$doc_compat_log"
+        doc_compat_status=1
+    fi
+    ((doc_compat_status == 0)) || fail documentation-compat 1 "$doc_compat_log"
+    /usr/bin/printf 'live documentation compatibility: PASS\n' >>"$doc_compat_log"
 
     run_logged root-no-default-libs "$gate_dir/root-no-default-libs.log" "$ROOT" \
         "$CARGO" "+$STABLE_TOOLCHAIN" check --workspace --no-default-features --lib --locked
@@ -556,6 +701,8 @@ run_qualification() {
     /usr/bin/jq -s '.' "$release_dir"/*.json >"$release_binaries_json.tmp"
     /usr/bin/mv -f -- "$release_binaries_json.tmp" "$release_binaries_json"
 
+    subreceipts_json=$(build_subreceipt_json "$gate_dir")
+
     verify_final_identity final-identity "$gate_dir/git-diff-check.log"
     completed=$(/usr/bin/date -u +%Y-%m-%dT%H:%M:%SZ)
     temporary="$RECEIPT_PATH.tmp"
@@ -578,6 +725,7 @@ run_qualification() {
         --argjson stability_rounds "$SUPERVISOR_STABILITY_ROUNDS" \
         --slurpfile campaigns "$campaigns_json" \
         --slurpfile release_binaries "$release_binaries_json" \
+        --argjson subreceipts "$subreceipts_json" \
         '{
             schema_version: 1,
             verdict: "PASS",
@@ -601,12 +749,16 @@ run_qualification() {
             deterministic_gates: [
                 "git-diff-check", "root-fmt", "root-check", "root-clippy",
                 "root-test", "eversh-supervisor-x3", "eversh-resource-bounds",
-                "eversh-e2e-openssh", "root-no-default-libs", "msrv-check",
-                "aarch64-check", "cargo-deny-root", "cargo-deny-fuzz",
-                "fuzz-fmt", "fuzz-check", "fuzz-clippy", "eight-fuzz-builds",
-                "release-packaging"
+                "eversh-e2e-openssh", "everssh-migration-netns",
+                "everssh-openssh-slice5a", "everssh-version-skew",
+                "everssh-composed-netns-b1",
+                "everssh-composed-netns-b2", "documentation-compat",
+                "root-no-default-libs", "msrv-check", "aarch64-check",
+                "cargo-deny-root", "cargo-deny-fuzz", "fuzz-fmt", "fuzz-check",
+                "fuzz-clippy", "nine-fuzz-builds", "release-packaging"
             ],
             supervisor_stability_rounds: $stability_rounds,
+            subreceipts: $subreceipts,
             resource_metrics: $resource_metrics,
             e2e_openssh_log: $e2e_openssh_log,
             campaigns: $campaigns[0],
@@ -623,8 +775,73 @@ run_qualification() {
     emit_receipt PASS "$RECEIPT_PATH"
 }
 
+self_test() {
+    local root
+    root=$(/usr/bin/mktemp -d /tmp/eversh-m5-self-test.XXXXXX)
+    local gate_dir="$root/gates"
+    /usr/bin/mkdir -p -- "$gate_dir"
+    local name path hash
+    : >"$gate_dir/subreceipts.tsv"
+    while IFS= read -r name; do
+        path="$gate_dir/$name.log"
+        /usr/bin/printf 'PASS %s\n' "$name" >"$path"
+        hash=$(/usr/bin/sha256sum "$path")
+        hash=${hash%% *}
+        /usr/bin/printf '%s\t%s\t%s\n' "$name" "$path" "$hash" >>"$gate_dir/subreceipts.tsv"
+    done < <(required_subreceipts)
+    /usr/bin/jq -R -s 'split("\n") | map(select(length > 0) | split("\t"))
+        | map({(.[0]): {log: .[1], sha256: .[2]}}) | add
+        | {schema_version: 1, verdict: "PASS", subreceipts: .}' \
+        "$gate_dir/subreceipts.tsv" >"$root/good.json"
+    verify_receipts "$root/good.json" \
+        || { /usr/bin/rm -rf -- "$root"; return 1; }
+
+    /usr/bin/jq '.subreceipts["root-check"].sha256 = "0"' \
+        "$root/good.json" >"$root/mismatched.json"
+    if verify_receipts "$root/mismatched.json"; then
+        /usr/bin/rm -rf -- "$root"
+        return 1
+    fi
+
+    /usr/bin/jq 'del(.subreceipts["everssh-migration-netns"])' \
+        "$root/good.json" >"$root/missing.json"
+    if verify_receipts "$root/missing.json"; then
+        /usr/bin/rm -rf -- "$root"
+        return 1
+    fi
+
+    /usr/bin/printf 'tampered\n' >>"$gate_dir/root-clippy.log"
+    if verify_receipts "$root/good.json"; then
+        /usr/bin/rm -rf -- "$root"
+        return 1
+    fi
+
+    /usr/bin/jq '.verdict = "FAIL"' "$root/good.json" >"$root/failed.json"
+    if verify_receipts "$root/failed.json"; then
+        /usr/bin/rm -rf -- "$root"
+        return 1
+    fi
+
+    /usr/bin/rm -rf -- "$root"
+    /usr/bin/printf 'eversh M5 qualification self-test: PASS\n'
+}
+
 main() {
     parse_arguments "$@"
+    case $COMMAND in
+        verify-receipts)
+            verify_receipts "$VERIFY_RECEIPT" && {
+                /usr/bin/printf 'eversh M5 subreceipts: PASS\n'
+                exit 0
+            }
+            /usr/bin/printf 'eversh M5 subreceipts: FAIL\n' >&2
+            exit 1
+            ;;
+        self-test)
+            self_test
+            exit $?
+            ;;
+    esac
     require_fixed_tools
     /usr/bin/mkdir -p -- "$QUAL_ROOT"
     exec 9>"$QUAL_ROOT/qualification.lock"

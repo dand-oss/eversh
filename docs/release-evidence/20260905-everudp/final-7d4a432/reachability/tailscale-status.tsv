@@ -1,0 +1,4 @@
+host	state	detail
+local	MISSING	tailscale executable not installed
+bugger.a	STOPPED	installed but BackendState is not Running
+bagger.a	MISSING	tailscale executable not installed

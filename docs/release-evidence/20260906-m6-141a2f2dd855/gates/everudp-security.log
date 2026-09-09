@@ -1,0 +1,57 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running tests/admission.rs (target/debug/deps/admission-722bfbbe4ff3c431)
+
+running 5 tests
+test capacity_is_eight_and_expired_slots_are_reused ... ok
+test invitation_binds_every_authenticated_dimension_and_consumes_once ... ok
+test secret_debug_paths_are_redacted ... ok
+test takeover_is_writer_only_and_is_cryptographically_carried_by_the_invitation ... ok
+test wrong_token_does_not_consume_and_expiration_is_strict ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/handshake.rs (target/debug/deps/handshake-751bab0bf6a40075)
+
+running 3 tests
+test hello_rejects_invalid_modes_roles_acks_and_trailing_bytes ... ok
+test initial_and_resume_hellos_have_canonical_exact_shapes ... ok
+test server_hello_round_trips_pending_gap_without_ambiguity ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/resume.rs (target/debug/deps/resume-62f27a982e9ace80)
+
+running 3 tests
+test gap_and_control_sequences_survive_a_resume_that_the_client_never_finishes ... ok
+test hostile_resume_bindings_are_terminal_but_do_not_kill_the_gateway_endpoint ... ok
+test sequential_connection_replays_only_unacknowledged_terminal_operations ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s
+
+     Running tests/transport.rs (target/debug/deps/transport-6c3cf3487461ed6d)
+
+running 8 tests
+test development_matrix_is_exact_and_records_the_preregistered_default ... ok
+test development_profile_reaches_both_noq_endpoints ... ok
+test live_noq_connection_survives_a_client_udp_rebind ... ok
+test pinned_mutual_tls_claims_once_and_gateway_accepts_sequential_connections ... ok
+test reconnect_classification_retries_only_network_reachability_failures ... ok
+test transport_profile_is_frozen_and_terminal_datagrams_are_impossible ... ok
+test wrong_pin_fails_before_application_admission ... ok
+test wrong_token_and_client_key_fail_without_consuming_the_invitation ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.42s
+
+     Running tests/wire.rs (target/debug/deps/wire-d73603ffe6e0bbf5)
+
+running 7 tests
+test caps_are_checked_from_the_header_before_payload_is_buffered ... ok
+test cumulative_ack_and_gap_epochs_are_explicit_and_canonical ... ok
+test every_stream_round_trips_without_allocating_a_payload ... ok
+test malformed_version_kind_length_and_stream_fail_closed ... ok
+test protocol_identifiers_and_header_bytes_are_frozen ... ok
+test resize_has_one_canonical_network_order_encoding ... ok
+test stream_layout_rejects_observer_input_and_every_extra_stream ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

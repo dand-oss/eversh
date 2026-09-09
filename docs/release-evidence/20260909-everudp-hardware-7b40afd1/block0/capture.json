@@ -1,0 +1,167 @@
+{
+  "benchmark_exit_code": 0,
+  "clients": {
+    "everudp": {
+      "after": {
+        "affinity": [
+          40,
+          42,
+          44,
+          46
+        ],
+        "boot_id": "a379fc1e-ec8d-4f5c-afaa-4bbe88d1fced",
+        "pid": 2722736,
+        "start_ticks": "152223769",
+        "tids": [
+          2722736
+        ],
+        "time_namespace": [
+          5,
+          4026531834
+        ]
+      },
+      "before": {
+        "affinity": [
+          40,
+          42,
+          44,
+          46
+        ],
+        "boot_id": "a379fc1e-ec8d-4f5c-afaa-4bbe88d1fced",
+        "pid": 2722736,
+        "start_ticks": "152223769",
+        "tids": [
+          2722736
+        ],
+        "time_namespace": [
+          5,
+          4026531834
+        ]
+      },
+      "binary_sha256": "3efacfb7bba1eb960c9abc681bb0a0b3c7eba67a25e262ba783296897166f743",
+      "capture": {
+        "control": [
+          {
+            "acknowledged_ns": 1522238480298449,
+            "operation": "enable",
+            "sent_ns": 1522238397020374
+          },
+          {
+            "acknowledged_ns": 1522258666017614,
+            "operation": "disable",
+            "sent_ns": 1522258665859286
+          }
+        ],
+        "diagnostic_only": true,
+        "exit_code": -2,
+        "scope": "selected-main-thread-user-space",
+        "values": {
+          "cache_misses_per_instruction": 0.010910863549167815,
+          "counts": {
+            "cache-misses:u": 301468,
+            "cycles:u": 114824312,
+            "instructions:u": 27630077
+          },
+          "events": [
+            "cycles:u",
+            "instructions:u",
+            "cache-misses:u"
+          ],
+          "ipc": 0.24062915351933484,
+          "runtime": {
+            "cache-misses:u": 114831980,
+            "cycles:u": 114831980,
+            "instructions:u": 114831980
+          }
+        }
+      }
+    },
+    "zmosh-udp": {
+      "after": {
+        "affinity": [
+          40,
+          42,
+          44,
+          46
+        ],
+        "boot_id": "a379fc1e-ec8d-4f5c-afaa-4bbe88d1fced",
+        "pid": 2737254,
+        "start_ticks": "152225895",
+        "tids": [
+          2737254
+        ],
+        "time_namespace": [
+          5,
+          4026531834
+        ]
+      },
+      "before": {
+        "affinity": [
+          40,
+          42,
+          44,
+          46
+        ],
+        "boot_id": "a379fc1e-ec8d-4f5c-afaa-4bbe88d1fced",
+        "pid": 2737254,
+        "start_ticks": "152225895",
+        "tids": [
+          2737254
+        ],
+        "time_namespace": [
+          5,
+          4026531834
+        ]
+      },
+      "binary_sha256": "9e1ac57433f2102dc100dc89771b4f56b2ee00d1f92538c39fb1afb5be4188f7",
+      "capture": {
+        "control": [
+          {
+            "acknowledged_ns": 1522259667544006,
+            "operation": "enable",
+            "sent_ns": 1522259633448842
+          },
+          {
+            "acknowledged_ns": 1522279825853666,
+            "operation": "disable",
+            "sent_ns": 1522279825656628
+          }
+        ],
+        "diagnostic_only": true,
+        "exit_code": -2,
+        "scope": "selected-main-thread-user-space",
+        "values": {
+          "cache_misses_per_instruction": 0.013873539286853113,
+          "counts": {
+            "cache-misses:u": 36982,
+            "cycles:u": 12265119,
+            "instructions:u": 2665650
+          },
+          "events": [
+            "cycles:u",
+            "instructions:u",
+            "cache-misses:u"
+          ],
+          "ipc": 0.21733584484585922,
+          "runtime": {
+            "cache-misses:u": 34837701,
+            "cycles:u": 34837701,
+            "instructions:u": 34837701
+          }
+        }
+      }
+    }
+  },
+  "diagnostic_only": true,
+  "harness_sha": "7b40afd1e1b7d78ac8ae326781ba780f635bcd45",
+  "order": [
+    "everudp",
+    "zmosh-udp",
+    "zmosh-quic"
+  ],
+  "perf_sha256": "83e79d866c65499c16302d8e27900955868609908be2bbe0d1afed02f082decb",
+  "provenance_sha256": "c78ecfa6b2543c78af9b9600c5e89d87cc3a0ae170ab87e4fccecf0c302371f7",
+  "qualification": false,
+  "runtime_sha": "f1287d22d4e0e7591d83792e1e2fb951ac7f9e8c",
+  "status": "CAPTURED"
+}
