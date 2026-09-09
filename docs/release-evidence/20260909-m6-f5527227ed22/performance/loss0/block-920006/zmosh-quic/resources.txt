@@ -1,0 +1,23 @@
+	Command being timed: "/usr/bin/env PTY_BENCH_WINDOW_DIR=/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920006/zmosh-quic/window /usr/bin/taskset -c 40,42,44,46 /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/builds/f5527227ed224807bb55f356e8c273d7108b4637/artifacts/bin/pty-bench 200 100 /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920006/zmosh-quic/result.json /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920006/zmosh-quic/candidate.stderr -- /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everudp/tests/net/launch-zmosh-quic.sh target 10.246.0.1 /tmp/everudp-perf-block.bacmlb/client_config /tmp/everudp-perf-block.bacmlb/remote-zmosh-quic/remote-zmosh perf-pe5d5c-1-zmosh_quic /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/builds/f5527227ed224807bb55f356e8c273d7108b4637/artifacts/bin/pty-echo /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/builds/f5527227ed224807bb55f356e8c273d7108b4637/artifacts/bin/zmosh-quic-bridge /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920006/zmosh-quic/connect.log /home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920006/zmosh-quic/server.stderr"
+	User time (seconds): 0.10
+	System time (seconds): 0.11
+	Percent of CPU this job got: 1%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:21.10
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 8892
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 0
+	Minor (reclaiming a frame) page faults: 2264
+	Voluntary context switches: 3725
+	Involuntary context switches: 4
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 48
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0

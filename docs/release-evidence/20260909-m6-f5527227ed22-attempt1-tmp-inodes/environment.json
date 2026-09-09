@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "rust": {
+    "stable": "rustc 1.95.0 (59807616e 2026-04-14)",
+    "msrv": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+    "nightly": "rustc 1.100.0-nightly (f7d782a3b 2026-08-19)"
+  },
+  "cargo_fuzz": "cargo-fuzz 0.13.2",
+  "cargo_deny": "cargo-deny 0.20.2",
+  "kernel": "Linux 7.1.8+deb14.1-amd64 #1 SMP PREEMPT_DYNAMIC Debian 7.1.8-2 (2026-08-15) x86_64 GNU/Linux",
+  "applications": {
+    "claude": "2.1.266 (Claude Code)",
+    "codex": "codex-cli 0.153.4"
+  }
+}

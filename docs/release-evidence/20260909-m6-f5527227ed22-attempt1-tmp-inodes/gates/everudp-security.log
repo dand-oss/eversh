@@ -1,0 +1,68 @@
+   Compiling noq v1.1.1 (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/vendor/noq)
+   Compiling everssh v0.2.0 (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everssh)
+   Compiling everudp v0.2.0 (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/everudp)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.84s
+     Running tests/admission.rs (target/debug/deps/admission-366bdb4e138c3dee)
+
+running 5 tests
+test capacity_is_eight_and_expired_slots_are_reused ... ok
+test invitation_binds_every_authenticated_dimension_and_consumes_once ... ok
+test secret_debug_paths_are_redacted ... ok
+test takeover_is_writer_only_and_is_cryptographically_carried_by_the_invitation ... ok
+test wrong_token_does_not_consume_and_expiration_is_strict ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/handshake.rs (target/debug/deps/handshake-0aec5d903d4a5471)
+
+running 3 tests
+test hello_rejects_invalid_modes_roles_acks_and_trailing_bytes ... ok
+test initial_and_resume_hellos_have_canonical_exact_shapes ... ok
+test server_hello_round_trips_pending_gap_without_ambiguity ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/resume.rs (target/debug/deps/resume-b2229a9460071451)
+
+running 4 tests
+test gap_and_control_sequences_survive_a_resume_that_the_client_never_finishes ... ok
+test hostile_resume_bindings_are_terminal_but_do_not_kill_the_gateway_endpoint ... ok
+test sequential_connection_replays_only_unacknowledged_terminal_operations ... ok
+test ten_mib_is_byte_identical_across_five_forced_reconnects ... everudp 10 MiB byte identity across five forced reconnects: PASS
+ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.00s
+
+     Running tests/transport.rs (target/debug/deps/transport-df3d792442883215)
+
+running 12 tests
+test development_matrix_is_exact_and_records_the_preregistered_default ... ok
+test development_profile_reaches_both_noq_endpoints ... ok
+test fast_datagram_is_negotiated_flushed_and_received_before_stream_use ... ok
+test floor_profile_is_explicit_and_does_not_change_stream_endpoints ... ok
+test initial_budget_is_one_deadline_and_only_pre_connection_timeout_is_fallback_safe ... ok
+test live_noq_connection_survives_a_client_udp_rebind ... ok
+test pinned_mutual_tls_claims_once_and_gateway_accepts_sequential_connections ... ok
+test reconnect_classification_retries_only_network_reachability_failures ... ok
+test stream_floor_profile_is_independent_and_effective_receipt_is_stream_only ... ok
+test transport_profile_is_frozen_and_datagrams_match_the_build_contract ... ok
+test wrong_pin_fails_before_application_admission ... ok
+test wrong_token_and_client_key_fail_without_consuming_the_invitation ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.92s
+
+     Running tests/wire.rs (target/debug/deps/wire-cf01ff82498c84c4)
+
+running 9 tests
+test caps_are_checked_from_the_header_before_payload_is_buffered ... ok
+test cumulative_ack_and_gap_epochs_are_explicit_and_canonical ... ok
+test every_stream_round_trips_without_allocating_a_payload ... ok
+test fast_datagram_rejects_every_truncation_and_noncanonical_shape ... ok
+test fast_datagram_round_trip_is_exact_and_bounded ... ok
+test malformed_version_kind_length_and_stream_fail_closed ... ok
+test protocol_identifiers_and_header_bytes_are_frozen ... ok
+test resize_has_one_canonical_network_order_encoding ... ok
+test stream_layout_rejects_observer_input_and_every_extra_stream ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

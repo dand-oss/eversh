@@ -1,0 +1,93 @@
+everudp-status-v1 state connecting
+everudp-status-v1 state connected
+everudp-status-v1 state carrying
+everudp-status-v1 state disconnected ambiguous-input=1
+everudp-status-v1 state migrating
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=62864 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=125513 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=185514 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=246786 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=306786 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=368805 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=428805 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=488807 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=549386 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=612104 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=672105 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=732105 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=792106 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=852709 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=915254 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=975255 ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1035256 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1095278 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1158029 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1221047 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1284066 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1345714 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1408734 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1471750 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1534768 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1597782 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1660798 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state recovering-over-ssh ambiguous-input=1
+everudp-status-v1 heartbeat disconnected elapsed-ms=1723818 ambiguous-input=1
+everudp-status-v1 state reconnecting ambiguous-input=1
+everudp-status-v1 state connected
+everudp-status-v1 state carrying
+everudp-status-v1 cause pty-exit carried=1 ambiguous-input=0

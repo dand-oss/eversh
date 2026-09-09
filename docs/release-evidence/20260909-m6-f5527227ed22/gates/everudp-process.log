@@ -1,0 +1,22 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running tests/process.rs (target/debug/deps/process-add0ff1e1754d0dd)
+
+running 14 tests
+test active_writer_rejects_non_takeover_without_udp_fallback_code ... ok
+test application_fixture_isolates_working_directory_and_codex_home ... ok
+test disconnected_writer_generation_is_replaced_without_takeover ... ok
+test exit_snapshot::sanitized_gateway_is_selected_by_exact_state_argument ... ok
+test exit_snapshot::status_snapshot_excludes_unrecognized_fields_and_values ... ok
+test explicit_takeover_revokes_the_old_writer_and_new_writer_is_future_only ... ok
+test flow_controlled_observer_never_stalls_writer_or_pty_drain ... ok
+test hostile_observer_is_closed_without_disturbing_the_writer ... ok
+test installed_terminal_applications_cross_everudp_without_repaint ... ignored, qualification-only: requires installed tmux, nvim, Claude Code, and Codex
+test observer_capacity_is_eight_and_rejection_is_connection_local ... ok
+test observer_first_replacement_gateway_keeps_a_writer_capable_broker_edge ... ok
+test persistent_gateway_fans_future_output_to_a_concurrent_observer ... ok
+test sequential_writer_replacements_leave_gateway_resources_bounded ... everudp-resource-bounds: PASS generations=12 peak_fds=22 peak_tasks=2 peak_rss_kib=57112 rss_plateau_kib=0
+ok
+test standalone_client_composes_real_gateway_broker_and_quic ... ok
+
+test result: ok. 13 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 44.33s
+

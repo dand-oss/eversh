@@ -1,0 +1,10 @@
+03:56:02.652258 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55cb7b735300}], 1024, 8053) = 1
+03:56:03.604662 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x55cb7b735300}], 1024, 0) = 1
+03:56:03.606881 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55cb7b86ac80}, {events=EPOLLOUT, data=0x55cb7b735300}, {events=EPOLLIN, data=0}], 1024, 4) = 3
+03:56:03.610251 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55cb7b86ac80}, {events=EPOLLIN|EPOLLOUT, data=0x55cb7b735300}], 1024, 1) = 2
+03:56:03.610844 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x55cb7b86ac80}, {events=EPOLLOUT, data=0x55cb7b735300}], 1024, 0) = 2
+03:56:03.610922 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55cb7b735300}], 1024, 6) = 1
+03:56:03.611030 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLIN|EPOLLOUT, data=0x55cb7b735300}], 1024, 6) = 1
+03:56:03.611171 epoll_wait(3<anon_inode:[eventpoll]>, [{events=EPOLLOUT, data=0x55cb7b735300}], 1024, 0) = 1
+03:56:03.611224 epoll_wait(3<anon_inode:[eventpoll]>, [], 1024, 6) = 0
+03:56:03.617338 epoll_wait(3<anon_inode:[eventpoll]> <detached ...>

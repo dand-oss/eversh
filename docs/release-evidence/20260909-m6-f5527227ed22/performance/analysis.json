@@ -1,0 +1,300 @@
+{
+  "artifacts": {
+    "everudp": "7602e29e06c906ee0445938ef959aa6b3715fc858a6a70ff2483afa0d4b04046",
+    "pty_bench": "76595f49b48e5dd3907cedb05f6f69035cf6ec8299e2b879ff77a681959d3358",
+    "pty_echo": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e",
+    "zmosh_quic": "3fbfd4460e270fcca35d656544a5e2acce7d6bd0e8967fdf43dcd73da0d8009e",
+    "zmosh_quic_bridge": "f2ba309b077316e18ae0169bf43ac4683407d4a0fcf07a2ee42d2cf5285e1122",
+    "zmosh_udp": "484b2a55b8e1221ef5da7c7eab0d2064d07a4e35c06e796346a263eea66d5e9d"
+  },
+  "build_provenance_sha256": "af2574fdeed20892c58ba4a031da733182fdf16bbbf8256a77fbc5265e085c1d",
+  "cells": {
+    "0": {
+      "blocks": [
+        {
+          "manifest_sha256": "86220fcf3acceefe21f753b36a2bc62dfae40c588dc1683bb1b104938bcb5286",
+          "order": [
+            "everudp",
+            "zmosh-udp",
+            "zmosh-quic"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920001",
+          "seed": 920001
+        },
+        {
+          "manifest_sha256": "5f31f1c3011325e21427be6cb34feed96bc27642d72bd05b06290bec8b9ce79e",
+          "order": [
+            "everudp",
+            "zmosh-quic",
+            "zmosh-udp"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920002",
+          "seed": 920002
+        },
+        {
+          "manifest_sha256": "516af59a8d47604ac523f6f6bc0c00945dea4b37365ba137c63fd9f514f76679",
+          "order": [
+            "zmosh-udp",
+            "everudp",
+            "zmosh-quic"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920003",
+          "seed": 920003
+        },
+        {
+          "manifest_sha256": "5ba5d0905fc3adacba51bb48a33d093a4b4ed1901260a55d46d1c06a7b81657f",
+          "order": [
+            "zmosh-udp",
+            "zmosh-quic",
+            "everudp"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920004",
+          "seed": 920004
+        },
+        {
+          "manifest_sha256": "ac5738fd0fa0255a718a5a8b624d9d21ee7d88b3780b788e5fe31db16150cae4",
+          "order": [
+            "zmosh-quic",
+            "everudp",
+            "zmosh-udp"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920005",
+          "seed": 920005
+        },
+        {
+          "manifest_sha256": "25f2f5f582cdbe6ec7ce21ff2f094ea9ba51b8b4de03bc65ee1a03c41cdfb177",
+          "order": [
+            "zmosh-quic",
+            "zmosh-udp",
+            "everudp"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss0/block-920006",
+          "seed": 920006
+        }
+      ],
+      "comparisons": {
+        "zmosh-quic": {
+          "baseline": "zmosh-quic",
+          "bootstrap": {
+            "iterations": 20000,
+            "method": "independent resampling within each candidate-order block stratum",
+            "p50_ratio_interval_95": [
+              0.9424,
+              0.9902439024390244
+            ],
+            "p50_ratio_upper95": 0.9869494290375204,
+            "p95_ratio_interval_95": [
+              0.8563074352548037,
+              0.9230088495575222
+            ],
+            "p95_ratio_upper95": 0.9159964253798034,
+            "seed": 1163284481
+          },
+          "gate": {
+            "p50_point_at_most_1_00": true,
+            "p50_upper95_at_most_1_10": true,
+            "p95_upper95_at_most_1_00": true,
+            "pass": true
+          },
+          "point": {
+            "baseline_p50_us": 617,
+            "baseline_p95_us": 1156,
+            "everudp_p50_us": 599,
+            "everudp_p95_us": 1025,
+            "p50_ratio": 0.9708265802269044,
+            "p95_ratio": 0.8866782006920415
+          },
+          "sample_count_per_implementation": 1200
+        },
+        "zmosh-udp": {
+          "baseline": "zmosh-udp",
+          "bootstrap": {
+            "iterations": 20000,
+            "method": "independent resampling within each candidate-order block stratum",
+            "p50_ratio_interval_95": [
+              1.3995271867612293,
+              1.4624697336561743
+            ],
+            "p50_ratio_upper95": 1.4576271186440677,
+            "p95_ratio_interval_95": [
+              1.1953216374269007,
+              1.2781862745098038
+            ],
+            "p95_ratio_upper95": 1.2725030826140566,
+            "seed": 1163284480
+          },
+          "gate": {
+            "p50_point_at_most_1_00": false,
+            "p50_upper95_at_most_1_10": false,
+            "p95_upper95_at_most_1_00": false,
+            "pass": false
+          },
+          "point": {
+            "baseline_p50_us": 418,
+            "baseline_p95_us": 824,
+            "everudp_p50_us": 599,
+            "everudp_p95_us": 1025,
+            "p50_ratio": 1.4330143540669857,
+            "p95_ratio": 1.2439320388349515
+          },
+          "sample_count_per_implementation": 1200
+        }
+      }
+    },
+    "5": {
+      "blocks": [
+        {
+          "manifest_sha256": "160426dd98c4ddb83679df96fd1edc51fd7079888945506f2e2d79c2e150f723",
+          "order": [
+            "everudp",
+            "zmosh-udp",
+            "zmosh-quic"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss5/block-930001",
+          "seed": 930001
+        },
+        {
+          "manifest_sha256": "2298ab78d25c8933af836449c60815d33ecba383dfd7b5b36fdbf387cda38125",
+          "order": [
+            "everudp",
+            "zmosh-quic",
+            "zmosh-udp"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss5/block-930002",
+          "seed": 930002
+        },
+        {
+          "manifest_sha256": "27c3bf866fe7b8e0e09dc6b611a5d4f2faca54581cf91a183636a5b4126b8bd6",
+          "order": [
+            "zmosh-udp",
+            "everudp",
+            "zmosh-quic"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss5/block-930003",
+          "seed": 930003
+        },
+        {
+          "manifest_sha256": "766498a913fdc77628682eb20a389f566bd6990ecef92dc597b3246812a03fef",
+          "order": [
+            "zmosh-udp",
+            "zmosh-quic",
+            "everudp"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss5/block-930004",
+          "seed": 930004
+        },
+        {
+          "manifest_sha256": "13a038e1a152c87b3c734466b0840c8f4fd9da0467ef6f4581e29a4fe1d8de3e",
+          "order": [
+            "zmosh-quic",
+            "everudp",
+            "zmosh-udp"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss5/block-930005",
+          "seed": 930005
+        },
+        {
+          "manifest_sha256": "aa87758a169687bace30622375aefce060164bb1378f8b703fc852e15e78005f",
+          "order": [
+            "zmosh-quic",
+            "zmosh-udp",
+            "everudp"
+          ],
+          "path": "/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/target/qualification/everudp-m6/runs/20260909T093737Z-f5527227ed22/performance/loss5/block-930006",
+          "seed": 930006
+        }
+      ],
+      "comparisons": {
+        "zmosh-quic": {
+          "baseline": "zmosh-quic",
+          "bootstrap": {
+            "iterations": 20000,
+            "method": "independent resampling within each candidate-order block stratum",
+            "p50_ratio_interval_95": [
+              0.9616055846422339,
+              1.00355871886121
+            ],
+            "p50_ratio_upper95": 1.0,
+            "p95_ratio_interval_95": [
+              0.07383719816938897,
+              0.08023828222269044
+            ],
+            "p95_ratio_upper95": 0.07905320889059944,
+            "seed": 1163284986
+          },
+          "gate": {
+            "p50_point_at_most_1_00": true,
+            "p50_upper95_at_most_1_10": true,
+            "p95_upper95_at_most_1_00": true,
+            "pass": true
+          },
+          "point": {
+            "baseline_p50_us": 569,
+            "baseline_p95_us": 52223,
+            "everudp_p50_us": 557,
+            "everudp_p95_us": 3932,
+            "p50_ratio": 0.9789103690685413,
+            "p95_ratio": 0.0752924956436819
+          },
+          "sample_count_per_implementation": 1200
+        },
+        "zmosh-udp": {
+          "baseline": "zmosh-udp",
+          "bootstrap": {
+            "iterations": 20000,
+            "method": "independent resampling within each candidate-order block stratum",
+            "p50_ratio_interval_95": [
+              1.4005037783375316,
+              1.4627249357326477
+            ],
+            "p50_ratio_upper95": 1.4575835475578407,
+            "p95_ratio_interval_95": [
+              0.07618746542321979,
+              0.08139902100110533
+            ],
+            "p95_ratio_upper95": 0.08119218910585817,
+            "seed": 1163284985
+          },
+          "gate": {
+            "p50_point_at_most_1_00": false,
+            "p50_upper95_at_most_1_10": false,
+            "p95_upper95_at_most_1_00": true,
+            "pass": false
+          },
+          "point": {
+            "baseline_p50_us": 390,
+            "baseline_p95_us": 50596,
+            "everudp_p50_us": 557,
+            "everudp_p95_us": 3932,
+            "p50_ratio": 1.4282051282051282,
+            "p95_ratio": 0.0777136532532216
+          },
+          "sample_count_per_implementation": 1200
+        }
+      }
+    }
+  },
+  "method": {
+    "blocks_per_cell": 6,
+    "bootstrap_iterations": 20000,
+    "observations_per_block": 200,
+    "thresholds": {
+      "p50_point_ratio_max": 1.0,
+      "p50_ratio_upper95_max": 1.1,
+      "p95_ratio_upper95_max": 1.0
+    },
+    "trials_per_implementation_per_cell": 1200
+  },
+  "schema_version": 1,
+  "source": {
+    "all_blocks_clean": true,
+    "head_sha": "f5527227ed224807bb55f356e8c273d7108b4637",
+    "tree_sha": "eb6456ceeb363c670b50c18745dcbfe5a82d1790"
+  },
+  "verdict": {
+    "all_four_comparisons_pass": false,
+    "exact_release_evidence": true,
+    "qualification_outcome": "FAIL",
+    "zero_transcript_failures": true
+  }
+}

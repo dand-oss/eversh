@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running tests/process.rs (target/debug/deps/process-add0ff1e1754d0dd)
+
+running 1 test
+test installed_terminal_applications_cross_everudp_without_repaint ... everudp-application-compatibility: PASS shell=61 tmux=917 nvim=9008 claude=1986 codex=1416 repaint_injections=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 9.12s
+

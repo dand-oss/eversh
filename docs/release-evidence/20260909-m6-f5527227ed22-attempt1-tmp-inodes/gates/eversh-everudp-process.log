@@ -1,0 +1,13 @@
+   Compiling eversh v0.2.0 (/home/appsmith/asv/ports/repo/eversh/.claude/worktrees/eversh-5fc-everudp-WORK/crates/eversh)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.07s
+     Running tests/everudp_process.rs (target/debug/deps/everudp_process-5b6cba8e19f3c23f)
+
+running 5 tests
+test authenticated_busy_in_auto_mode_never_falls_back ... ok
+test combined_binary_carries_terminal_directly_over_everudp ... ok
+test exit_snapshot::sanitized_gateway_is_selected_by_exact_state_argument ... ok
+test exit_snapshot::status_snapshot_excludes_unrecognized_fields_and_values ... ok
+test strict_udp_failure_is_69_and_auto_falls_back_exactly_once_precommit ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.44s
+

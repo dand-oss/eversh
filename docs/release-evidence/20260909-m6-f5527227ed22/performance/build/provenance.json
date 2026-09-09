@@ -1,0 +1,108 @@
+{
+  "artifacts": {
+    "everudp": {
+      "path": "artifacts/bin/everudp",
+      "sha256": "7602e29e06c906ee0445938ef959aa6b3715fc858a6a70ff2483afa0d4b04046"
+    },
+    "pty-bench": {
+      "path": "artifacts/bin/pty-bench",
+      "sha256": "76595f49b48e5dd3907cedb05f6f69035cf6ec8299e2b879ff77a681959d3358"
+    },
+    "pty-echo": {
+      "path": "artifacts/bin/pty-echo",
+      "sha256": "1a0c1c465e637044f4744c5039526129a8f4f06f9fdba171c24699e609b9d92e"
+    },
+    "zmosh-quic": {
+      "path": "artifacts/bin/zmosh-quic",
+      "sha256": "3fbfd4460e270fcca35d656544a5e2acce7d6bd0e8967fdf43dcd73da0d8009e"
+    },
+    "zmosh-quic-bridge": {
+      "path": "artifacts/bin/zmosh-quic-bridge",
+      "sha256": "f2ba309b077316e18ae0169bf43ac4683407d4a0fcf07a2ee42d2cf5285e1122"
+    },
+    "zmosh-udp": {
+      "path": "artifacts/bin/zmosh-udp",
+      "sha256": "484b2a55b8e1221ef5da7c7eab0d2064d07a4e35c06e796346a263eea66d5e9d"
+    }
+  },
+  "commands": [
+    "CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_PANIC=unwind CARGO_PROFILE_RELEASE_OPT_LEVEL=3 RUSTFLAGS='' CARGO_ENCODED_RUSTFLAGS='' cargo build --locked --release --manifest-path Cargo.toml -p everudp --features cli",
+    "zig-0.15.2 build -Doptimize=ReleaseFast (zmosh UDP)",
+    "zig-0.16.0 build -Doptimize=ReleaseFast (zmosh QUIC)",
+    "zig-0.16.0 build --build-file zmosh-quic-bench-build.zig -Doptimize=ReleaseFast",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-bench.c -lutil",
+    "cc -std=c11 -O3 -Wall -Wextra -Werror pty-echo.c"
+  ],
+  "everudp_build": {
+    "cargo_features": [
+      "cli"
+    ],
+    "cargo_lock_sha256": "8d3d84846766bd692d0dcd4a1476b6a425be9c67458aec1eeabf6a8be0fe4041",
+    "command": "CARGO_PROFILE_RELEASE_LTO=fat CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1 CARGO_PROFILE_RELEASE_PANIC=unwind CARGO_PROFILE_RELEASE_OPT_LEVEL=3 RUSTFLAGS='' CARGO_ENCODED_RUSTFLAGS='' cargo build --locked --release --manifest-path Cargo.toml -p everudp --features cli",
+    "engine": "noq",
+    "manifest": "Cargo.toml",
+    "package": "everudp",
+    "pinned_dependencies": {},
+    "profile": {
+      "codegen_units": 1,
+      "encoded_rustflags": "",
+      "lto": "fat",
+      "opt_level": 3,
+      "panic": "unwind",
+      "rustflags": "",
+      "target_cpu": "portable default"
+    }
+  },
+  "finished_utc": "2026-09-09T11:20:28Z",
+  "host": {
+    "platform": "Linux-7.1.8+deb14.1-amd64-x86_64-with-glibc2.43"
+  },
+  "inputs": {
+    "Cargo.lock": "8d3d84846766bd692d0dcd4a1476b6a425be9c67458aec1eeabf6a8be0fe4041",
+    "engine_Cargo.lock": "8d3d84846766bd692d0dcd4a1476b6a425be9c67458aec1eeabf6a8be0fe4041",
+    "pty-bench.c": "07a94f06c5fe222ecadacb0b1450e507d01777b9958be7859f84a652332f31cc",
+    "pty-echo.c": "41108c62a545eb632b9dac4185c7ba8d975658c4e50bfa63b3adb91a116154d1",
+    "zmosh-quic-bench-build.zig": "349e79d7e9d1e897844391e12866487359067060eae9f35a9a8f5ef6c0cfa111",
+    "zmosh-quic-bridge.zig": "c89900d8d719a20b206f9084293c6168d851d247c4378fbca82879bb566ff3ef"
+  },
+  "isolation": {
+    "fresh_detached_zmosh_clones": true,
+    "isolated_cargo_target": true,
+    "isolated_zig_global_caches_per_baseline": true,
+    "isolated_zig_local_caches": true,
+    "quic_adapter_changes_tracked_baseline": false
+  },
+  "schema_version": 1,
+  "source": {
+    "clean": true,
+    "head_sha": "f5527227ed224807bb55f356e8c273d7108b4637",
+    "tree_sha": "eb6456ceeb363c670b50c18745dcbfe5a82d1790"
+  },
+  "started_utc": "2026-09-09T11:08:35Z",
+  "tools": {
+    "cargo": "cargo 1.95.0 (f2d3ce0bd 2026-03-21)",
+    "cc": "cc (Debian 16.2.0-1) 16.2.0",
+    "git": "git version 2.55.0",
+    "rustc": "rustc 1.95.0 (59807616e 2026-04-14)",
+    "zig_0_15_2": {
+      "sha256": "2858dc89dbbfdd08cceda1b841e7fd0a793a1a67b49f150bc3d0d1de44ed7f51",
+      "version": "0.15.2"
+    },
+    "zig_0_16_0": {
+      "sha256": "2317bbb91798556d9d0f38aabdac23db83f0979b25f767259ae474546724087c",
+      "version": "0.16.0"
+    }
+  },
+  "zmosh_sources": {
+    "quic": {
+      "clean": true,
+      "commit": "21db4a4de6040b254531f2131b6f1c0cd146a7a1",
+      "tree": "38ea33069ce480a1b6465d4c49eafc59c3b6edd8"
+    },
+    "udp": {
+      "clean": true,
+      "commit": "dfc8395b5edcd237bf82712fbde879c6e8be7dfa",
+      "tree": "1a3a615fd69d25e2c4c058e1d86b1d7be5e9f514"
+    }
+  }
+}

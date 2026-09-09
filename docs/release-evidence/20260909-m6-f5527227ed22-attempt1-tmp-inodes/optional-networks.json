@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "tailscale": {
+    "verdict": "UNAVAILABLE",
+    "required": false,
+    "reason": "preregistered optional overlay capability"
+  },
+  "zerotier": {
+    "status": "AVAILABLE",
+    "required": false
+  }
+}

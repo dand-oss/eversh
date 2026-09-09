@@ -1,0 +1,60 @@
+{
+  "client": {
+    "events": 46,
+    "files": 1,
+    "identity": {
+      "host_pid": 2059205,
+      "name": "everudp",
+      "namespace_pid": 2059205,
+      "parent_pid": 2059187
+    }
+  },
+  "client_pid": 2059205,
+  "gateway": {
+    "events": 10,
+    "files": 2,
+    "identity": {
+      "host_pid": 2059256,
+      "name": "everudp",
+      "namespace_pid": 2059256,
+      "parent_pid": 1
+    }
+  },
+  "gateway_pid": 2059256,
+  "lifecycle": {
+    "client": {
+      "attached_at_driver_done": true,
+      "attached_before_go": true,
+      "shutdown_signal": "SIGINT",
+      "stderr_bytes": 0,
+      "stdout_bytes": 0,
+      "tracee_pid": 2059205,
+      "tracer_pid": 2059353,
+      "wait_status": 130
+    },
+    "gateway": {
+      "attached_at_driver_done": true,
+      "attached_before_go": true,
+      "shutdown_signal": "SIGINT",
+      "stderr_bytes": 0,
+      "stdout_bytes": 0,
+      "tracee_pid": 2059256,
+      "tracer_pid": 2059362,
+      "wait_status": 130
+    },
+    "schema_version": 1,
+    "window": {
+      "attached_at_driver_done_utc": "2026-09-09T08:56:03Z",
+      "attached_before_go_utc": "2026-09-09T08:56:02Z",
+      "begin": "before-control-go",
+      "end": "driver-done",
+      "tracers_stopped_utc": "2026-09-09T08:56:03Z"
+    }
+  },
+  "payload_syscalls": 0,
+  "phase": "post-bootstrap-terminal",
+  "post_bootstrap_execs": 0,
+  "post_bootstrap_tcp_sockets": 0,
+  "schema_version": 1,
+  "verdict": "PASS"
+}
