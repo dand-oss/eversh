@@ -1,7 +1,7 @@
 //! Bounded OpenSSH process ownership and exact bootstrap acquisition.
 
 use crate::bootstrap::BootstrapRecord;
-use crate::error::Error;
+use crate::error::{Error, RemoteCommandFailure};
 use crate::limits::Limits;
 use crate::ssh_policy::{validate_effective_config, SshPlan, SSH_PROGRAM};
 use std::process::{ExitStatus, Stdio};
@@ -13,6 +13,8 @@ use zeroize::Zeroize;
 
 const CONFIG_OUTPUT_MAX: usize = 64 * 1024;
 const STDERR_MAX: usize = 16 * 1024;
+/// Longest remote diagnostic excerpt retained in a reported failure.
+const DIAGNOSTIC_EXCERPT_MAX: usize = 240;
 
 pub struct SecretBytes {
     bytes: Vec<u8>,
@@ -212,7 +214,7 @@ impl Drop for ChildOwner {
 }
 
 pub async fn verify_effective_config(plan: &SshPlan, limits: &Limits) -> Result<(), Error> {
-    let output = run_owned_ssh(&plan.config_query_args(), CONFIG_OUTPUT_MAX, limits).await?;
+    let output = run_owned_ssh(&plan.config_query_args(), None, CONFIG_OUTPUT_MAX, limits).await?;
     if output.overflowed() {
         return Err(Error::SshPolicyRejected);
     }
@@ -220,7 +222,13 @@ pub async fn verify_effective_config(plan: &SshPlan, limits: &Limits) -> Result<
 }
 
 pub async fn acquire_bootstrap(plan: &SshPlan, limits: &Limits) -> Result<BootstrapRecord, Error> {
-    let output = run_owned_ssh(&plan.bootstrap_args(), limits.bootstrap_record_max, limits).await?;
+    let output = run_owned_ssh(
+        &plan.bootstrap_args(),
+        Some(plan.remote_program()),
+        limits.bootstrap_record_max,
+        limits,
+    )
+    .await?;
     if output.overflowed() {
         return Err(Error::BootstrapMalformed);
     }
@@ -238,11 +246,21 @@ pub async fn acquire_bootstrap_bytes(
     if maximum == 0 || maximum > limits.bootstrap_record_max {
         return Err(Error::BootstrapMalformed);
     }
-    run_owned_ssh(&plan.bootstrap_args(), maximum, limits).await
+    run_owned_ssh(
+        &plan.bootstrap_args(),
+        Some(plan.remote_program()),
+        maximum,
+        limits,
+    )
+    .await
 }
 
+/// Run OpenSSH with `arguments`. `remote_program` names the remote command
+/// word when the invocation runs one, so a non-success exit from that
+/// command can be reported with its path and diagnostic.
 async fn run_owned_ssh(
     arguments: &[String],
+    remote_program: Option<&str>,
     stdout_max: usize,
     limits: &Limits,
 ) -> Result<SecretBytes, Error> {
@@ -280,14 +298,30 @@ async fn run_owned_ssh(
         }
     };
     if !status.success() {
-        return Err(classify_ssh_failure(status, stderr.as_slice()));
+        return Err(classify_ssh_failure(
+            status,
+            stderr.as_slice(),
+            remote_program,
+        ));
     }
     Ok(stdout)
 }
 
-fn classify_ssh_failure(status: ExitStatus, stderr: &[u8]) -> Error {
+/// Map a failed OpenSSH exit to a typed error. Exit 255 is OpenSSH's own
+/// failure and is classified from its diagnostic. Any other non-success
+/// status was produced by the remote command (or by the remote login shell
+/// failing to run it, exit 126/127), and is reported with the remote program
+/// word so the operator can see which path on which side was at fault.
+fn classify_ssh_failure(status: ExitStatus, stderr: &[u8], remote_program: Option<&str>) -> Error {
     if status.code() != Some(255) {
-        return Error::SshProcessFailed;
+        return match remote_program {
+            Some(remote_program) => Error::SshRemoteCommandFailed(RemoteCommandFailure {
+                remote_program: remote_program.to_owned(),
+                exit_code: status.code(),
+                diagnostic: diagnostic_excerpt(stderr),
+            }),
+            None => Error::SshProcessFailed,
+        };
     }
     const AUTHENTICATION: [&[u8]; 5] = [
         b"Permission denied",
@@ -340,6 +374,41 @@ fn classify_ssh_failure(status: ExitStatus, stderr: &[u8]) -> Error {
         return Error::SshUnavailable;
     }
     Error::SshProcessFailed
+}
+
+/// Reduce a remote stderr capture to a bounded single line of printable
+/// ASCII: line breaks become `; `, runs of whitespace collapse, every other
+/// control or non-ASCII byte is dropped, and the tail is truncated with an
+/// ellipsis marker. The result is safe to print on an operator terminal.
+fn diagnostic_excerpt(stderr: &[u8]) -> String {
+    let mut excerpt = String::new();
+    let mut pending_separator: Option<&str> = None;
+    for &byte in stderr {
+        let separator = match byte {
+            b'\n' | b'\r' => Some("; "),
+            b' ' | b'\t' => Some(" "),
+            0x20..=0x7e => None,
+            _ => continue,
+        };
+        if let Some(separator) = separator {
+            if !excerpt.is_empty() {
+                pending_separator = match (pending_separator, separator) {
+                    (Some("; "), _) | (_, "; ") => Some("; "),
+                    _ => Some(" "),
+                };
+            }
+            continue;
+        }
+        if let Some(separator) = pending_separator.take() {
+            excerpt.push_str(separator);
+        }
+        excerpt.push(byte as char);
+        if excerpt.len() >= DIAGNOSTIC_EXCERPT_MAX {
+            excerpt.push_str("...");
+            break;
+        }
+    }
+    excerpt
 }
 
 fn contains_bytes(haystack: &[u8], needle: &[u8]) -> bool {
@@ -497,19 +566,24 @@ mod tests {
     fn ssh_exit_255_separates_authentication_policy_and_unavailability() {
         let failed = ExitStatus::from_raw(255 << 8);
         assert!(matches!(
-            classify_ssh_failure(failed, b"user@host: Permission denied (publickey).\n"),
+            classify_ssh_failure(failed, b"user@host: Permission denied (publickey).\n", None),
             Error::SshAuthenticationRejected
         ));
         let failed = ExitStatus::from_raw(255 << 8);
         assert!(matches!(
-            classify_ssh_failure(failed, b"command-line line 0: Bad configuration option\n"),
+            classify_ssh_failure(
+                failed,
+                b"command-line line 0: Bad configuration option\n",
+                None
+            ),
             Error::SshPolicyRejected
         ));
         let failed = ExitStatus::from_raw(255 << 8);
         assert!(matches!(
             classify_ssh_failure(
                 failed,
-                b"ssh: connect to host h port 22: No route to host\n"
+                b"ssh: connect to host h port 22: No route to host\n",
+                None
             ),
             Error::SshUnavailable
         ));
@@ -522,7 +596,7 @@ mod tests {
             let failed = ExitStatus::from_raw(255 << 8);
             assert!(
                 !matches!(
-                    classify_ssh_failure(failed, terminal),
+                    classify_ssh_failure(failed, terminal, None),
                     Error::SshUnavailable
                 ),
                 "terminal diagnostic was classified as retryable: {terminal:?}"
@@ -530,9 +604,72 @@ mod tests {
         }
         let remote_failure = ExitStatus::from_raw(23 << 8);
         assert!(matches!(
-            classify_ssh_failure(remote_failure, b"remote role failed\n"),
+            classify_ssh_failure(remote_failure, b"remote role failed\n", None),
             Error::SshProcessFailed
         ));
+    }
+
+    #[test]
+    fn remote_command_failure_names_program_status_and_diagnostic() {
+        let not_found = ExitStatus::from_raw(127 << 8);
+        let error = classify_ssh_failure(
+            not_found,
+            b"bash: line 1: /home/alice/.local/bin/eversh: No such file or directory\n",
+            Some("/home/alice/.local/bin/eversh"),
+        );
+        let Error::SshRemoteCommandFailed(failure) = &error else {
+            panic!("remote exit was not reported as a remote command failure: {error:?}");
+        };
+        assert_eq!(failure.remote_program, "/home/alice/.local/bin/eversh");
+        assert_eq!(failure.exit_code, Some(127));
+        let rendered = error.to_string();
+        assert_eq!(
+            rendered,
+            "remote command `/home/alice/.local/bin/eversh` was not found on the remote host: \
+             bash: line 1: /home/alice/.local/bin/eversh: No such file or directory"
+        );
+
+        let role_failure = ExitStatus::from_raw(2 << 8);
+        let rendered = classify_ssh_failure(
+            role_failure,
+            b"everudp: unsupported bootstrap request\nsecond line\n",
+            Some("eversh"),
+        )
+        .to_string();
+        assert_eq!(
+            rendered,
+            "remote command `eversh` exited with status 2 on the remote host: \
+             everudp: unsupported bootstrap request; second line"
+        );
+
+        let silent = ExitStatus::from_raw(1 << 8);
+        assert_eq!(
+            classify_ssh_failure(silent, b"", Some("eversh")).to_string(),
+            "remote command `eversh` exited with status 1 on the remote host \
+             (remote printed no diagnostic)"
+        );
+
+        let signalled = ExitStatus::from_raw(9);
+        assert!(matches!(
+            classify_ssh_failure(signalled, b"", Some("eversh")),
+            Error::SshRemoteCommandFailed(RemoteCommandFailure {
+                exit_code: None,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn diagnostic_excerpt_is_printable_bounded_single_line() {
+        assert_eq!(
+            diagnostic_excerpt(b"  a \t b\r\n\n  c\x07!\xff\n"),
+            "a b; c!"
+        );
+        assert_eq!(diagnostic_excerpt(b"\n\n\n"), "");
+        let long = vec![b'x'; DIAGNOSTIC_EXCERPT_MAX * 2];
+        let excerpt = diagnostic_excerpt(&long);
+        assert!(excerpt.ends_with("..."));
+        assert_eq!(excerpt.len(), DIAGNOSTIC_EXCERPT_MAX + 3);
     }
 
     #[test]
@@ -572,7 +709,7 @@ mod tests {
             "LogLevel override was lost"
         );
         assert!(matches!(
-            classify_ssh_failure(refused_output.status, &refused_output.stderr),
+            classify_ssh_failure(refused_output.status, &refused_output.stderr, None),
             Error::SshUnavailable
         ));
 
@@ -597,7 +734,7 @@ mod tests {
         timeout_server.join().expect("timeout server");
         assert_eq!(timeout_output.status.code(), Some(255));
         assert!(matches!(
-            classify_ssh_failure(timeout_output.status, &timeout_output.stderr),
+            classify_ssh_failure(timeout_output.status, &timeout_output.stderr, None),
             Error::SshUnavailable
         ));
 
@@ -624,7 +761,7 @@ mod tests {
         protocol_server.join().expect("protocol server");
         assert_eq!(protocol_output.status.code(), Some(255));
         assert!(matches!(
-            classify_ssh_failure(protocol_output.status, &protocol_output.stderr),
+            classify_ssh_failure(protocol_output.status, &protocol_output.stderr, None),
             Error::SshProcessFailed
         ));
 

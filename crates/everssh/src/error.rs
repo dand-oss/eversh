@@ -51,6 +51,41 @@ pub enum DeadlinePhase {
     Finalize,
 }
 
+/// A remote bootstrap command that OpenSSH ran but that exited without
+/// success. Carries only what an operator needs to act: the remote program
+/// word, the exit status, and a bounded printable excerpt of the remote
+/// diagnostic. Bootstrap secrets never reach stderr, and the excerpt is
+/// filtered to printable ASCII before it is retained.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteCommandFailure {
+    /// The first word of the remote command sshd's login shell ran, that is,
+    /// the remote eversh path or command word.
+    pub remote_program: String,
+    /// The exit status of the remote command, or `None` when OpenSSH exited
+    /// on a signal and reported no code.
+    pub exit_code: Option<i32>,
+    /// Bounded, printable-ASCII excerpt of the remote command's stderr, or
+    /// empty when the remote wrote nothing usable.
+    pub diagnostic: String,
+}
+
+impl std::fmt::Display for RemoteCommandFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "remote command `{}`", self.remote_program)?;
+        match self.exit_code {
+            Some(127) => f.write_str(" was not found on the remote host")?,
+            Some(126) => f.write_str(" is not executable on the remote host")?,
+            Some(code) => write!(f, " exited with status {code} on the remote host")?,
+            None => f.write_str(" was terminated by a signal on the remote host")?,
+        }
+        if self.diagnostic.is_empty() {
+            f.write_str(" (remote printed no diagnostic)")
+        } else {
+            write!(f, ": {}", self.diagnostic)
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Error {
     BootstrapMalformed,
@@ -62,6 +97,7 @@ pub enum Error {
     SshAuthenticationRejected,
     SshUnavailable,
     SshProcessFailed,
+    SshRemoteCommandFailed(RemoteCommandFailure),
     BootstrapTimedOut,
     BridgeIncomplete,
     AuthRejected,
@@ -192,6 +228,7 @@ impl std::fmt::Display for Error {
             }
             Self::SshUnavailable => f.write_str("OpenSSH bootstrap endpoint is unavailable"),
             Self::SshProcessFailed => f.write_str("owned OpenSSH bootstrap process failed"),
+            Self::SshRemoteCommandFailed(failure) => write!(f, "{failure}"),
             Self::BootstrapTimedOut => f.write_str("absolute bootstrap deadline expired"),
             Self::BridgeIncomplete => f.write_str("byte bridge did not drain and finalize cleanly"),
             Self::AuthRejected => f.write_str("authentication rejected"),

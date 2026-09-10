@@ -28,7 +28,7 @@ pub mod ssh_policy;
 pub mod transport;
 
 pub use bridge::{BridgeCompletion, DrainStatus, FinalizeStatus, StdioBridge, TargetBridge};
-pub use error::Error;
+pub use error::{Error, RemoteCommandFailure};
 pub use identity::EphemeralClientIdentity;
 pub use limits::Limits;
 pub use shutdown::{

@@ -215,6 +215,16 @@ impl SshPlan {
         args
     }
 
+    /// The first word of the remote bootstrap command: the remote eversh path
+    /// or command word that sshd's login shell will resolve. Used only for
+    /// operator-facing diagnostics when that command fails.
+    pub fn remote_program(&self) -> &str {
+        self.remote_bootstrap_command
+            .split_ascii_whitespace()
+            .next()
+            .unwrap_or_default()
+    }
+
     pub fn bootstrap_args(&self) -> Vec<String> {
         let mut args = Vec::new();
         push_mandatory(&mut args, MANDATORY.iter().copied());

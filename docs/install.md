@@ -147,9 +147,16 @@ is decided by wire protocol versions, not file names (design section 8):
   trailing optional field (added after the v2 release). A client without
   the field still bootstraps against a remote that has it (the session is
   simply created without `TERM`, as before); a client with the field
-  against an older remote fails closed at the bootstrap boundary
-  (`owned OpenSSH bootstrap process failed`). Upgrade the remote host
-  first, or both endpoints in one maintenance action.
+  against an older remote fails closed at the bootstrap boundary. The
+  failure names the remote program and the remote's own diagnostic
+  (`remote command `/path/to/eversh` exited with status N on the remote
+  host: ...`). Upgrade the remote host first, or both endpoints in one
+  maintenance action.
+- When the remote command cannot run at all, the same report says so
+  directly: `remote command `/home/user/.local/bin/eversh` was not found
+  on the remote host: bash: line 1: ...: No such file or directory`.
+  Install eversh at the path the client passes as `--remote-eversh`
+  (or pass the path where it is installed).
 
 ### Coordinated upgrade across the pre-v2 product
 
