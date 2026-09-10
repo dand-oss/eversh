@@ -123,6 +123,7 @@ async fn acquire(
         identity.spki_sha256(),
         "stream-floor".to_owned(),
         vec![b"stream-floor".to_vec()],
+        String::new(),
     )?;
     let plan = SshPlan::using_config(destination, options)?.with_remote_role_invocation(
         vec![remote],
@@ -505,6 +506,7 @@ mod tests {
                 identity.spki_sha256(),
                 "test".to_owned(),
                 vec![b"echo".to_vec()],
+                String::new(),
             )
             .expect("request");
             let (record_writer, record_reader) = UnixStream::pair().expect("record pipe");

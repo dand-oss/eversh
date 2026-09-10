@@ -143,6 +143,13 @@ is decided by wire protocol versions, not file names (design section 8):
   reattach path.
 - The private eversh remote-role grammar is versioned (`v1`); a version
   mismatch names the component and version and exits without side effects.
+- everudp's SSH bootstrap request carries the client's `TERM` as a
+  trailing optional field (added after the v2 release). A client without
+  the field still bootstraps against a remote that has it (the session is
+  simply created without `TERM`, as before); a client with the field
+  against an older remote fails closed at the bootstrap boundary
+  (`owned OpenSSH bootstrap process failed`). Upgrade the remote host
+  first, or both endpoints in one maintenance action.
 
 ### Coordinated upgrade across the pre-v2 product
 

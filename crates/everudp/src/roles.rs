@@ -116,6 +116,24 @@ pub enum BootstrapPreparation {
     Broker(everpty::broker::BrokerExit),
 }
 
+/// Exports the client's `TERM` into the session environment. The SSH
+/// bootstrap that runs this role never allocates a PTY, so sshd leaves
+/// `TERM` unset in the captured environment; without this, every shell in
+/// the session inherits no `TERM` and pagers such as `less` (hence
+/// `git diff`) refuse to run interactively. An empty `term` leaves the
+/// captured environment untouched.
+pub fn with_term(mut environment: Vec<OsString>, term: &str) -> Vec<OsString> {
+    use std::os::unix::ffi::OsStrExt;
+    if term.is_empty() {
+        return environment;
+    }
+    environment.retain(|entry| !entry.as_bytes().starts_with(b"TERM="));
+    let mut entry = OsString::from("TERM=");
+    entry.push(term);
+    environment.push(entry);
+    environment
+}
+
 /// Resolves or creates the requested PTY before any Tokio runtime exists.
 /// The daemon-fork child remains the broker; only the parent continues to the
 /// SSH bootstrap and gateway process.
@@ -138,7 +156,7 @@ pub fn prepare_bootstrap_parent(
             name: request.session().to_owned(),
             command,
             default_shell,
-            environment,
+            environment: with_term(environment, request.term()),
             path,
             origins: vec![OsString::from(request.origin())],
             rows: request.rows(),
@@ -386,4 +404,43 @@ fn write_bootstrap(output: &mut impl Write, record: &BootstrapRecord) -> Result<
     output.write_all(line.as_str().as_bytes())?;
     output.flush()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod with_term_tests {
+    use super::with_term;
+    use std::ffi::OsString;
+
+    fn env(entries: &[&str]) -> Vec<OsString> {
+        entries.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn exports_term_replacing_any_captured_value() {
+        assert_eq!(
+            with_term(env(&["HOME=/h", "TERM=dumb", "PATH=/bin"]), "xterm-kitty"),
+            env(&["HOME=/h", "PATH=/bin", "TERM=xterm-kitty"])
+        );
+        assert_eq!(
+            with_term(env(&["HOME=/h"]), "screen-256color"),
+            env(&["HOME=/h", "TERM=screen-256color"])
+        );
+    }
+
+    #[test]
+    fn empty_term_leaves_the_captured_environment_alone() {
+        assert_eq!(with_term(env(&["HOME=/h"]), ""), env(&["HOME=/h"]));
+        assert_eq!(
+            with_term(env(&["TERM=dumb", "TERMINFO=/x"]), ""),
+            env(&["TERM=dumb", "TERMINFO=/x"])
+        );
+    }
+
+    #[test]
+    fn only_the_exact_term_key_is_replaced() {
+        assert_eq!(
+            with_term(env(&["TERMINFO=/x", "TERM=dumb"]), "xterm"),
+            env(&["TERMINFO=/x", "TERM=xterm"])
+        );
+    }
 }

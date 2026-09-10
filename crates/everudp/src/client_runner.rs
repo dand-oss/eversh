@@ -41,6 +41,9 @@ pub struct ClientConfig {
     pub origin: String,
     pub command: Vec<Vec<u8>>,
     pub status_path: Option<PathBuf>,
+    /// The local `TERM` to export into a session this client creates
+    /// (empty when unset or unacceptable). Carried only on `Connect`.
+    pub term: String,
 }
 
 impl fmt::Debug for ClientConfig {
@@ -58,6 +61,7 @@ impl fmt::Debug for ClientConfig {
             .field("origin", &self.origin)
             .field("command_arguments", &self.command.len())
             .field("status_path", &self.status_path)
+            .field("term", &self.term)
             .finish()
     }
 }
@@ -512,6 +516,7 @@ fn config_for_recovery(config: &ClientConfig) -> ClientConfig {
         origin: config.origin.clone(),
         command: Vec::new(),
         status_path: None,
+        term: String::new(),
     }
 }
 
@@ -544,6 +549,11 @@ fn make_request(
             Vec::new()
         } else {
             config.command.clone()
+        },
+        if recovery || config.operation != BootstrapOperation::Connect {
+            String::new()
+        } else {
+            config.term.clone()
         },
     )
 }
@@ -681,6 +691,7 @@ mod tests {
             origin: "client".to_owned(),
             command: vec![b"shell".to_vec()],
             status_path: None,
+            term: "xterm-kitty".to_owned(),
         }
     }
 

@@ -495,6 +495,7 @@ async fn run_client(
         identity.spki_sha256(),
         "floor".to_owned(),
         vec![b"floor".to_vec()],
+        String::new(),
     )?;
     let request_token = request.encode_token()?;
     let plan = SshPlan::using_config(destination, ssh_options)?.with_remote_role_invocation(

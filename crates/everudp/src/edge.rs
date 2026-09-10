@@ -193,6 +193,7 @@ fn prepare(
                 origin: local_host_name(),
                 command: child.into_iter().map(|word| word.into_vec()).collect(),
                 status_path: status_file,
+                term: local_term(),
             }))
         }
         Command::Attach {
@@ -215,6 +216,7 @@ fn prepare(
                 origin: local_host_name(),
                 command: Vec::new(),
                 status_path: status_file,
+                term: String::new(),
             }))
         }
         Command::Observe {
@@ -234,6 +236,7 @@ fn prepare(
             origin: local_host_name(),
             command: Vec::new(),
             status_path: status_file,
+            term: String::new(),
         })),
         Command::BootstrapParentV1 { request } => {
             let request = BootstrapRequest::decode_token(&request)?;
@@ -293,6 +296,15 @@ fn remote_role_words(invocation: Invocation, remote_program: Option<String>) -> 
             COMBINED_EVERUDP_ROLE.to_owned(),
         ],
     }
+}
+
+/// The local `TERM` carried to a session this client creates. Unset or
+/// unacceptable values degrade to "none" rather than failing the connect.
+fn local_term() -> String {
+    std::env::var("TERM")
+        .ok()
+        .filter(|value| BootstrapRequest::acceptable_term(value))
+        .unwrap_or_default()
 }
 
 fn writer_dimensions() -> Result<(u16, u16), RoleError> {

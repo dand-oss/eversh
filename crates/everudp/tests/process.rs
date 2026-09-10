@@ -212,6 +212,7 @@ fn hostile_observer_input(fixture: &Fixture) {
         identity.spki_sha256(),
         "badger".to_owned(),
         Vec::new(),
+        String::new(),
     )
     .unwrap();
     let remote = format!(

@@ -9,6 +9,9 @@ const MAX_WIRE: usize = 1_536;
 const MAX_SESSION: usize = 64;
 const MAX_ORIGIN: usize = 64;
 const MAX_ARGUMENTS: usize = 32;
+/// Longest `TERM` value carried to the remote session. Terminfo names are
+/// short (`xterm-kitty`, `screen-256color`); anything longer is refused.
+const MAX_TERM: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BootstrapOperation {
@@ -46,6 +49,7 @@ pub enum RequestError {
     InvalidDimensions,
     InvalidTakeover,
     InvalidCommand,
+    InvalidTerm,
 }
 
 impl fmt::Display for RequestError {
@@ -59,6 +63,7 @@ impl fmt::Display for RequestError {
             Self::InvalidDimensions => formatter.write_str("invalid everudp terminal dimensions"),
             Self::InvalidTakeover => formatter.write_str("invalid everudp takeover request"),
             Self::InvalidCommand => formatter.write_str("invalid everudp child command"),
+            Self::InvalidTerm => formatter.write_str("invalid everudp terminal type"),
         }
     }
 }
@@ -76,9 +81,23 @@ pub struct BootstrapRequest {
     client_spki_sha256: [u8; 32],
     origin: String,
     command: Vec<Vec<u8>>,
+    /// The client's `TERM`, carried explicitly because the SSH bootstrap
+    /// runs with `RequestTTY=no` and sshd only exports `TERM` when it
+    /// allocates a PTY. Empty means "none"; only `Connect` may carry one.
+    term: String,
 }
 
 impl BootstrapRequest {
+    /// Whether `value` is a `TERM` this request may carry: non-empty,
+    /// bounded, and made only of terminfo name characters.
+    pub fn acceptable_term(value: &str) -> bool {
+        !value.is_empty()
+            && value.len() <= MAX_TERM
+            && value.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+')
+            })
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         operation: BootstrapOperation,
@@ -91,6 +110,7 @@ impl BootstrapRequest {
         client_spki_sha256: [u8; 32],
         origin: String,
         command: Vec<Vec<u8>>,
+        term: String,
     ) -> Result<Self, RequestError> {
         let request = Self {
             operation,
@@ -103,6 +123,7 @@ impl BootstrapRequest {
             client_spki_sha256,
             origin,
             command,
+            term,
         };
         request.validate()?;
         if request.encode_wire()?.len() > MAX_WIRE {
@@ -149,6 +170,12 @@ impl BootstrapRequest {
 
     pub fn command(&self) -> &[Vec<u8>] {
         &self.command
+    }
+
+    /// The client's `TERM` to export into a newly created session, or an
+    /// empty string when the client carried none.
+    pub fn term(&self) -> &str {
+        &self.term
     }
 
     pub fn encode_token(&self) -> Result<String, RequestError> {
@@ -201,6 +228,12 @@ impl BootstrapRequest {
             let length = u16::try_from(argument.len()).map_err(|_| RequestError::InvalidCommand)?;
             output.extend_from_slice(&length.to_be_bytes());
             output.extend_from_slice(argument);
+        }
+        // Trailing optional field: absent when empty so tokens from clients
+        // that predate it stay canonical and still decode.
+        if !self.term.is_empty() {
+            output.push(u8::try_from(self.term.len()).map_err(|_| RequestError::InvalidTerm)?);
+            output.extend_from_slice(self.term.as_bytes());
         }
         if output.len() > MAX_WIRE {
             return Err(RequestError::TooLarge);
@@ -277,6 +310,21 @@ impl BootstrapRequest {
             );
             offset = end;
         }
+        let term = if offset == input.len() {
+            String::new()
+        } else {
+            let length = usize::from(input[offset]);
+            offset += 1;
+            if length == 0 {
+                return Err(RequestError::Malformed);
+            }
+            let end = offset.checked_add(length).ok_or(RequestError::Malformed)?;
+            let term = std::str::from_utf8(input.get(offset..end).ok_or(RequestError::Malformed)?)
+                .map_err(|_| RequestError::Malformed)?
+                .to_owned();
+            offset = end;
+            term
+        };
         if offset != input.len() {
             return Err(RequestError::Malformed);
         }
@@ -294,6 +342,7 @@ impl BootstrapRequest {
             client_spki_sha256,
             origin,
             command,
+            term,
         )
     }
 
@@ -340,6 +389,11 @@ impl BootstrapRequest {
         {
             return Err(RequestError::InvalidCommand);
         }
+        if !self.term.is_empty()
+            && (self.operation != BootstrapOperation::Connect || !Self::acceptable_term(&self.term))
+        {
+            return Err(RequestError::InvalidTerm);
+        }
         Ok(())
     }
 }
@@ -358,6 +412,7 @@ impl fmt::Debug for BootstrapRequest {
             .field("client_spki_sha256", &"<REDACTED>")
             .field("origin", &self.origin)
             .field("command_arguments", &self.command.len())
+            .field("term", &self.term)
             .finish()
     }
 }
