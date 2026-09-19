@@ -1,5 +1,4 @@
-//! Focused child-lifecycle integration tests (plans/m2-plan.md §4, §7;
-//! commit 4).
+//! Focused child-lifecycle integration tests (design §4.1).
 //!
 //! Every test operates only on the one child it freshly spawned through
 //! `everpty::child::spawn`, which places that child in its own setsid

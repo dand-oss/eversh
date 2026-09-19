@@ -1,6 +1,6 @@
 //! Process-free, signal-free integration coverage of the commit-5
 //! connection layer over fixture-local Unix sockets
-//! (plans/m2-plan.md §5; commit 5, correction pass).
+//! (design §4.1).
 //!
 //! Every test builds one broker FROM a `BoundSession` — the listener
 //! and the per-session flock are fused inside the broker, so the

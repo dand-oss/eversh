@@ -1,4 +1,4 @@
-//! Versioned length-prefixed local frame codec (design 5.2, 4).
+//! Versioned length-prefixed local frame codec (design §4.1, §9).
 //!
 //! Wire format: `u32 body_length (BE) | u8 protocol_version | u8
 //! message_kind | payload[]`. All integers big-endian. The header is

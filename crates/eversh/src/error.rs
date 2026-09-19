@@ -45,7 +45,7 @@ pub enum Error {
     /// Supervisor limits failed validation.
     LimitsInvalid,
     /// The private per-spawn everssh link-status channel could not be
-    /// allocated for a classification-carrying spawn (design 3, 7): the
+    /// allocated for a classification-carrying spawn (design §3, §4.4): the
     /// operation fails closed with this local error BEFORE any ssh child
     /// exists, because an uninstrumented spawn's missing record would
     /// classify an ordinary 255 (an auth or policy failure) as a transport
@@ -61,7 +61,7 @@ pub enum Error {
 }
 
 /// Why the private per-spawn link-status channel could not be allocated
-/// (design 3, 7).
+/// (design §3, §4.4).
 #[derive(Debug)]
 pub enum LinkStatusFault {
     /// No state-root candidate resolved at all: there is no private root

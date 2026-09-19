@@ -1,4 +1,4 @@
-//! The single Tokio runtime owner (design 6.3).
+//! The single Tokio runtime owner (design §4.2).
 //!
 //! M1 exposes only the construction counter used by the role-isolation
 //! tests: every non-everssh role must leave `constructions()` at zero. The

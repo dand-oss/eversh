@@ -1,4 +1,4 @@
-//! Pure role selection for the combined binary (design 2).
+//! Pure role selection for the combined binary (design §2).
 //!
 //! `select_role` chooses exactly one logical role from the argument vector
 //! BEFORE any runtime initialization. It is pure and total: no I/O, no
@@ -18,7 +18,7 @@ pub const EVERSSH_ROLE: &str = "__everssh";
 /// Combined-binary role marker for the everudp direct terminal transport.
 pub const EVERUDP_ROLE: &str = "__everudp";
 /// Version word of the private everpty-role remote grammar. Unknown versions
-/// fail closed with a diagnostic naming the component and version (design 8).
+/// fail closed with a diagnostic naming the component and version (design §5).
 pub const EVERPTY_ROLE_VERSION: &str = "v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

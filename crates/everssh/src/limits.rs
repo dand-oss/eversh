@@ -1,6 +1,6 @@
 //! Named finite limits. Wire caps, token length, and the single-stream rule
-//! are contract values; runtime values are PROVISIONAL M0 candidates
-//! remeasured in M3 (design section 4).
+//! are contract values; runtime values were remeasured during
+//! qualification (design §9).
 
 use crate::error::{Error, LimitViolation};
 use std::time::Duration;

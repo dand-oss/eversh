@@ -1,4 +1,4 @@
-//! Pure lifecycle and writer-ownership state machines (design 5.1-5.3).
+//! Pure lifecycle and writer-ownership state machines (design §4.1).
 //!
 //! M1 delivers the transitions as pure functions with exhaustive tests;
 //! M2 wires them to real PTYs, sockets, and timers. First-cause-wins
@@ -100,7 +100,7 @@ impl BrokerState {
 
     /// Writer attach while Running. A second writer without takeover is
     /// `Busy` and changes nothing; with takeover the old writer is revoked
-    /// atomically (design 5.2: Revoked-then-Granted at an output boundary).
+    /// atomically (design §4.1: Revoked-then-Granted at an output boundary).
     pub fn writer_request(
         &self,
         client_id: u32,

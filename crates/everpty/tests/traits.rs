@@ -10,7 +10,7 @@ fn error_is_static_send_sync() {
 #[test]
 fn runtime_limits_are_provisional() {
     // Every PROVISIONAL limit must be listed here by name so a retune forces
-    // a conscious update of this inventory (design section 4, m2-plan §11).
+    // a conscious update of this inventory (design §4.1, §9).
     let l = everpty::Limits::default();
     let named: [(&str, u64); 19] = [
         ("startup_deadline_ms", l.startup_deadline_ms),

@@ -304,7 +304,7 @@ fn validate_remote_word(value: &str) -> Result<(), Error> {
 }
 
 /// Audit one command-line SSH option against the applicable allowlist
-/// (design 6.4). eversh uses this to vet options before passing them to both
+/// (design §4.2). eversh uses this to vet options before passing them to both
 /// its outer SSH invocation and the everssh bootstrap.
 pub fn audit_ssh_option(option: &str) -> Result<(), Error> {
     validate_option(option)

@@ -1,6 +1,6 @@
 //! M5 resource-bounds gate for the long-lived eversh supervisor process
-//! (design 4: Process resources, Retry policy; design 13 Milestone 5:
-//! descriptor, memory, CPU-idle gates).
+//! (design §9 limits; design §4.4 retry policy; design §8 descriptor,
+//! memory, and CPU-idle gates).
 //!
 //! Drives one `eversh connect` process through repeated transport-kill /
 //! reattach cycles (the same fake ssh + fake Kitty + real everpty broker + PTY
@@ -660,7 +660,7 @@ fn eversh_resource_bounds() {
 
         // The kill classifies as an unclean transport death (`carried=0`):
         // the SAME episode continues and this cycle's probe + attach pair
-        // consumes one of its finite attempts (design 7). Cycle 1's kill
+        // consumes one of its finite attempts (design §4.4). Cycle 1's kill
         // ends the original attach-or-create spawn and enters the episode at
         // attempt 1; the last cycle's reattach runs at attempt
         // `retry_attempts_max`.

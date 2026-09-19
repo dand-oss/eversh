@@ -1,6 +1,6 @@
 //! Named finite limits for the supervisor layer. Wire caps are contract
 //! values; supervisor runtime values are configuration with measured
-//! selection recorded in the release profile (design section 4).
+//! selection (design §9).
 
 use crate::error::Error;
 
@@ -22,7 +22,7 @@ pub struct Limits {
 
     // --- supervisor runtime values ---
     /// Maximum reconnect attempts after an established session ends
-    /// unexpectedly for an ordinary in-episode failure (design 7: finite
+    /// unexpectedly for an ordinary in-episode failure (design §4.4: finite
     /// attempts). A Busy reattach does not consume this budget — the
     /// episode deadline alone bounds the Busy-retry path, because the
     /// remote writer slot can stay legitimately held far longer than a

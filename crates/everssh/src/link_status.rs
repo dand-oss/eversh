@@ -1,5 +1,5 @@
-//! Local, out-of-band status file for the `ssh-proxy` client edge (design 3,
-//! 7). eversh points this process at a private per-spawn file for structured
+//! Local, out-of-band status file for the `ssh-proxy` client edge
+//! (design §3, §4.4). eversh points this process at a private per-spawn file for structured
 //! interactive operations and probes only (never raw `eversh ssh`, which is
 //! never retried and stays fully uninstrumented) by passing the path as a
 //! `--status-file` ProxyCommand ARGUMENT. OpenSSH executes the ProxyCommand
@@ -87,7 +87,7 @@ pub fn classify_cause(cause: TerminalCause) -> StatusCause {
 /// Classify one COMPLETED bridge run for the terminal status record.
 ///
 /// A `clean-close` requires more than a graceful `SourceEof` terminal cause
-/// (design 6.3): the exchange is only proven completed when Drain AND
+/// (design §4.2): the exchange is only proven completed when Drain AND
 /// Finalize both finished cleanly. A remote FIN followed by path loss, a
 /// shutdown failure, or an incomplete/expired drain would otherwise claim a
 /// clean completed exchange and suppress a probe a live session still
@@ -157,7 +157,7 @@ fn write_carrying(path: &Path) {
 /// Record the final cause. Callers write this on every exit path, including
 /// setup failures that never reach a live bridge (those pass
 /// `StatusCause::CleanClose` and `carried: false`: an ordinary failure, per
-/// design 7's bootstrap/authentication rule).
+/// design §4.4's bootstrap/authentication rule).
 pub fn write_cause(path: &Path, cause: StatusCause, carried: bool) {
     append_line(
         path,

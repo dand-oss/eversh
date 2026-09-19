@@ -1,5 +1,5 @@
 //! Pure, shell-free construction of every process invocation the supervisor
-//! makes (design 7). Remote command strings contain only fixed command words,
+//! makes (design §4.4). Remote command strings contain only fixed command words,
 //! validated conservative identifiers, and at most one bounded unpadded
 //! base64url token; nothing here reads global state, spawns, or prints.
 
@@ -91,7 +91,7 @@ fn quote_single(word: &str) -> Result<String, Error> {
 }
 
 /// Audit one user SSH option through everssh's applicable allowlist
-/// (design 6.4) and confirm it stays a safe single-quoted word.
+/// (design §4.2) and confirm it stays a safe single-quoted word.
 pub fn audit_ssh_option(option: &str) -> Result<(), Error> {
     everssh::ssh_policy::audit_ssh_option(option).map_err(|_| Error::SshOptionRejected)?;
     if option.contains('\'') {
@@ -103,10 +103,10 @@ pub fn audit_ssh_option(option: &str) -> Result<(), Error> {
 /// Build the ProxyCommand string handed to the outer OpenSSH client: this
 /// process re-invoked through its everssh role. `%n` preserves the original
 /// destination token and `%p` the effective port, so ssh_config aliases and
-/// port resolution stay authoritative (design 6.4).
+/// port resolution stay authoritative (design §4.2).
 ///
 /// `status_file`, when set, is appended as a `--status-file` ARGUMENT for
-/// the local everssh `ssh-proxy` edge (design 3, 7). OpenSSH executes the
+/// the local everssh `ssh-proxy` edge (design §3, §4.4). OpenSSH executes the
 /// ProxyCommand line through the user's local shell, so the path travels in
 /// everssh's own argv — a purely local handoff that no environment-
 /// forwarding policy (`SendEnv`/`AcceptEnv`) can transmit remotely and no
@@ -302,7 +302,7 @@ pub fn outer_ssh_args(
 /// Split raw-mode trailing tokens (`eversh ssh HOST [-- TOKENS...]`) at the
 /// first literal `--`: tokens before it are outer SSH options (placed before
 /// the destination); tokens after it are a remote command (placed after the
-/// destination, design 7). With no inner `--`, every token is an option —
+/// destination, design §4.4). With no inner `--`, every token is an option —
 /// identical to the pre-M4-finding-4 behavior, so existing raw invocations
 /// keep working unchanged.
 pub fn split_raw_tokens(tokens: &[String]) -> (&[String], &[String]) {
@@ -389,7 +389,7 @@ pub fn everudp_launch_args(
 }
 
 /// Filter SSH options down to the subset that passes the audited allowlist
-/// (design 6.4). Raw mode's outer `ssh` invocation stays fully unaudited
+/// (design §4.2). Raw mode's outer `ssh` invocation stays fully unaudited
 /// (the escape hatch), but only the audited subset is safe to mirror into
 /// the everssh bootstrap's ProxyCommand; a token that fails audit simply
 /// stays outer-ssh-only and is never an error in raw mode.
@@ -430,7 +430,7 @@ pub fn raw_ssh_args(
 /// Build one Kitty remote-control launch: a new tab running this executable's
 /// attach command for one session. `--hold-on-error` keeps failed attaches
 /// visible in their tab; cleanly ended commands close their tab (Kitty's
-/// default), matching design 7.
+/// default), matching design §4.4.
 pub fn kitty_launch_args(
     listen_on: Option<&str>,
     self_exe: &str,

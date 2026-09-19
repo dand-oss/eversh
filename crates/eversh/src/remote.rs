@@ -1,4 +1,4 @@
-//! Bounded remote-control request encoding (design 7).
+//! Bounded remote-control request encoding (design §4.4).
 //!
 //! Two layers live here. `RemoteRequest` is the M1 generic argument-vector
 //! wire (`u8 version=1 | u16 arg_count(BE) | repeated[u32 arg_len(BE) |

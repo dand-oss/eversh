@@ -1,4 +1,4 @@
-//! Single-threaded poll-loop broker (plans/m2-plan.md §3–§7; commit 7).
+//! Single-threaded poll-loop broker (design §4.1).
 //!
 //! One thread, one `poll(2)` per iteration over the listener, signalfd,
 //! PTY master, and every client socket. All descriptors are `O_NONBLOCK`;

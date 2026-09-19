@@ -1,6 +1,6 @@
 //! On-disk session state: root discovery, 0700/0600 paths, per-session
 //! locking, bounded v1 metadata, atomic publication, discovery, and
-//! two-gate stale-socket recovery (plans/m2-plan.md §8).
+//! two-gate stale-socket recovery (design §4.1).
 //!
 //! Capability discipline: [`StateRoot`] and [`SessionDir`] own validated
 //! directory fds, and every lock, metadata, rename, discovery, and unlink
@@ -950,7 +950,7 @@ impl ChildMeta {
     }
 }
 
-/// The exact v1 metadata record (plans/m2-plan.md §8). Fields are
+/// The exact v1 metadata record (design §4.1). Fields are
 /// private; the validating constructors accept argv0 only — no API
 /// takes full argv or environment, so neither can ever reach disk.
 #[derive(Debug, Clone, PartialEq, Eq)]

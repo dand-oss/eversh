@@ -1,5 +1,5 @@
 //! Pure poll-event reducer over the M1 [`BrokerState`] transitions
-//! (plans/m2-plan.md §5; commit 5).
+//! (design §4.1).
 //!
 //! [`reduce`] turns one connection event into an ordered effect list.
 //! It performs no I/O and touches no descriptor; the broker executes

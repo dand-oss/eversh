@@ -457,7 +457,7 @@ enum Cmd {
     /// unaudited); tokens after it are a remote command (placed after the
     /// destination). With no inner `--`, every token is an SSH option
     /// (`eversh ssh HOST -- -4` behaves as before). Options that pass the
-    /// audited allowlist (design 6.4) are also mirrored into the everssh
+    /// audited allowlist (design §4.2) are also mirrored into the everssh
     /// bootstrap; options that fail the audit stay outer-ssh-only and are
     /// not an error in raw mode.
     Ssh {
@@ -510,9 +510,9 @@ fn build_config(remote_eversh: Option<String>) -> Result<Config, Error> {
             .and_then(|value| value.into_string().ok()),
         local_host: local_host_name(),
         // The same state-root precedence as the remote everpty role edge
-        // (design 5.4), resolved locally: the highest-precedence candidate
+        // (design §4.1), resolved locally: the highest-precedence candidate
         // becomes the private root eversh creates its per-spawn everssh
-        // link-status files under (design 3, 7). `None` only when no
+        // link-status files under (design §3, §4.4). `None` only when no
         // candidate resolves at all (no env var and no HOME);
         // classification-carrying operations then fail closed with a clear
         // local error before any ssh spawn — never an uninstrumented spawn
@@ -667,7 +667,7 @@ where
 }
 
 /// Hold a failed Kitty-tab attach visible until the user closes the tab or
-/// presses Enter (design 7: keep failed attaches visible).
+/// presses Enter (design §4.4: keep failed attaches visible).
 fn hold_for_acknowledgement(code: i32) -> ! {
     eprintln!("eversh: attach failed with exit code {code}; press Enter to close");
     let mut line = String::new();

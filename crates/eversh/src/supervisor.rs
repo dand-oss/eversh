@@ -1,4 +1,4 @@
-//! Thin supervision of OpenSSH, everssh, and Kitty processes (design 7).
+//! Thin supervision of OpenSSH, everssh, and Kitty processes (design §4.4).
 //!
 //! Every function here launches the installed `ssh` binary over the everssh
 //! ProxyCommand and supervises it: eversh never relays or parses terminal
@@ -6,9 +6,9 @@
 //! for the live terminal path. Effective OpenSSH configuration resolution is
 //! delegated to OpenSSH itself: ProxyCommand `%n`/`%p` carry the original
 //! destination token and effective port into everssh, whose own `ssh -G`
-//! verification rejects recursive proxying (design 6.4, 8).
+//! verification rejects recursive proxying (design §4.2, §5).
 //!
-//! ## The local everssh link-status file (design 3, 7)
+//! ## The local everssh link-status file (design §3, §4.4)
 //!
 //! OpenSSH reserves exit 255 for its own failures, but that single code is
 //! produced identically whether the SSH session never established anything
@@ -30,10 +30,10 @@
 //! clear local error BEFORE any ssh child exists, because an
 //! uninstrumented spawn's missing record would classify an ordinary 255
 //! (an auth or policy failure) as a transport failure and wrongly enter
-//! the reconnect path (design 7). Batch operations that never classify
+//! the reconnect path (design §4.4). Batch operations that never classify
 //! (`list`, `detach`/`kill`, raw `ssh`) pass no status file and are
 //! unaffected. Raw `eversh ssh` never passes it and stays fully
-//! inherited and uninstrumented (design 7: it is never retried, so there is
+//! inherited and uninstrumented (design §4.4: it is never retried, so there is
 //! nothing to classify).
 //!
 //! everssh appends two kinds of versioned line to that file: `carrying`,
@@ -56,14 +56,14 @@
 //! code of 255 reads, then removes, the status file: `clean-close` is an
 //! ordinary SSH failure, reported immediately as [`SessionEnd::SshFailed`]
 //! with no probe and no retry — this deterministically covers both an auth
-//! failure and a remote command that itself exited 255, and design 7
+//! failure and a remote command that itself exited 255, and design §4.4
 //! accepts that collapsed diagnostic, since the exit code is 255 either
 //! way. `transport-failure`, or a missing or unparseable file, enters or
 //! continues the probe-gated reconnect episode below — failing toward a
 //! bounded probe is always safer than silently skipping a retry a live
 //! session still needed.
 //!
-//! ## Reconnect contract (design 7, findings 3)
+//! ## Reconnect contract (design §4.4)
 //!
 //! After an established named connect, attach, or observe ends unexpectedly
 //! with a transport-failure (or unparseable) 255, a fresh authenticated
@@ -105,8 +105,8 @@
 //! waits on it. Residual documented limitation: once a reattach is
 //! carrying, a wedge on that now-live transport is bounded by everssh's
 //! own contractual timeouts (idle/stall/handshake deadlines in single- to
-//! low-tens of seconds; association lease configured at 360s — design 4,
-//! 6.3), not by `retry_deadline_ms`. A user who needs a tighter bound on
+//! low-tens of seconds; association lease configured at 360s — design §9,
+//! §4.2), not by `retry_deadline_ms`. A user who needs a tighter bound on
 //! THAT window can layer
 //! `ServerAliveCountMax`/`ServerAliveInterval`/`ConnectTimeout` via
 //! `--ssh-option`.
@@ -148,7 +148,7 @@ pub struct Config {
     /// The local host name used for generated origin metadata.
     pub local_host: String,
     /// The private local root eversh's own per-spawn everssh link-status
-    /// files are created under (design 3, 7); `None` when no state-root
+    /// files are created under (design §3, §4.4); `None` when no state-root
     /// candidate resolves at all, in which case every classification-
     /// carrying spawn (structured interactive operations and probes) fails
     /// closed with a clear local error before any ssh child exists —
@@ -314,7 +314,7 @@ fn spawn_quiet(config: &Config, args: &[OsString]) -> Result<ExitKind, Error> {
 }
 
 // ---------------------------------------------------------------------------
-// Bounded waits and the local everssh link-status file (design 3, 7;
+// Bounded waits and the local everssh link-status file (design §3, §4.4;
 // findings 1-3).
 // ---------------------------------------------------------------------------
 
@@ -402,7 +402,7 @@ fn carrying_status_grace() -> Duration {
 }
 
 /// The classified outcome of reading the link-status file after a spawn
-/// exits, or its absence (design 3, 7).
+/// exits, or its absence (design §3, §4.4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LinkOutcome {
     /// `cause=clean-close`: the transport ended after a completed, graceful
@@ -499,7 +499,7 @@ impl Drop for AllocatedStatus {
     }
 }
 
-/// Allocate one fresh per-spawn link-status file (design 3, 7): a `0700`
+/// Allocate one fresh per-spawn link-status file (design §3, §4.4): a `0700`
 /// directory under [`Config::link_status_root`] and one `0600` file with a
 /// process-id/timestamp/counter name, created exclusively so a collision is
 /// a hard failure rather than a silently reused stale file. The path must
@@ -513,7 +513,7 @@ impl Drop for AllocatedStatus {
 /// local error. A spawn that classifies through this file NEVER proceeds
 /// uninstrumented: a missing record would classify an ordinary 255 (an
 /// auth or policy failure) as transport failure and wrongly enter the
-/// reconnect path (design 7).
+/// reconnect path (design §4.4).
 fn allocate_status_file(config: &Config) -> Result<AllocatedStatus, Error> {
     let root = config
         .link_status_root
@@ -535,7 +535,7 @@ fn allocate_status_file(config: &Config) -> Result<AllocatedStatus, Error> {
     // `create_dir_all` followed by a single `set_permissions` on the leaf,
     // which would leave a freshly created root at the process umask's
     // default (not private), failing everpty's own 0700 state-root check
-    // (design 5.4) for the remote role sharing that same root.
+    // (design §4.1) for the remote role sharing that same root.
     let mut builder = std::fs::DirBuilder::new();
     builder.recursive(true).mode(0o700);
     builder
@@ -619,7 +619,7 @@ enum StatusSpawn {
 /// Spawn one interactive remote invocation for a session-carrying operation
 /// (attach-or-create, attach, observe — never raw ssh, which stays fully
 /// inherited and uninstrumented). stdin/stdout/stderr remain FULLY
-/// inherited for the live terminal path (design 7) — classification comes
+/// inherited for the live terminal path (design §4.4) — classification comes
 /// entirely from the local out-of-band link-status file (whose path is
 /// already embedded in the ProxyCommand argument inside `args`), never a
 /// piped descriptor, so a deadline-triggered kill of the direct child is
@@ -637,7 +637,7 @@ enum StatusSpawn {
 /// or reconnecting — or when `deadline` is `None`, as for the very first
 /// spawn of an invocation, which is never part of a bounded reconnect
 /// episode — the wait is unbounded: an ongoing session is never killed by
-/// the reconnect deadline (design 7, finding 3).
+/// the reconnect deadline (design §4.4).
 fn spawn_link_tracked(
     config: &Config,
     args: &[OsString],
@@ -716,7 +716,7 @@ fn classify_status_spawn(exit: ExitKind, status: LinkOutcome) -> SpawnOutcome {
     }
 }
 
-/// The probe result for one fresh authenticated bootstrap (design 7).
+/// The probe result for one fresh authenticated bootstrap (design §4.4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProbeStatus {
     Live,
@@ -739,7 +739,7 @@ pub const REMOTE_BUSY_EXIT: u8 = 3;
 /// `deadline` bounds the probe's own execution: a hung probe is killed and
 /// reaped rather than left running past the reconnect episode's deadline
 /// (finding 3). The probe classifies through its own allocated status file
-/// like every structured spawn (design 3, 7): allocation is fail-closed —
+/// like every structured spawn (design §3, §4.4): allocation is fail-closed —
 /// an unusable state root aborts the invocation with a local error rather
 /// than probing uninstrumented.
 fn probe(
@@ -815,7 +815,7 @@ fn spawn_outcome_to_session_end(outcome: SpawnOutcome) -> Option<SessionEnd> {
 
 /// Run one interactive/streaming remote operation and, on unexpected SSH
 /// termination with a transport-failure status, reconnect the SAME session
-/// through probe-gated retries (design 7). A clean-close SSH failure is an
+/// through probe-gated retries (design §4.4). A clean-close SSH failure is an
 /// ordinary SSH failure with no probe and no retry (finding 1).
 fn run_with_reconnect(
     config: &Config,
@@ -838,7 +838,7 @@ fn run_with_reconnect(
         let args = outer_ssh_args(&proxy, run.ssh_options, run.host, &words, interactive)?;
         // The very first spawn of an invocation is never part of a bounded
         // reconnect episode: it runs unbounded, exactly like an
-        // already-carrying session (design 7).
+        // already-carrying session (design §4.4).
         match spawn_link_tracked(config, &args, status.path(), None)? {
             StatusSpawn::Exited { exit, status } => (exit, status),
             StatusSpawn::DeadlineExceeded => {
@@ -1332,7 +1332,7 @@ pub fn simple_remote(
     spawn_quiet(config, &args)
 }
 
-/// `eversh ssh`: raw OpenSSH over everssh. Never restarted (design 7),
+/// `eversh ssh`: raw OpenSSH over everssh. Never restarted (design §4.4),
 /// never passes a link-status file to its ProxyCommand — stays fully
 /// inherited and uninstrumented on every descriptor (and since the handoff
 /// is an argument, not an environment variable, no ambient value can
@@ -1349,7 +1349,7 @@ pub fn raw_ssh(
     config.limits.validate()?;
     // Raw options are passed verbatim to the outer ssh (unaudited escape
     // hatch), but only the audited subset is mirrored into the everssh
-    // bootstrap's ProxyCommand (design 6.4); a rejected option simply stays
+    // bootstrap's ProxyCommand (design §4.2); a rejected option simply stays
     // outer-ssh-only rather than erroring in raw mode (finding 4).
     let audited = crate::command::audited_subset(pre_options);
     let proxy = proxy_for(config, &audited, None)?;

@@ -1,4 +1,4 @@
-//! Shared process edge for the everssh role (design 2).
+//! Shared process edge for the everssh role (design §2).
 //!
 //! This module is the binary edge of the everssh role, packaged once so the
 //! standalone `everssh` executable and the combined `eversh` dispatcher run
@@ -59,7 +59,7 @@ enum Command {
         destination: String,
         /// Effective OpenSSH port, normally ProxyCommand `%p`.
         port: String,
-        /// Private per-spawn local link-status file (design 3, 7), passed by
+        /// Private per-spawn local link-status file (design §3, §4.4), passed by
         /// eversh as a ProxyCommand ARGUMENT — never an environment
         /// variable, so no `SendEnv`/`AcceptEnv` policy can transmit it and
         /// no ambient environment value can imitate it.

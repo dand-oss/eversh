@@ -1,4 +1,4 @@
-//! Audited syscall wrappers (plans/m2-plan.md §1).
+//! Audited syscall wrappers (design §4.1).
 //!
 //! Every OS interface everpty touches goes through this module. Direct
 //! `libc` is used only where nix 0.31.3 is insufficient: the

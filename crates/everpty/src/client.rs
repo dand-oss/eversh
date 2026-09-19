@@ -1,4 +1,4 @@
-//! Client connection I/O state (plans/m2-plan.md §1, §5, §6; commit 5).
+//! Client connection I/O state (design §4.1).
 //!
 //! Three bounded primitives and one per-connection aggregate:
 //!

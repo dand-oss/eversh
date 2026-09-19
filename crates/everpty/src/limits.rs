@@ -1,5 +1,5 @@
-//! Named finite limits. Wire caps are contract values; runtime values are
-//! PROVISIONAL M0 candidates remeasured in M2/M3 (design section 4).
+//! Named finite limits. Wire caps are contract values; runtime values were
+//! measured during qualification (design §9).
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {

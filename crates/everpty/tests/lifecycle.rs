@@ -1,5 +1,5 @@
 //! Exhaustive transition tests for the broker lifecycle and writer
-//! ownership state machines (design 5.1-5.3, 9).
+//! ownership state machines (design §4.1, §7).
 #![allow(clippy::unwrap_used)]
 
 use everpty::lifecycle::*;

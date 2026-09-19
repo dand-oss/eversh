@@ -1,6 +1,6 @@
 //! Exact-argv tests for every supervised invocation the supervisor builds:
 //! ProxyCommand strings, outer ssh vectors, remote words, raw ssh, and Kitty
-//! launches. These are the design 11.4 argv contracts in pure form.
+//! launches. These are the design §8 argv contracts in pure form.
 #![allow(clippy::unwrap_used)]
 
 use eversh::command::*;
@@ -32,7 +32,7 @@ fn proxy_command_is_exact_and_quoted() {
 #[test]
 fn proxy_command_status_file_is_one_quoted_argument() {
     // The status path is a plain single-quoted ProxyCommand argument —
-    // local-only, never an environment variable (design 3, 7; finding 4).
+    // local-only, never an environment variable (design §3, §4.4).
     let proxy = proxy_command(
         SELF,
         "eversh",

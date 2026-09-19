@@ -1,5 +1,5 @@
 //! Production-binary coverage of the `ssh-proxy` local link-status file
-//! (design 3, 7): every PRE-BRIDGE failure classifies `clean-close` (an
+//! (design §3, §4.4): every PRE-BRIDGE failure classifies `clean-close` (an
 //! ordinary failure: no probe, no reconnect), a graceful `SourceEof` only
 //! classifies `clean-close` when Drain AND Finalize completed cleanly, and
 //! the status path arrives exclusively as a `--status-file` ARGUMENT — an
@@ -234,7 +234,7 @@ fn pre_bridge_config_query_failure_classifies_clean_close() {
 
 #[test]
 fn pre_bridge_authentication_failure_classifies_clean_close() {
-    // The design 7 branch: an SSH-level authentication failure during the
+    // The design §4.4 branch: an SSH-level authentication failure during the
     // bootstrap must surface as an ORDINARY failure (clean-close, nothing
     // carried) so the supervisor reports the 255 immediately with no probe
     // and no reconnect episode — never a retryable transport failure.

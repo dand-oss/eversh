@@ -1,5 +1,5 @@
 //! Public filesystem-behavior tests for `everpty::session`
-//! (plans/m2-plan.md §8; M2 commit 3).
+//! (design §4.1).
 //!
 //! Hazard inventory: these tests create files, directories, FIFOs, and
 //! Unix sockets under unique fixtures in the system temp directory, and

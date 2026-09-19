@@ -3,11 +3,11 @@
 Status: frozen; released in v2 on 2026-09-09 by product decision with the custom-zmosh-UDP performance gate recorded as FAIL (section 13) | Last updated: 2026-09-09
 
 This contract and its hash-sealed M6 evidence are immutable historical records. The
-post-M6 direct-PTY fast-path experiment is governed by
-[everudp-v2-fast-path.md](everudp-v2-fast-path.md); it must not reinterpret the v1
-result or weaken any byte-delivery, recovery, security, or terminal-free invariant.
+post-M6 direct-PTY fast-path experiment plan (removed in the 2026-09-19 docs
+prune; retained in git history) must not reinterpret the v1 result or weaken any
+byte-delivery, recovery, security, or terminal-free invariant.
 
-This document is the frozen contract for `everudp`, an optional direct-QUIC terminal product above the raw `everpty` and `everssh` primitives. It authorizes bounded opaque application-level delivery replay in `everudp` only. It does not weaken the permanent core non-goals in [design.md](design.md): `everpty` remains a byte-transparent PTY broker, `everssh` remains an opaque OpenSSH byte link, and `eversh` remains a supervisor that never relays terminal bytes.
+This document is the frozen contract for `everudp`, an optional direct-QUIC terminal product above the raw `everpty` and `everssh` primitives. It authorizes bounded opaque application-level delivery replay in `everudp` only. It does not weaken the permanent core non-goals in [docs/design.md](../docs/design.md): `everpty` remains a byte-transparent PTY broker, `everssh` remains an opaque OpenSSH byte link, and `eversh` remains a supervisor that never relays terminal bytes.
 
 ## 1. Decision and prior spike
 

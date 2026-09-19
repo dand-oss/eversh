@@ -1,4 +1,4 @@
-//! Child process and PTY lifecycle (plans/m2-plan.md §4, §7; commit 4).
+//! Child process and PTY lifecycle (design §4.1).
 //!
 //! [`spawn`] prepares EVERYTHING before its single fork: executable
 //! resolution through the captured `PATH`, argv/environment validation
@@ -434,7 +434,7 @@ fn invalid(msg: &'static str) -> Error {
 
 /// The post-fork child. Async-signal-safe only — raw errno end to end,
 /// no `std::io::Error` — every step either succeeds or reports a fixed
-/// stage+errno record and `_exit(127)`s. Order per plans/m2-plan.md §4
+/// stage+errno record and `_exit(127)`s. Order per design §4.1
 /// step 7, plus the identity barrier before exec.
 fn run_child(
     plan: &sys::ExecPlan,

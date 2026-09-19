@@ -333,7 +333,7 @@ exec "$EVERSSH_BIN" __bootstrap-parent-v1
     assert!(output.stderr.is_empty());
     // A fully completed exchange — clean SourceEof AND clean drain AND
     // clean finalize — is the only shape that records `clean-close`, with
-    // bytes having flowed in both directions (design 3, 7).
+    // bytes having flowed in both directions (design §3, §4.4).
     assert_eq!(
         fs::read_to_string(&status_file).unwrap(),
         "everssh-status-v1 carrying\neverssh-status-v1 cause clean-close carried=1\n"

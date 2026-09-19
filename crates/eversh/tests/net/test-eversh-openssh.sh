@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 set -Eeuo pipefail
 
-# Milestone 5 / S3: the real-OpenSSH end-to-end release gate (design 11.4).
+# The real-OpenSSH end-to-end release gate (design §8).
 #
 # This drives the COMPLETE real chain, unprivileged, with no fakes:
 #   local `eversh connect` (real TTY via /usr/bin/script)

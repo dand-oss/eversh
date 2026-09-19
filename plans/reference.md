@@ -1,28 +1,8 @@
 # eversh engineering references
 
-Status: evidence inventory supporting the locked Rust design | Last updated: 2026-08-30
+Status: evidence inventory — reviewed projects, source snapshots, protocol evidence, and licence decisions | Last updated: 2026-09-19
 
-Historical record: statements about the former `everlink` name or the
-superseded one-shot/no-replay transport describe their era. The current
-contract is `plans/design.md` revision 2 with bounded association resume.
-
-This document records reviewed projects, source snapshots, protocol evidence, and licence decisions for `everpty`, `everlink`, and `eversh`. A reference is not automatically a dependency or source of code. The normative contract is [design.md](design.md); this file records why its boundaries were selected.
-
-## Governing contract
-
-- The local terminal emulator owns rendering, screen state, scrollback, copy, paste, keyboard encoding, and terminal features.
-- `everpty` owns a PTY and child process, forwards live bytes unchanged, keeps attached observers receiving future output even without a writer, drains and discards only when no attached client can accept bytes, and never reconstructs a previous screen.
-- `everlink` carries opaque OpenSSH bytes over one ordered QUIC stream and never parses terminal or SSH data.
-- System OpenSSH remains responsible for user authentication, host authentication, configuration, PTY negotiation, forwarding, command execution, SFTP, and SCP.
-- A live QUIC connection may hold bounded unacknowledged transport data, but a replacement connection never receives application bytes from an expired connection.
-- A failed migration ends the SSH stream; `eversh` opens a fresh SSH connection and reattaches the surviving `everpty` session.
-- No component provides local echo, prediction, terminal-state synchronization, or application replay.
-
-## Locked implementation decision
-
-All original implementation code is Rust in one Cargo workspace. The workspace has three reusable crates and exactly three physical binaries: standalone everpty, standalone everlink, and combined/multi-role eversh. everpty has no Tokio or noq dependency in its core and uses a small poll-based loop or bounded fixed workers. everlink uses exactly one Tokio runtime, noq, and its reviewed rustls path.
-
-Milestone 0 is a bounded Rust/noq feasibility and exact dependency-pin gate, not a language comparison. The gate proves one-stream ProxyCommand behavior, SSH bootstrap trust, standard migration, loss and reordering, half-close, bounded backpressure, path failure, process exit, and Request -> Drain -> Finalize shutdown. Quinn remains a documented Rust fallback only if noq fails a required migration test or cannot provide a supportable exact pin.
+This is an evidence and licence record, not a product description: a reference is not automatically a dependency or source of code. The current product contract is [docs/design.md](../docs/design.md); statements below that mention the former `everlink` name, a three-binary workspace, or the one-shot transport describe their era.
 
 ## Reviewed source snapshots
 
@@ -249,4 +229,4 @@ The [HerdR guide](https://betterstack.com/community/guides/ai/herdr-ai-agent/) a
 
 ## Maintenance rule
 
-When a reference changes a design decision, record the exact reviewed release or commit, the evidence used, and the adopted or rejected behavior here, then update [design.md](design.md) so the normative contract does not contradict this inventory.
+When a reference changes a design decision, record the exact reviewed release or commit, the evidence used, and the adopted or rejected behavior here, then update [docs/design.md](../docs/design.md) so the normative contract does not contradict this inventory.

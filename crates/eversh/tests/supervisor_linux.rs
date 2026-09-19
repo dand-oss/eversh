@@ -1,4 +1,4 @@
-//! Supervisor composition tests (design 11.4) with fake ssh and Kitty
+//! Supervisor composition tests (design §8) with fake ssh and Kitty
 //! launcher binaries capturing exact argv, plus REAL everpty brokers, real
 //! PTYs, and the real combined eversh binary. The fake ssh executes the
 //! remote command locally, so the transport hop is simulated while every
@@ -40,7 +40,7 @@ fn binary() -> &'static OsStr {
 
 /// The fake ssh script: captures argv NUL-separated plus its pid and
 /// environment, honors a mode file, and simulates the LOCAL everssh
-/// link-status file protocol eversh's supervisor now reads (design 3, 7)
+/// link-status file protocol eversh's supervisor now reads (design §3, §4.4)
 /// instead of any remote channel — including merging what a real remote
 /// role's stderr would produce into the SAME stream as stdout whenever a
 /// pty was requested (`-t`), exactly like real sshd does, so a test relying
@@ -361,7 +361,7 @@ impl Fixture {
 /// A minor finding repair: no captured supervisor-invoked process
 /// environment may carry a bootstrap token (a 64-hex-character run) or a raw
 /// bootstrap record line (`everssh v1 ...`) — the supervisor never places
-/// secrets in argv or environment (design 3, 4, 10).
+/// secrets in argv or environment (design §3, §9, §6).
 fn assert_no_secret_env(fixture: &Fixture, kind: &str) {
     let entries = fixture.captured_env(kind);
     assert!(
@@ -655,7 +655,7 @@ fn transport_failure_reattaches_same_session_without_replay() {
 
     // Every structured invocation (attach-or-create, probe, attach) embeds
     // its own per-spawn status path as a --status-file ProxyCommand argument
-    // (design 3, 7) — and none carries it as an environment variable.
+    // (design §3, §4.4) — and none carries it as an environment variable.
     for index in [0, captures.len() - 2, captures.len() - 1] {
         let (name, argv) = &captures[index];
         assert!(
@@ -2666,7 +2666,7 @@ fn status_file_argument_on_structured_ops_only_never_raw_ssh_or_env() {
         raw.1[1]
     );
 
-    // The private root the argument points into stays 0700 (design 3, 7).
+    // The private root the argument points into stays 0700 (design §3, §4.4).
     let link_status_dir = fixture.state.join("link-status");
     let mode = fs::metadata(&link_status_dir).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o700, "link-status directory must stay private");
