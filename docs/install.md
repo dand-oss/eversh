@@ -1,11 +1,11 @@
-# Installing and upgrading eversh v2
+# Installing and upgrading eversh
 
 eversh is four Rust executables built from one workspace: the combined
 multi-role `eversh` (the user-facing supervisor), standalone `everpty` (the
 PTY session broker), standalone `everssh` (the QUIC ProxyCommand), and
 standalone `everudp` (the direct-QUIC terminal transport).
-V2 targets Linux with directly reachable UDP between the client and the
-remote host (including ZeroTier or Tailscale overlay addresses).
+eversh targets Linux with directly reachable UDP between the client and
+the remote host (including ZeroTier or Tailscale overlay addresses).
 
 ## Build
 
@@ -30,8 +30,8 @@ Local (client) host: place `eversh` on `PATH` (for example
 private `__everssh` role marker for the everssh transport role, so a
 single installed binary is sufficient locally.
 
-Remote host: v1 does not upload, install, or update remote binaries
-(design section 8); the remote host must already have a compatible `eversh`
+Remote host: eversh does not upload, install, or update remote binaries
+(design §5); the remote host must already have a compatible `eversh`
 on the login `PATH`, or you must point at it explicitly:
 
     eversh connect myhost --remote-eversh /opt/eversh/bin/eversh --session work
@@ -95,7 +95,7 @@ documented in `crates/everssh/src/ssh_policy.rs`) before it is threaded
 through to both the outer `ssh` invocation and the everssh bootstrap —
 anything else, including `-oProxyCommand=...` or `-J`, is rejected before
 any process is spawned — ProxyJump configurations are rejected with a clear
-diagnostic (design section 8); the UDP endpoint must be directly reachable.
+diagnostic (design §5); the UDP endpoint must be directly reachable.
 `eversh ssh` (raw passthrough over everssh) takes its trailing tokens
 verbatim and unaudited; see the note below.
 
@@ -128,7 +128,7 @@ fails with a clear local error before any `ssh` process is spawned.
 ## Upgrade
 
 Upgrades are operator actions: replace the installed binaries. Compatibility
-is decided by wire protocol versions, not file names (design section 8):
+is decided by wire protocol versions, not file names (design §5):
 
 - A running everpty broker survives an on-disk binary replacement; later
   clients must speak the broker's live protocol version and fail closed with
@@ -178,4 +178,4 @@ on both endpoints in one maintenance action; v1 never falls back, uploads a
 remote binary, or negotiates an old protocol automatically.
 
 Upgrade the remote host with the same operator mechanism you use for any
-remote binary; there is no self-update or upgrade agent in v1.
+remote binary; there is no self-update or upgrade agent.
