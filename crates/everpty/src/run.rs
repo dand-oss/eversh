@@ -34,6 +34,13 @@ pub struct Context {
     pub limits: Limits,
 }
 
+/// Exit code for an invocation that ended without the remote session
+/// ending: the session persists on the host and can be reattached. The
+/// binary edges return this instead of 0 so wrapper scripts can offer a
+/// resume command without probing the host; callers MUST NOT treat it as
+/// an invocation error.
+pub const DETACHED_EXIT: u8 = 7;
+
 #[derive(Debug)]
 pub enum Outcome {
     Success,

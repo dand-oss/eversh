@@ -739,6 +739,8 @@ pub const PROBE_NOT_LIVE_EXIT: u8 = 5;
 
 /// Remote exit code for `everpty::Error::Busy` (a writer is already
 /// attached), mirrored at the role edge in `main.rs::everpty_role_error`.
+/// everudp's own generic error path deliberately exits 1 so a transport
+/// failure can never masquerade as a busy reattach here.
 pub const REMOTE_BUSY_EXIT: u8 = 3;
 
 /// `deadline` bounds the probe's own execution: a hung probe is killed and

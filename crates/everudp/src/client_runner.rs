@@ -109,6 +109,15 @@ impl ClientRunError {
     pub fn is_initial_udp_unavailable(&self) -> bool {
         matches!(self, Self::InitialUdpUnavailable)
     }
+
+    /// True when the run failed after a carried link was lost and recovery
+    /// failed: the remote session was live when the link died, so its end
+    /// was never confirmed. The edge maps this to everpty::run::DETACHED_EXIT
+    /// instead of a generic error code so wrapper scripts can offer a
+    /// resume command without probing the host.
+    pub fn is_session_survives_disconnect(&self) -> bool {
+        matches!(self, Self::Reconnect(_))
+    }
 }
 
 impl fmt::Display for ClientRunError {
@@ -712,6 +721,18 @@ mod tests {
         assert_eq!(ClientExit::LocalCancelled { signal: 15 }.exit_code(), 143);
         let id = AssociationId::from_bytes([7; 16]).expect("association");
         assert_eq!(jitter_seed(id), u64::from_be_bytes([7; 8]));
+    }
+
+    #[test]
+    fn reconnect_failure_classifies_as_unconfirmed_session_end() {
+        // The pinned value is the cross-binary contract: the everpty and
+        // eversh edges exit the same code for a surviving session.
+        assert_eq!(everpty::run::DETACHED_EXIT, 7);
+        let error = super::ClientRunError::Reconnect(super::ReconnectError::Recovery(
+            super::RecoveryFailure::Protocol,
+        ));
+        assert!(error.is_session_survives_disconnect());
+        assert!(!super::ClientRunError::InitialUdpUnavailable.is_session_survives_disconnect());
     }
 
     #[test]

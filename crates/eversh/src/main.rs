@@ -234,7 +234,8 @@ fn write_stdout(stdout: &std::io::Stdout, bytes: &[u8]) -> Result<(), everpty::E
 fn everpty_role_outcome(outcome: everpty::run::Outcome) -> ! {
     use everpty::run::Outcome;
     match outcome {
-        Outcome::Success | Outcome::Detached => std::process::exit(0),
+        Outcome::Success => std::process::exit(0),
+        Outcome::Detached => std::process::exit(i32::from(everpty::run::DETACHED_EXIT)),
         Outcome::ChildExited(code) => std::process::exit(i32::from(code)),
         Outcome::ChildSignaled(signal) | Outcome::LocalSignaled(signal) => {
             let _ = everpty::sys::reraise_default(signal);

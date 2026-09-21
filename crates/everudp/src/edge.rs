@@ -355,7 +355,7 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
         Ok(runtime) => runtime,
         Err(_) => {
             eprintln!("everudp: runtime unavailable");
-            return 3;
+            return 1;
         }
     };
     let limits = Limits::default();
@@ -421,9 +421,16 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
             eprintln!("everudp: {error}");
             crate::UDP_UNREACHABLE_EXIT
         }
+        Err(RoleError::ClientRun(error)) if error.is_session_survives_disconnect() => {
+            eprintln!("everudp: {error}");
+            everpty::run::DETACHED_EXIT
+        }
         Err(error) => {
             eprintln!("everudp: {error}");
-            3
+            // 1, not 3: 3 is the supervisor's REMOTE_BUSY_EXIT contract,
+            // and a generic everudp failure must never masquerade as a
+            // busy reattach to the supervising eversh process.
+            1
         }
     }
 }

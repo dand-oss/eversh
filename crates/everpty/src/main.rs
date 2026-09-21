@@ -259,7 +259,8 @@ fn run_command(cli: Cli) -> Result<Outcome, Error> {
 
 fn exit_outcome(outcome: Outcome) -> ! {
     match outcome {
-        Outcome::Success | Outcome::Detached => std::process::exit(0),
+        Outcome::Success => std::process::exit(0),
+        Outcome::Detached => std::process::exit(i32::from(run::DETACHED_EXIT)),
         Outcome::ChildExited(code) => std::process::exit(i32::from(code)),
         Outcome::ChildSignaled(signal) | Outcome::LocalSignaled(signal) => {
             let _ = sys::reraise_default(signal);
