@@ -97,6 +97,8 @@ everudp adds direct terminal delivery above everpty without carrying terminal by
 
 Strict `--transport everudp` allows three seconds for the initial commit and exits 69 (`EX_UNAVAILABLE`) if it cannot commit before raw terminal mode, terminal traffic, or gateway writer ownership. `--transport auto` catches exactly that pre-commit exit, prints one visible fallback line, and invokes everssh once; it never falls back after traffic, during reconnect, on authentication or protocol errors, or when an existing gateway owns the writer.
 
+During everudp recovery, a bootstrap parent that reports the named session is no longer live (for example after a host reboot) exits 5 — the same value as the supervisor's probe not-live contract — and the client reports the session ended instead of the detached exit 7, so wrappers never offer a resume that cannot succeed. A remote that predates this contract keeps its generic prepare failure, which the client still classifies as an unconfirmed detach.
+
 The frozen everudp contract, its performance release decision, and its evidence are in [plans/everudp-v1.md](../plans/everudp-v1.md).
 
 ### 4.4 eversh — supervisor

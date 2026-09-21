@@ -14,6 +14,14 @@ const PREFIX_BACKOFF_MS: [u64; 6] = [0, 100, 250, 500, 1_000, 2_000];
 const TAIL_BACKOFF_MS: u64 = 5_000;
 const TAIL_JITTER_MS: u64 = 1_000;
 
+/// Stable remote-edge exit for "the requested session is not live", reported
+/// by the SSH bootstrap parent when the named session no longer exists (for
+/// example after a host reboot). The value matches the eversh supervisor's
+/// `PROBE_NOT_LIVE_EXIT` so every remote answer about a missing session shares
+/// one code. A recovery client that observes it must report a session end,
+/// not an unconfirmed detach that invites a resume which cannot succeed.
+pub const SESSION_NOT_LIVE_EXIT: u8 = 5;
+
 #[derive(Debug, Clone)]
 pub struct ReconnectBackoff {
     attempt: u64,
@@ -67,6 +75,7 @@ pub enum RecoveryFailure {
     Pin,
     Protocol,
     Transport,
+    SessionGone,
 }
 
 impl fmt::Display for RecoveryFailure {
@@ -76,6 +85,7 @@ impl fmt::Display for RecoveryFailure {
             Self::Pin => "everudp SSH recovery pin or association binding failed",
             Self::Protocol => "everudp SSH recovery protocol failed",
             Self::Transport => "everudp SSH recovery transport failed terminally",
+            Self::SessionGone => "everudp SSH recovery found the session is not live",
         })
     }
 }
@@ -136,6 +146,15 @@ pub enum ReconnectError {
     Recovery(RecoveryFailure),
     Cancelled,
     ClockOverflow,
+}
+
+impl ReconnectError {
+    /// True when recovery positively established that the remote session
+    /// ended, so the invocation reports a session end instead of an
+    /// unconfirmed detach.
+    pub fn is_session_gone(&self) -> bool {
+        matches!(self, Self::Recovery(RecoveryFailure::SessionGone))
+    }
 }
 
 impl fmt::Display for ReconnectError {

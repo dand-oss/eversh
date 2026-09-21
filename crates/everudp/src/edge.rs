@@ -5,6 +5,7 @@
 //! because `everpty` daemonizes at that boundary.
 #![allow(clippy::print_stderr)]
 
+use crate::reconnect::SESSION_NOT_LIVE_EXIT;
 use crate::request::BootstrapRequest;
 use crate::roles::{
     prepare_bootstrap_parent, run_bootstrap_parent, run_gateway_role, BootstrapPreparation,
@@ -342,7 +343,7 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
         Ok(prepared) => prepared,
         Err(error) => {
             eprintln!("everudp: {error}");
-            return 2;
+            return prepare_error_exit(&error);
         }
     };
     if let PreparedRole::Broker(exit) = prepared {
@@ -421,6 +422,10 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
             eprintln!("everudp: {error}");
             crate::UDP_UNREACHABLE_EXIT
         }
+        Err(RoleError::ClientRun(error)) if error.is_session_gone_during_recovery() => {
+            eprintln!("everudp: {error}");
+            SESSION_NOT_LIVE_EXIT
+        }
         Err(RoleError::ClientRun(error)) if error.is_session_survives_disconnect() => {
             eprintln!("everudp: {error}");
             everpty::run::DETACHED_EXIT
@@ -432,6 +437,17 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
             // busy reattach to the supervising eversh process.
             1
         }
+    }
+}
+
+/// Exit code for a failed role preparation. A missing session is a durable
+/// answer about the session, not a usage error: every other prepare failure
+/// keeps the generic edge code.
+fn prepare_error_exit(error: &RoleError) -> u8 {
+    if matches!(error, RoleError::Everpty(everpty::Error::NotLive)) {
+        SESSION_NOT_LIVE_EXIT
+    } else {
+        2
     }
 }
 

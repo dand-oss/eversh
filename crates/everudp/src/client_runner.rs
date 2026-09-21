@@ -8,7 +8,7 @@ use crate::handshake::{ClientHello, HandshakeError, ResumePosition};
 use crate::identity::{ClientIdentity, IdentityError};
 use crate::reconnect::{
     reconnect_until, GatewayReplacement, ReconnectError, ReconnectEvent, ReconnectState,
-    RecoveryAction, RecoveryFailure,
+    RecoveryAction, RecoveryFailure, SESSION_NOT_LIVE_EXIT,
 };
 use crate::request::{BootstrapOperation, BootstrapRequest, RequestError};
 use crate::route::{RouteError, RouteSupervisor};
@@ -111,12 +111,21 @@ impl ClientRunError {
     }
 
     /// True when the run failed after a carried link was lost and recovery
-    /// failed: the remote session was live when the link died, so its end
-    /// was never confirmed. The edge maps this to everpty::run::DETACHED_EXIT
-    /// instead of a generic error code so wrapper scripts can offer a
-    /// resume command without probing the host.
+    /// failed without learning the session's fate: the remote session was
+    /// live when the link died, so its end was never confirmed. The edge
+    /// maps this to everpty::run::DETACHED_EXIT instead of a generic error
+    /// code so wrapper scripts can offer a resume command without probing
+    /// the host. A recovery answer that the session is no longer live is
+    /// excluded: that is a confirmed end, not a survivable disconnect.
     pub fn is_session_survives_disconnect(&self) -> bool {
-        matches!(self, Self::Reconnect(_))
+        matches!(self, Self::Reconnect(error) if !error.is_session_gone())
+    }
+
+    /// True when SSH recovery positively established that the remote session
+    /// is no longer live (for example the host rebooted and the broker is
+    /// gone). The edge reports the session end instead of exit 7.
+    pub fn is_session_gone_during_recovery(&self) -> bool {
+        matches!(self, Self::Reconnect(error) if error.is_session_gone())
     }
 }
 
@@ -430,9 +439,8 @@ fn reconnect_terminal_cause(error: &ReconnectError) -> TerminalCause {
         ReconnectError::Recovery(RecoveryFailure::Authentication | RecoveryFailure::Pin) => {
             TerminalCause::Authentication
         }
-        ReconnectError::Recovery(RecoveryFailure::Protocol) | ReconnectError::Link(_) => {
-            TerminalCause::Protocol
-        }
+        ReconnectError::Recovery(RecoveryFailure::Protocol | RecoveryFailure::SessionGone)
+        | ReconnectError::Link(_) => TerminalCause::Protocol,
         ReconnectError::Recovery(RecoveryFailure::Transport)
         | ReconnectError::Transport(_)
         | ReconnectError::ClockOverflow => TerminalCause::Transport,
@@ -476,6 +484,11 @@ fn recovery_failure(error: &ClientRunError) -> Option<RecoveryFailure> {
         ) => Some(RecoveryFailure::Authentication),
         ClientRunError::Everssh(everssh::Error::PinMismatch)
         | ClientRunError::AssociationMismatch => Some(RecoveryFailure::Pin),
+        ClientRunError::Everssh(everssh::Error::SshRemoteCommandFailed(failure))
+            if failure.exit_code == Some(i32::from(SESSION_NOT_LIVE_EXIT)) =>
+        {
+            Some(RecoveryFailure::SessionGone)
+        }
         ClientRunError::Transport(error) if error.is_temporary() => None,
         ClientRunError::Transport(crate::TransportError::PinMismatch) => Some(RecoveryFailure::Pin),
         ClientRunError::Transport(
@@ -676,7 +689,10 @@ mod tests {
         classify_recovery_result, config_for_recovery, jitter_seed, ClientConfig, ClientExit,
         ClientRunError,
     };
-    use crate::{BootstrapError, BootstrapOperation, RecoveryAction, RecoveryFailure};
+    use crate::{
+        reconnect::SESSION_NOT_LIVE_EXIT, BootstrapError, BootstrapOperation, RecoveryAction,
+        RecoveryFailure,
+    };
     use everssh::association::AssociationId;
 
     fn config(operation: BootstrapOperation) -> ClientConfig {
@@ -736,6 +752,17 @@ mod tests {
     }
 
     #[test]
+    fn recovery_session_gone_is_a_confirmed_end_not_a_resumable_detach() {
+        assert_eq!(SESSION_NOT_LIVE_EXIT, 5);
+        let error = super::ClientRunError::Reconnect(super::ReconnectError::Recovery(
+            super::RecoveryFailure::SessionGone,
+        ));
+        assert!(!error.is_session_survives_disconnect());
+        assert!(error.is_session_gone_during_recovery());
+        assert!(!error.is_initial_udp_unavailable());
+    }
+
+    #[test]
     fn recovery_keeps_network_loss_temporary_but_terminates_auth_pin_and_protocol() {
         assert!(matches!(
             classify_recovery_result(Err(
@@ -748,6 +775,16 @@ mod tests {
                 everssh::Error::SshAuthenticationRejected,
             ))),
             Err(RecoveryFailure::Authentication)
+        ));
+        let not_live =
+            everssh::Error::SshRemoteCommandFailed(everssh::error::RemoteCommandFailure {
+                remote_program: "eversh".to_owned(),
+                exit_code: Some(i32::from(SESSION_NOT_LIVE_EXIT)),
+                diagnostic: "everudp: session is not live".to_owned(),
+            });
+        assert!(matches!(
+            classify_recovery_result(Err(ClientRunError::Everssh(not_live))),
+            Err(RecoveryFailure::SessionGone)
         ));
         assert!(matches!(
             classify_recovery_result(Err(ClientRunError::AssociationMismatch)),
