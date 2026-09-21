@@ -379,6 +379,11 @@ fn captured_termios() -> Option<everpty::sys::TerminalAttributes> {
 
 fn restore_termios(termios: &everpty::sys::TerminalAttributes) {
     let stdin = std::io::stdin();
+    // Last-resort handback after an unclean child death: reset the
+    // escape-sequence modes termios cannot restore before returning the
+    // terminal to the parent shell.
+    let stdout = std::io::stdout();
+    let _ = everpty::sys::write_terminal_reset(stdout.as_fd());
     let _ = everpty::sys::restore_terminal(stdin.as_fd(), termios);
 }
 

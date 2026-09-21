@@ -102,11 +102,46 @@ pub fn set_terminal_raw(fd: BorrowedFd<'_>, original: &TerminalAttributes) -> io
     Ok(())
 }
 
-/// `tcsetattr(TCSANOW)` restoring an exact earlier snapshot.
+/// `tcsetattr(TCSANOW)` restoring an exact earlier snapshot, then
+/// `tcflush(TCIFLUSH)`. The flush is part of the handback contract:
+/// input queued while the caller owned the terminal in raw mode dies
+/// with that ownership instead of leaking into whatever resumes on the
+/// descriptor (typically the parent shell).
 pub fn restore_terminal(fd: BorrowedFd<'_>, original: &TerminalAttributes) -> io::Result<()> {
     // SAFETY: original is a snapshot produced by tcgetattr.
     if unsafe { libc::tcsetattr(fd.as_raw_fd(), libc::TCSANOW, &original.0) } != 0 {
         return Err(io::Error::last_os_error());
+    }
+    // SAFETY: fd is a terminal descriptor that tcsetattr just accepted.
+    if unsafe { libc::tcflush(fd.as_raw_fd(), libc::TCIFLUSH) } != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// Terminal handback hygiene: mode resets for the local terminal edge.
+/// Termios restore cannot return escape-sequence-controlled modes, so a
+/// session that owned the terminal emits these on entry and exit: pop one
+/// kitty keyboard protocol entry, disable bracketed paste, disable every
+/// mouse reporting mode (1000, 1002, 1003, SGR 1006), disable focus
+/// reporting (1004), reset cursor keys to normal (?1), leave the
+/// alternate screen (1049), show the cursor, and reset SGR attributes.
+/// Without this, a remote program that died before disabling its modes
+/// leaves the local terminal re-encoding keystrokes for every later
+/// reader in the same window.
+pub const TERMINAL_HANDBACK_RESET: &[u8] =
+    b"\x1b[<u\x1b[?2004l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004l\x1b[?1l\x1b[?1049l\x1b[?25h\x1b[m";
+
+/// Bounded write of TERMINAL_HANDBACK_RESET to a terminal descriptor.
+pub fn write_terminal_reset(fd: BorrowedFd<'_>) -> io::Result<()> {
+    let mut written = 0usize;
+    while written < TERMINAL_HANDBACK_RESET.len() {
+        match write_fd(fd, &TERMINAL_HANDBACK_RESET[written..]) {
+            Ok(0) => return Err(io::Error::from(io::ErrorKind::WriteZero)),
+            Ok(count) => written += count,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
     }
     Ok(())
 }
@@ -2860,5 +2895,30 @@ mod tests {
         assert_eq!(recv(accepted.as_fd(), &mut buf).expect("eof"), Some(0));
         drop(listener);
         let _ = std::fs::remove_file(dir.join(&name2));
+    }
+
+    #[test]
+    fn restore_terminal_discards_input_queued_during_raw() {
+        let (master, slave) = openpty(24, 80).expect("openpty");
+        let fd = slave.as_fd();
+
+        let original = terminal_attributes(fd).expect("attributes");
+        set_terminal_raw(fd, &original).expect("raw");
+
+        // Keystrokes arrive from the master while raw mode owns the slave.
+        let stale = b"stale\n";
+        let mut written = 0usize;
+        while written < stale.len() {
+            let count = write_fd(master.as_fd(), &stale[written..]).expect("master write");
+            written += count;
+        }
+
+        // Handing the terminal back must not hand back the queued line: it
+        // would be read by whatever resumes on the descriptor (the shell).
+        restore_terminal(fd, &original).expect("restore");
+
+        set_nonblocking(fd).expect("slave nonblocking");
+        let error = read_fd(fd, &mut [0u8; 8]).expect_err("queued input flushed");
+        assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
     }
 }

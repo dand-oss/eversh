@@ -194,6 +194,10 @@ impl<'fd> TerminalEdge<'fd> {
         self.signals = Some(signals);
         self.last_size = last_size;
         self.role = Some(role);
+        // Boundary hygiene: a previous session in this same window may
+        // have died before its remote disabled keyboard, mouse, or paste
+        // modes. This session starts from a baseline local terminal.
+        let _ = sys::write_terminal_reset(self.stdout);
         Ok(())
     }
 
@@ -396,6 +400,12 @@ impl<'fd> TerminalEdge<'fd> {
 
     pub fn deactivate(&mut self) -> Result<(), TerminalError> {
         let mut first = None;
+        // Boundary hygiene precedes every restore: modes enabled by the
+        // remote are invisible to termios and must not outlive this
+        // session for the next reader of this terminal.
+        if self.role.is_some() {
+            retain_first(&mut first, sys::write_terminal_reset(self.stdout));
+        }
         self.stdin_async = None;
         self.stdout_async = None;
         self.stderr_async = None;
@@ -582,6 +592,8 @@ fn retain_first(first: &mut Option<io::Error>, result: io::Result<()>) {
 #[cfg(test)]
 mod tests {
     use super::read_one_signal;
+    use super::TerminalEdge;
+    use crate::wire::ConnectionRole;
     use everpty::sys;
     use std::io;
     use std::os::fd::AsFd;
@@ -593,5 +605,33 @@ mod tests {
 
         let error = read_one_signal(read.as_fd()).expect_err("empty signal pipe");
         assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
+    }
+
+    #[test]
+    fn activate_and_deactivate_emit_the_terminal_handback_reset() {
+        let (master, slave) = sys::openpty(24, 80).expect("openpty");
+        let fd = slave.as_fd();
+        let original = sys::terminal_attributes(fd).expect("attributes");
+
+        let mut edge = TerminalEdge::stage(fd, fd, fd).expect("stage");
+        edge.activate(ConnectionRole::Writer).expect("activate");
+        edge.deactivate().expect("deactivate");
+        assert!(sys::terminal_attributes(fd).expect("restored attributes") == original);
+
+        sys::set_nonblocking(master.as_fd()).expect("master nonblocking");
+        let mut seen = Vec::new();
+        let mut buffer = [0u8; 128];
+        loop {
+            match sys::read_fd(master.as_fd(), &mut buffer) {
+                Ok(0) => break,
+                Ok(count) => seen.extend_from_slice(&buffer[..count]),
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
+                Err(error) => panic!("master read: {error}"),
+            }
+        }
+        let reset = everpty::sys::TERMINAL_HANDBACK_RESET;
+        assert_eq!(seen.len(), reset.len() * 2, "entry and handback resets");
+        assert_eq!(&seen[..reset.len()], reset);
+        assert_eq!(&seen[reset.len()..], reset);
     }
 }
