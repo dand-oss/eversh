@@ -349,7 +349,7 @@ impl PtySession {
                 ) =>
             {
                 if let Some(generation) = gateway_generation {
-                    this.negotiate_direct_lease(generation).await?;
+                    this.negotiate_direct_lease(generation, take_over).await?;
                 }
                 Ok(this)
             }
@@ -543,7 +543,52 @@ impl PtySession {
         Ok(())
     }
 
-    async fn negotiate_direct_lease(&mut self, generation: [u8; 16]) -> Result<(), PtyError> {
+    async fn read_lease_offer(&self, max_len: usize) -> Result<(Frame, Option<OwnedFd>), PtyError> {
+        // Read exactly one frame with recvmsg throughout: an SCM_RIGHTS
+        // capability must never be lost by a plain read or consumed with
+        // the preceding ownership frame.
+        let mut wire = vec![0_u8; everpty::frame::HEADER_LEN];
+        let mut used = 0;
+        let mut descriptor = None;
+        loop {
+            let (received, incoming) =
+                recv_optional_fd_into(&self.socket, &mut wire[used..]).await?;
+            if received == 0 {
+                return Err(io::Error::from(io::ErrorKind::UnexpectedEof).into());
+            }
+            if let Some(incoming) = incoming {
+                if descriptor.is_some() {
+                    return Err(PtyError::Protocol);
+                }
+                descriptor = Some(incoming);
+            }
+            used += received;
+            if used < wire.len() {
+                continue;
+            }
+            if wire.len() == everpty::frame::HEADER_LEN {
+                let total = Frame::validate_header(&wire, &self.limits)?;
+                if total > max_len {
+                    return Err(PtyError::Protocol);
+                }
+                wire.resize(total, 0);
+                if used < wire.len() {
+                    continue;
+                }
+            }
+            let (frame, consumed) = Frame::decode(&wire, &self.limits)?;
+            if consumed != wire.len() {
+                return Err(PtyError::Protocol);
+            }
+            return Ok((frame, descriptor));
+        }
+    }
+
+    async fn negotiate_direct_lease(
+        &mut self,
+        generation: [u8; 16],
+        take_over: bool,
+    ) -> Result<(), PtyError> {
         let grant_len = Frame::Lease {
             action: LeaseAction::Grant,
             generation,
@@ -551,22 +596,17 @@ impl PtySession {
         }
         .encode()
         .len();
-        let mut wire = vec![0_u8; grant_len];
-        let (received, descriptor) = recv_optional_fd_into(&self.socket, &mut wire).await?;
-        if received == 0 || received > wire.len() {
-            return Err(PtyError::Protocol);
-        }
-        let mut used = received;
-        while used < wire.len() {
-            let read = read_into(&self.socket, &mut wire[used..]).await?;
-            if read == 0 {
-                return Err(io::Error::from(io::ErrorKind::UnexpectedEof).into());
+        let (mut offer, mut descriptor) = self.read_lease_offer(grant_len).await?;
+        if take_over
+            && matches!(
+                offer,
+                Frame::Ownership(everpty::frame::OwnershipEvent::Granted)
+            )
+        {
+            if descriptor.is_some() {
+                return Err(PtyError::Protocol);
             }
-            used += read;
-        }
-        let (offer, consumed) = Frame::decode(&wire, &self.limits)?;
-        if consumed != wire.len() {
-            return Err(PtyError::Protocol);
+            (offer, descriptor) = self.read_lease_offer(grant_len).await?;
         }
         let (lease_id, descriptor) = match (offer, descriptor) {
             (
@@ -937,6 +977,96 @@ mod tests {
 
     fn write_frame(stream: &mut UnixStream, frame: &Frame) {
         stream.write_all(&frame.encode()).expect("write frame");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn gateway_takeover_accepts_ownership_before_lease() {
+        for direct in [false, true] {
+            let limits = everpty::Limits::default();
+            let generation = [7; 16];
+            let (client, server) = sys::socketpair_cloexec().expect("socket pair");
+            let worker = thread::spawn(move || {
+                let mut stream = UnixStream::from(server);
+                assert!(matches!(
+                    read_frame(&mut stream, &limits),
+                    Frame::GatewayHello {
+                        take_over: true,
+                        ..
+                    }
+                ));
+                write_frame(
+                    &mut stream,
+                    &Frame::HelloAck {
+                        client_id: 9,
+                        broker_protocol_version: PROTOCOL_VERSION,
+                        status: AttachStatus::WriterGranted,
+                    },
+                );
+                write_frame(&mut stream, &Frame::Ownership(OwnershipEvent::Granted));
+                if direct {
+                    let (master, _slave) = sys::openpty(24, 80).expect("pty");
+                    let grant = Frame::Lease {
+                        action: LeaseAction::Grant,
+                        generation,
+                        lease_id: 1,
+                    }
+                    .encode();
+                    assert_eq!(
+                        sys::send_one_fd(stream.as_fd(), &grant, master.as_fd())
+                            .expect("send lease"),
+                        grant.len()
+                    );
+                    assert!(matches!(
+                        read_frame(&mut stream, &limits),
+                        Frame::Lease {
+                            action: LeaseAction::Commit,
+                            ..
+                        }
+                    ));
+                    write_frame(
+                        &mut stream,
+                        &Frame::Lease {
+                            action: LeaseAction::Committed,
+                            generation,
+                            lease_id: 1,
+                        },
+                    );
+                } else {
+                    write_frame(
+                        &mut stream,
+                        &Frame::Lease {
+                            action: LeaseAction::Unavailable,
+                            generation,
+                            lease_id: 0,
+                        },
+                    );
+                    assert_eq!(
+                        read_frame(&mut stream, &limits),
+                        Frame::Input(b"\r".to_vec())
+                    );
+                }
+            });
+            let mut session = PtySession::connect_fd(
+                client,
+                "demo",
+                Role::Writer,
+                true,
+                24,
+                80,
+                limits,
+                Some(generation),
+            )
+            .await
+            .expect("takeover lease handshake");
+            assert_eq!(session.direct.is_some(), direct);
+            if !direct {
+                session
+                    .send_operation(InputOperation::Bytes(b"\r"))
+                    .await
+                    .expect("Enter after takeover");
+            }
+            worker.join().expect("broker worker");
+        }
     }
 
     #[tokio::test(flavor = "current_thread")]
