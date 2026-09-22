@@ -356,7 +356,7 @@ snapshot_network() {
 start_driver() {
     local label=$1 mode=$2 destination=${3:-target4} driver_timeout=${4:-2400}
     local -a trace_window_args=()
-    if [[ ${EVERUDP_FRESH_AFTER_OUTAGE:-0} == 1 ]]; then
+    if [[ ${EVERUDP_FRESH_AFTER_OUTAGE:-0} == 1 && $mode == outage ]]; then
         trace_window_args+=(--fresh-after-outage)
     fi
     CURRENT_DIR="$OUTDIR/scenarios/$label"
@@ -381,7 +381,7 @@ start_driver() {
     DRIVER_PID=$!
     wait_path "$CURRENT_DIR/control/ready" 40
     local client_pid= gateway_pid= pid command
-    if [[ ${EVERUDP_FRESH_AFTER_OUTAGE:-0} == 1 ]]; then
+    if [[ ${EVERUDP_FRESH_AFTER_OUTAGE:-0} == 1 && $mode == outage ]]; then
         local encoded_label
         encoded_label=$(printf '%s' "$label" | od -An -tx1 | tr -d ' \n')
         for pid in $("$IP" netns pids "$SERVER_NS"); do
