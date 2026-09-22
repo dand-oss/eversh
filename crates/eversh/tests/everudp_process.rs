@@ -213,7 +213,13 @@ impl RunningClient {
         let stdout = File::from(slave);
         let stderr_path = fixture.root.join(format!("{label}.stderr"));
         let stderr = File::create(&stderr_path).unwrap();
-        let mut command = Command::new(binary());
+        let executable = if arguments.first() == Some(&"__everpty") {
+            std::env::var_os("EVERSH_TEST_EXISTING_BROKER_BIN")
+                .unwrap_or_else(|| binary().to_os_string())
+        } else {
+            binary().to_os_string()
+        };
+        let mut command = Command::new(executable);
         command
             .env_clear()
             .env("EVERSH_STATE_DIR", &fixture.state)
