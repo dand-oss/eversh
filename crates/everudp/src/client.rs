@@ -753,7 +753,7 @@ mod initial_hello_tests {
     fn fresh_client_accepts_old_gateway_gap_but_durable_resume_rejects_it() {
         let (mut client, hello) = client_and_hello();
         assert!(matches!(
-            client.apply_server_hello(hello.clone()),
+            client.apply_server_hello(hello),
             Err(ClientError::GapMismatch)
         ));
         client
