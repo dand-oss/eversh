@@ -640,7 +640,7 @@ run_packet_proof() {
         'events=process,socket,readiness-metadata-only' \
         'payload-syscalls=disabled' \
         'fd-decoding=endpoint-metadata' >"$CURRENT_DIR/process-trace-profile.txt"
-    "$TCPDUMP" -n -r "$CURRENT_DIR/terminal.pcap" >"$CURRENT_DIR/terminal-packets.txt" 2>/dev/null
+    "$TCPDUMP" -n -r - <"$CURRENT_DIR/terminal.pcap" >"$CURRENT_DIR/terminal-packets.txt" 2>"$CURRENT_DIR/packet-read.stderr"
     local udp_count tcp_count
     udp_count=$(grep -c ' UDP' "$CURRENT_DIR/terminal-packets.txt" || true)
     tcp_count=$(grep -c 'Flags \[' "$CURRENT_DIR/terminal-packets.txt" || true)
