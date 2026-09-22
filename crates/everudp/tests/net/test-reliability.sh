@@ -11,6 +11,7 @@ fi
 ROOT=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../../../.." && pwd -P)
 NET=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 BIN=${EVERUDP_BIN:-$ROOT/target/release/everudp}
+REMOTE_BIN=${EVERUDP_REMOTE_BIN:-$BIN}
 OUTDIR=${1:?usage: test-reliability.sh OUTDIR}
 OUTDIR=$(realpath -m -- "$OUTDIR")
 SMOKE=${EVERUDP_SMOKE:-0}
@@ -270,7 +271,7 @@ EOF
 export EVERSH_STATE_DIR='$TMP/server-state'
 export PATH='/usr/bin:/bin'
 export SHELL='/bin/sh'
-exec '$BIN' "\$@"
+exec '$REMOTE_BIN' "\$@"
 EOF
     chmod 0755 "$TMP/remote-everudp"
     "$IP" netns exec "$SERVER_NS" /usr/sbin/sshd -D -e -f "$TMP/sshd_config" \
@@ -353,7 +354,7 @@ snapshot_network() {
 }
 
 start_driver() {
-    local label=$1 mode=$2 destination=${3:-target4}
+    local label=$1 mode=$2 destination=${3:-target4} driver_timeout=${4:-2400}
     local -a trace_window_args=()
     CURRENT_DIR="$OUTDIR/scenarios/$label"
     mkdir -p "$CURRENT_DIR/control"
@@ -372,7 +373,7 @@ start_driver() {
         --session "$label" --mode "$mode" --control-dir "$CURRENT_DIR/control" \
         --status "$CURRENT_DIR/status.log" --transcript "$CURRENT_DIR/transcript.bin" \
         --stderr "$CURRENT_DIR/client.stderr" --result "$CURRENT_DIR/result.json" \
-        --messages "$messages" --timeout 2400 "${trace_window_args[@]}" \
+        --messages "$messages" --timeout "$driver_timeout" "${trace_window_args[@]}" \
         >"$CURRENT_DIR/driver.stdout" 2>"$CURRENT_DIR/driver.stderr" &
     DRIVER_PID=$!
     wait_path "$CURRENT_DIR/control/ready" 40
@@ -452,7 +453,7 @@ run_stream() {
 
 run_outage() {
     local label=$1 seconds=$2
-    start_driver "$label" outage target4
+    start_driver "$label" outage target4 "$((seconds + 240))"
     apply_netem 100 0 0 0 "$((910000 + SCENARIO_INDEX * 2003))"
     snapshot_network before
     local began=$(date +%s)
@@ -489,6 +490,40 @@ run_overrun() {
     finish_driver 180
     SCENARIO_INDEX=$((SCENARIO_INDEX + 1))
     echo "everudp reliability forced overrun: PASS"
+}
+
+run_reattach() {
+    local label=reattach-after-gap pid command
+    start_driver "$label" reattach target4
+    for pid in $("$IP" netns pids "$SERVER_NS"); do
+        command=$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)
+        if [[ $command == *"__gateway-v1"* ]]; then
+            echo "$pid" >"$CURRENT_DIR/control/gateway-pid"
+            break
+        fi
+    done
+    [[ -s "$CURRENT_DIR/control/gateway-pid" ]]
+    apply_netem 100 0 0 0 931001
+    touch "$CURRENT_DIR/control/go"
+    wait_path "$CURRENT_DIR/control/burst-done" 120
+    sleep 35
+    clear_netem
+    touch "$CURRENT_DIR/control/restore"
+    wait_path "$CURRENT_DIR/control/first-recovered" 90
+    # A second durable resume confirms the replacement epoch. Only then
+    # replace the client process, reproducing the previously untested sequence.
+    apply_netem 100 0 0 0 931003
+    sleep 35
+    clear_netem
+    touch "$CURRENT_DIR/control/second-restore"
+    finish_driver 240
+    "$PY" - "$CURRENT_DIR/result.json" <<'CHECK'
+import json, sys
+r = json.load(open(sys.argv[1]))
+assert r["fresh_attachments"] == 20 and len(r["unchanged_processes"]) == 2, r
+CHECK
+    SCENARIO_INDEX=$((SCENARIO_INDEX + 1))
+    echo "everudp reliability twenty fresh attaches after confirmed GAP: PASS"
 }
 
 run_pause() {
@@ -642,6 +677,9 @@ SCENARIO_INDEX=0
 if [[ -n $ONLY ]]; then
     case $ONLY in
         forced-overrun) run_overrun ;;
+        reattach-after-gap) run_reattach ;;
+        outage-30m) run_outage outage-30m 1800 ;;
+        outage-12h) run_outage outage-12h 43200; SOAK_STATUS=PASS ;;
         outage-smoke) run_outage outage-smoke 35 ;;
         sleep-wake) run_pause ;;
         cancel-outage) run_cancel_outage ;;
@@ -659,6 +697,7 @@ elif (( SMOKE == 1 )); then
     run_stream loss5-jitter25 5 25 0 0
     run_outage outage-smoke 35
     run_overrun
+    run_reattach
     run_pause
     run_cancel_outage
     run_packet_proof
@@ -681,6 +720,7 @@ else
     run_outage outage-5m 300
     run_outage outage-30m 1800
     run_overrun
+    run_reattach
     if [[ ${EVERUDP_RUN_12H_SOAK:-0} == 1 ]]; then
         run_outage outage-12h 43200
         SOAK_STATUS=PASS

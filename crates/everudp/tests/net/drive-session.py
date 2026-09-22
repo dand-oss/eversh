@@ -29,13 +29,14 @@ set -eu
 control=$1
 mode=$2
 label=$3
+printf '%s\n' "$$" >"$control/child-pid"
 (
     while [ ! -f "$control/go" ]; do sleep 0.02; done
     case "$mode" in
         outage|pause|cancel)
             printf 'ASYNC:%s\n' "$label"
             ;;
-        overrun)
+        overrun|reattach)
             /usr/bin/head -c 6291456 /dev/zero
             : >"$control/burst-done"
             ;;
@@ -67,7 +68,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--session", required=True)
     parser.add_argument(
         "--mode",
-        choices=("stream", "outage", "overrun", "pause", "cancel"),
+        choices=("stream", "outage", "overrun", "pause", "cancel", "reattach"),
         required=True,
     )
     parser.add_argument("--control-dir", type=Path, required=True)
@@ -89,35 +90,26 @@ class Driver:
         self.master = -1
         self.process: subprocess.Popen[bytes] | None = None
         self.original_termios: list[object] | None = None
+        self.archived_stderr = bytearray()
+        self.identity_receipt = {}
+        self.replacements = 0
 
-    def spawn(self) -> None:
+    def spawn(self, attach: bool = False) -> None:
         master, slave = pty.openpty()
         self.original_termios = termios.tcgetattr(slave)
         fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", 24, 80, 0, 0))
         flags = fcntl.fcntl(master, fcntl.F_GETFL)
         fcntl.fcntl(master, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-        command = [
-            self.args.binary,
-            "--remote-program",
-            self.args.remote_program,
-            "connect",
-            self.args.destination,
-            "--session",
-            self.args.session,
-            "--ssh-option",
-            f"-F{self.args.ssh_config}",
-            "--status-file",
-            str(self.args.status),
-            "--",
-            "/bin/sh",
-            "-c",
-            REMOTE_SCRIPT,
-            "everudp-net-child",
-            str(self.args.control_dir),
-            self.args.mode,
-            self.args.session,
-        ]
+        command = [self.args.binary, "--remote-program", self.args.remote_program]
+        if attach:
+            command += ["attach", self.args.destination, self.args.session]
+        else:
+            command += ["connect", self.args.destination, "--session", self.args.session]
+        command += ["--ssh-option", f"-F{self.args.ssh_config}", "--status-file", str(self.args.status)]
+        if not attach:
+            command += ["--", "/bin/sh", "-c", REMOTE_SCRIPT, "everudp-net-child",
+                        str(self.args.control_dir), self.args.mode, self.args.session]
 
         def child_setup() -> None:
             os.setsid()
@@ -265,6 +257,40 @@ class Driver:
                 lambda: all(self.transcript.count(marker) >= 1 for marker in expected),
                 "outage replay",
             )
+        elif self.args.mode == "reattach":
+            self.wait_path("restore")
+            self.wait_status("gapped", timeout=45.0)
+            self.send(b"after-overrun\n")
+            self.wait_marker_once(b"RX:after-overrun", "first recovery")
+            (self.args.control_dir / "first-recovered").touch()
+            self.wait_path("second-restore")
+            self.wait_status("connected", minimum=3, timeout=90.0)
+            self.send(b"confirmed-gap\n")
+            self.wait_marker_once(b"RX:confirmed-gap", "confirmed gap recovery")
+            self.identity_receipt = self.identities()
+            for index in range(20):
+                assert self.process is not None
+                hard = index == 10
+                self.process.send_signal(signal.SIGKILL if hard else signal.SIGTERM)
+                self.process.wait(timeout=10)
+                self.pump(0)
+                self.archived_stderr.extend(self.stderr_bytes())
+                os.close(self.master)
+                self.master = -1
+                # SIGKILL cannot emit QUIC close; wait past the real idle timeout.
+                time.sleep(35 if hard else 0.5)
+                self.args.status = self.args.status.parent / f"attach-{index}.status"
+                self.args.stderr = self.args.stderr.parent / f"attach-{index}.stderr"
+                self.spawn(attach=True)
+                self.wait_status("connected", timeout=30.0)
+                marker = f"reconnect-{index:02d}"
+                self.send(f"{marker}\n".encode())
+                response = f"RX:{marker}".encode()
+                expected.append(response)
+                self.wait_marker_once(response, marker)
+                if self.identities() != self.identity_receipt:
+                    raise RuntimeError("reconnect replaced the gateway or remote child")
+                self.replacements += 1
         elif self.args.mode == "overrun":
             self.wait_path("restore")
             self.wait_status("gapped", timeout=30.0)
@@ -340,12 +366,12 @@ class Driver:
         bad = {marker: count for marker, count in duplicates.items() if count != 1}
         if bad:
             raise RuntimeError(f"missing or duplicate terminal responses: {bad}")
-        if self.args.mode == "overrun" and b"\x00" in self.transcript:
+        if self.args.mode in ("overrun", "reattach") and b"\x00" in self.transcript:
             raise RuntimeError("stale output from the abandoned epoch reached stdout")
 
-        stderr = self.stderr_bytes()
+        stderr = bytes(self.archived_stderr) + self.stderr_bytes()
         gaps = stderr.count(GAP_NOTICE)
-        expected_gaps = 1 if self.args.mode == "overrun" else 0
+        expected_gaps = 21 if self.args.mode == "reattach" else (1 if self.args.mode == "overrun" else 0)
         if gaps != expected_gaps:
             raise RuntimeError(f"expected {expected_gaps} GAP notices, observed {gaps}")
         status = self.status_text()
@@ -364,7 +390,20 @@ class Driver:
             "saw_reconnecting": "everudp-status-v1 state reconnecting" in status,
             "elapsed_ms": round((time.monotonic() - self.started) * 1000),
             "responses": duplicates,
+            "fresh_attachments": self.replacements,
+            "unchanged_processes": self.identity_receipt,
         }
+
+    def identities(self) -> dict[str, list[int]]:
+        result = {}
+        for role in ("child", "gateway"):
+            pid = int((self.args.control_dir / f"{role}-pid").read_text())
+            # Split after comm, which can itself contain spaces or parentheses.
+            fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+            if fields[0] == "Z":
+                raise RuntimeError(f"{role} became a zombie")
+            result[role] = [pid, int(fields[19])]
+        return result
 
     def close(self) -> None:
         if self.process is not None and self.process.poll() is None:
