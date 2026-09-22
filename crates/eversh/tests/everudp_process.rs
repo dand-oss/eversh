@@ -545,3 +545,57 @@ fn authenticated_busy_in_auto_mode_never_falls_back() {
     assert_eq!(count_line(&log, "everudp-bootstrap"), 2, "{log}");
     assert_eq!(count_line(&log, "everssh-fallback"), 0, "{log}");
 }
+
+#[test]
+fn carriage_return_reaches_same_raw_application_after_client_hangup() {
+    let _serial = process_gate();
+    let fixture = Fixture::new();
+    let pid_file = fixture.root.join("raw-child.pid");
+    let program = format!(
+        "stty raw -echo; echo $$ > '{}'; printf 'RAW-READY'; while :; do byte=$(dd bs=1 count=1 2>/dev/null | od -An -tx1); printf 'BYTE:%s;' \"$byte\"; done",
+        pid_file.display()
+    );
+    let mut first = RunningClient::spawn(
+        &fixture,
+        "raw-first",
+        "normal",
+        &[
+            "connect",
+            "localhost",
+            "--transport",
+            "everudp",
+            "--session",
+            "raw-enter",
+            "--",
+            "/bin/sh",
+            "-c",
+            &program,
+        ],
+    );
+    first.wait_connected(&fixture);
+    first.wait_for_bytes(b"RAW-READY");
+    let original_pid = fs::read_to_string(&pid_file).unwrap();
+    first.send(b"\r");
+    first.wait_for_bytes(b"BYTE: 0d;");
+    let status = Command::new("/bin/kill")
+        .args(["-HUP", &first.child.id().to_string()])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    first.wait_for_exit(Duration::from_secs(15));
+    std::thread::sleep(Duration::from_secs(1));
+    let mut second = RunningClient::spawn(
+        &fixture,
+        "raw-second",
+        "normal",
+        &["attach", "localhost", "raw-enter", "--transport", "everudp"],
+    );
+    second.wait_connected(&fixture);
+    second.pump();
+    second.transcript.clear();
+    second.send(b"x\r");
+    second.wait_for_bytes(b"BYTE: 78;BYTE: 0d;");
+    assert_eq!(fs::read_to_string(&pid_file).unwrap(), original_pid);
+    assert!(PathBuf::from(format!("/proc/{}", original_pid.trim())).exists());
+    assert_eq!(count_line(&fixture.log(), "everssh-fallback"), 0);
+}
