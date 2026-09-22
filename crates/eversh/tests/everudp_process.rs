@@ -220,9 +220,11 @@ impl RunningClient {
             .env("FAKE_EVERUDP_LOG", &fixture.log)
             .env("FAKE_EVERUDP_MODE", mode)
             .env("PATH", fixture.path())
-            .env("SHELL", "/bin/sh")
-            .arg("--remote-eversh")
-            .arg(binary())
+            .env("SHELL", "/bin/sh");
+        if arguments.first() != Some(&"__everpty") {
+            command.arg("--remote-eversh").arg(binary());
+        }
+        command
             .args(arguments)
             .stdin(Stdio::from(stdin))
             .stdout(Stdio::from(stdout))
@@ -597,5 +599,60 @@ fn carriage_return_reaches_same_raw_application_after_client_hangup() {
     second.wait_for_bytes(b"BYTE: 78;BYTE: 0d;");
     assert_eq!(fs::read_to_string(&pid_file).unwrap(), original_pid);
     assert!(PathBuf::from(format!("/proc/{}", original_pid.trim())).exists());
+    assert_eq!(count_line(&fixture.log(), "everssh-fallback"), 0);
+}
+
+#[test]
+fn gateway_takeover_preserves_existing_framed_shell_and_enter() {
+    let _serial = process_gate();
+    let fixture = Fixture::new();
+    let pid_file = fixture.root.join("framed-child.pid");
+    let program = format!(
+        "echo $$ > '{}'; printf 'FRAMED-READY'; while IFS= read -r line; do printf 'REPLY:%s\\n' \"$line\"; [ \"$line\" != quit ] || exit 0; done",
+        pid_file.display()
+    );
+    let request = eversh::remote::ControlRequest {
+        take_over: false,
+        origins: vec!["test".to_owned()],
+        child_argv: vec![b"/bin/sh".to_vec(), b"-c".to_vec(), program.into_bytes()],
+    };
+    let token = eversh::remote::base64url_encode(
+        &request.encode(&eversh::limits::Limits::default()).unwrap(),
+    );
+    let mut original = RunningClient::spawn(
+        &fixture,
+        "framed-original",
+        "normal",
+        &[
+            "__everpty",
+            "v1",
+            "attach-or-create",
+            "framed-takeover",
+            &token,
+        ],
+    );
+    original.wait_for_bytes(b"FRAMED-READY");
+    let original_pid = fs::read_to_string(&pid_file).unwrap();
+    original.send(b"before\r");
+    original.wait_for_bytes(b"REPLY:before");
+    let mut replacement = RunningClient::spawn(
+        &fixture,
+        "gateway-replacement",
+        "normal",
+        &[
+            "attach",
+            "localhost",
+            "framed-takeover",
+            "--transport",
+            "everudp",
+            "--take-over",
+        ],
+    );
+    replacement.wait_connected(&fixture);
+    replacement.send(b"after\r");
+    replacement.wait_for_bytes(b"REPLY:after");
+    assert_eq!(fs::read_to_string(&pid_file).unwrap(), original_pid);
+    replacement.send(b"quit\r");
+    assert!(replacement.wait_for_exit(Duration::from_secs(15)).success());
     assert_eq!(count_line(&fixture.log(), "everssh-fallback"), 0);
 }
