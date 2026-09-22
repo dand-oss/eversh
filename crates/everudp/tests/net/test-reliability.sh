@@ -492,6 +492,19 @@ run_overrun() {
     echo "everudp reliability forced overrun: PASS"
 }
 
+wait_reconnect_count() {
+    local minimum=$1 attempts=0 count
+    while (( attempts < 180 )); do
+        count=$(grep -c 'state reconnecting' "$CURRENT_DIR/status.log" || true)
+        if (( count >= minimum )); then return 0; fi
+        kill -0 "$DRIVER_PID" 2>/dev/null || return 1
+        sleep 1
+        attempts=$((attempts + 1))
+    done
+    echo "client never entered reconnect $minimum" >&2
+    return 1
+}
+
 run_reattach() {
     local label=reattach-after-gap pid command
     start_driver "$label" reattach target4
@@ -506,14 +519,14 @@ run_reattach() {
     apply_netem 100 0 0 0 931001
     touch "$CURRENT_DIR/control/go"
     wait_path "$CURRENT_DIR/control/burst-done" 120
-    sleep 35
+    wait_reconnect_count 1
     clear_netem
     touch "$CURRENT_DIR/control/restore"
     wait_path "$CURRENT_DIR/control/first-recovered" 90
     # A second durable resume confirms the replacement epoch. Only then
     # replace the client process, reproducing the previously untested sequence.
     apply_netem 100 0 0 0 931003
-    sleep 35
+    wait_reconnect_count 2
     clear_netem
     touch "$CURRENT_DIR/control/second-restore"
     finish_driver 240

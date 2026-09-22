@@ -258,6 +258,7 @@ class Driver:
                 "outage replay",
             )
         elif self.args.mode == "reattach":
+            self.identity_receipt = self.identities()
             self.wait_path("restore")
             self.wait_status("gapped", timeout=45.0)
             self.send(b"after-overrun\n")
@@ -267,18 +268,21 @@ class Driver:
             self.wait_status("connected", minimum=3, timeout=90.0)
             self.send(b"confirmed-gap\n")
             self.wait_marker_once(b"RX:confirmed-gap", "confirmed gap recovery")
-            self.identity_receipt = self.identities()
+            if self.identities() != self.identity_receipt:
+                raise RuntimeError("network recovery replaced the gateway or child")
             for index in range(20):
                 assert self.process is not None
                 hard = index == 10
                 self.process.send_signal(signal.SIGKILL if hard else signal.SIGTERM)
-                self.process.wait(timeout=10)
+                code = self.process.wait(timeout=10)
+                if code != (-signal.SIGKILL if hard else 143):
+                    raise RuntimeError(f"unexpected local termination {code}")
                 self.pump(0)
                 self.archived_stderr.extend(self.stderr_bytes())
                 os.close(self.master)
                 self.master = -1
                 # SIGKILL cannot emit QUIC close; wait past the real idle timeout.
-                time.sleep(35 if hard else 0.5)
+                time.sleep(90 if hard else 0.5)
                 self.args.status = self.args.status.parent / f"attach-{index}.status"
                 self.args.stderr = self.args.stderr.parent / f"attach-{index}.stderr"
                 self.spawn(attach=True)
