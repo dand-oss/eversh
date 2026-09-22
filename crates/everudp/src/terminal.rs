@@ -197,7 +197,9 @@ impl<'fd> TerminalEdge<'fd> {
         // Boundary hygiene: a previous session in this same window may
         // have died before its remote disabled keyboard, mouse, or paste
         // modes. This session starts from a baseline local terminal.
-        let _ = sys::write_terminal_reset(self.stdout);
+        if sys::is_terminal(self.stdout) {
+            let _ = sys::write_terminal_reset(self.stdout);
+        }
         Ok(())
     }
 
@@ -403,7 +405,7 @@ impl<'fd> TerminalEdge<'fd> {
         // Boundary hygiene precedes every restore: modes enabled by the
         // remote are invisible to termios and must not outlive this
         // session for the next reader of this terminal.
-        if self.role.is_some() {
+        if self.role.is_some() && sys::is_terminal(self.stdout) {
             retain_first(&mut first, sys::write_terminal_reset(self.stdout));
         }
         self.stdin_async = None;
