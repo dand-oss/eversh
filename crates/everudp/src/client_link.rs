@@ -277,7 +277,8 @@ impl ClientLink {
         limits: Limits,
     ) -> Result<Self, ClientLinkError> {
         let deadline = tokio::time::Instant::now() + limits.initial_udp_budget();
-        let prepared = Self::prepare_until(session, &mut association, limits, deadline).await?;
+        let prepared =
+            Self::prepare_until(session, &mut association, limits, deadline, true).await?;
         Ok(Self::from_prepared(prepared, association, limits))
     }
 
@@ -287,7 +288,8 @@ impl ClientLink {
         limits: Limits,
         deadline: tokio::time::Instant,
     ) -> Result<Self, ClientLinkError> {
-        let prepared = Self::prepare_until(session, &mut association, limits, deadline).await?;
+        let prepared =
+            Self::prepare_until(session, &mut association, limits, deadline, true).await?;
         Ok(Self::from_prepared(prepared, association, limits))
     }
 
@@ -307,7 +309,7 @@ impl ClientLink {
         limits: Limits,
     ) -> Result<Self, ResumeLinkFailure> {
         let deadline = tokio::time::Instant::now() + limits.initial_udp_budget();
-        match Self::prepare_until(session, &mut association, limits, deadline).await {
+        match Self::prepare_until(session, &mut association, limits, deadline, false).await {
             Ok(prepared) => Ok(Self::from_prepared(prepared, association, limits)),
             Err(error) => Err(ResumeLinkFailure { error, association }),
         }
@@ -318,25 +320,30 @@ impl ClientLink {
         association: &mut ClientAssociation,
         limits: Limits,
         deadline: tokio::time::Instant,
+        initial: bool,
     ) -> Result<PreparedLink, ClientLinkError> {
         #[cfg(feature = "path-diagnostics")]
         let diagnostic_connection = session.diagnostic_connection();
-        tokio::time::timeout_at(deadline, Self::prepare_inner(session, association, limits))
-            .await
-            .map_err(|_| {
-                #[cfg(feature = "path-diagnostics")]
-                crate::exit_trace::connection_counters(
-                    "client-prepare-timeout",
-                    &diagnostic_connection,
-                );
-                ClientLinkError::Timeout
-            })?
+        tokio::time::timeout_at(
+            deadline,
+            Self::prepare_inner(session, association, limits, initial),
+        )
+        .await
+        .map_err(|_| {
+            #[cfg(feature = "path-diagnostics")]
+            crate::exit_trace::connection_counters(
+                "client-prepare-timeout",
+                &diagnostic_connection,
+            );
+            ClientLinkError::Timeout
+        })?
     }
 
     async fn prepare_inner(
         session: ClientSession,
         association: &mut ClientAssociation,
         limits: Limits,
+        initial: bool,
     ) -> Result<PreparedLink, ClientLinkError> {
         limits
             .validate()
@@ -361,7 +368,7 @@ impl ClientLink {
                     .unwrap_or_else(|| ClientLinkError::from(error)));
             }
         };
-        apply_server_hello_record(association, record)?;
+        apply_server_hello_record(association, record, initial)?;
         crate::exit_trace::record("client-prepare-server-hello-applied");
         control_reader.consume();
 
@@ -1123,6 +1130,7 @@ fn apply_control_record(
 fn apply_server_hello_record(
     association: &mut ClientAssociation,
     record: crate::wire::Record<'_>,
+    initial: bool,
 ) -> Result<(), ClientLinkError> {
     if record.header.kind != Kind::ServerHello {
         return Err(ClientLinkError::ServerHelloMissing);
@@ -1133,7 +1141,13 @@ fn apply_server_hello_record(
     }
     let result = ServerHello::decode_exact(record.payload)
         .map_err(ClientError::from)
-        .and_then(|hello| association.apply_server_hello(hello));
+        .and_then(|hello| {
+            if initial {
+                association.apply_initial_server_hello(hello)
+            } else {
+                association.apply_server_hello(hello)
+            }
+        });
     if let Err(error) = result {
         association.abort_server_control(record.header.sequence)?;
         return Err(error.into());

@@ -133,6 +133,7 @@ pub struct ClientAssociation {
     control: ReplayRing,
     input_closed: bool,
     last_gap: Option<EpochGap>,
+    server_hello_applied: bool,
     gap_notice_pending: bool,
     output_staging: Box<[u8]>,
     pending_output: Option<PendingOutput>,
@@ -165,6 +166,7 @@ impl ClientAssociation {
             control: ReplayRing::control_after_hello(&limits)?,
             input_closed: false,
             last_gap: None,
+            server_hello_applied: false,
             gap_notice_pending: false,
             output_staging: output_staging.into_boxed_slice(),
             pending_output: None,
@@ -270,6 +272,30 @@ impl ClientAssociation {
     }
 
     pub fn apply_server_hello(&mut self, hello: ServerHello) -> Result<(), ClientError> {
+        self.apply_server_hello_inner(hello, false)
+    }
+
+    /// A fresh process has no durable output epoch. Older persistent gateways
+    /// describe a replacement writer's GAP using their previous writer's epoch.
+    /// Accept that baseline only at initial admission, never on durable resume.
+    pub(crate) fn apply_initial_server_hello(
+        &mut self,
+        hello: ServerHello,
+    ) -> Result<(), ClientError> {
+        let fresh = !self.server_hello_applied
+            && self.output.epoch() == 0
+            && self.output.acknowledgement() == 0
+            && self.input.next_sequence() == 0
+            && self.last_gap.is_none()
+            && self.pending_output.is_none();
+        self.apply_server_hello_inner(hello, fresh)
+    }
+
+    fn apply_server_hello_inner(
+        &mut self,
+        hello: ServerHello,
+        fresh: bool,
+    ) -> Result<(), ClientError> {
         if hello.association_id() != self.association_id {
             return Err(ClientError::AssociationMismatch);
         }
@@ -297,7 +323,7 @@ impl ClientAssociation {
                 return Err(ClientError::GapMismatch);
             }
             let gap = EpochGap::new(abandoned, replacement)?;
-            if self.last_gap != Some(gap) && abandoned != self.output.epoch() {
+            if !fresh && self.last_gap != Some(gap) && abandoned != self.output.epoch() {
                 return Err(ClientError::GapMismatch);
             }
         } else if hello.output_epoch != self.output.epoch() {
@@ -318,8 +344,12 @@ impl ClientAssociation {
         }
         self.input.acknowledge(hello.accepted_input_ack)?;
         if let Some((abandoned, replacement)) = hello.pending_gap {
+            if fresh && abandoned != self.output.epoch() {
+                self.output.reset_epoch(abandoned, 0)?;
+            }
             self.apply_gap(EpochGap::new(abandoned, replacement)?)?;
         }
+        self.server_hello_applied = true;
         Ok(())
     }
 
@@ -692,5 +722,71 @@ fn decode_output_operation<'a>(
             stream: StreamRole::Output,
         }
         .into()),
+    }
+}
+
+#[cfg(test)]
+mod initial_hello_tests {
+    use super::*;
+
+    fn client_and_hello() -> (ClientAssociation, ServerHello) {
+        let id = AssociationId::from_bytes([1; 16]).expect("id");
+        let generation = GatewayGeneration::from_bytes([2; 16]).expect("generation");
+        let client =
+            ClientAssociation::new(id, generation, ConnectionRole::Writer, Limits::default())
+                .expect("client");
+        let hello = ServerHello::new(
+            id,
+            generation,
+            ConnectionRole::Writer,
+            0,
+            0,
+            8,
+            0,
+            Some((7, 8)),
+        )
+        .expect("hello");
+        (client, hello)
+    }
+
+    #[test]
+    fn fresh_client_accepts_old_gateway_gap_but_durable_resume_rejects_it() {
+        let (mut client, hello) = client_and_hello();
+        assert!(matches!(
+            client.apply_server_hello(hello.clone()),
+            Err(ClientError::GapMismatch)
+        ));
+        client
+            .apply_initial_server_hello(hello)
+            .expect("old gateway initial hello");
+        assert_eq!(client.position().output_epoch, 8);
+        let gap = EpochGap::new(7, 8).expect("gap");
+        assert_eq!(client.take_gap_notice(), Some(gap));
+        assert!(!client.apply_gap(gap).expect("duplicate gap"));
+        assert_eq!(client.take_gap_notice(), None);
+        let (_, mut next) = client_and_hello();
+        next.output_epoch = 10;
+        next.pending_gap = Some((9, 10));
+        assert!(matches!(
+            client.apply_initial_server_hello(next),
+            Err(ClientError::GapMismatch)
+        ));
+        assert_eq!(client.position().output_epoch, 8);
+    }
+
+    #[test]
+    fn malformed_initial_gap_does_not_change_client_state() {
+        let (mut client, mut hello) = client_and_hello();
+        hello.output_epoch = 9;
+        assert!(matches!(
+            client.apply_initial_server_hello(hello),
+            Err(ClientError::GapMismatch)
+        ));
+        assert_eq!(client.position().output_epoch, 0);
+        assert_eq!(client.take_gap_notice(), None);
+        let (_, valid) = client_and_hello();
+        client
+            .apply_initial_server_hello(valid)
+            .expect("valid retry");
     }
 }
