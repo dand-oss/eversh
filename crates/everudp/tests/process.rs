@@ -799,7 +799,12 @@ fn flow_controlled_observer_never_stalls_writer_or_pty_drain() {
         "a slow observer must not gap the healthy writer"
     );
 
-    assert_eq!(observer.cancel().code(), Some(143));
+    assert_eq!(
+        observer.cancel().code(),
+        Some(143),
+        "observer stderr: {}",
+        observer.stderr()
+    );
     writer.send(b"quit\n");
     assert_eq!(writer.wait_for_exit().code(), Some(23));
 }
