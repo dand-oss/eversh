@@ -356,6 +356,9 @@ snapshot_network() {
 start_driver() {
     local label=$1 mode=$2 destination=${3:-target4} driver_timeout=${4:-2400}
     local -a trace_window_args=()
+    if [[ ${EVERUDP_FRESH_AFTER_OUTAGE:-0} == 1 ]]; then
+        trace_window_args+=(--fresh-after-outage)
+    fi
     CURRENT_DIR="$OUTDIR/scenarios/$label"
     mkdir -p "$CURRENT_DIR/control"
     chown -R "$RUN_USER" "$CURRENT_DIR"
@@ -378,6 +381,18 @@ start_driver() {
     DRIVER_PID=$!
     wait_path "$CURRENT_DIR/control/ready" 40
     local client_pid= gateway_pid= pid command
+    if [[ ${EVERUDP_FRESH_AFTER_OUTAGE:-0} == 1 ]]; then
+        local encoded_label
+        encoded_label=$(printf '%s' "$label" | od -An -tx1 | tr -d ' \n')
+        for pid in $("$IP" netns pids "$SERVER_NS"); do
+            command=$(tr '\0' ' ' <"/proc/$pid/cmdline" 2>/dev/null || true)
+            if [[ $command == *"__gateway-v1"* && $command == *"$encoded_label"* ]]; then
+                echo "$pid" >"$CURRENT_DIR/control/gateway-pid"
+                break
+            fi
+        done
+        [[ -s "$CURRENT_DIR/control/gateway-pid" ]]
+    fi
     if [[ ${EVERUDP_TRACE_CLIENT:-0} == 1 ]]; then
         client_pid=$(<"$CURRENT_DIR/control/client-pid")
         [[ $client_pid =~ ^[1-9][0-9]*$ && -r /proc/$client_pid/status ]] \
@@ -590,7 +605,7 @@ run_packet_proof() {
         echo "post-bootstrap everudp process owns a TCP socket" >&2
         return 1
     fi
-    "$IP" netns exec "$CLIENT_NS" "$TCPDUMP" --immediate-mode -U -n -i c0 \
+    "$IP" netns exec "$CLIENT_NS" "$TCPDUMP" -Z root --immediate-mode -U -n -i c0 \
         -w "$CURRENT_DIR/terminal.pcap" 'host 10.253.0.1 and (udp or tcp)' \
         >"$CURRENT_DIR/tcpdump.stdout" 2>"$CURRENT_DIR/tcpdump.stderr" &
     CAPTURE_PID=$!

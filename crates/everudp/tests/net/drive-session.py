@@ -79,6 +79,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--messages", type=int, default=200)
     parser.add_argument("--timeout", type=float, default=2400.0)
     parser.add_argument("--hold-at-driver-done", action="store_true")
+    parser.add_argument("--fresh-after-outage", action="store_true")
     return parser.parse_args()
 
 
@@ -91,6 +92,7 @@ class Driver:
         self.process: subprocess.Popen[bytes] | None = None
         self.original_termios: list[object] | None = None
         self.archived_stderr = bytearray()
+        self.archived_status = ""
         self.identity_receipt = {}
         self.replacements = 0
 
@@ -231,6 +233,8 @@ class Driver:
         self.wait_marker_once(f"RX:{pre}".encode(), "preflight response")
         (self.args.control_dir / "ready").touch()
         self.wait_path("go")
+        if self.args.fresh_after_outage:
+            self.identity_receipt = self.identities()
 
         expected: list[bytes] = []
         if self.args.mode == "stream":
@@ -271,22 +275,7 @@ class Driver:
             if self.identities() != self.identity_receipt:
                 raise RuntimeError("network recovery replaced the gateway or child")
             for index in range(20):
-                assert self.process is not None
-                hard = index == 10
-                self.process.send_signal(signal.SIGKILL if hard else signal.SIGTERM)
-                code = self.process.wait(timeout=10)
-                if code != (-signal.SIGKILL if hard else 143):
-                    raise RuntimeError(f"unexpected local termination {code}")
-                self.pump(0)
-                self.archived_stderr.extend(self.stderr_bytes())
-                os.close(self.master)
-                self.master = -1
-                # SIGKILL cannot emit QUIC close; wait past the real idle timeout.
-                time.sleep(90 if hard else 0.5)
-                self.args.status = self.args.status.parent / f"attach-{index}.status"
-                self.args.stderr = self.args.stderr.parent / f"attach-{index}.stderr"
-                self.spawn(attach=True)
-                self.wait_status("connected", timeout=30.0)
+                self.replace_client(index, hard=index == 10)
                 marker = f"reconnect-{index:02d}"
                 self.send(f"{marker}\n".encode())
                 response = f"RX:{marker}".encode()
@@ -346,6 +335,12 @@ class Driver:
                 "elapsed_ms": round((time.monotonic() - self.started) * 1000),
             }
 
+        if self.args.fresh_after_outage:
+            self.replace_client(0)
+            self.replacements = 1
+            if self.identities() != self.identity_receipt:
+                raise RuntimeError("long outage or fresh attach replaced the gateway or child")
+
         post = f"post-{self.args.session}"
         expected.append(f"RX:{post}".encode())
         self.send(f"{post}\n".encode())
@@ -376,9 +371,10 @@ class Driver:
         stderr = bytes(self.archived_stderr) + self.stderr_bytes()
         gaps = stderr.count(GAP_NOTICE)
         expected_gaps = 21 if self.args.mode == "reattach" else (1 if self.args.mode == "overrun" else 0)
+        expected_gaps += int(self.args.fresh_after_outage)
         if gaps != expected_gaps:
             raise RuntimeError(f"expected {expected_gaps} GAP notices, observed {gaps}")
-        status = self.status_text()
+        status = self.archived_status + self.status_text()
         if self.args.mode == "outage" and "everudp-status-v1 state reconnecting" not in status:
             raise RuntimeError("total loss never reached the reconnecting state")
 
@@ -397,6 +393,24 @@ class Driver:
             "fresh_attachments": self.replacements,
             "unchanged_processes": self.identity_receipt,
         }
+
+    def replace_client(self, index: int, hard: bool = False) -> None:
+        assert self.process is not None
+        self.process.send_signal(signal.SIGKILL if hard else signal.SIGTERM)
+        code = self.process.wait(timeout=10)
+        if code != (-signal.SIGKILL if hard else 143):
+            raise RuntimeError(f"unexpected local termination {code}")
+        self.pump(0)
+        self.archived_stderr.extend(self.stderr_bytes())
+        self.archived_status += self.status_text()
+        os.close(self.master)
+        self.master = -1
+        # SIGKILL cannot emit QUIC close; wait past the real idle timeout.
+        time.sleep(90 if hard else 0.5)
+        self.args.status = self.args.status.parent / f"attach-{index}.status"
+        self.args.stderr = self.args.stderr.parent / f"attach-{index}.stderr"
+        self.spawn(attach=True)
+        self.wait_status("connected", timeout=30.0)
 
     def identities(self) -> dict[str, list[int]]:
         result = {}
