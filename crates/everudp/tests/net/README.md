@@ -33,6 +33,10 @@ sleep/wake, five- and thirty-minute total loss, and output-queue overrun. Set
 `EVERUDP_SMOKE=1 EVERUDP_ALLOW_DIRTY=1` only for the bounded development shape;
 that receipt is marked `smoke: true` and cannot satisfy release qualification.
 
+Reconnect acceptance includes `EVERUDP_ONLY=reattach-after-gap`: overflow output during packet loss, recover, force a second confirmed network resume, then launch twenty fresh clients against the same gateway and child. One client is killed abruptly. The receipt requires unchanged process IDs and start times, unique input/output responses, and expected GAP notices. This case also runs in the full and smoke matrices.
+
+Set `EVERUDP_REMOTE_BIN` to an older server executable to verify a corrected client against an already-running gateway version. `EVERUDP_ONLY=outage-30m` and `outage-12h` run independently; add `EVERUDP_FRESH_AFTER_OUTAGE=1` to require a fresh client attachment after the surviving client recovers. The twelve-hour driver deadline includes the actual outage duration. A running or missing soak receipt is pending, never a pass. Capture files receive tcpdump's binary stdout through the invoking shell so confined tcpdump does not need access to private evidence-directory paths.
+
 `build-performance.sh OUTDIR` creates the exact, immutable artifact set used by
 the parity gate. It requires a clean candidate tree, Zig 0.15.2 in
 `EVERUDP_ZIG_0152`, and Zig 0.16.0 in `EVERUDP_ZIG_0160`. It builds everudp,

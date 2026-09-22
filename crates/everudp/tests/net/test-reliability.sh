@@ -606,8 +606,8 @@ run_packet_proof() {
         return 1
     fi
     "$IP" netns exec "$CLIENT_NS" "$TCPDUMP" -Z root --immediate-mode -U -n -i c0 \
-        -w "$CURRENT_DIR/terminal.pcap" 'host 10.253.0.1 and (udp or tcp)' \
-        >"$CURRENT_DIR/tcpdump.stdout" 2>"$CURRENT_DIR/tcpdump.stderr" &
+        -w - 'host 10.253.0.1 and (udp or tcp)' \
+        >"$CURRENT_DIR/terminal.pcap" 2>"$CURRENT_DIR/tcpdump.stderr" &
     CAPTURE_PID=$!
     sleep 0.3
     touch "$CURRENT_DIR/control/go"
