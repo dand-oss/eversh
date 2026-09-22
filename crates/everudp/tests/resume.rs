@@ -866,3 +866,264 @@ async fn hostile_resume_bindings_are_terminal_but_do_not_kill_the_gateway_endpoi
     .await
     .expect("hostile resume deadline");
 }
+
+// A client process restart cannot resume an in-memory association: the new
+// process presents output epoch zero. Once a writer generation has confirmed
+// a gap, the gateway's stored earliest-abandoned epoch is no longer zero, so
+// the fresh generation must be told about the epochs it actually missed
+// instead of the epochs the previous generation had already absorbed.
+#[tokio::test(flavor = "current_thread")]
+async fn a_fresh_writer_attach_is_told_the_epochs_it_missed() {
+    tokio::time::timeout(Duration::from_secs(8), async {
+        let limits = Limits::default();
+        let store = Arc::new(Mutex::new(
+            InvitationStore::new("work", generation(), &limits).expect("store"),
+        ));
+        let gateway_identity = GatewayIdentity::generate().expect("gateway identity");
+        let gateway =
+            GatewayEndpoint::bind(loopback(), &gateway_identity, Arc::clone(&store), limits)
+                .expect("gateway");
+        let mut lifecycle = GatewayLifecycle::new(&limits).expect("lifecycle");
+        let mut slabs = GatewayReplaySlabs::new(&limits).expect("slabs");
+
+        // First writer generation, created by a client process that will be
+        // gone by the time the second one attaches.
+        let client_identity = ClientIdentity::generate().expect("client identity");
+        let ticket = store
+            .lock()
+            .expect("store lock")
+            .issue(
+                association(),
+                ConnectionRole::Writer,
+                client_identity.spki_sha256(),
+                everpty::sys::clock_monotonic_ms().expect("clock"),
+            )
+            .expect("ticket");
+        let initial = ClientHello::initial(
+            association(),
+            generation(),
+            ConnectionRole::Writer,
+            initial_position(),
+            ticket.token().clone(),
+        )
+        .expect("initial hello");
+        let client = ClientEndpoint::bind(
+            loopback(),
+            &client_identity,
+            gateway_identity.spki_sha256(),
+            limits,
+        )
+        .expect("client endpoint");
+        let (admitted, session) = tokio::join!(
+            gateway.accept_initial(),
+            client.connect_initial(gateway.local_addr(), &initial)
+        );
+        let client_association =
+            ClientAssociation::new(association(), generation(), ConnectionRole::Writer, limits)
+                .expect("client association");
+        let (server_link, client_link) = tokio::join!(
+            GatewayLink::accept_initial(
+                admitted.expect("initial admission"),
+                &mut lifecycle,
+                &mut slabs,
+                limits,
+            ),
+            ClientLink::finish_initial(
+                session.expect("initial session"),
+                client_association,
+                limits,
+            )
+        );
+        let server_link = server_link.expect("initial server link").0;
+        let client_link = client_link.expect("initial client link");
+        let authorization = server_link.association().authorization();
+        let remote = gateway.local_addr();
+
+        // The attached writer falls behind, so the gateway abandons epoch
+        // zero and stops buffering.
+        for _ in 0..limits.queue_operations_per_direction {
+            slabs
+                .push_output(Kind::Output, b"stale")
+                .expect("fill output");
+        }
+        assert!(matches!(
+            slabs
+                .push_output(Kind::Output, b"discarded tail")
+                .expect("overrun")
+                .writer,
+            OutputPush::Overrun {
+                abandoned_epoch: 0,
+                replacement_epoch: 1,
+            }
+        ));
+
+        // Durable resume one announces the gap to the surviving association.
+        let server_association = server_link.into_resumable_association();
+        let client_association = client_link.into_resumable_association();
+        let hello = client_association.resume_hello().expect("resume one hello");
+        let (admitted, session) = tokio::join!(
+            gateway.accept_resume(authorization),
+            client.connect_resume(remote, &hello)
+        );
+        let (resumed_server, resumed_client) = tokio::join!(
+            GatewayLink::accept_resume(
+                admitted.expect("resume one admission"),
+                server_association,
+                &mut lifecycle,
+                &mut slabs,
+                limits,
+            ),
+            ClientLink::finish_resume(
+                session.expect("resume one transport"),
+                client_association,
+                limits,
+            )
+        );
+        let server_link = resumed_server.expect("resume one gateway link").0;
+        let mut client_link = resumed_client.expect("resume one client link");
+        assert_eq!(client_link.association().position().output_epoch, 1);
+        assert_eq!(
+            client_link.association_mut().take_gap_notice(),
+            Some(everudp::wire::EpochGap::new(0, 1).expect("gap"))
+        );
+        assert_eq!(slabs.writer_output().pending_gap(), Some((0, 1)));
+
+        // Durable resume two confirms that gap, so the gateway retires the
+        // pending epochs and will later abandon from epoch one.
+        let server_association = server_link.into_resumable_association();
+        let client_association = client_link.into_resumable_association();
+        let hello = client_association.resume_hello().expect("resume two hello");
+        let (admitted, session) = tokio::join!(
+            gateway.accept_resume(authorization),
+            client.connect_resume(remote, &hello)
+        );
+        let (resumed_server, resumed_client) = tokio::join!(
+            GatewayLink::accept_resume(
+                admitted.expect("resume two admission"),
+                server_association,
+                &mut lifecycle,
+                &mut slabs,
+                limits,
+            ),
+            ClientLink::finish_resume(
+                session.expect("resume two transport"),
+                client_association,
+                limits,
+            )
+        );
+        let server_link = resumed_server.expect("resume two gateway link").0;
+        let mut client_link = resumed_client.expect("resume two client link");
+        assert_eq!(client_link.association().position().output_epoch, 1);
+        assert_eq!(client_link.association_mut().take_gap_notice(), None);
+        assert_eq!(slabs.writer_output().pending_gap(), None);
+
+        // The client process goes away. The next attach retires its writer
+        // generation exactly as `handle_initial` -> `retire_writer` does.
+        server_link.close();
+        client_link.close();
+        assert_eq!(
+            lifecycle.release(association()),
+            Some(ConnectionRole::Writer)
+        );
+        assert_eq!(
+            slabs.replace_writer_generation().expect("replacement"),
+            (1, 2)
+        );
+        assert_eq!(slabs.writer_output().pending_gap(), Some((1, 2)));
+
+        // A brand-new process attaches with no durable position.
+        let fresh_association = AssociationId::from_bytes([53; 16]).expect("fresh association");
+        let fresh_identity = ClientIdentity::generate().expect("fresh client identity");
+        let fresh_ticket = store
+            .lock()
+            .expect("store lock")
+            .issue(
+                fresh_association,
+                ConnectionRole::Writer,
+                fresh_identity.spki_sha256(),
+                everpty::sys::clock_monotonic_ms().expect("clock"),
+            )
+            .expect("fresh ticket");
+        let fresh_hello = ClientHello::initial(
+            fresh_association,
+            generation(),
+            ConnectionRole::Writer,
+            initial_position(),
+            fresh_ticket.token().clone(),
+        )
+        .expect("fresh hello");
+        let fresh_client = ClientEndpoint::bind(
+            loopback(),
+            &fresh_identity,
+            gateway_identity.spki_sha256(),
+            limits,
+        )
+        .expect("fresh client endpoint");
+        let (admitted, session) = tokio::join!(
+            gateway.accept_initial(),
+            fresh_client.connect_initial(gateway.local_addr(), &fresh_hello)
+        );
+        let fresh_client_association = ClientAssociation::new(
+            fresh_association,
+            generation(),
+            ConnectionRole::Writer,
+            limits,
+        )
+        .expect("fresh client association");
+        let (fresh_server, fresh_client_result) = tokio::join!(
+            GatewayLink::accept_initial(
+                admitted.expect("fresh admission"),
+                &mut lifecycle,
+                &mut slabs,
+                limits,
+            ),
+            ClientLink::finish_initial(
+                session.expect("fresh session"),
+                fresh_client_association,
+                limits,
+            )
+        );
+        let mut fresh_server_link = fresh_server.expect("fresh gateway link").0;
+        let mut fresh_client_link =
+            fresh_client_result.expect("a fresh attach after a confirmed gap must be accepted");
+        assert_eq!(
+            fresh_client_link.association().position().output_epoch,
+            2,
+            "the fresh generation adopts the current output epoch"
+        );
+        assert_eq!(
+            fresh_client_link.association_mut().take_gap_notice(),
+            Some(everudp::wire::EpochGap::new(0, 2).expect("gap"))
+        );
+        fresh_client_link
+            .association_mut()
+            .queue_input(b"fresh-input")
+            .expect("input");
+        fresh_client_link.flush_input().await.expect("send input");
+        fresh_server_link
+            .receive_input(&mut slabs, |operation| {
+                assert_eq!(operation, InputOperation::Bytes(b"fresh-input"));
+                Ok(())
+            })
+            .await
+            .expect("deliver fresh input");
+        slabs
+            .push_output(Kind::Output, b"fresh-output")
+            .expect("queue fresh output");
+        fresh_server_link
+            .flush_output(&slabs)
+            .await
+            .expect("send fresh output");
+        fresh_client_link
+            .receive_output(|operation| {
+                assert_eq!(operation, OutputOperation::Bytes(b"fresh-output"));
+                Ok(())
+            })
+            .await
+            .expect("deliver fresh output");
+        fresh_server_link.close();
+        fresh_client_link.close();
+    })
+    .await
+    .expect("fresh writer attach deadline");
+}

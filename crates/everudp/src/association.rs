@@ -169,6 +169,18 @@ impl GatewayAssociation {
         }
         let association_id = admitted.hello().association_id();
         let role = admitted.hello().role();
+        // A client process restart cannot resume an in-memory association:
+        // the new process presents output epoch zero. The persistent
+        // gateway may have abandoned output epochs since its last completed
+        // handshake, so the GAP must start at the epoch this client
+        // actually claims. Computed before admission so no error path can
+        // strand an admitted association.
+        let initial_gap = match role {
+            ConnectionRole::Writer => {
+                slabs.initial_writer_gap(admitted.hello().position().output_epoch)?
+            }
+            ConnectionRole::Observer => None,
+        };
         let action = lifecycle.admit(admitted, admitted.take_over())?;
         if role == ConnectionRole::Observer {
             if let Err(error) = slabs.add_observer(association_id) {
@@ -182,10 +194,21 @@ impl GatewayAssociation {
             role,
             admitted.client_spki_sha256(),
         );
+        // `complete_resume_for` also returns the shared output stream to
+        // buffering, so a discarded overrun does not silence the
+        // replacement writer.
+        association.resume_gap = initial_gap;
         if let Err(error) = association.queue_server_hello(slabs) {
             association.rollback_initial(lifecycle, slabs)?;
             return Err(error);
         }
+        if initial_gap.is_some() {
+            if let Err(error) = association.complete_resume_for(slabs, initial_gap) {
+                association.rollback_initial(lifecycle, slabs)?;
+                return Err(error);
+            }
+        }
+        association.resume_gap = None;
         Ok((association, action))
     }
 

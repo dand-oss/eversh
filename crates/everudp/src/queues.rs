@@ -1028,6 +1028,23 @@ impl GatewayReplaySlabs {
             .reconcile_resume(client_epoch, delivered_ack)
     }
 
+    /// Reconciles a *fresh* writer generation that carries no durable
+    /// position. A restarted client process always presents output epoch
+    /// zero, so the GAP it is told about must begin there. The stored
+    /// earliest-abandoned epoch belongs to the durable association that
+    /// actually observed it; reporting it to a new process would name an
+    /// epoch that process never held.
+    pub(crate) fn initial_writer_gap(
+        &self,
+        client_epoch: u64,
+    ) -> Result<Option<(u64, u64)>, QueueError> {
+        let current = self.writer_output.epoch();
+        if current < client_epoch {
+            return Err(QueueError::EpochMismatch);
+        }
+        Ok((current > client_epoch).then_some((client_epoch, current)))
+    }
+
     pub(crate) fn reconcile_observer_resume(
         &mut self,
         association_id: AssociationId,
