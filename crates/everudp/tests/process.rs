@@ -799,8 +799,26 @@ fn flow_controlled_observer_never_stalls_writer_or_pty_drain() {
         "a slow observer must not gap the healthy writer"
     );
 
+    // Keep the observer terminal full until cancellation completes. Pumping
+    // it while waiting used to hide a cleanup EAGAIN race intermittently.
+    assert!(Command::new("/bin/kill")
+        .args(["-TERM", &observer.child.id().to_string()])
+        .status()
+        .unwrap()
+        .success());
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let cancelled = loop {
+        if let Some(status) = observer.child.try_wait().unwrap() {
+            break status;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "blocked observer cancellation timed out"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    };
     assert_eq!(
-        observer.cancel().code(),
+        cancelled.code(),
         Some(143),
         "observer stderr: {}",
         observer.stderr()

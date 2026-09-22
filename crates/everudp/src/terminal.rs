@@ -406,7 +406,13 @@ impl<'fd> TerminalEdge<'fd> {
         // remote are invisible to termios and must not outlive this
         // session for the next reader of this terminal.
         if self.role.is_some() && sys::is_terminal(self.stdout) {
-            retain_first(&mut first, sys::write_terminal_reset(self.stdout));
+            match sys::write_terminal_reset(self.stdout) {
+                // Escape-sequence hygiene is best effort when the terminal
+                // consumer is stalled. Never block cancellation or replace
+                // its outcome merely because the output queue is full.
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
+                result => retain_first(&mut first, result),
+            }
         }
         self.stdin_async = None;
         self.stdout_async = None;
@@ -607,6 +613,38 @@ mod tests {
 
         let error = read_one_signal(read.as_fd()).expect_err("empty signal pipe");
         assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
+    }
+
+    #[test]
+    fn full_terminal_output_does_not_turn_cleanup_into_an_error() {
+        let (_master, slave) = sys::openpty(24, 80).expect("openpty");
+        let fd = slave.as_fd();
+        let original = sys::terminal_attributes(fd).expect("attributes");
+        let original_mask = sys::current_signal_mask().expect("signal mask");
+        let mut edge = TerminalEdge::stage(fd, fd, fd).expect("stage");
+        edge.activate(ConnectionRole::Writer).expect("activate");
+        // Keep the terminal consumer stopped. Fill both the PTY queue and
+        // any deferred line-discipline buffers without reading the master.
+        for _ in 0..4 {
+            loop {
+                match sys::write_fd(fd, &[b'x'; 128]) {
+                    Ok(n) if n > 0 => {}
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
+                    result => panic!("fill terminal: {result:?}"),
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        let result = edge.deactivate();
+        assert!(sys::terminal_attributes(fd).expect("restored attributes") == original);
+        assert_eq!(
+            sys::current_signal_mask().expect("restored mask"),
+            original_mask
+        );
+        assert!(
+            result.is_ok(),
+            "best-effort reset masked terminal cleanup: {result:?}"
+        );
     }
 
     #[test]
