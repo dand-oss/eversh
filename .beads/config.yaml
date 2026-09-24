@@ -76,4 +76,4 @@ dolt:
     shared-server: true
     auto-start: false
 sync:
-    remote: "git+ssh://git@github.com/dand-oss/eversh.git"
+    remote: "git+ssh://git@gitlab.com/appsware/eversh-beads.git"
