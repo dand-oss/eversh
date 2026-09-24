@@ -18,6 +18,7 @@ pub mod identity;
 pub mod limits;
 pub mod link_status;
 pub mod pinning;
+pub mod port_range;
 pub mod resume;
 pub mod role_protocol;
 pub mod roles;
@@ -31,6 +32,7 @@ pub use bridge::{BridgeCompletion, DrainStatus, FinalizeStatus, StdioBridge, Tar
 pub use error::{Error, RemoteCommandFailure};
 pub use identity::EphemeralClientIdentity;
 pub use limits::Limits;
+pub use port_range::UdpPortRange;
 pub use shutdown::{
     CopyDirection, CopyOperation, DeadlineKind, Phase, RequestStatus, Shutdown, ShutdownSnapshot,
     TerminalCause, TransitionError,

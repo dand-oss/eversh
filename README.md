@@ -30,7 +30,7 @@ eversh detach badger.a work
 eversh kill badger.a work
 ~~~
 
-`connect`, `attach`, `observe`, and `resume-all` accept `--transport everssh|everudp|auto` (default `everssh`); with `everudp`, SSH is used only to bootstrap and recover, and terminal bytes ride a direct QUIC stream. Every session command accepts audited `--ssh-option` values, and `--remote-eversh WORD_OR_PATH` selects the remote binary when it is not on the login `PATH`. Full usage, install, and upgrade instructions are in [docs/install.md](docs/install.md).
+`connect`, `attach`, `observe`, and `resume-all` accept `--transport everssh|everudp|auto` (default `everssh`); with `everudp`, SSH is used only to bootstrap and recover, and terminal bytes ride a direct QUIC stream. Every session command accepts audited `--ssh-option` values, and `--remote-eversh WORD_OR_PATH` selects the remote binary when it is not on the login `PATH`. When the remote host firewall only admits a fixed UDP range, add the global `--udp-port-range START:END` (for example `eversh --udp-port-range 60000:60010 list myhost`) so the remote binds its UDP endpoint inside that range. Full usage, install, and upgrade instructions are in [docs/install.md](docs/install.md).
 
 ## How it fits together
 

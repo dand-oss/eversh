@@ -18,13 +18,13 @@ fn os(values: &[&str]) -> Vec<OsString> {
 #[test]
 fn proxy_command_is_exact_and_quoted() {
     let options = vec!["-oConnectTimeout=7".to_owned(), "-4".to_owned()];
-    let proxy = proxy_command(SELF, "eversh", &options, None).unwrap();
+    let proxy = proxy_command(SELF, "eversh", &options, None, None).unwrap();
     assert_eq!(
         proxy,
         "'/usr/local/bin/eversh' __everssh ssh-proxy '%n' '%p' \
          --remote-eversh 'eversh' --ssh-option '-oConnectTimeout=7' --ssh-option '-4'"
     );
-    let proxy = proxy_command(SELF, "/opt/eversh/bin/eversh", &[], None).unwrap();
+    let proxy = proxy_command(SELF, "/opt/eversh/bin/eversh", &[], None, None).unwrap();
     assert!(proxy.contains("--remote-eversh '/opt/eversh/bin/eversh'"));
     assert!(!proxy.contains("--status-file"));
 }
@@ -40,6 +40,7 @@ fn proxy_command_status_file_is_one_quoted_argument() {
         Some(std::path::Path::new(
             "/tmp/eversh/link-status/4242-1-0.status",
         )),
+        None,
     )
     .unwrap();
     assert_eq!(
@@ -58,7 +59,8 @@ fn proxy_command_status_file_is_one_quoted_argument() {
         "/tmp/quote\"double/tilde~.status",
         "/tmp/ünïcödé/öne.status",
     ] {
-        let proxy = proxy_command(SELF, "eversh", &[], Some(std::path::Path::new(path))).unwrap();
+        let proxy =
+            proxy_command(SELF, "eversh", &[], Some(std::path::Path::new(path)), None).unwrap();
         assert!(
             proxy.ends_with(&format!("--status-file '{path}'")),
             "{proxy}"
@@ -79,7 +81,7 @@ fn proxy_command_status_file_is_one_quoted_argument() {
         "/tmp/%C-expansion.status",
     ] {
         assert!(
-            proxy_command(SELF, "eversh", &[], Some(std::path::Path::new(bad))).is_err(),
+            proxy_command(SELF, "eversh", &[], Some(std::path::Path::new(bad)), None).is_err(),
             "accepted status path {bad:?}"
         );
     }
@@ -93,7 +95,8 @@ fn proxy_command_status_file_is_one_quoted_argument() {
                 &[],
                 Some(std::path::Path::new(std::ffi::OsStr::from_bytes(
                     b"/tmp/\xff.status"
-                )))
+                ))),
+                None
             )
             .is_err(),
             "accepted non-UTF-8 status path"
@@ -137,7 +140,7 @@ fn proxy_command_fails_closed() {
         "-oUser=a'b",
     ] {
         assert!(
-            proxy_command(SELF, "eversh", &[option.to_owned()], None).is_err(),
+            proxy_command(SELF, "eversh", &[option.to_owned()], None, None).is_err(),
             "accepted {option}"
         );
     }
@@ -150,7 +153,7 @@ fn proxy_command_fails_closed() {
         "a'b",
     ] {
         assert!(
-            proxy_command(SELF, remote, &[], None).is_err(),
+            proxy_command(SELF, remote, &[], None, None).is_err(),
             "accepted remote word {remote:?}"
         );
     }
@@ -202,7 +205,7 @@ fn outer_ssh_argv_is_ordered_and_exact() {
         ]
     );
 
-    let proxy = proxy_command(SELF, "eversh", &[], None).unwrap();
+    let proxy = proxy_command(SELF, "eversh", &[], None, None).unwrap();
     let args = outer_ssh_args(&proxy, &["-4".to_owned()], "user@alias", &words, true).unwrap();
     assert_eq!(
         args,
@@ -267,6 +270,7 @@ fn everudp_reexec_is_direct_and_exact() {
         },
         &["-4".to_owned()],
         Some(status),
+        None,
         &limits,
     )
     .unwrap();
@@ -296,6 +300,7 @@ fn everudp_reexec_is_direct_and_exact() {
         "host",
         EverudpOp::Observe { name: "work" },
         &[],
+        None,
         None,
         &limits,
     )
@@ -349,7 +354,7 @@ fn list_words_carry_the_filter_as_the_single_token() {
 
 #[test]
 fn raw_ssh_argv_injects_only_the_proxy() {
-    let proxy = proxy_command(SELF, "eversh", &[], None).unwrap();
+    let proxy = proxy_command(SELF, "eversh", &[], None, None).unwrap();
     // No inner `--`: every token is an option (legacy behavior preserved).
     let args = raw_ssh_args(
         &proxy,
@@ -373,7 +378,7 @@ fn raw_ssh_argv_injects_only_the_proxy() {
 
 #[test]
 fn raw_ssh_argv_splits_pre_and_post_on_inner_separator() {
-    let proxy = proxy_command(SELF, "eversh", &[], None).unwrap();
+    let proxy = proxy_command(SELF, "eversh", &[], None, None).unwrap();
 
     // With an inner `--`: options before it precede the destination; the
     // remote command after it follows the destination (finding 4).
@@ -412,7 +417,7 @@ fn raw_mode_audited_subset_mirrors_into_the_proxy_command() {
     let audited = audited_subset(&tokens);
     assert_eq!(audited, vec!["-4".to_owned()]);
 
-    let proxy = proxy_command(SELF, "eversh", &audited, None).unwrap();
+    let proxy = proxy_command(SELF, "eversh", &audited, None, None).unwrap();
     assert!(proxy.contains("--ssh-option '-4'"), "{proxy}");
     assert!(!proxy.contains("-L"), "{proxy}");
 
@@ -431,6 +436,7 @@ fn kitty_launch_argv_is_exact() {
         "work",
         "auto",
         &["-4".to_owned()],
+        None,
         &limits,
     )
     .unwrap();
@@ -456,9 +462,20 @@ fn kitty_launch_argv_is_exact() {
             "-4",
         ])
     );
-    let args = kitty_launch_args(None, SELF, "host", "work", "everssh", &[], &limits).unwrap();
+    let args =
+        kitty_launch_args(None, SELF, "host", "work", "everssh", &[], None, &limits).unwrap();
     assert!(!args.contains(&OsString::from("--to")));
-    assert!(kitty_launch_args(None, SELF, "host", "bad name", "everssh", &[], &limits).is_err());
+    assert!(kitty_launch_args(
+        None,
+        SELF,
+        "host",
+        "bad name",
+        "everssh",
+        &[],
+        None,
+        &limits
+    )
+    .is_err());
 }
 
 #[test]
@@ -470,4 +487,116 @@ fn role_markers_agree_across_crates() {
         everssh::ssh_policy::COMBINED_EVERSSH_ROLE
     );
     assert_eq!(eversh::role::EVERUDP_ROLE, everudp::COMBINED_EVERUDP_ROLE);
+}
+
+fn mosh_range() -> everssh::UdpPortRange {
+    parse_udp_port_range("60000:60010").unwrap()
+}
+
+#[test]
+fn udp_port_range_parsing_uses_the_server_range_rules() {
+    use everssh::error::UdpPolicyViolation;
+    let range = mosh_range();
+    assert_eq!((range.start(), range.end()), (60_000, 60_010));
+    for (value, violation) in [
+        ("0:10", UdpPolicyViolation::RangeStartsAtZero),
+        ("60010:60000", UdpPolicyViolation::RangeInverted),
+        ("1:1025", UdpPolicyViolation::RangeTooWide),
+        ("60000", UdpPolicyViolation::RangeMalformed),
+        ("60000-60010", UdpPolicyViolation::RangeMalformed),
+        ("x:y", UdpPolicyViolation::RangeMalformed),
+    ] {
+        assert!(
+            matches!(
+                parse_udp_port_range(value),
+                Err(Error::UdpPortRangeInvalid(found)) if found == violation
+            ),
+            "{value:?}"
+        );
+    }
+}
+
+#[test]
+fn proxy_command_carries_the_port_range_only_when_set() {
+    let options = vec!["-4".to_owned()];
+    let status = std::path::Path::new("/tmp/eversh/link-status/1.status");
+    let absent = proxy_command(SELF, "eversh", &options, Some(status), None).unwrap();
+    // Absent: byte-for-byte the historic ProxyCommand.
+    assert_eq!(
+        absent,
+        "'/usr/local/bin/eversh' __everssh ssh-proxy '%n' '%p' \
+         --remote-eversh 'eversh' --ssh-option '-4' \
+         --status-file '/tmp/eversh/link-status/1.status'"
+    );
+    let present =
+        proxy_command(SELF, "eversh", &options, Some(status), Some(mosh_range())).unwrap();
+    assert_eq!(
+        present,
+        "'/usr/local/bin/eversh' __everssh ssh-proxy '%n' '%p' \
+         --remote-eversh 'eversh' --ssh-option '-4' --udp-port-range '60000:60010' \
+         --status-file '/tmp/eversh/link-status/1.status'"
+    );
+}
+
+#[test]
+fn everudp_and_kitty_launches_carry_the_port_range_only_when_set() {
+    let limits = Limits::default();
+    let launch = |range| {
+        everudp_launch_args(
+            std::path::Path::new(SELF),
+            "/home/appsmiths/.local/bin/eversh",
+            "mumbai.hostinger",
+            EverudpOp::Observe { name: "work" },
+            &[],
+            None,
+            range,
+            &limits,
+        )
+        .unwrap()
+    };
+    assert_eq!(
+        launch(None),
+        os(&[
+            "__everudp",
+            "--remote-program",
+            "/home/appsmiths/.local/bin/eversh",
+            "observe",
+            "mumbai.hostinger",
+            "work",
+        ])
+    );
+    assert_eq!(
+        launch(Some(mosh_range())),
+        os(&[
+            "__everudp",
+            "--remote-program",
+            "/home/appsmiths/.local/bin/eversh",
+            "--udp-port-range",
+            "60000:60010",
+            "observe",
+            "mumbai.hostinger",
+            "work",
+        ])
+    );
+
+    let kitty = |range| {
+        kitty_launch_args(None, SELF, "host", "work", "everssh", &[], range, &limits).unwrap()
+    };
+    let plain = kitty(None);
+    assert!(!plain.contains(&OsString::from("--udp-port-range")));
+    let ranged = kitty(Some(mosh_range()));
+    let tail = &ranged[ranged.iter().position(|arg| arg == SELF).unwrap()..];
+    assert_eq!(
+        tail,
+        os(&[
+            SELF,
+            "--udp-port-range",
+            "60000:60010",
+            "attach",
+            "host",
+            "work",
+            "--hold-on-error",
+        ])
+        .as_slice()
+    );
 }

@@ -44,6 +44,9 @@ pub struct ClientConfig {
     /// The local `TERM` to export into a session this client creates
     /// (empty when unset or unacceptable). Carried only on `Connect`.
     pub term: String,
+    /// Operator-selected remote UDP port range for a gateway this bootstrap
+    /// starts (design §5); `None` keeps the historic remote command.
+    pub udp_port_range: Option<everssh::UdpPortRange>,
 }
 
 impl fmt::Debug for ClientConfig {
@@ -62,6 +65,7 @@ impl fmt::Debug for ClientConfig {
             .field("command_arguments", &self.command.len())
             .field("status_path", &self.status_path)
             .field("term", &self.term)
+            .field("udp_port_range", &self.udp_port_range)
             .finish()
     }
 }
@@ -539,6 +543,7 @@ fn config_for_recovery(config: &ClientConfig) -> ClientConfig {
         command: Vec::new(),
         status_path: None,
         term: String::new(),
+        udp_port_range: config.udp_port_range,
     }
 }
 
@@ -580,18 +585,28 @@ fn make_request(
     )
 }
 
-async fn acquire_record(
-    config: &ClientConfig,
-    request: &BootstrapRequest,
-    limits: &Limits,
-) -> Result<BootstrapRecord, ClientRunError> {
-    let argument = request.encode_token()?;
+/// The bounded OpenSSH bootstrap plan for one request token. The remote
+/// command gains a trailing `--udp-port-range START:END` only when the
+/// operator selected a range; otherwise it is byte-for-byte the historic one.
+fn bootstrap_plan(config: &ClientConfig, argument: String) -> Result<SshPlan, everssh::Error> {
     let plan = SshPlan::using_config(config.destination.clone(), config.ssh_options.clone())?
         .with_remote_role_invocation(
             config.remote_role_words.clone(),
             BOOTSTRAP_PARENT_ROLE,
             &[argument],
         )?;
+    match config.udp_port_range {
+        Some(range) => plan.with_udp_port_range(range),
+        None => Ok(plan),
+    }
+}
+
+async fn acquire_record(
+    config: &ClientConfig,
+    request: &BootstrapRequest,
+    limits: &Limits,
+) -> Result<BootstrapRecord, ClientRunError> {
+    let plan = bootstrap_plan(config, request.encode_token()?)?;
     let ssh_limits = everssh::Limits::default();
     verify_effective_config(&plan, &ssh_limits).await?;
     let wire = acquire_bootstrap_bytes(&plan, limits.bootstrap_record_max, &ssh_limits).await?;
@@ -717,6 +732,7 @@ mod tests {
             command: vec![b"shell".to_vec()],
             status_path: None,
             term: "xterm-kitty".to_owned(),
+            udp_port_range: None,
         }
     }
 
@@ -727,6 +743,38 @@ mod tests {
         assert!(recovered.command.is_empty());
         let observed = config_for_recovery(&config(BootstrapOperation::Observe));
         assert_eq!(observed.operation, BootstrapOperation::Observe);
+    }
+
+    #[test]
+    fn bootstrap_command_carries_the_port_range_only_when_requested() {
+        let plain = super::bootstrap_plan(&config(BootstrapOperation::Connect), "tok".to_owned())
+            .expect("plain plan");
+        assert_eq!(
+            plain.bootstrap_args().last().map(String::as_str),
+            Some("eversh __everudp __bootstrap-parent-v1 tok")
+        );
+        let mut ranged = config(BootstrapOperation::Connect);
+        ranged.udp_port_range = Some(
+            everssh::UdpPortRange::new(60_000, 60_010, &everssh::Limits::default()).expect("range"),
+        );
+        let ranged = super::bootstrap_plan(&ranged, "tok".to_owned()).expect("ranged plan");
+        assert_eq!(
+            ranged.bootstrap_args().last().map(String::as_str),
+            Some("eversh __everudp __bootstrap-parent-v1 tok --udp-port-range 60000:60010")
+        );
+    }
+
+    #[test]
+    fn recovery_keeps_the_operator_port_range() {
+        let range =
+            everssh::UdpPortRange::new(60_000, 60_010, &everssh::Limits::default()).expect("range");
+        let mut original = config(BootstrapOperation::Connect);
+        original.udp_port_range = Some(range);
+        assert_eq!(config_for_recovery(&original).udp_port_range, Some(range));
+        assert_eq!(
+            config_for_recovery(&config(BootstrapOperation::Attach)).udp_port_range,
+            None
+        );
     }
 
     #[test]

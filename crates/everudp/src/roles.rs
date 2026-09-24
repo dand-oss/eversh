@@ -12,6 +12,8 @@ use crate::request::{BootstrapOperation, BootstrapRequest, RequestError};
 use crate::transport::{GatewayEndpoint, SharedInvitationStore, TransportError};
 use crate::Limits;
 use everpty::run::{Context, EnsureSessionOutcome, EnsureSessionRequest};
+use everssh::ssh_policy::UDP_PORT_RANGE_OPTION;
+use everssh::UdpPortRange;
 use std::ffi::OsString;
 use std::fmt;
 use std::io::{self, Write};
@@ -184,11 +186,13 @@ pub fn prepare_bootstrap_parent(
 
 /// Starts a detached gateway candidate and relays exactly one canonical
 /// bootstrap line back across the authenticated SSH stdout channel.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_bootstrap_parent<W>(
     self_exe: PathBuf,
     gateway_role_prefix: &[&str],
     state_root: PathBuf,
     bind_ip: IpAddr,
+    udp_port_range: Option<UdpPortRange>,
     request: BootstrapRequest,
     mut output: W,
     limits: Limits,
@@ -207,6 +211,7 @@ where
         .arg(bind_ip.to_string())
         .arg("--request")
         .arg(token)
+        .args(gateway_port_range_args(udp_port_range))
         .env_clear()
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -263,11 +268,20 @@ where
     operation
 }
 
+/// The private gateway re-exec carries an operator port range as the same
+/// `--udp-port-range START:END` option the client sent; none when unset.
+pub fn gateway_port_range_args(udp_port_range: Option<UdpPortRange>) -> Vec<String> {
+    udp_port_range.map_or_else(Vec::new, |range| {
+        vec![UDP_PORT_RANGE_OPTION.to_owned(), range.to_string()]
+    })
+}
+
 /// Runs either the singleton gateway owner or the race-losing candidate that
 /// requests an invitation from the already-live owner and exits.
 pub async fn run_gateway_role<W>(
     pty_state_root: &Path,
     bind_ip: IpAddr,
+    udp_port_range: Option<UdpPortRange>,
     request: BootstrapRequest,
     mut output: W,
     limits: Limits,
@@ -306,12 +320,21 @@ where
             )?));
             let identity = GatewayIdentity::generate()?;
             let server_spki_sha256 = identity.spki_sha256();
-            let endpoint = GatewayEndpoint::bind(
-                SocketAddr::new(bind_ip, 0),
-                &identity,
-                Arc::clone(&invitations),
-                limits,
-            )?;
+            let endpoint = match udp_port_range {
+                None => GatewayEndpoint::bind(
+                    SocketAddr::new(bind_ip, 0),
+                    &identity,
+                    Arc::clone(&invitations),
+                    limits,
+                )?,
+                Some(range) => GatewayEndpoint::bind_in_port_range(
+                    bind_ip,
+                    range,
+                    &identity,
+                    Arc::clone(&invitations),
+                    limits,
+                )?,
+            };
             let context = GatewayBootstrapContext::new(
                 endpoint.local_addr(),
                 server_spki_sha256,

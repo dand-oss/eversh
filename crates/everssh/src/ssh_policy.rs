@@ -1,6 +1,7 @@
 //! Pure, shell-free OpenSSH argument policy.
 
 use crate::error::Error;
+use crate::port_range::UdpPortRange;
 
 pub const SSH_PROGRAM: &str = "ssh";
 pub const REMOTE_BOOTSTRAP_COMMAND: &str = "everssh __bootstrap-parent-v1";
@@ -8,6 +9,8 @@ pub const REMOTE_BOOTSTRAP_COMMAND: &str = "everssh __bootstrap-parent-v1";
 /// edge and the combined dispatcher agree on one spelling.
 pub const COMBINED_EVERSSH_ROLE: &str = "__everssh";
 const REMOTE_BOOTSTRAP_ROLE: &str = "__bootstrap-parent-v1";
+/// The remote bootstrap-parent option naming an operator UDP port range.
+pub const UDP_PORT_RANGE_OPTION: &str = "--udp-port-range";
 
 const SSH_ARGUMENT_MAX: usize = 4096;
 const SSH_OPTION_COUNT_MAX: usize = 128;
@@ -79,6 +82,7 @@ pub struct SshPlan {
     explicit_port: bool,
     options: Vec<String>,
     remote_bootstrap_command: String,
+    udp_port_range: Option<UdpPortRange>,
 }
 
 impl std::fmt::Debug for SshPlan {
@@ -88,6 +92,7 @@ impl std::fmt::Debug for SshPlan {
             .field("destination", &"<REDACTED>")
             .field("port", &self.port)
             .field("option_count", &self.options.len())
+            .field("udp_port_range", &self.udp_port_range)
             .finish()
     }
 }
@@ -108,6 +113,7 @@ impl SshPlan {
             explicit_port: true,
             options,
             remote_bootstrap_command: REMOTE_BOOTSTRAP_COMMAND.to_owned(),
+            udp_port_range: None,
         })
     }
 
@@ -124,7 +130,15 @@ impl SshPlan {
     /// the command remains a single, injection-safe remote shell word.
     pub fn with_remote_binary(mut self, remote_binary: String) -> Result<Self, Error> {
         validate_remote_binary(&remote_binary)?;
-        self.remote_bootstrap_command = format!("{remote_binary} {REMOTE_BOOTSTRAP_ROLE}");
+        let command = format!("{remote_binary} {REMOTE_BOOTSTRAP_ROLE}");
+        if command
+            .len()
+            .saturating_add(range_suffix_len(self.udp_port_range))
+            > SSH_ARGUMENT_MAX
+        {
+            return Err(Error::InvalidSshArgument);
+        }
+        self.remote_bootstrap_command = command;
         Ok(self)
     }
 
@@ -150,6 +164,42 @@ impl SshPlan {
     ) -> Result<Self, Error> {
         self.set_remote_role(words, role, arguments)?;
         Ok(self)
+    }
+
+    /// Ask the remote bootstrap parent to bind its UDP endpoint inside an
+    /// operator-selected, already validated port range (design §5). The
+    /// range travels as a trailing `--udp-port-range START:END` option
+    /// rendered from integers, so it is always one canonical shell word
+    /// pair. Without this call the remote command is exactly the historic
+    /// one; a remote binary that predates the option rejects it and the
+    /// bootstrap fails closed instead of binding a random port.
+    pub fn with_udp_port_range(mut self, range: UdpPortRange) -> Result<Self, Error> {
+        if self
+            .remote_bootstrap_command
+            .len()
+            .saturating_add(range_suffix_len(Some(range)))
+            > SSH_ARGUMENT_MAX
+        {
+            return Err(Error::InvalidSshArgument);
+        }
+        self.udp_port_range = Some(range);
+        Ok(self)
+    }
+
+    /// The operator UDP port range requested from the remote, if any.
+    pub fn udp_port_range(&self) -> Option<UdpPortRange> {
+        self.udp_port_range
+    }
+
+    /// The single remote-command argument sshd's login shell interprets.
+    pub fn remote_command(&self) -> String {
+        match self.udp_port_range {
+            None => self.remote_bootstrap_command.clone(),
+            Some(range) => format!(
+                "{} {UDP_PORT_RANGE_OPTION} {range}",
+                self.remote_bootstrap_command
+            ),
+        }
     }
 
     fn set_remote_role(
@@ -178,7 +228,11 @@ impl SshPlan {
             command.push(' ');
             command.push_str(argument);
         }
-        if command.len() > SSH_ARGUMENT_MAX {
+        if command
+            .len()
+            .saturating_add(range_suffix_len(self.udp_port_range))
+            > SSH_ARGUMENT_MAX
+        {
             return Err(Error::InvalidSshArgument);
         }
         self.remote_bootstrap_command = command;
@@ -235,9 +289,17 @@ impl SshPlan {
         args.extend(self.options.iter().cloned());
         args.push("--".to_owned());
         args.push(self.destination.clone());
-        args.push(self.remote_bootstrap_command.clone());
+        args.push(self.remote_command());
         args
     }
+}
+
+fn range_suffix_len(range: Option<UdpPortRange>) -> usize {
+    range.map_or(0, |range| {
+        2usize
+            .saturating_add(UDP_PORT_RANGE_OPTION.len())
+            .saturating_add(range.to_string().len())
+    })
 }
 
 fn push_mandatory<'a>(output: &mut Vec<String>, values: impl IntoIterator<Item = &'a str>) {
@@ -547,6 +609,50 @@ mod tests {
                 "accepted hostile role {hostile:?}"
             );
         }
+    }
+
+    #[test]
+    fn udp_port_range_is_a_trailing_option_only_when_requested() {
+        let limits = crate::Limits::default();
+        let range = UdpPortRange::parse("60000:60010", &limits).unwrap();
+        let everssh = SshPlan::new("host".into(), "22".into(), vec![])
+            .unwrap()
+            .with_remote_invocation(vec!["eversh".into(), COMBINED_EVERSSH_ROLE.into()])
+            .unwrap();
+        let plain = everssh.bootstrap_args();
+        assert_eq!(
+            plain.last().unwrap(),
+            "eversh __everssh __bootstrap-parent-v1"
+        );
+        assert_eq!(everssh.udp_port_range(), None);
+        let ranged = everssh.clone().with_udp_port_range(range).unwrap();
+        let ranged_args = ranged.bootstrap_args();
+        assert_eq!(
+            ranged_args.last().unwrap(),
+            "eversh __everssh __bootstrap-parent-v1 --udp-port-range 60000:60010"
+        );
+        assert_eq!(
+            ranged_args[..ranged_args.len() - 1],
+            plain[..plain.len() - 1]
+        );
+        assert_eq!(ranged.remote_program(), "eversh");
+        assert_eq!(ranged.udp_port_range(), Some(range));
+
+        // The range stays trailing when the role invocation is set later.
+        let everudp = SshPlan::using_config("host".into(), vec![])
+            .unwrap()
+            .with_udp_port_range(range)
+            .unwrap()
+            .with_remote_role_invocation(
+                vec!["eversh".into(), "__everudp".into()],
+                "__bootstrap-parent-v1",
+                &["token".to_owned()],
+            )
+            .unwrap();
+        assert_eq!(
+            everudp.bootstrap_args().last().unwrap(),
+            "eversh __everudp __bootstrap-parent-v1 token --udp-port-range 60000:60010"
+        );
     }
 
     #[test]

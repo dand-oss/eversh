@@ -9,6 +9,7 @@ use crate::remote::{
     base64url_encode, validate_host, validate_name, validate_origin_label, ControlRequest,
 };
 use crate::role::{EVERPTY_ROLE, EVERPTY_ROLE_VERSION, EVERSSH_ROLE, EVERUDP_ROLE};
+use everssh::UdpPortRange;
 use std::ffi::OsString;
 use std::os::unix::ffi::OsStringExt;
 use std::path::Path;
@@ -77,6 +78,19 @@ pub fn validate_self_exe(path: &std::path::Path) -> Result<&str, Error> {
     Ok(text)
 }
 
+/// The option word carrying an operator UDP port range to every transport.
+pub const UDP_PORT_RANGE_OPTION: &str = "--udp-port-range";
+
+/// Validate an operator `--udp-port-range START:END` value with the server's
+/// own range rules (start at least one, start not after end, width within
+/// everssh's finite span) before any SSH work (design §5).
+pub fn parse_udp_port_range(text: &str) -> Result<UdpPortRange, Error> {
+    UdpPortRange::parse(text, &everssh::Limits::default()).map_err(|error| match error {
+        everssh::Error::InvalidUdpPolicy(violation) => Error::UdpPortRangeInvalid(violation),
+        _ => Error::LimitsInvalid,
+    })
+}
+
 /// Single-quote one word for the ProxyCommand line (run by the user's local
 /// shell). Embedded quotes, control bytes, and NUL are rejected, never
 /// escaped: the input set is validated upstream, so rejection is a bug guard.
@@ -115,11 +129,17 @@ pub fn audit_ssh_option(option: &str) -> Result<(), Error> {
 /// bytes (NUL included), non-UTF-8, and percent (which OpenSSH would
 /// expand inside the quoted word before the shell sees the quotes) are
 /// rejected outright, never escaped.
+///
+/// `udp_port_range`, when set, is appended as `--udp-port-range 'START:END'`
+/// for the local everssh edge, which forwards it to the remote bootstrap.
+/// When `None` the string is exactly the historic one, so remote binaries
+/// that predate the option keep working.
 pub fn proxy_command(
     self_exe: &str,
     remote_eversh: &str,
     ssh_options: &[String],
     status_file: Option<&std::path::Path>,
+    udp_port_range: Option<UdpPortRange>,
 ) -> Result<String, Error> {
     validate_remote_eversh(remote_eversh)?;
     let mut command = quote_single(self_exe)?;
@@ -131,6 +151,12 @@ pub fn proxy_command(
         audit_ssh_option(option)?;
         command.push_str(" --ssh-option ");
         command.push_str(&quote_single(option)?);
+    }
+    if let Some(range) = udp_port_range {
+        command.push(' ');
+        command.push_str(UDP_PORT_RANGE_OPTION);
+        command.push(' ');
+        command.push_str(&quote_single(&range.to_string())?);
     }
     if let Some(path) = status_file {
         let word = path.to_str().ok_or(Error::StatusPathUnsafe)?;
@@ -333,6 +359,7 @@ pub enum EverudpOp<'a> {
 /// Build the exact argv for `eversh __everudp ...`. This is a local re-exec,
 /// not a relay: the everudp role inherits stdio and sends terminal bytes
 /// directly over QUIC after its bounded SSH bootstrap.
+#[allow(clippy::too_many_arguments)]
 pub fn everudp_launch_args(
     self_exe: &Path,
     remote_eversh: &str,
@@ -340,6 +367,7 @@ pub fn everudp_launch_args(
     operation: EverudpOp<'_>,
     ssh_options: &[String],
     status_file: Option<&Path>,
+    udp_port_range: Option<UdpPortRange>,
     limits: &Limits,
 ) -> Result<Vec<OsString>, Error> {
     validate_self_exe(self_exe)?;
@@ -362,9 +390,13 @@ pub fn everudp_launch_args(
         OsString::from(EVERUDP_ROLE),
         OsString::from("--remote-program"),
         OsString::from(remote_eversh),
-        OsString::from(verb),
-        OsString::from(host),
     ];
+    if let Some(range) = udp_port_range {
+        args.push(OsString::from(UDP_PORT_RANGE_OPTION));
+        args.push(OsString::from(range.to_string()));
+    }
+    args.push(OsString::from(verb));
+    args.push(OsString::from(host));
     if verb == "connect" {
         args.push(OsString::from("--session"));
     }
@@ -431,6 +463,7 @@ pub fn raw_ssh_args(
 /// attach command for one session. `--hold-on-error` keeps failed attaches
 /// visible in their tab; cleanly ended commands close their tab (Kitty's
 /// default), matching design §4.4.
+#[allow(clippy::too_many_arguments)]
 pub fn kitty_launch_args(
     listen_on: Option<&str>,
     self_exe: &str,
@@ -438,6 +471,7 @@ pub fn kitty_launch_args(
     name: &str,
     transport: &str,
     ssh_options: &[String],
+    udp_port_range: Option<UdpPortRange>,
     limits: &Limits,
 ) -> Result<Vec<OsString>, Error> {
     validate_host(host)?;
@@ -456,6 +490,10 @@ pub fn kitty_launch_args(
     args.push(format!("eversh {host} {name}").into());
     args.push("--".into());
     args.push(self_exe.into());
+    if let Some(range) = udp_port_range {
+        args.push(UDP_PORT_RANGE_OPTION.into());
+        args.push(range.to_string().into());
+    }
     args.push("attach".into());
     args.push(host.into());
     args.push(name.into());

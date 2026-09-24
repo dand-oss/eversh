@@ -228,7 +228,8 @@ pub async fn acquire_bootstrap(plan: &SshPlan, limits: &Limits) -> Result<Bootst
         limits.bootstrap_record_max,
         limits,
     )
-    .await?;
+    .await
+    .map_err(|error| annotate_port_range_rejection(error, plan))?;
     if output.overflowed() {
         return Err(Error::BootstrapMalformed);
     }
@@ -253,6 +254,24 @@ pub async fn acquire_bootstrap_bytes(
         limits,
     )
     .await
+    .map_err(|error| annotate_port_range_rejection(error, plan))
+}
+
+/// Remote edges exit 2 with `invalid arguments` when clap rejects their
+/// argv. With an operator port range in the remote command, that answer
+/// means the remote binary predates `--udp-port-range`; name that cause
+/// instead of a bare argument failure. Without a range nothing changes.
+fn annotate_port_range_rejection(error: Error, plan: &SshPlan) -> Error {
+    match error {
+        Error::SshRemoteCommandFailed(failure)
+            if plan.udp_port_range().is_some()
+                && failure.exit_code == Some(2)
+                && failure.diagnostic.contains("invalid arguments") =>
+        {
+            Error::RemoteUdpPortRangeUnsupported(failure)
+        }
+        other => other,
+    }
 }
 
 /// Run OpenSSH with `arguments`. `remote_program` names the remote command
@@ -656,6 +675,45 @@ mod tests {
                 exit_code: None,
                 ..
             })
+        ));
+    }
+
+    #[test]
+    fn old_remote_rejecting_the_port_range_fails_closed_with_a_named_cause() {
+        let old_remote = || {
+            classify_ssh_failure(
+                ExitStatus::from_raw(2 << 8),
+                b"everssh: invalid arguments\n",
+                Some("/home/appsmiths/.local/bin/eversh"),
+            )
+        };
+        let plain = SshPlan::new("host".into(), "22".into(), vec![]).unwrap();
+        assert!(matches!(
+            annotate_port_range_rejection(old_remote(), &plain),
+            Error::SshRemoteCommandFailed(_)
+        ));
+        let ranged = plain
+            .with_udp_port_range(
+                crate::UdpPortRange::new(60_000, 60_010, &Limits::default()).unwrap(),
+            )
+            .unwrap();
+        let error = annotate_port_range_rejection(old_remote(), &ranged);
+        assert!(matches!(error, Error::RemoteUdpPortRangeUnsupported(_)));
+        assert_eq!(
+            error.to_string(),
+            "remote command `/home/appsmiths/.local/bin/eversh` exited with status 2 on the \
+             remote host: everssh: invalid arguments; the remote binary does not accept \
+             --udp-port-range (upgrade the remote eversh to 0.2.3 or later, or omit \
+             --udp-port-range)"
+        );
+        let other = classify_ssh_failure(
+            ExitStatus::from_raw(5 << 8),
+            b"everudp: session is not live\n",
+            Some("eversh"),
+        );
+        assert!(matches!(
+            annotate_port_range_rejection(other, &ranged),
+            Error::SshRemoteCommandFailed(_)
         ));
     }
 

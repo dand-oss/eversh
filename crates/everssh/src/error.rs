@@ -20,6 +20,7 @@ pub enum UdpPolicyViolation {
     RangeStartsAtZero,
     RangeInverted,
     RangeTooWide,
+    RangeMalformed,
     SelectedAddressUnusable,
     ExactBindMismatch,
 }
@@ -98,6 +99,11 @@ pub enum Error {
     SshUnavailable,
     SshProcessFailed,
     SshRemoteCommandFailed(RemoteCommandFailure),
+    /// The remote bootstrap rejected its argument grammar while an operator
+    /// UDP port range was requested: the remote binary predates
+    /// `--udp-port-range`. The bootstrap fails closed rather than falling
+    /// back to a kernel-chosen port the host firewall would drop.
+    RemoteUdpPortRangeUnsupported(RemoteCommandFailure),
     BootstrapTimedOut,
     BridgeIncomplete,
     AuthRejected,
@@ -170,6 +176,7 @@ impl std::fmt::Display for UdpPolicyViolation {
             Self::RangeStartsAtZero => "UDP port range starts at zero",
             Self::RangeInverted => "UDP port range is inverted",
             Self::RangeTooWide => "UDP port range exceeds the configured finite span",
+            Self::RangeMalformed => "UDP port range is not START:END with decimal ports",
             Self::SelectedAddressUnusable => "kernel-selected UDP source address is unusable",
             Self::ExactBindMismatch => "bound UDP endpoint differs from the requested endpoint",
         };
@@ -229,6 +236,11 @@ impl std::fmt::Display for Error {
             Self::SshUnavailable => f.write_str("OpenSSH bootstrap endpoint is unavailable"),
             Self::SshProcessFailed => f.write_str("owned OpenSSH bootstrap process failed"),
             Self::SshRemoteCommandFailed(failure) => write!(f, "{failure}"),
+            Self::RemoteUdpPortRangeUnsupported(failure) => write!(
+                f,
+                "{failure}; the remote binary does not accept --udp-port-range \
+                 (upgrade the remote eversh to 0.2.3 or later, or omit --udp-port-range)"
+            ),
             Self::BootstrapTimedOut => f.write_str("absolute bootstrap deadline expired"),
             Self::BridgeIncomplete => f.write_str("byte bridge did not drain and finalize cleanly"),
             Self::AuthRejected => f.write_str("authentication rejected"),

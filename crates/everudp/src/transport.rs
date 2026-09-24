@@ -455,8 +455,37 @@ impl GatewayEndpoint {
         Self::bind_with_profile(bind, identity, invitations, limits, profile)
     }
 
+    /// Bind the gateway on exactly `bind_ip` at the first free port of an
+    /// operator-selected range (design §5) instead of a kernel-chosen port.
+    pub fn bind_in_port_range(
+        bind_ip: std::net::IpAddr,
+        range: everssh::UdpPortRange,
+        identity: &GatewayIdentity,
+        invitations: SharedInvitationStore,
+        limits: Limits,
+    ) -> Result<Self, TransportError> {
+        let profile = LockedTransportProfile::for_limits(&limits)?;
+        require_runtime()?;
+        let socket = range
+            .bind_first_free(bind_ip)
+            .map_err(TransportError::Route)?;
+        Self::bind_socket_with_profile(socket, identity, invitations, limits, profile)
+    }
+
     fn bind_with_profile(
         bind: SocketAddr,
+        identity: &GatewayIdentity,
+        invitations: SharedInvitationStore,
+        limits: Limits,
+        profile: LockedTransportProfile,
+    ) -> Result<Self, TransportError> {
+        require_runtime()?;
+        let socket = UdpSocket::bind(bind)?;
+        Self::bind_socket_with_profile(socket, identity, invitations, limits, profile)
+    }
+
+    fn bind_socket_with_profile(
+        socket: UdpSocket,
         identity: &GatewayIdentity,
         invitations: SharedInvitationStore,
         limits: Limits,
@@ -473,7 +502,6 @@ impl GatewayEndpoint {
         let rustls = locked_server_tls(identity, provider, profile.alpn)?;
         let server_config = locked_server_config(rustls, &limits, &profile)?;
         let accept_config = Arc::new(server_config.clone());
-        let socket = UdpSocket::bind(bind)?;
         socket.set_nonblocking(true)?;
         let local_addr = socket.local_addr()?;
         let endpoint = Endpoint::new(

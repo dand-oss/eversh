@@ -155,6 +155,11 @@ pub struct Config {
     /// never an uninstrumented spawn whose missing record would
     /// misclassify an ordinary 255 as transport failure.
     pub link_status_root: Option<PathBuf>,
+    /// Operator `--udp-port-range`, already validated at the edge: the
+    /// remote binds its UDP endpoint inside this range for both transports
+    /// (design §5). `None` keeps every constructed command byte-identical to
+    /// the historic form.
+    pub udp_port_range: Option<everssh::UdpPortRange>,
     pub limits: Limits,
 }
 
@@ -296,7 +301,13 @@ fn proxy_for(
     status_file: Option<&Path>,
 ) -> Result<String, Error> {
     let self_exe = validate_self_exe(&config.self_exe)?;
-    proxy_command(self_exe, &config.remote_eversh, ssh_options, status_file)
+    proxy_command(
+        self_exe,
+        &config.remote_eversh,
+        ssh_options,
+        status_file,
+        config.udp_port_range,
+    )
 }
 
 fn spawn_inherited(config: &Config, args: &[OsString]) -> Result<ExitKind, Error> {
@@ -1207,6 +1218,7 @@ pub fn everudp_session(
         operation,
         ssh_options,
         Some(status.path()),
+        config.udp_port_range,
         &config.limits,
     )?;
     let exit = classify(Command::new(&config.self_exe).args(args).status()?);
@@ -1450,6 +1462,7 @@ pub fn resume_all(
             name,
             transport,
             ssh_options,
+            config.udp_port_range,
             &config.limits,
         )?;
         let launched = Command::new(&config.kitty_program)

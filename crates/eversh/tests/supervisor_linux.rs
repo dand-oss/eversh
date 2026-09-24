@@ -2003,6 +2003,7 @@ fn library_config(fixture: &Fixture, limits: eversh::Limits) -> SupervisorConfig
         kitty_listen_on: None,
         local_host: "testlocal".to_owned(),
         link_status_root: Some(fixture.state.clone()),
+        udp_port_range: None,
         limits,
     }
 }

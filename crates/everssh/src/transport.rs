@@ -254,7 +254,7 @@ fn bind_explicit(peer: SocketAddr, local: SocketAddr) -> Result<BoundUdp, Error>
     bind_exact(local, false).map_err(map_bind_failure)
 }
 
-fn validate_range(start: u16, end: u16, limits: &Limits) -> Result<(), Error> {
+pub(crate) fn validate_range(start: u16, end: u16, limits: &Limits) -> Result<(), Error> {
     if start == 0 {
         return Err(Error::InvalidUdpPolicy(
             UdpPolicyViolation::RangeStartsAtZero,

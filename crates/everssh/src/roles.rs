@@ -7,6 +7,7 @@ use crate::identity::EphemeralClientIdentity;
 use crate::identity::EphemeralIdentity;
 use crate::limits::Limits;
 use crate::link_status::{self, StatusCause, TrackedReader, TrackedWriter};
+use crate::port_range::UdpPortRange;
 use crate::resume::{AssociationCompletion, ResumeAssociationConfig};
 use crate::role_protocol::{
     validate_release, ServerStartRecord, StartUdpPolicy, RELEASE_RECORD, SERVER_START_MAX,
@@ -28,11 +29,14 @@ use tokio::time::Instant;
 /// Run the SSH-launched parent. Its only global inputs are supplied by the
 /// process edge. `server_role_args` is the argv prefix required to reach the
 /// everssh role when re-invoking `self_exe` (empty for the standalone
-/// binary; the combined binary's role marker otherwise).
+/// binary; the combined binary's role marker otherwise). `udp_port_range`,
+/// when set by the edge from the client's `--udp-port-range`, bounds the
+/// server's UDP bind to that range instead of a kernel-chosen port.
 pub async fn run_bootstrap_parent<W>(
     authenticated: crate::admission::AuthenticatedConnection,
     self_exe: PathBuf,
     server_role_args: &[&str],
+    udp_port_range: Option<UdpPortRange>,
     mut output: W,
     limits: Limits,
 ) -> Result<(), Error>
@@ -40,13 +44,16 @@ where
     W: AsyncWrite + Unpin,
 {
     limits.validate()?;
+    let policy = match udp_port_range {
+        None => StartUdpPolicy::RouteSelected,
+        Some(range) => UdpPortRange::new(range.start(), range.end(), &limits)?.start_policy(),
+    };
     let deadline = Instant::now()
         .checked_add(std::time::Duration::from_millis(
             limits.bootstrap_timeout_ms,
         ))
         .ok_or(Error::BootstrapTimedOut)?;
-    let start =
-        ServerStartRecord::try_new(authenticated, StartUdpPolicy::RouteSelected, &limits)?.encode();
+    let start = ServerStartRecord::try_new(authenticated, policy, &limits)?.encode();
     let mut command = Command::new(self_exe);
     command
         .args(server_role_args)
@@ -393,6 +400,7 @@ mod tests {
         executable: PathBuf,
         pid_file: PathBuf,
         argv_file: PathBuf,
+        start_file: PathBuf,
     }
 
     impl Script {
@@ -409,6 +417,7 @@ mod tests {
             let executable = root.join("server");
             let pid_file = root.join("pid");
             let argv_file = root.join("argv");
+            let start_file = root.join("start");
             let line = format!(
                 "everssh v2 192.0.2.2 4444 {} {} {} 123\\n",
                 "00".repeat(32),
@@ -428,9 +437,10 @@ mod tests {
                 _ => unreachable!(),
             };
             let body = format!(
-                "#!/bin/sh\nprintf '%s' \"$$\" > '{}'\nprintf '%s' \"$*\" > '{}'\nIFS= read -r start || exit 30\n{behavior}\n",
+                "#!/bin/sh\nprintf '%s' \"$$\" > '{}'\nprintf '%s' \"$*\" > '{}'\nIFS= read -r start || exit 30\nprintf '%s' \"$start\" > '{}'\n{behavior}\n",
                 pid_file.display(),
-                argv_file.display()
+                argv_file.display(),
+                start_file.display()
             );
             fs::write(&executable, body).unwrap();
             fs::set_permissions(&executable, fs::Permissions::from_mode(0o700)).unwrap();
@@ -438,6 +448,7 @@ mod tests {
                 executable,
                 pid_file,
                 argv_file,
+                start_file,
             }
         }
 
@@ -481,6 +492,7 @@ mod tests {
             authenticated,
             script.executable.clone(),
             &[],
+            None,
             writer,
             test_limits(),
         );
@@ -529,6 +541,7 @@ mod tests {
             authenticated,
             script.executable.clone(),
             &["__everssh"],
+            None,
             writer,
             test_limits(),
         );
@@ -545,6 +558,40 @@ mod tests {
             "__everssh __server-v1",
             "combined dispatch must re-invoke through the everssh role marker"
         );
+    }
+
+    #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
+    async fn operator_port_range_reaches_the_server_start_record() {
+        let range = UdpPortRange::new(60_000, 60_010, &Limits::default()).unwrap();
+        for (udp_port_range, policy) in [(None, "route"), (Some(range), "range 60000 60010")] {
+            let gate = SCRIPT_GATE
+                .lock()
+                .unwrap_or_else(|poison| poison.into_inner());
+            let script = Script::new("success");
+            let (writer, mut reader) = tokio::io::duplex(1024);
+            let authenticated = parse_ssh_connection("192.0.2.1 50000 192.0.2.2 22").unwrap();
+            let future = run_bootstrap_parent(
+                authenticated,
+                script.executable.clone(),
+                &[],
+                udp_port_range,
+                writer,
+                test_limits(),
+            );
+            let capture = async {
+                let mut bytes = Vec::new();
+                reader.read_to_end(&mut bytes).await.unwrap();
+                bytes
+            };
+            let (result, _bytes) = tokio::join!(future, capture);
+            drop(gate);
+            assert!(result.is_ok(), "{policy}: {result:?}");
+            assert_eq!(
+                fs::read_to_string(&script.start_file).unwrap(),
+                format!("everssh-start v1 192.0.2.1 50000 192.0.2.2 22 {policy}")
+            );
+        }
     }
 
     struct FailingRelay;
@@ -596,6 +643,7 @@ mod tests {
             authenticated,
             script.executable.clone(),
             &[],
+            None,
             FailingRelay,
             limits,
         )

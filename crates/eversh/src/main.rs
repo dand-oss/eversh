@@ -367,6 +367,10 @@ struct Cli {
     /// Remote combined eversh binary (bare PATH word or absolute path).
     #[arg(long = "remote-eversh", value_name = "WORD_OR_PATH", global = true)]
     remote_eversh: Option<String>,
+    /// Bind the remote UDP endpoint inside this inclusive port range (for a
+    /// host firewall that only admits a fixed UDP range, e.g. 60000:60010).
+    #[arg(long = "udp-port-range", value_name = "START:END", global = true)]
+    udp_port_range: Option<String>,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -500,7 +504,15 @@ fn local_host_name() -> String {
     "unknown".to_owned()
 }
 
-fn build_config(remote_eversh: Option<String>) -> Result<Config, Error> {
+fn build_config(
+    remote_eversh: Option<String>,
+    udp_port_range: Option<String>,
+) -> Result<Config, Error> {
+    // Validated before anything else, so a bad range never reaches SSH.
+    let udp_port_range = udp_port_range
+        .as_deref()
+        .map(eversh::command::parse_udp_port_range)
+        .transpose()?;
     let self_exe = std::env::current_exe().map_err(Error::Io)?;
     Ok(Config {
         ssh_program: OsString::from("ssh"),
@@ -520,6 +532,7 @@ fn build_config(remote_eversh: Option<String>) -> Result<Config, Error> {
         // whose missing record would misclassify an auth or policy failure
         // as transport failure.
         link_status_root: state_candidates().into_iter().next(),
+        udp_port_range,
         limits: Limits::default(),
     })
 }
@@ -692,7 +705,7 @@ fn run_supervisor() -> ! {
             std::process::exit(code);
         }
     };
-    let config = match build_config(cli.remote_eversh) {
+    let config = match build_config(cli.remote_eversh, cli.udp_port_range) {
         Ok(config) => config,
         Err(error) => exit_error(error),
     };
@@ -897,5 +910,76 @@ fn run_supervisor() -> ! {
                 Err(error) => exit_error(error),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{build_config, Cli, Cmd};
+    use clap::Parser;
+    use eversh::Error;
+    use everssh::error::UdpPolicyViolation;
+
+    fn cli(words: &[&str]) -> Cli {
+        Cli::try_parse_from(std::iter::once("eversh").chain(words.iter().copied()))
+            .expect("grammar")
+    }
+
+    fn range_error(value: &str) -> UdpPolicyViolation {
+        match build_config(None, Some(value.to_owned())) {
+            Err(Error::UdpPortRangeInvalid(violation)) => violation,
+            other => panic!("{value:?} was not rejected as a range: {:?}", other.err()),
+        }
+    }
+
+    #[test]
+    fn udp_port_range_is_a_validated_global_option() {
+        let parsed = cli(&[
+            "--remote-eversh",
+            "/home/appsmiths/.local/bin/eversh",
+            "--udp-port-range",
+            "60000:60010",
+            "list",
+            "mumbai.hostinger",
+        ]);
+        assert!(matches!(parsed.cmd, Cmd::List { .. }));
+        let config = build_config(parsed.remote_eversh, parsed.udp_port_range).expect("config");
+        let range = config.udp_port_range.expect("range");
+        assert_eq!((range.start(), range.end()), (60_000, 60_010));
+        assert_eq!(config.remote_eversh, "/home/appsmiths/.local/bin/eversh");
+
+        // Global: accepted after the subcommand too, and absent by default.
+        let trailing = cli(&["attach", "host", "work", "--udp-port-range", "60000:60010"]);
+        assert_eq!(trailing.udp_port_range.as_deref(), Some("60000:60010"));
+        let plain = cli(&["kill", "host", "work"]);
+        assert_eq!(plain.udp_port_range, None);
+        assert_eq!(
+            build_config(None, None).expect("config").udp_port_range,
+            None
+        );
+    }
+
+    #[test]
+    fn udp_port_range_rejects_zero_inverted_wide_and_malformed_values() {
+        assert_eq!(range_error("0:10"), UdpPolicyViolation::RangeStartsAtZero);
+        assert_eq!(
+            range_error("60010:60000"),
+            UdpPolicyViolation::RangeInverted
+        );
+        assert_eq!(range_error("1:1025"), UdpPolicyViolation::RangeTooWide);
+        assert!(build_config(None, Some("1:1024".to_owned())).is_ok());
+        for malformed in ["", "60000", "60000-60010", "a:b", "060000:60010", "1:2:3"] {
+            assert_eq!(
+                range_error(malformed),
+                UdpPolicyViolation::RangeMalformed,
+                "{malformed:?}"
+            );
+        }
+        let message = Error::UdpPortRangeInvalid(UdpPolicyViolation::RangeInverted).to_string();
+        assert_eq!(
+            message,
+            "invalid --udp-port-range: UDP port range is inverted (expected START:END with \
+             1 <= START <= END spanning at most 1024 ports)"
+        );
     }
 }

@@ -13,7 +13,7 @@
 use crate::admission::AuthenticatedConnection;
 use crate::role_protocol::parse_ssh_connection;
 use crate::ssh_policy::{SshPlan, COMBINED_EVERSSH_ROLE};
-use crate::{Error, Limits};
+use crate::{Error, Limits, UdpPortRange};
 use clap::{error::ErrorKind as ClapErrorKind, ArgAction, Parser, Subcommand};
 use std::ffi::OsString;
 use std::io;
@@ -84,9 +84,16 @@ enum Command {
             allow_hyphen_values = true
         )]
         ssh_option: Vec<String>,
+        /// Ask the remote to bind its UDP endpoint inside this inclusive
+        /// range (for a host firewall that only admits a fixed UDP range).
+        #[arg(long = "udp-port-range", value_name = "START:END")]
+        udp_port_range: Option<String>,
     },
     #[command(name = "__bootstrap-parent-v1", hide = true)]
-    BootstrapParentV1,
+    BootstrapParentV1 {
+        #[arg(long = "udp-port-range", value_name = "START:END")]
+        udp_port_range: Option<String>,
+    },
     #[command(name = "__server-v1", hide = true)]
     ServerV1,
 }
@@ -96,8 +103,15 @@ enum PreparedRole {
     BootstrapParent {
         authenticated: AuthenticatedConnection,
         self_exe: PathBuf,
+        udp_port_range: Option<UdpPortRange>,
     },
     Server,
+}
+
+/// Validate an operator `START:END` range at the edge (design §5).
+fn parse_port_range(text: Option<String>) -> Result<Option<UdpPortRange>, Error> {
+    text.map(|text| UdpPortRange::parse(&text, &Limits::default()))
+        .transpose()
 }
 
 fn prepare(command: Command) -> Result<PreparedRole, Error> {
@@ -109,7 +123,9 @@ fn prepare(command: Command) -> Result<PreparedRole, Error> {
             remote_bin,
             remote_eversh,
             ssh_option,
+            udp_port_range,
         } => {
+            let udp_port_range = parse_port_range(udp_port_range)?;
             let plan = SshPlan::new(destination, port, ssh_option)?;
             let plan = match (remote_bin, remote_eversh) {
                 (Some(remote_bin), None) => plan.with_remote_binary(remote_bin)?,
@@ -120,13 +136,18 @@ fn prepare(command: Command) -> Result<PreparedRole, Error> {
                 (None, None) => plan,
                 (Some(_), Some(_)) => return Err(Error::InvalidSshArgument),
             };
+            let plan = match udp_port_range {
+                Some(range) => plan.with_udp_port_range(range)?,
+                None => plan,
+            };
             // The status path arrives as this process's OWN argument (clap
             // above), never the environment: the typed
             // `roles::run_ssh_proxy` library function receives it as a
             // parameter and never reads global environment itself.
             Ok(PreparedRole::Proxy(plan, status_file))
         }
-        Command::BootstrapParentV1 => {
+        Command::BootstrapParentV1 { udp_port_range } => {
+            let udp_port_range = parse_port_range(udp_port_range)?;
             let value = std::env::var_os("SSH_CONNECTION")
                 .and_then(|value| value.into_string().ok())
                 .ok_or(Error::SshConnectionMalformed)?;
@@ -135,6 +156,7 @@ fn prepare(command: Command) -> Result<PreparedRole, Error> {
             Ok(PreparedRole::BootstrapParent {
                 authenticated,
                 self_exe,
+                udp_port_range,
             })
         }
         Command::ServerV1 => Ok(PreparedRole::Server),
@@ -186,12 +208,14 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
             PreparedRole::BootstrapParent {
                 authenticated,
                 self_exe,
+                udp_port_range,
             } => {
                 let output = DirectPipeWriter::stdout().map_err(Error::Io)?;
                 crate::roles::run_bootstrap_parent(
                     authenticated,
                     self_exe,
                     invocation.server_role_args(),
+                    udp_port_range,
                     output,
                     limits,
                 )
@@ -537,4 +561,74 @@ fn unsupported_direct_io() -> io::Error {
         io::ErrorKind::Unsupported,
         "direct standard-descriptor ownership is unsupported",
     )
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    fn parse(words: &[&str]) -> Command {
+        Cli::try_parse_from(std::iter::once("everssh").chain(words.iter().copied()))
+            .unwrap()
+            .command
+    }
+
+    fn proxy_plan(extra: &[&str]) -> Result<SshPlan, Error> {
+        let mut words = vec!["ssh-proxy", "host", "22", "--remote-eversh", "eversh"];
+        words.extend_from_slice(extra);
+        match prepare(parse(&words))? {
+            PreparedRole::Proxy(plan, _) => Ok(plan),
+            _ => panic!("ssh-proxy prepared another role"),
+        }
+    }
+
+    #[test]
+    fn proxy_carries_a_validated_port_range_to_the_remote_bootstrap() {
+        let plain = proxy_plan(&[]).unwrap();
+        assert_eq!(plain.udp_port_range(), None);
+        assert_eq!(
+            plain.bootstrap_args().last().unwrap(),
+            "eversh __everssh __bootstrap-parent-v1"
+        );
+        let ranged = proxy_plan(&["--udp-port-range", "60000:60010"]).unwrap();
+        assert_eq!(
+            ranged.bootstrap_args().last().unwrap(),
+            "eversh __everssh __bootstrap-parent-v1 --udp-port-range 60000:60010"
+        );
+        for bad in ["0:10", "10:9", "1:2000", "60000-60010", ""] {
+            assert!(
+                matches!(
+                    proxy_plan(&["--udp-port-range", bad]),
+                    Err(Error::InvalidUdpPolicy(_))
+                ),
+                "accepted {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn bootstrap_parent_parses_the_optional_range_into_a_range_policy() {
+        assert!(matches!(
+            parse(&["__bootstrap-parent-v1"]),
+            Command::BootstrapParentV1 {
+                udp_port_range: None
+            }
+        ));
+        let Command::BootstrapParentV1 { udp_port_range } =
+            parse(&["__bootstrap-parent-v1", "--udp-port-range", "60000:60010"])
+        else {
+            panic!("bootstrap parent grammar changed");
+        };
+        let range = parse_port_range(udp_port_range).unwrap().unwrap();
+        assert_eq!(
+            range.start_policy(),
+            crate::role_protocol::StartUdpPolicy::RouteSelectedPortRange {
+                start: 60_000,
+                end: 60_010
+            }
+        );
+        assert!(parse_port_range(Some("0:1".to_owned())).is_err());
+        assert!(Cli::try_parse_from(["everssh", "__bootstrap-parent-v1", "extra"]).is_err());
+    }
 }

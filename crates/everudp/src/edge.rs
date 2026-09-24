@@ -17,6 +17,7 @@ use crate::{
 };
 use clap::{error::ErrorKind as ClapErrorKind, ArgAction, Parser, Subcommand};
 use everssh::role_protocol::parse_ssh_connection;
+use everssh::UdpPortRange;
 use std::ffi::OsString;
 use std::net::IpAddr;
 use std::os::fd::{AsFd, FromRawFd, OwnedFd};
@@ -54,6 +55,10 @@ struct Cli {
         global = true
     )]
     remote_program: Option<String>,
+    /// Ask the remote gateway to bind its UDP endpoint inside this inclusive
+    /// range (for a host firewall that only admits a fixed UDP range).
+    #[arg(long = "udp-port-range", value_name = "START:END", global = true)]
+    udp_port_range: Option<String>,
     #[command(subcommand)]
     command: Command,
 }
@@ -130,12 +135,14 @@ enum PreparedRole {
         request: BootstrapRequest,
         state_root: PathBuf,
         bind_ip: IpAddr,
+        udp_port_range: Option<UdpPortRange>,
         self_exe: PathBuf,
     },
     Gateway {
         request: BootstrapRequest,
         state_root: PathBuf,
         bind_ip: IpAddr,
+        udp_port_range: Option<UdpPortRange>,
     },
     Broker(everpty::broker::BrokerExit),
 }
@@ -167,11 +174,21 @@ fn captured_environment() -> Vec<OsString> {
         .collect()
 }
 
+/// Validate an operator `START:END` range at the edge (design §5), before
+/// any SSH, PTY, or socket work.
+fn parse_port_range(text: Option<String>) -> Result<Option<UdpPortRange>, RoleError> {
+    Ok(text
+        .map(|text| UdpPortRange::parse(&text, &everssh::Limits::default()))
+        .transpose()?)
+}
+
 fn prepare(
     invocation: Invocation,
     remote_program: Option<String>,
+    udp_port_range: Option<String>,
     command: Command,
 ) -> Result<PreparedRole, RoleError> {
+    let udp_port_range = parse_port_range(udp_port_range)?;
     match command {
         Command::Connect {
             destination,
@@ -195,6 +212,7 @@ fn prepare(
                 command: child.into_iter().map(|word| word.into_vec()).collect(),
                 status_path: status_file,
                 term: local_term(),
+                udp_port_range,
             }))
         }
         Command::Attach {
@@ -218,6 +236,7 @@ fn prepare(
                 command: Vec::new(),
                 status_path: status_file,
                 term: String::new(),
+                udp_port_range,
             }))
         }
         Command::Observe {
@@ -238,6 +257,7 @@ fn prepare(
             command: Vec::new(),
             status_path: status_file,
             term: String::new(),
+            udp_port_range,
         })),
         Command::BootstrapParentV1 { request } => {
             let request = BootstrapRequest::decode_token(&request)?;
@@ -263,6 +283,7 @@ fn prepare(
                     request,
                     state_root,
                     bind_ip: authenticated.local().ip(),
+                    udp_port_range,
                     self_exe: std::env::current_exe()?,
                 }),
                 BootstrapPreparation::Broker(exit) => Ok(PreparedRole::Broker(exit)),
@@ -284,6 +305,7 @@ fn prepare(
                 request: BootstrapRequest::decode_token(&request)?,
                 state_root,
                 bind_ip,
+                udp_port_range,
             })
         }
     }
@@ -339,7 +361,12 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
             return 2;
         }
     };
-    let prepared = match prepare(invocation, cli.remote_program, cli.command) {
+    let prepared = match prepare(
+        invocation,
+        cli.remote_program,
+        cli.udp_port_range,
+        cli.command,
+    ) {
         Ok(prepared) => prepared,
         Err(error) => {
             eprintln!("everudp: {error}");
@@ -378,6 +405,7 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
                 request,
                 state_root,
                 bind_ip,
+                udp_port_range,
                 self_exe,
             } => {
                 let output = std::io::stdout().lock();
@@ -386,6 +414,7 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
                     invocation.gateway_role_prefix(),
                     state_root,
                     bind_ip,
+                    udp_port_range,
                     request,
                     output,
                     limits,
@@ -397,6 +426,7 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
                 request,
                 state_root,
                 bind_ip,
+                udp_port_range,
             } => {
                 run_application(async move {
                     // The gateway survives for the PTY lifetime, but its parent
@@ -407,7 +437,15 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
                     // SAFETY: role dispatch creates exactly one stdout owner in
                     // this process and never constructs a `Stdout` handle.
                     let output = std::fs::File::from(unsafe { OwnedFd::from_raw_fd(1) });
-                    run_gateway_role(&state_root, bind_ip, request, output, limits).await?;
+                    run_gateway_role(
+                        &state_root,
+                        bind_ip,
+                        udp_port_range,
+                        request,
+                        output,
+                        limits,
+                    )
+                    .await?;
                     Ok(None)
                 })
                 .await
@@ -546,6 +584,83 @@ mod tests {
         assert!(matches!(parsed.command, Command::GatewayV1 { .. }));
         assert!(Cli::try_parse_from(["everudp", "__gateway-v2"]).is_err());
         assert!(Cli::try_parse_from(["everudp", "__bootstrap-parent-v1"]).is_err());
+    }
+
+    fn observe_config(range: Option<&str>) -> Result<crate::ClientConfig, crate::RoleError> {
+        let mut words = vec!["everudp"];
+        if let Some(range) = range {
+            words.extend(["--udp-port-range", range]);
+        }
+        words.extend(["observe", "host", "work"]);
+        let cli = Cli::try_parse_from(words).expect("observe grammar");
+        match super::prepare(
+            Invocation::CombinedEversh,
+            cli.remote_program,
+            cli.udp_port_range,
+            cli.command,
+        )? {
+            super::PreparedRole::Client(config) => Ok(config),
+            _ => panic!("observe prepared another role"),
+        }
+    }
+
+    #[test]
+    fn client_port_range_is_validated_before_any_bootstrap() {
+        assert_eq!(observe_config(None).expect("plain").udp_port_range, None);
+        let config = observe_config(Some("60000:60010")).expect("ranged");
+        let range = config.udp_port_range.expect("range carried");
+        assert_eq!((range.start(), range.end()), (60_000, 60_010));
+        for bad in ["0:10", "10:9", "1:2000", "60000", "a:b"] {
+            assert!(
+                matches!(
+                    observe_config(Some(bad)),
+                    Err(crate::RoleError::Everssh(everssh::Error::InvalidUdpPolicy(
+                        _
+                    )))
+                ),
+                "accepted {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn remote_roles_parse_the_trailing_port_range_into_a_bounded_gateway_bind() {
+        let parsed = Cli::try_parse_from([
+            "everudp",
+            "__bootstrap-parent-v1",
+            "token",
+            "--udp-port-range",
+            "60000:60010",
+        ])
+        .expect("ranged bootstrap grammar");
+        assert!(matches!(parsed.command, Command::BootstrapParentV1 { .. }));
+        let range = super::parse_port_range(parsed.udp_port_range)
+            .expect("valid")
+            .expect("present");
+        assert_eq!(
+            crate::roles::gateway_port_range_args(Some(range)),
+            ["--udp-port-range", "60000:60010"]
+        );
+        assert!(crate::roles::gateway_port_range_args(None).is_empty());
+        let plain = Cli::try_parse_from(["everudp", "__bootstrap-parent-v1", "token"])
+            .expect("plain bootstrap grammar");
+        assert_eq!(plain.udp_port_range, None);
+
+        let gateway = Cli::try_parse_from([
+            "everudp",
+            "__gateway-v1",
+            "--state-root",
+            "/tmp/state",
+            "--bind-ip",
+            "127.0.0.1",
+            "--request",
+            "00",
+            "--udp-port-range",
+            "60000:60010",
+        ])
+        .expect("ranged gateway grammar");
+        assert!(matches!(gateway.command, Command::GatewayV1 { .. }));
+        assert_eq!(gateway.udp_port_range.as_deref(), Some("60000:60010"));
     }
 
     #[test]

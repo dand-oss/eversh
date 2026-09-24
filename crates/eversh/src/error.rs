@@ -30,6 +30,8 @@ pub enum Error {
     RemoteWordInvalid,
     /// A user-supplied SSH option failed the audited allowlist.
     SshOptionRejected,
+    /// `--udp-port-range` failed validation (design §5).
+    UdpPortRangeInvalid(everssh::error::UdpPolicyViolation),
     /// Remote-role argument grammar violation (private protocol).
     RoleProtocol(&'static str),
     /// The remote-role protocol version word is unsupported.
@@ -132,6 +134,12 @@ impl std::fmt::Display for Error {
             Self::SshOptionRejected => {
                 write!(f, "SSH option rejected by the audited allowlist")
             }
+            Self::UdpPortRangeInvalid(violation) => write!(
+                f,
+                "invalid --udp-port-range: {violation} (expected START:END with \
+                 1 <= START <= END spanning at most {} ports)",
+                everssh::Limits::default().max_udp_port_span
+            ),
             Self::RoleProtocol(detail) => write!(f, "everpty role protocol: {detail}"),
             Self::RoleVersionUnsupported => write!(
                 f,

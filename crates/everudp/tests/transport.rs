@@ -487,6 +487,28 @@ async fn floor_profile_is_explicit_and_does_not_change_stream_endpoints() {
     assert!(floor.profile().datagrams);
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn gateway_binds_inside_an_operator_port_range_on_loopback() {
+    let limits = Limits::default();
+    let identity = GatewayIdentity::generate().expect("identity");
+    let ip = std::net::IpAddr::from(Ipv4Addr::LOCALHOST);
+    let occupied = UdpSocket::bind(loopback()).expect("reserve");
+    let port = occupied.local_addr().expect("reserved address").port();
+    let range = everssh::UdpPortRange::new(port, port, &everssh::Limits::default()).expect("range");
+    let exhausted =
+        GatewayEndpoint::bind_in_port_range(ip, range, &identity, shared_store(&limits), limits);
+    assert!(matches!(
+        exhausted,
+        Err(TransportError::Route(everssh::Error::PortRangeExhausted))
+    ));
+    drop(occupied);
+    let gateway =
+        GatewayEndpoint::bind_in_port_range(ip, range, &identity, shared_store(&limits), limits)
+            .expect("ranged gateway");
+    assert_eq!(gateway.local_addr(), SocketAddr::new(ip, port));
+    assert_eq!(gateway.profile().alpn, everudp::wire::ALPN);
+}
+
 #[cfg(feature = "tuning")]
 #[test]
 fn development_matrix_is_exact_and_records_the_preregistered_default() {
