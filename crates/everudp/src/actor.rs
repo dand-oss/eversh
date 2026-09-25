@@ -19,12 +19,14 @@ use crate::{Limits, WireError};
 use bytes::Bytes;
 use noq::{Connection, RecvStream, SendStream, VarInt};
 use std::fmt;
+use std::future::{poll_fn, Future};
 use std::io;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 const CLOSE_CODE: VarInt = VarInt::from_u32(0x4555);
 const RESUME_CLOSE_CODE: VarInt = VarInt::from_u32(0x4552);
+type OutputOpen = Pin<Box<dyn Future<Output = Result<SendStream, noq::ConnectionError>> + Send>>;
 
 #[derive(Debug)]
 pub enum LinkError {
@@ -248,7 +250,9 @@ pub struct GatewayLink {
     input_recv: Option<RecvStream>,
     incoming_uni: Option<tokio::task::JoinHandle<Result<RecvStream, noq::ConnectionError>>>,
     input_finished: bool,
-    output_send: SendStream,
+    output_send: Option<SendStream>,
+    output_open: Option<OutputOpen>,
+    preparation_deadline: Pin<Box<tokio::time::Sleep>>,
     association: GatewayAssociation,
     limits: Limits,
     control_reader: RecordReader,
@@ -329,6 +333,20 @@ impl GatewayLink {
         slabs: &mut GatewayReplaySlabs,
         limits: Limits,
     ) -> Result<(Self, GatewayAction), LinkError> {
+        let (mut link, action) = Self::stage_initial(admitted, lifecycle, slabs, limits)?;
+        if let Err(error) = poll_fn(|cx| link.poll_output_open(cx)).await {
+            link.abort_prepared_initial(lifecycle, slabs)?;
+            return Err(error);
+        }
+        Ok((link, action))
+    }
+
+    pub(crate) fn stage_initial(
+        admitted: AdmittedConnection,
+        lifecycle: &mut GatewayLifecycle,
+        slabs: &mut GatewayReplaySlabs,
+        limits: Limits,
+    ) -> Result<(Self, GatewayAction), LinkError> {
         limits.validate().map_err(WireError::from)?;
         let (association, action) = match GatewayAssociation::establish(&admitted, lifecycle, slabs)
         {
@@ -340,7 +358,7 @@ impl GatewayLink {
             }
         };
         crate::exit_trace::record("gateway-prepare-established");
-        match Self::open_uncommitted(admitted, association, slabs, limits).await {
+        match Self::open_uncommitted(admitted, association, slabs, limits) {
             Ok(link) => Ok((link, action)),
             Err(failure) => {
                 failure.association.rollback_initial(lifecycle, slabs)?;
@@ -365,6 +383,27 @@ impl GatewayLink {
     /// rejected or interrupted replacement connection.
     pub async fn try_accept_resume(
         admitted: AdmittedConnection,
+        association: GatewayAssociation,
+        lifecycle: &mut GatewayLifecycle,
+        slabs: &mut GatewayReplaySlabs,
+        limits: Limits,
+    ) -> Result<(Self, GatewayAction), GatewayResumeFailure> {
+        let (mut link, action) =
+            Self::stage_resume(admitted, association, lifecycle, slabs, limits)?;
+        match poll_fn(|cx| link.poll_prepared(slabs, cx)).await {
+            Ok(()) => Ok((link, action)),
+            Err(error) => Err(GatewayResumeFailure {
+                error,
+                association: link.into_failed_association(),
+            }),
+        }
+    }
+
+    // Return durable replay identity even on allocation failure, without a
+    // second allocation just to box the failure.
+    #[allow(clippy::result_large_err)]
+    pub(crate) fn stage_resume(
+        admitted: AdmittedConnection,
         mut association: GatewayAssociation,
         lifecycle: &mut GatewayLifecycle,
         slabs: &mut GatewayReplaySlabs,
@@ -387,8 +426,7 @@ impl GatewayLink {
                 });
             }
         };
-        Self::open(admitted, association, slabs, limits)
-            .await
+        Self::open_uncommitted(admitted, association, slabs, limits)
             .map(|link| (link, action))
             .map_err(|failure| GatewayResumeFailure {
                 error: failure.error,
@@ -396,23 +434,9 @@ impl GatewayLink {
             })
     }
 
-    async fn open(
-        admitted: AdmittedConnection,
-        association: GatewayAssociation,
-        slabs: &mut GatewayReplaySlabs,
-        limits: Limits,
-    ) -> Result<Self, GatewayOpenFailure> {
-        let mut link = Self::open_uncommitted(admitted, association, slabs, limits).await?;
-        match link.flush_control(slabs).await {
-            Ok(_) => Ok(link),
-            Err(error) => Err(GatewayOpenFailure {
-                error,
-                association: link.into_failed_association(),
-            }),
-        }
-    }
-
-    async fn open_uncommitted(
+    // The failure must retain the association even if buffer allocation fails.
+    #[allow(clippy::result_large_err)]
+    fn open_uncommitted(
         admitted: AdmittedConnection,
         association: GatewayAssociation,
         slabs: &mut GatewayReplaySlabs,
@@ -447,26 +471,8 @@ impl GatewayLink {
             });
         }
 
-        crate::exit_trace::record("gateway-prepare-wait-output-stream");
-        let output_send =
-            match tokio::time::timeout(limits.initial_udp_budget(), connection.open_uni()).await {
-                Ok(Ok(stream)) => stream,
-                Ok(Err(_)) | Err(_) => {
-                    connection.close(CLOSE_CODE, b"everudp stream open failed");
-                    return Err(GatewayOpenFailure {
-                        error: LinkError::StreamOpen,
-                        association,
-                    });
-                }
-            };
-        crate::exit_trace::record("gateway-prepare-output-stream-open");
-        if output_send.set_priority(OUTPUT_STREAM_PRIORITY).is_err() {
-            connection.close(CLOSE_CODE, b"everudp stream priority failed");
-            return Err(GatewayOpenFailure {
-                error: LinkError::StreamOpen,
-                association,
-            });
-        }
+        let output_connection = connection.clone();
+        let output_open = Box::pin(async move { output_connection.open_uni().await });
         let incoming_connection = connection.clone();
         let incoming_uni = tokio::spawn(async move { incoming_connection.accept_uni().await });
         #[cfg(feature = "path-packet-diagnostics")]
@@ -482,7 +488,9 @@ impl GatewayLink {
             input_recv: None,
             incoming_uni: Some(incoming_uni),
             input_finished: false,
-            output_send,
+            output_send: None,
+            output_open: Some(output_open),
+            preparation_deadline: Box::pin(tokio::time::sleep(limits.initial_udp_budget())),
             association,
             limits,
             control_reader: storage.control_reader,
@@ -507,6 +515,66 @@ impl GatewayLink {
         })
     }
 
+    fn poll_output_open(&mut self, context: &mut Context<'_>) -> Poll<Result<(), LinkError>> {
+        if self.output_send.is_some() {
+            return Poll::Ready(Ok(()));
+        }
+        if self.preparation_deadline.as_mut().poll(context).is_ready() {
+            return Poll::Ready(Err(LinkError::StreamOpen));
+        }
+        let Some(open) = self.output_open.as_mut() else {
+            return Poll::Ready(Err(LinkError::StreamOpen));
+        };
+        match open.as_mut().poll(context) {
+            Poll::Pending => Poll::Pending,
+            Poll::Ready(Err(_)) => Poll::Ready(Err(LinkError::StreamOpen)),
+            Poll::Ready(Ok(stream)) => {
+                if stream.set_priority(OUTPUT_STREAM_PRIORITY).is_err() {
+                    return Poll::Ready(Err(LinkError::StreamOpen));
+                }
+                self.output_open = None;
+                self.output_send = Some(stream);
+                Poll::Ready(Ok(()))
+            }
+        }
+    }
+
+    /// Bounded, cancellation-safe admission progress. No PTY input is
+    /// permitted until this reports readiness and the dispatcher publishes it.
+    pub(crate) fn poll_prepared(
+        &mut self,
+        slabs: &mut GatewayReplaySlabs,
+        context: &mut Context<'_>,
+    ) -> Poll<Result<(), LinkError>> {
+        if self.connection.close_reason().is_some()
+            || self.preparation_deadline.as_mut().poll(context).is_ready()
+        {
+            return Poll::Ready(Err(LinkError::StreamOpen));
+        }
+        match self.poll_output_open(context) {
+            Poll::Pending => return Poll::Pending,
+            Poll::Ready(Err(error)) => return Poll::Ready(Err(error)),
+            Poll::Ready(Ok(())) => {}
+        }
+        match self.output_resume_required(slabs) {
+            Ok(false) => {}
+            Ok(true) => return Poll::Ready(Err(LinkError::OutputResumeRequired)),
+            Err(error) => return Poll::Ready(Err(error)),
+        }
+        // SERVER_HELLO is one bounded record. Yield if a transport accepts
+        // only a prefix; never spin here while healthy peers have work.
+        for _ in 0..2 {
+            match self.poll_control_step(slabs, context) {
+                Poll::Pending => return Poll::Pending,
+                Poll::Ready(Err(error)) => return Poll::Ready(Err(error)),
+                Poll::Ready(Ok(OutboundStep::Idle)) => return Poll::Ready(Ok(())),
+                Poll::Ready(Ok(_)) => {}
+            }
+        }
+        context.waker().wake_by_ref();
+        Poll::Pending
+    }
+
     /// Releases `SERVER_HELLO` after the gateway's persistent PTY writer is
     /// ready. Failure rolls back every initial association resource.
     pub(crate) async fn commit_prepared_initial(
@@ -515,7 +583,7 @@ impl GatewayLink {
         slabs: &mut GatewayReplaySlabs,
     ) -> Result<Self, LinkError> {
         crate::exit_trace::record("gateway-prepare-flush-server-hello");
-        if let Err(error) = self.flush_control(slabs).await {
+        if let Err(error) = poll_fn(|cx| self.poll_prepared(slabs, cx)).await {
             let association = self.into_failed_association();
             association.rollback_initial(lifecycle, slabs)?;
             return Err(error);
@@ -1227,6 +1295,9 @@ impl GatewayLink {
         slabs: &GatewayReplaySlabs,
         context: &mut Context<'_>,
     ) -> Poll<Result<OutboundStep, LinkError>> {
+        let Some(output_send) = self.output_send.as_mut() else {
+            return Poll::Ready(Err(LinkError::StreamOpen));
+        };
         let output = match self.association.output(slabs) {
             Ok(output) => output,
             Err(error) => return Poll::Ready(Err(error.into())),
@@ -1235,7 +1306,7 @@ impl GatewayLink {
             self.output_pending = None;
             let reset = !self.output_reset;
             if reset {
-                let _ = self.output_send.reset(CLOSE_CODE);
+                let _ = output_send.reset(CLOSE_CODE);
                 self.output_reset = true;
             }
             return Poll::Ready(Ok(OutboundStep::Discarding { reset }));
@@ -1273,7 +1344,7 @@ impl GatewayLink {
             if let Some((offset, len)) = self.output_offsets.reserve(copy.wire_len) {
                 crate::packet_trace::record_operation(crate::packet_trace::Operation {
                     connection: self.diagnostic_connection,
-                    stream: self.output_send.id().into(),
+                    stream: output_send.id().into(),
                     epoch: output.epoch(),
                     sequence: copy.sequence,
                     kind: copy.kind as u8,
@@ -1293,7 +1364,7 @@ impl GatewayLink {
         }
 
         let pending = self.output_pending.as_mut().expect("output pending");
-        let written = match Pin::new(&mut self.output_send).poll_write(
+        let written = match Pin::new(output_send).poll_write(
             context,
             &self.output_buffer[pending.written..pending.wire_len],
         ) {
