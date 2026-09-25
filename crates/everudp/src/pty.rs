@@ -1470,6 +1470,13 @@ mod tests {
                     );
                     assert_eq!(
                         read_frame(&mut stream, &limits),
+                        Frame::Resize {
+                            rows: 40,
+                            cols: 120
+                        }
+                    );
+                    assert_eq!(
+                        read_frame(&mut stream, &limits),
                         Frame::Input(b"\r".to_vec())
                     );
                 }
@@ -1489,9 +1496,21 @@ mod tests {
             assert_eq!(session.direct.is_some(), direct);
             if !direct {
                 session
-                    .send_operation(InputOperation::Bytes(b"\r"))
-                    .await
-                    .expect("Enter after takeover");
+                    .begin_operation_resized(
+                        InputOperation::Bytes(b"\r"),
+                        Some(Resize {
+                            rows: 40,
+                            columns: 120,
+                            pixel_width: 0,
+                            pixel_height: 0,
+                        }),
+                    )
+                    .expect("size before framed input");
+                assert!(!session.try_commit_direct_input());
+                assert_eq!(
+                    session.next_event().await.expect("framed input committed"),
+                    PtyEvent::InputCommitted
+                );
             }
             worker.join().expect("broker worker");
         }
