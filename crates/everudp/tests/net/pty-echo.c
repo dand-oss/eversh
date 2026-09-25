@@ -1,6 +1,7 @@
 #define _DEFAULT_SOURCE
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdint.h>
 #include <termios.h>
 #include <unistd.h>
@@ -21,7 +22,7 @@ static int write_all(int fd, const uint8_t *data, size_t len) {
     return 0;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     struct termios original;
     if (tcgetattr(STDIN_FILENO, &original) != 0) {
         return 1;
@@ -30,6 +31,12 @@ int main(void) {
     cfmakeraw(&raw);
     if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) != 0) {
         return 1;
+    }
+    if (argc > 1) {
+        int ready = open(argv[1], O_WRONLY | O_CREAT | O_EXCL, 0600);
+        if (ready < 0 || close(ready) != 0) {
+            return 1;
+        }
     }
 
     uint8_t buffer[16384];

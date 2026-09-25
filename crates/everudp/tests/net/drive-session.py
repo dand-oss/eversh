@@ -117,7 +117,7 @@ class Driver:
             if self.args.raw_echo:
                 command += [
                     "--", "/bin/sh", "-c",
-                    'printf "%s\\n" "$$" > "$1/child-pid"; exec "$2"',
+                    'printf "%s\\n" "$$" > "$1/child-pid"; exec "$2" "$1/raw-ready"',
                     "everudp-latency-child", str(self.args.control_dir), self.args.raw_echo,
                 ]
             else:
@@ -244,6 +244,8 @@ class Driver:
         self.spawn()
         assert self.process is not None
         self.wait_status("connected", timeout=30.0)
+        if self.args.raw_echo:
+            self.wait_path("raw-ready")
 
         pre = f"pre-{self.args.session}"
         self.send(f"{'RX:' if self.args.raw_echo else ''}{pre}\n".encode())
