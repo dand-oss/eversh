@@ -1,0 +1,609 @@
+{
+  "method": "Alternating-order paired blocks pinned to CPU6; nearest-rank p50/p95 from 200 sequential responses. Raw PTY echo: readiness barrier and100 warmups. Two independent six-pair sets, all twelve retained. Gate: repeatable greater-than10percent p50/p95 regression blocks release.",
+  "baseline_sha256": "e73ab2bfeb0fe1a4861b79f33b7f826f788de85de5c2c7e86fbcc38cedab2c3b",
+  "candidate_sha256": "5e6f0a39afa161452be8cb8bf190a83c69e366a3ec96b0d475294c2cc2f65887",
+  "runtime_commit": "894adb04",
+  "harness_commit": "a066e28b",
+  "raw_echo": [
+    {
+      "loss_percent": 0,
+      "pairs": [
+        {
+          "round": 1,
+          "baseline_us": {
+            "p50": 1257.904,
+            "p95": 3452.492
+          },
+          "baseline_receipt_sha256": "a36e8649b89ec8d4229c746ea649af587626da88d47cea826ce20d5b2c68451e",
+          "final_us": {
+            "p50": 1334.712,
+            "p95": 3930.061
+          },
+          "final_receipt_sha256": "2f963cadbe4be65807d9aaa30f18dac48c1f1fe0a56d65249cefb65504b61dca",
+          "p50_ratio": 1.0610603034889785,
+          "p95_ratio": 1.1383258817109496
+        },
+        {
+          "round": 2,
+          "baseline_us": {
+            "p50": 1309.574,
+            "p95": 3433.019
+          },
+          "baseline_receipt_sha256": "6a982b85872a010056cff1437b90ded878375c0bc0ea82f02acaa56a585b704a",
+          "final_us": {
+            "p50": 1335.392,
+            "p95": 3538.042
+          },
+          "final_receipt_sha256": "6fe9c62dde18271c423e207f6d5dc1b474327dcc377dedc32c57ffe3983254b5",
+          "p50_ratio": 1.01971480802154,
+          "p95_ratio": 1.0305920241047313
+        },
+        {
+          "round": 3,
+          "baseline_us": {
+            "p50": 1144.117,
+            "p95": 3094.98
+          },
+          "baseline_receipt_sha256": "b6bf4a4b0064fa1a8036ac391bf7011226943266e828da7487105cc1058f1a44",
+          "final_us": {
+            "p50": 459.415,
+            "p95": 1337.779
+          },
+          "final_receipt_sha256": "325bea530d34780f82801165407d26cba1b77d6b6e2aaa2a4529f1b0e4d77ebb",
+          "p50_ratio": 0.4015454713110635,
+          "p95_ratio": 0.432241565373605
+        },
+        {
+          "round": 4,
+          "baseline_us": {
+            "p50": 1331.275,
+            "p95": 3361.52
+          },
+          "baseline_receipt_sha256": "0f5bef9193e0b7ce68b228257a86aef085335257c885cb65ca7252f9b18fd1a4",
+          "final_us": {
+            "p50": 465.72,
+            "p95": 1670.72
+          },
+          "final_receipt_sha256": "3fdb08499a590560cf3ec94fcdaa77b4207fac4ec1840909e3227f580a2df138",
+          "p50_ratio": 0.3498300501399035,
+          "p95_ratio": 0.49701325590804163
+        },
+        {
+          "round": 5,
+          "baseline_us": {
+            "p50": 662.071,
+            "p95": 1786.527
+          },
+          "baseline_receipt_sha256": "376f6a1537888091bb0504b9e46708f11aa5d1629eaa894150945040ef6d7313",
+          "final_us": {
+            "p50": 462.7,
+            "p95": 1438.934
+          },
+          "final_receipt_sha256": "84f1aaefb8746eb69190746d397222101e719be0e44a7ef01856d4a3b25ee68e",
+          "p50_ratio": 0.6988676441046353,
+          "p95_ratio": 0.8054364697538856
+        },
+        {
+          "round": 6,
+          "baseline_us": {
+            "p50": 637.771,
+            "p95": 1441.324
+          },
+          "baseline_receipt_sha256": "1380ac5d2ec1bbc5b42219dfec0eff017d511c71c6e37361e470cf6606bf1a01",
+          "final_us": {
+            "p50": 1315.975,
+            "p95": 3543.065
+          },
+          "final_receipt_sha256": "00232e589fdfee9e696eee86a15477fbb36cfafeaf1bdaf9f887776aafca405b",
+          "p50_ratio": 2.0633973636305196,
+          "p95_ratio": 2.458201625727456
+        },
+        {
+          "round": 7,
+          "baseline_us": {
+            "p50": 471.453,
+            "p95": 1441.238
+          },
+          "baseline_receipt_sha256": "e7a7cc7e288280ec73b549aac419fbb969183d0d19bcda2ef29dcca14a44e53e",
+          "final_us": {
+            "p50": 1328.298,
+            "p95": 4077.314
+          },
+          "final_receipt_sha256": "be8c238357dd5ab08591a5f527ce299c295dd82ac522b79805d8ebe0c8647c0d",
+          "p50_ratio": 2.8174558227437307,
+          "p95_ratio": 2.8290358705501797
+        },
+        {
+          "round": 8,
+          "baseline_us": {
+            "p50": 1325.138,
+            "p95": 3459.362
+          },
+          "baseline_receipt_sha256": "7c422b3a90495009becd0c4db983ca2de92c2f40d508e91ff8a1ff13ced54409",
+          "final_us": {
+            "p50": 1331.868,
+            "p95": 2778.536
+          },
+          "final_receipt_sha256": "66d71ec8c0f1592526a1648914a00b639e414547a6893accadfe6768cda62f2f",
+          "p50_ratio": 1.005078716329922,
+          "p95_ratio": 0.8031931899581484
+        },
+        {
+          "round": 9,
+          "baseline_us": {
+            "p50": 1342.922,
+            "p95": 3487.363
+          },
+          "baseline_receipt_sha256": "6f345607a5223ae3c2d21e0be367a2a4c37acfab72b3a80fd35a4b8f8b81fc5e",
+          "final_us": {
+            "p50": 456.255,
+            "p95": 1425.084
+          },
+          "final_receipt_sha256": "b6838fac6108bc1e929e3c875931cdc416f0d032d2dd1099e4b69a7e5403323a",
+          "p50_ratio": 0.33974795259888513,
+          "p95_ratio": 0.4086422893171718
+        },
+        {
+          "round": 10,
+          "baseline_us": {
+            "p50": 1316.245,
+            "p95": 3934.361
+          },
+          "baseline_receipt_sha256": "f32ab524fe5715d4b8d48722bfcf528647b284e2d84cb4090847ee0d8f592aa7",
+          "final_us": {
+            "p50": 449.058,
+            "p95": 1372.516
+          },
+          "final_receipt_sha256": "55df072d92925c881da2ac532ebd839fc87c461d2bd46a571cb614ef583df353",
+          "p50_ratio": 0.3411659683417601,
+          "p95_ratio": 0.3488536003686495
+        },
+        {
+          "round": 11,
+          "baseline_us": {
+            "p50": 1309.208,
+            "p95": 3529.762
+          },
+          "baseline_receipt_sha256": "a161bfc2129992e7ee98fdb4938dd87fd790075b48d86f8854acb87e966ec373",
+          "final_us": {
+            "p50": 1336.442,
+            "p95": 3573.692
+          },
+          "final_receipt_sha256": "aa6fb955acd4e5bbabdced9a60265b724aa878cfde3577fa09681c6fb2a98dbb",
+          "p50_ratio": 1.0208018893865605,
+          "p95_ratio": 1.012445598315127
+        },
+        {
+          "round": 12,
+          "baseline_us": {
+            "p50": 460.175,
+            "p95": 1417.627
+          },
+          "baseline_receipt_sha256": "aa5d42e60b8d1bcf9b35afa6bc4ac42c975f786cbee06952230cd1a5b22aa369",
+          "final_us": {
+            "p50": 1334.751,
+            "p95": 3579.062
+          },
+          "final_receipt_sha256": "4ff41aa73862d08f576a156e33b0cf599d9484c002d0a50abecc7724342a621b",
+          "p50_ratio": 2.9005291465203453,
+          "p95_ratio": 2.524685266293602
+        }
+      ],
+      "median_paired_ratios": {
+        "p50": 1.0123967621757308,
+        "p95": 0.9089410340345063
+      },
+      "sets": [
+        {
+          "p50": 0.8592912260630876,
+          "p95": 0.9180142469293084
+        },
+        {
+          "p50": 1.012940302858241,
+          "p95": 0.9078193941366377
+        }
+      ]
+    },
+    {
+      "loss_percent": 5,
+      "pairs": [
+        {
+          "round": 1,
+          "baseline_us": {
+            "p50": 1362.696,
+            "p95": 4947.519
+          },
+          "baseline_receipt_sha256": "16655478923d5965505d4c3c557102a5463ad9dbdb8f0c0b1cc29b5ff9a795f6",
+          "final_us": {
+            "p50": 1350.622,
+            "p95": 5778.739
+          },
+          "final_receipt_sha256": "6a6a104fec93b820a872b37078dc645373646a9d757871ea7e9f272ce207a735",
+          "p50_ratio": 0.9911396232175043,
+          "p95_ratio": 1.1680074396884579
+        },
+        {
+          "round": 2,
+          "baseline_us": {
+            "p50": 1193.786,
+            "p95": 4889.98
+          },
+          "baseline_receipt_sha256": "74eabfa88a2263322d209030e871c70e16126c0f97eadac6a2945468fbbc9e24",
+          "final_us": {
+            "p50": 1306.541,
+            "p95": 4901.537
+          },
+          "final_receipt_sha256": "ee4064809eca20ff7afba815414c2cca875cdddb85e7a71d5f358fd0ee0d472b",
+          "p50_ratio": 1.0944516018783934,
+          "p95_ratio": 1.0023634043493022
+        },
+        {
+          "round": 3,
+          "baseline_us": {
+            "p50": 490.842,
+            "p95": 3839.393
+          },
+          "baseline_receipt_sha256": "da18a37fefea7c57d010aa154747375cba92e9325dafea31013ca52e119f21ec",
+          "final_us": {
+            "p50": 1339.242,
+            "p95": 4934.611
+          },
+          "final_receipt_sha256": "1a256c7f4a821595d914c52f0f307ae376e7c635cd7557865b0c2bc24fcb8f55",
+          "p50_ratio": 2.728458444876355,
+          "p95_ratio": 1.2852581124151656
+        },
+        {
+          "round": 4,
+          "baseline_us": {
+            "p50": 1341.355,
+            "p95": 4922.648
+          },
+          "baseline_receipt_sha256": "5b2ab3bfc47c3c311b3934cbf4526797326b4f8cd84a1f17893bf62b302db332",
+          "final_us": {
+            "p50": 1238.928,
+            "p95": 4790.314
+          },
+          "final_receipt_sha256": "27e6a1b8035e12bf1c7c06fe1b26efb4978b12e7de83fbfd17084f553aef4482",
+          "p50_ratio": 0.9236391559281474,
+          "p95_ratio": 0.9731173140959907
+        },
+        {
+          "round": 5,
+          "baseline_us": {
+            "p50": 1357.839,
+            "p95": 5961.512
+          },
+          "baseline_receipt_sha256": "f63a6efbdfeb1a1d23ff25cfa8523b95e5a64f67eb7ae371a94317581a75be71",
+          "final_us": {
+            "p50": 1357.449,
+            "p95": 4891.353
+          },
+          "final_receipt_sha256": "5f852c68844a39db6d9ff1d02ada5f47f3e9e5aaa0baee7afc5f63219292036f",
+          "p50_ratio": 0.9997127789082506,
+          "p95_ratio": 0.8204886612657998
+        },
+        {
+          "round": 6,
+          "baseline_us": {
+            "p50": 1190.949,
+            "p95": 4758.71
+          },
+          "baseline_receipt_sha256": "d3745bf89a7977bd01a7292bdef812d30217e4783f9c6182d1f4726e4922f1b7",
+          "final_us": {
+            "p50": 1340.562,
+            "p95": 5373.978
+          },
+          "final_receipt_sha256": "1990fdc00080ea9b6e6f8c1905b14dbd03627ce80b71a3bc4c055d0499541718",
+          "p50_ratio": 1.1256250267643702,
+          "p95_ratio": 1.129293022688922
+        },
+        {
+          "round": 7,
+          "baseline_us": {
+            "p50": 1351.009,
+            "p95": 5664.389
+          },
+          "baseline_receipt_sha256": "e327a9a1d447dd60c7f6ad0670ac054643c5ab5e2d27cf8f63d596e31c6512f0",
+          "final_us": {
+            "p50": 1316.332,
+            "p95": 4981.699
+          },
+          "final_receipt_sha256": "5f59808097af453eb5deaa92dd77e15ed5d4eb253b49b66f0d6c295513f49e8c",
+          "p50_ratio": 0.9743325173999582,
+          "p95_ratio": 0.8794768509013063
+        },
+        {
+          "round": 8,
+          "baseline_us": {
+            "p50": 1316.138,
+            "p95": 4792.227
+          },
+          "baseline_receipt_sha256": "1ae34d54dbf35a89741a1353a7a568b8d524fc2df5621f76570907edc2a16c16",
+          "final_us": {
+            "p50": 1349.702,
+            "p95": 5113.979
+          },
+          "final_receipt_sha256": "d762195bbbdd7d8d387cc602ecd0e8a38d1f66707f1f47a5edffd66e2d78b14d",
+          "p50_ratio": 1.0255018850606852,
+          "p95_ratio": 1.067140392139187
+        },
+        {
+          "round": 9,
+          "baseline_us": {
+            "p50": 1365.466,
+            "p95": 5931.945
+          },
+          "baseline_receipt_sha256": "20446c5b33291579d783e168c55fc2a67ce4a77af6728ca27e9c8f8c74dc04b2",
+          "final_us": {
+            "p50": 464.956,
+            "p95": 3812.733
+          },
+          "final_receipt_sha256": "55ab947a62373ce05b20e476979e20369a5985cc613a240911f5adb1f9c589f8",
+          "p50_ratio": 0.34051085856403607,
+          "p95_ratio": 0.642745844744009
+        },
+        {
+          "round": 10,
+          "baseline_us": {
+            "p50": 1324.635,
+            "p95": 4823.816
+          },
+          "baseline_receipt_sha256": "0ee9ceec96a3c019eb2fde0c384eabc568b9c64b49e02446e9b177f205383067",
+          "final_us": {
+            "p50": 482.735,
+            "p95": 3888.056
+          },
+          "final_receipt_sha256": "5ba2c70d821d8eba3ff27d3c4a22d5678cbf1cfa59d81d64a4832d6b1c405d06",
+          "p50_ratio": 0.36442869167733,
+          "p95_ratio": 0.80601250130602
+        },
+        {
+          "round": 11,
+          "baseline_us": {
+            "p50": 475.927,
+            "p95": 3961.421
+          },
+          "baseline_receipt_sha256": "8a14b1b46569640280b1cb8a0e14f6158504c007b6cf0025af5600072cbfe8eb",
+          "final_us": {
+            "p50": 459.217,
+            "p95": 3815.245
+          },
+          "final_receipt_sha256": "0e29ccdb82b7cb03271dc474aca5f5259ff2a6e93cc9e1894e5e7485f8853660",
+          "p50_ratio": 0.9648895734009627,
+          "p95_ratio": 0.9631001097838376
+        },
+        {
+          "round": 12,
+          "baseline_us": {
+            "p50": 1356.766,
+            "p95": 4932.678
+          },
+          "baseline_receipt_sha256": "1f54da71cb9af15593cb66d9fdae0d267e6d613222bf2bdbfb85b5cdfa7425ad",
+          "final_us": {
+            "p50": 477.952,
+            "p95": 3829.889
+          },
+          "final_receipt_sha256": "57408d9e2844b912012dbcab28a7394aff937adbe22c592a30bd06d7f1707447",
+          "p50_ratio": 0.35227297853867207,
+          "p95_ratio": 0.7764319908982504
+        }
+      ],
+      "median_paired_ratios": {
+        "p50": 0.9827360703087312,
+        "p95": 0.9681087119399141
+      },
+      "sets": [
+        {
+          "p50": 1.047082190393322,
+          "p95": 1.065828213519112
+        },
+        {
+          "p50": 0.6646591325391463,
+          "p95": 0.8427446761036632
+        }
+      ]
+    }
+  ],
+  "earlier_shell_echo": [
+    {
+      "loss_percent": 0,
+      "pairs": [
+        {
+          "round": 1,
+          "baseline_us": {
+            "p50": 1198.385,
+            "p95": 1979.2
+          },
+          "baseline_receipt_sha256": "6835b1fd1a9cb01a91d4167f531e08d65c9ca43827e357b2768c4d5919df8919",
+          "final_us": {
+            "p50": 1561.898,
+            "p95": 4384.199
+          },
+          "final_receipt_sha256": "5843863cbe5587d277309de9fc30886bb6f0e5688f174c486723d7ef02ff7370",
+          "p50_ratio": 1.3033357393492073,
+          "p95_ratio": 2.2151369240097005
+        },
+        {
+          "round": 2,
+          "baseline_us": {
+            "p50": 1468.211,
+            "p95": 4038.523
+          },
+          "baseline_receipt_sha256": "cd8d778e6c6ac26320b5aedfff4929d5debd12a943d90ff752d4affa4d49d05f",
+          "final_us": {
+            "p50": 526.121,
+            "p95": 1608.795
+          },
+          "final_receipt_sha256": "704889f64f9d0770d06d7098e1bb5528a1513485a8b53282f46019c8bd9764de",
+          "p50_ratio": 0.3583415462763867,
+          "p95_ratio": 0.39836222302064395
+        },
+        {
+          "round": 3,
+          "baseline_us": {
+            "p50": 666.682,
+            "p95": 1741.478
+          },
+          "baseline_receipt_sha256": "bd6e40b8ebefb89fd29076dc6816080e37996625bf659aaad2de0cb725dba208",
+          "final_us": {
+            "p50": 1497.763,
+            "p95": 4322.446
+          },
+          "final_receipt_sha256": "e0ac65d5a4dc1c19a876f7c8c4f4b276e241af803601c2b393f4ff23921d38e0",
+          "p50_ratio": 2.2465928283649474,
+          "p95_ratio": 2.4820560466454356
+        },
+        {
+          "round": 4,
+          "baseline_us": {
+            "p50": 1421.348,
+            "p95": 3699.185
+          },
+          "baseline_receipt_sha256": "43c1036db3124e0c5735421553417013282213b6f6b390e12da4a94df666e893",
+          "final_us": {
+            "p50": 558.963,
+            "p95": 758.438
+          },
+          "final_receipt_sha256": "6956a01fec84d45defc38595cecd7768b1a89f0f0f0ce0017f6eb3aaca6c5926",
+          "p50_ratio": 0.3932625929751194,
+          "p95_ratio": 0.20502840490540483
+        },
+        {
+          "round": 5,
+          "baseline_us": {
+            "p50": 1408.361,
+            "p95": 3585.859
+          },
+          "baseline_receipt_sha256": "c634c288b17b7d4ef61c583a98e1b662d6ac2f321d84bd3e7c777af42443ee9b",
+          "final_us": {
+            "p50": 1437.588,
+            "p95": 3723.87
+          },
+          "final_receipt_sha256": "a4cff86093fd0566e76992f396f923bacb71a8e230fb9784fddc9d69b9dad4ed",
+          "p50_ratio": 1.0207524917261979,
+          "p95_ratio": 1.038487570202844
+        },
+        {
+          "round": 6,
+          "baseline_us": {
+            "p50": 538.267,
+            "p95": 1567.544
+          },
+          "baseline_receipt_sha256": "4cb1e4bf186af86a4b86fde4b6e98bd69641c56c6d037a825915890046e415f2",
+          "final_us": {
+            "p50": 1108.05,
+            "p95": 3117.957
+          },
+          "final_receipt_sha256": "9c16b818d0d4f32c31af3290286ad08fc01e409af1b87dd1cd7e3429222332be",
+          "p50_ratio": 2.0585508678778375,
+          "p95_ratio": 1.989071439143016
+        }
+      ],
+      "median_paired_ratios": {
+        "p50": 1.1620441155377026,
+        "p95": 1.51377950467293
+      }
+    },
+    {
+      "loss_percent": 5,
+      "pairs": [
+        {
+          "round": 1,
+          "baseline_us": {
+            "p50": 558.161,
+            "p95": 3953.932
+          },
+          "baseline_receipt_sha256": "45fa6c76742e2a9a9347718523124b2878778e257278bd63abcebb95d3c190bf",
+          "final_us": {
+            "p50": 1378.619,
+            "p95": 4831.639
+          },
+          "final_receipt_sha256": "ec67dca4bfb561ca7bdd8ea2bffc330a05829c9a4f9c00b642a52fd745318a21",
+          "p50_ratio": 2.4699307189144353,
+          "p95_ratio": 1.2219833320350477
+        },
+        {
+          "round": 2,
+          "baseline_us": {
+            "p50": 1555.174,
+            "p95": 5962.902
+          },
+          "baseline_receipt_sha256": "d6d0ee8c2b62251a9f96e4e794f05f9d99facf8025024a0ba302cf1841bd8d80",
+          "final_us": {
+            "p50": 1640.556,
+            "p95": 4999.043
+          },
+          "final_receipt_sha256": "3052a7d29dca3135290e7b6fcc61329da86355c48fc4c02a845e1043468e6e5e",
+          "p50_ratio": 1.0549018952220137,
+          "p95_ratio": 0.8383573971197246
+        },
+        {
+          "round": 3,
+          "baseline_us": {
+            "p50": 1411.347,
+            "p95": 5223.731
+          },
+          "baseline_receipt_sha256": "17a8ea2a4a2d2cf6c0c1ce5aad2fe5eedf47c60557eae31f916ef614d0f605a8",
+          "final_us": {
+            "p50": 544.543,
+            "p95": 3956.1
+          },
+          "final_receipt_sha256": "e73a2a2cf05ad7dc715ce77cc315a9d8e8dac6a416a96ce8439a19725723a098",
+          "p50_ratio": 0.38583211641077636,
+          "p95_ratio": 0.7573322592606703
+        },
+        {
+          "round": 4,
+          "baseline_us": {
+            "p50": 1457.835,
+            "p95": 5223.511
+          },
+          "baseline_receipt_sha256": "fa727ea0d9b4fe9767ce13a7708be12bfbeb3471fa224810695042cfec322045",
+          "final_us": {
+            "p50": 1427.797,
+            "p95": 5074.278
+          },
+          "final_receipt_sha256": "5d2db06b16d8066bfe791466eb4edc46f3998593c59e300e616412adae58bd68",
+          "p50_ratio": 0.9793954734246331,
+          "p95_ratio": 0.9714305186683823
+        },
+        {
+          "round": 5,
+          "baseline_us": {
+            "p50": 1557.087,
+            "p95": 5995.07
+          },
+          "baseline_receipt_sha256": "2cf86d6b3b7b287c611ac201f1399314d9f38b40885b319bf8f2ba70c63c007d",
+          "final_us": {
+            "p50": 1267.63,
+            "p95": 4828.559
+          },
+          "final_receipt_sha256": "6e0b7ae74a5230008122eb32d470339c905c3c133de983f6e8f478c8801ae278",
+          "p50_ratio": 0.8141035150893946,
+          "p95_ratio": 0.8054216214322769
+        },
+        {
+          "round": 6,
+          "baseline_us": {
+            "p50": 1424.001,
+            "p95": 5262.304
+          },
+          "baseline_receipt_sha256": "d6be525c88c88203a6dd0561f2350dc0671952626b482f949ee24980b68e9761",
+          "final_us": {
+            "p50": 617.324,
+            "p95": 4420.289
+          },
+          "final_receipt_sha256": "02cb66805353e2ebfbc28e0d2b2d34a91c6ccadaa0a0c690cff971708e2cfb09",
+          "p50_ratio": 0.4335137405100137,
+          "p95_ratio": 0.8399911901706932
+        }
+      ],
+      "median_paired_ratios": {
+        "p50": 0.8967494942570138,
+        "p95": 0.8391742936452089
+      }
+    }
+  ],
+  "verdict": "PASS: no repeatable greater-than10percent regression in either raw-echo set",
+  "caveat": "Large bimodal scheduling variance remains. Earlier shell results are inconclusive and are retained, not discarded. No absolute latency or speedup claim. Historical zmosh performance FAIL unchanged."
+}
