@@ -452,8 +452,8 @@ fn writer_stdin_eof_detaches_while_real_broker_child_remains_alive() {
     drop(writer_stdin);
     assert_eq!(
         wait_bounded(&mut writer, "writer stdin EOF").code(),
-        Some(0),
-        "writer stdin EOF must be deliberate detach success"
+        Some(i32::from(run::DETACHED_EXIT)),
+        "writer stdin EOF must report a surviving session"
     );
 
     let sessions = run::list(&run_context(&fixture.state)).unwrap();

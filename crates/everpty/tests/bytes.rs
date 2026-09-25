@@ -382,7 +382,11 @@ fn attach_round_trip(tag: &str, fragments: &[Vec<u8>], timeout: Duration) -> Vec
     assert_quiet(&mut stdout, Duration::from_millis(40));
     drop(stdin);
     let status = attach.wait(deadline, "attached client detach");
-    assert_eq!(status.code(), Some(0), "stdin EOF is a clean detach");
+    assert_eq!(
+        status.code(),
+        Some(i32::from(run::DETACHED_EXIT)),
+        "stdin EOF leaves the session available to resume"
+    );
     assert!(
         drain_to_eof(&mut stdout, deadline).is_empty(),
         "no synthetic suffix may follow the exact payload"
