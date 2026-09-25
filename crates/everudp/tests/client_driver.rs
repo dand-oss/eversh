@@ -336,9 +336,24 @@ async fn gap_during_blocked_stdout_abandons_stale_output_and_delivers_the_new_ep
         assert_eq!(notice, everudp::terminal::GAP_NOTICE);
 
         let client_association = client_link.into_resumable_association();
+        // Overflow this attachment's retained output without retiring its
+        // identity: this is a resume, not a new writer generation.
+        for _ in 0..limits.queue_operations_per_direction {
+            slabs
+                .push_output_for(association(), Kind::Output, b"abandoned")
+                .expect("overrun the retained epoch");
+        }
         assert_eq!(
-            slabs.replace_writer_generation().expect("replace epoch"),
-            (0, 1)
+            slabs
+                .output_for(association())
+                .expect("same writer")
+                .epoch(),
+            1
+        );
+        // The manually injected GAP above has already reached the client.
+        assert_eq!(
+            slabs.complete_writer_resume().expect("announced gap"),
+            Some((0, 1))
         );
         let resume_hello = client_association.resume_hello().expect("resume hello");
         let authorization = server_association.authorization();
