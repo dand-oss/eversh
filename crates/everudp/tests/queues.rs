@@ -9,6 +9,50 @@ fn association(byte: u8) -> AssociationId {
     AssociationId::from_bytes([byte; 16]).expect("association")
 }
 
+#[test]
+fn writer_replay_acknowledgements_and_overruns_are_independent() {
+    let limits = Limits::default();
+    let mut slabs = GatewayReplaySlabs::new(&limits).expect("slabs");
+    let first = association(1);
+    let second = association(2);
+    slabs.add_writer(first).expect("first");
+    slabs.add_writer(second).expect("second");
+    let allocation = slabs.allocation_signature();
+    for sequence in 0..=limits.queue_operations_per_direction as u64 {
+        slabs.push_output(Kind::Output, b"x").expect("fanout");
+        slabs
+            .acknowledge_for(second, 0, sequence + 1)
+            .expect("healthy ack");
+    }
+    assert!(slabs.output_for(first).expect("first").is_discarding());
+    assert!(!slabs.output_for(second).expect("second").is_discarding());
+    assert_eq!(slabs.output_for(second).expect("second").epoch(), 0);
+    assert_eq!(
+        slabs
+            .output_for(second)
+            .expect("second")
+            .unacknowledged_operations(),
+        0
+    );
+    slabs
+        .control_for_mut(first)
+        .expect("control")
+        .push(Kind::Detach, &[])
+        .expect("control");
+    assert_eq!(
+        slabs
+            .control_for(second)
+            .expect("control")
+            .unacknowledged_operations(),
+        0
+    );
+    slabs.remove_writer(first).expect("retire");
+    assert!(slabs.output_for(first).is_err());
+    assert_eq!(slabs.output_for(second).expect("survivor").epoch(), 0);
+    assert_eq!(slabs.allocation_signature(), allocation);
+    assert!(slabs.allocated_bytes() <= limits.global_queue_bytes);
+}
+
 #[cfg(feature = "path-diagnostics")]
 #[test]
 fn gateway_trace_records_buffered_writer_output_not_discarded_output() {

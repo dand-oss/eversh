@@ -169,25 +169,18 @@ impl GatewayAssociation {
         }
         let association_id = admitted.hello().association_id();
         let role = admitted.hello().role();
-        // A client process restart cannot resume an in-memory association:
-        // the new process presents output epoch zero. The persistent
-        // gateway may have abandoned output epochs since its last completed
-        // handshake, so the GAP must start at the epoch this client
-        // actually claims. Computed before admission so no error path can
-        // strand an admitted association.
-        let initial_gap = match role {
-            ConnectionRole::Writer => {
-                slabs.initial_writer_gap(admitted.hello().position().output_epoch)?
-            }
-            ConnectionRole::Observer => None,
-        };
         let action = lifecycle.admit(admitted, admitted.take_over())?;
-        if role == ConnectionRole::Observer {
-            if let Err(error) = slabs.add_observer(association_id) {
-                let _ = lifecycle.release(association_id);
-                return Err(error.into());
-            }
+        let registered = match role {
+            ConnectionRole::Writer => slabs.add_writer(association_id),
+            ConnectionRole::Observer => slabs.add_observer(association_id),
+        };
+        if let Err(error) = registered {
+            let _ = lifecycle.release(association_id);
+            return Err(error.into());
         }
+        let output_epoch = slabs.output_for(association_id)?.epoch();
+        let client_epoch = admitted.hello().position().output_epoch;
+        let initial_gap = (output_epoch > client_epoch).then_some((client_epoch, output_epoch));
         let mut association = Self::new_authenticated(
             association_id,
             admitted.hello().generation(),
@@ -222,7 +215,7 @@ impl GatewayAssociation {
     ) -> Result<(), AssociationError> {
         let _ = lifecycle.release(self.association_id);
         match self.role {
-            ConnectionRole::Writer => slabs.restart_writer_control(),
+            ConnectionRole::Writer => slabs.remove_writer(self.association_id)?,
             ConnectionRole::Observer => slabs.remove_observer(self.association_id)?,
         }
         Ok(())
@@ -293,21 +286,13 @@ impl GatewayAssociation {
         // replacement.
         let action = lifecycle.admit(admitted, false)?;
 
-        let resume_gap = match self.role {
-            ConnectionRole::Writer => slabs
-                .reconcile_writer_resume(position.output_epoch, position.delivered_output_ack)?,
-            ConnectionRole::Observer => slabs.reconcile_observer_resume(
-                self.association_id,
-                position.output_epoch,
-                position.delivered_output_ack,
-            )?,
-        };
-
+        let resume_gap = slabs.reconcile_resume_for(
+            self.association_id,
+            position.output_epoch,
+            position.delivered_output_ack,
+        )?;
         self.control_delivery = DeliveryGate::new(0, 1);
-        match self.role {
-            ConnectionRole::Writer => slabs.restart_writer_control(),
-            ConnectionRole::Observer => slabs.restart_observer_control(self.association_id)?,
-        }
+        slabs.restart_control_for(self.association_id)?;
         self.resume_gap = resume_gap;
         self.queue_server_hello(slabs)?;
         self.complete_resume_for(slabs, resume_gap)?;
@@ -319,12 +304,7 @@ impl GatewayAssociation {
         &self,
         slabs: &GatewayReplaySlabs,
     ) -> Result<ServerHello, AssociationError> {
-        let output = match self.role {
-            ConnectionRole::Writer => slabs.writer_output(),
-            ConnectionRole::Observer => slabs
-                .observer_output(self.association_id)
-                .ok_or(QueueError::UnknownObserver)?,
-        };
+        let output = slabs.output_for(self.association_id)?;
         ServerHello::new(
             self.association_id,
             self.generation,
@@ -437,16 +417,11 @@ impl GatewayAssociation {
             DeliveryDecision::Duplicate => return Ok(ControlDisposition::Duplicate),
             DeliveryDecision::Deliver => {}
         }
-        let applied = match self.role {
-            ConnectionRole::Writer => {
-                slabs.acknowledge_writer_epoch(acknowledgement.epoch, acknowledgement.next_expected)
-            }
-            ConnectionRole::Observer => slabs.acknowledge_observer_epoch(
-                self.association_id,
-                acknowledgement.epoch,
-                acknowledgement.next_expected,
-            ),
-        };
+        let applied = slabs.acknowledge_for(
+            self.association_id,
+            acknowledgement.epoch,
+            acknowledgement.next_expected,
+        );
         if let Err(error) = applied {
             self.control_delivery
                 .abort(control_epoch, control_sequence)?;
@@ -483,38 +458,23 @@ impl GatewayAssociation {
         slabs: &mut GatewayReplaySlabs,
         client_gap: Option<(u64, u64)>,
     ) -> Result<Option<(u64, u64)>, AssociationError> {
-        match self.role {
-            ConnectionRole::Writer => slabs
-                .complete_writer_resume_for(client_gap)
-                .map_err(Into::into),
-            ConnectionRole::Observer => slabs
-                .complete_observer_resume_for(self.association_id, client_gap)
-                .map_err(Into::into),
-        }
+        slabs
+            .complete_resume_for(self.association_id, client_gap)
+            .map_err(Into::into)
     }
 
     pub fn control<'a>(
         &self,
         slabs: &'a GatewayReplaySlabs,
     ) -> Result<&'a ReplayRing, AssociationError> {
-        match self.role {
-            ConnectionRole::Writer => Ok(slabs.writer_control()),
-            ConnectionRole::Observer => slabs
-                .observer_control(self.association_id)
-                .map_err(AssociationError::from),
-        }
+        slabs.control_for(self.association_id).map_err(Into::into)
     }
 
     pub fn output<'a>(
         &self,
         slabs: &'a GatewayReplaySlabs,
     ) -> Result<&'a crate::queues::OutputReplay, AssociationError> {
-        match self.role {
-            ConnectionRole::Writer => Ok(slabs.writer_output()),
-            ConnectionRole::Observer => slabs
-                .observer_output(self.association_id)
-                .ok_or(QueueError::UnknownObserver.into()),
-        }
+        slabs.output_for(self.association_id).map_err(Into::into)
     }
 
     pub fn acknowledge_control_sent(
@@ -550,12 +510,9 @@ impl GatewayAssociation {
         &self,
         slabs: &'a mut GatewayReplaySlabs,
     ) -> Result<&'a mut ReplayRing, AssociationError> {
-        match self.role {
-            ConnectionRole::Writer => Ok(slabs.writer_control_mut()),
-            ConnectionRole::Observer => slabs
-                .observer_control_mut(self.association_id)
-                .map_err(AssociationError::from),
-        }
+        slabs
+            .control_for_mut(self.association_id)
+            .map_err(Into::into)
     }
 }
 
@@ -627,6 +584,7 @@ mod tests {
     fn input_ack_is_queued_only_after_sink_commit() {
         let limits = Limits::default();
         let mut slabs = GatewayReplaySlabs::new(&limits).expect("slabs");
+        slabs.add_writer(association(1)).expect("writer");
         let mut association = GatewayAssociation::new_authenticated(
             association(1),
             generation(),
@@ -675,6 +633,7 @@ mod tests {
     fn output_ack_is_idempotent_and_gap_is_replay_queued_before_buffering() {
         let limits = Limits::default();
         let mut slabs = GatewayReplaySlabs::new(&limits).expect("slabs");
+        slabs.add_writer(association(1)).expect("writer");
         let mut association = GatewayAssociation::new_authenticated(
             association(1),
             generation(),

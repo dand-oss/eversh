@@ -758,7 +758,7 @@ async fn retire_writer(
     let association_id = state.association_id();
     if let AssociationState::Connected(mut link) = state {
         if notify {
-            let _ = slabs.push_writer_output(Kind::Ownership, &[2])?;
+            let _ = slabs.push_output_for(association_id, Kind::Ownership, &[2])?;
             let _ = tokio::time::timeout(
                 limits.initial_udp_budget(),
                 drain_revoked_writer(&mut link, slabs),
@@ -769,7 +769,7 @@ async fn retire_writer(
     }
     let released = lifecycle.release(association_id);
     debug_assert_eq!(released, Some(ConnectionRole::Writer));
-    slabs.replace_writer_generation()?;
+    slabs.remove_writer(association_id)?;
     Ok(())
 }
 
@@ -1059,7 +1059,7 @@ fn retire_association(
     let _ = lifecycle.release(association_id);
     match role {
         ConnectionRole::Writer => {
-            slabs.replace_writer_generation()?;
+            slabs.remove_writer(association_id)?;
         }
         ConnectionRole::Observer => slabs.remove_observer(association_id)?,
     }

@@ -723,6 +723,7 @@ pub struct GatewayAllocationSignature {
 
 pub struct GatewayReplaySlabs {
     input: ReplayRing,
+    writer_id: Option<AssociationId>,
     writer_output: OutputReplay,
     writer_control: ReplayRing,
     observers: Box<[ObserverReplay]>,
@@ -743,6 +744,7 @@ impl GatewayReplaySlabs {
         }
         let slabs = Self {
             input: ReplayRing::new(StreamRole::Input, limits)?,
+            writer_id: None,
             writer_output: OutputReplay::new(limits)?,
             writer_control: ReplayRing::control(limits)?,
             observers: observers.into_boxed_slice(),
@@ -800,6 +802,109 @@ impl GatewayReplaySlabs {
     #[cfg(feature = "path-diagnostics")]
     pub(crate) fn finish_path_trace(&mut self) {
         drop(self.path_trace.take());
+    }
+
+    /// Bind replay storage to an authenticated writer. Additional writers
+    /// use the same independent bounded storage as observers.
+    pub fn add_writer(&mut self, id: AssociationId) -> Result<(), QueueError> {
+        if self.writer_id == Some(id) {
+            return Ok(());
+        }
+        if self.writer_id.is_none() {
+            self.writer_id = Some(id);
+            return Ok(());
+        }
+        self.add_observer(id)
+    }
+
+    pub fn remove_writer(&mut self, id: AssociationId) -> Result<(), QueueError> {
+        if self.writer_id == Some(id) {
+            self.writer_id = None;
+            self.replace_writer_generation()?;
+            Ok(())
+        } else {
+            self.remove_observer(id)
+        }
+    }
+
+    pub fn output_for(&self, id: AssociationId) -> Result<&OutputReplay, QueueError> {
+        if self.writer_id == Some(id) {
+            Ok(&self.writer_output)
+        } else {
+            self.observer_output(id).ok_or(QueueError::UnknownObserver)
+        }
+    }
+
+    pub fn control_for(&self, id: AssociationId) -> Result<&ReplayRing, QueueError> {
+        if self.writer_id == Some(id) {
+            Ok(&self.writer_control)
+        } else {
+            self.observer_control(id)
+        }
+    }
+
+    pub fn control_for_mut(&mut self, id: AssociationId) -> Result<&mut ReplayRing, QueueError> {
+        if self.writer_id == Some(id) {
+            Ok(&mut self.writer_control)
+        } else {
+            self.observer_control_mut(id)
+        }
+    }
+
+    pub fn restart_control_for(&mut self, id: AssociationId) -> Result<(), QueueError> {
+        self.control_for_mut(id)?.clear_and_restart_sequence();
+        Ok(())
+    }
+
+    pub fn acknowledge_for(
+        &mut self,
+        id: AssociationId,
+        epoch: u64,
+        next: u64,
+    ) -> Result<(), QueueError> {
+        if self.writer_id == Some(id) {
+            self.acknowledge_writer_epoch(epoch, next)
+        } else {
+            self.acknowledge_observer_epoch(id, epoch, next)
+        }
+    }
+
+    pub fn push_output_for(
+        &mut self,
+        id: AssociationId,
+        kind: Kind,
+        payload: &[u8],
+    ) -> Result<OutputPush, QueueError> {
+        if self.writer_id == Some(id) {
+            self.writer_output.push(kind, payload)
+        } else {
+            self.observer_mut(id)?.output.push(kind, payload)
+        }
+    }
+
+    pub(crate) fn reconcile_resume_for(
+        &mut self,
+        id: AssociationId,
+        epoch: u64,
+        ack: u64,
+    ) -> Result<Option<(u64, u64)>, QueueError> {
+        if self.writer_id == Some(id) {
+            self.reconcile_writer_resume(epoch, ack)
+        } else {
+            self.reconcile_observer_resume(id, epoch, ack)
+        }
+    }
+
+    pub(crate) fn complete_resume_for(
+        &mut self,
+        id: AssociationId,
+        gap: Option<(u64, u64)>,
+    ) -> Result<Option<(u64, u64)>, QueueError> {
+        if self.writer_id == Some(id) {
+            self.complete_writer_resume_for(gap)
+        } else {
+            self.complete_observer_resume_for(id, gap)
+        }
     }
 
     pub fn add_observer(&mut self, association_id: AssociationId) -> Result<(), QueueError> {
@@ -940,6 +1045,7 @@ impl GatewayReplaySlabs {
     /// replacement of a disconnected client. Old unacknowledged output is
     /// never shown to the new actor; its first SERVER_HELLO carries one GAP.
     pub fn replace_writer_generation(&mut self) -> Result<(u64, u64), QueueError> {
+        self.writer_id = None;
         #[cfg(feature = "path-diagnostics")]
         self.invalidate_path_trace();
         self.input.clear_and_restart_sequence();
@@ -947,7 +1053,7 @@ impl GatewayReplaySlabs {
         self.writer_output.replace_generation()
     }
 
-    pub(crate) fn restart_writer_control(&mut self) {
+    pub fn restart_writer_control(&mut self) {
         self.writer_control.clear_and_restart_sequence();
     }
 
@@ -1034,10 +1140,7 @@ impl GatewayReplaySlabs {
     /// earliest-abandoned epoch belongs to the durable association that
     /// actually observed it; reporting it to a new process would name an
     /// epoch that process never held.
-    pub(crate) fn initial_writer_gap(
-        &self,
-        client_epoch: u64,
-    ) -> Result<Option<(u64, u64)>, QueueError> {
+    pub fn initial_writer_gap(&self, client_epoch: u64) -> Result<Option<(u64, u64)>, QueueError> {
         let current = self.writer_output.epoch();
         if current < client_epoch {
             return Err(QueueError::EpochMismatch);
