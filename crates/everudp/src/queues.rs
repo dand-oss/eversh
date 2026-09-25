@@ -596,6 +596,14 @@ impl OutputReplay {
         Ok((earliest, self.epoch))
     }
 
+    fn reset_identity(&mut self) {
+        self.ring.clear_and_restart_sequence();
+        self.epoch = 0;
+        self.mode = OutputMode::Buffering;
+        self.pending_gap = None;
+        self.gap_announced = false;
+    }
+
     /// Reconciles a client's durable output position. An unconfirmed gap is
     /// tailored from the epoch that client actually knows; reporting the
     /// replacement epoch confirms the gap and permits cumulative ACKs again.
@@ -814,11 +822,9 @@ impl GatewayReplaySlabs {
         if self.writer_id.is_none() {
             // Unbound primary storage can have accumulated output while only
             // other peers were attached. A new peer receives future bytes only.
-            if self.writer_output.unacknowledged_operations() != 0
-                || self.writer_output.is_discarding()
-            {
-                self.replace_writer_generation()?;
-            }
+            self.writer_output.reset_identity();
+            self.writer_control.clear_and_restart_sequence();
+            self.input.clear_and_restart_sequence();
             self.writer_id = Some(id);
             return Ok(());
         }
@@ -828,7 +834,11 @@ impl GatewayReplaySlabs {
     pub fn remove_writer(&mut self, id: AssociationId) -> Result<(), QueueError> {
         if self.writer_id == Some(id) {
             self.writer_id = None;
-            self.replace_writer_generation()?;
+            self.writer_output.reset_identity();
+            self.writer_control.clear_and_restart_sequence();
+            self.input.clear_and_restart_sequence();
+            #[cfg(feature = "path-diagnostics")]
+            self.invalidate_path_trace();
             Ok(())
         } else {
             self.remove_observer(id)
@@ -940,11 +950,7 @@ impl GatewayReplaySlabs {
 
     pub fn remove_observer(&mut self, association_id: AssociationId) -> Result<(), QueueError> {
         let observer = self.observer_mut(association_id)?;
-        observer.output.ring.clear_and_restart_sequence();
-        observer.output.epoch = 0;
-        observer.output.mode = OutputMode::Buffering;
-        observer.output.pending_gap = None;
-        observer.output.gap_announced = false;
+        observer.output.reset_identity();
         observer.control.clear_and_restart_sequence();
         observer.association_id = None;
         Ok(())

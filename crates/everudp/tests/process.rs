@@ -686,7 +686,7 @@ fn explicit_takeover_revokes_the_old_writer_and_new_writer_is_future_only() {
 }
 
 #[test]
-fn disconnected_writer_generation_is_replaced_without_takeover() {
+fn fresh_writer_after_local_detach_has_no_inherited_gap() {
     let _serial = process_gate();
     let fixture = Fixture::new();
     let mut original = RunningClient::spawn(
@@ -726,7 +726,7 @@ fn disconnected_writer_generation_is_replaced_without_takeover() {
             .stderr()
             .matches("everudp: output skipped during network outage")
             .count(),
-        1
+        0
     );
 }
 

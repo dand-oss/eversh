@@ -341,6 +341,59 @@ fn slow_observer_gaps_independently_and_global_slabs_stay_bounded() {
 }
 
 #[test]
+fn fresh_writer_identity_never_inherits_a_reused_primary_slots_gap_or_output() {
+    let limits = Limits::default();
+    let mut slabs = GatewayReplaySlabs::new(&limits).expect("slabs");
+    let allocation = slabs.allocation_signature();
+    slabs.add_writer(association(1)).expect("primary");
+    slabs.add_writer(association(2)).expect("healthy second");
+    for _ in 0..=limits.queue_operations_per_direction {
+        slabs
+            .push_output_for(association(1), Kind::Output, b"old")
+            .expect("old output");
+    }
+    assert_eq!(
+        slabs
+            .output_for(association(1))
+            .expect("old writer")
+            .epoch(),
+        1
+    );
+    slabs.remove_writer(association(1)).expect("retire primary");
+    // The gateway continues draining while the primary slot is vacant.
+    for sequence in 0..=limits.queue_operations_per_direction {
+        slabs
+            .push_output(Kind::Output, b"other writer output")
+            .expect("fanout");
+        slabs
+            .acknowledge_for(association(2), 0, (sequence + 1) as u64)
+            .expect("healthy ack");
+    }
+    slabs.add_writer(association(3)).expect("fresh primary");
+    let fresh = slabs.output_for(association(3)).expect("fresh output");
+    assert_eq!(fresh.epoch(), 0);
+    assert_eq!(fresh.pending_gap(), None);
+    assert_eq!(fresh.unacknowledged_operations(), 0);
+    assert!(!fresh.is_discarding());
+    assert!(!slabs
+        .output_for(association(2))
+        .expect("healthy peer")
+        .is_discarding());
+    slabs.remove_writer(association(3)).expect("remove fresh");
+    slabs
+        .add_writer(association(4))
+        .expect("another fresh identity");
+    assert_eq!(
+        slabs
+            .output_for(association(4))
+            .expect("new output")
+            .pending_gap(),
+        None
+    );
+    assert_eq!(slabs.allocation_signature(), allocation);
+}
+
+#[test]
 fn ten_mib_survives_five_replay_boundaries_without_loss_or_duplication() {
     let limits = Limits::default();
     let mut queue = ReplayRing::new(StreamRole::Input, &limits).expect("queue");

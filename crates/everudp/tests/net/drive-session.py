@@ -418,8 +418,9 @@ class Driver:
 
         stderr = bytes(self.archived_stderr) + self.stderr_bytes()
         gaps = stderr.count(GAP_NOTICE)
-        expected_gaps = 21 if self.args.mode == "reattach" else (1 if self.args.mode == "overrun" else 0)
-        expected_gaps += int(self.args.fresh_after_outage)
+        # Fresh identities start at epoch zero regardless of which replay
+        # slot they reuse. Only the original forced overrun warrants a GAP.
+        expected_gaps = 1 if self.args.mode in ("overrun", "reattach") else 0
         if gaps != expected_gaps:
             raise RuntimeError(f"expected {expected_gaps} GAP notices, observed {gaps}")
         status = self.archived_status + self.status_text()
