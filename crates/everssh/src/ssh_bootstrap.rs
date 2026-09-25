@@ -801,7 +801,7 @@ mod tests {
         let protocol_server = thread::spawn(move || {
             let (mut stream, _) = protocol.accept().expect("accept protocol client");
             stream
-                .write_all(b"not-an-ssh-server\r\n")
+                .write_all(b"SSH-9.9-unsupported-protocol\r\n")
                 .expect("write invalid banner");
         });
         let protocol_plan = SshPlan::new(
@@ -818,10 +818,14 @@ mod tests {
             .expect("run installed OpenSSH against invalid protocol peer");
         protocol_server.join().expect("protocol server");
         assert_eq!(protocol_output.status.code(), Some(255));
-        assert!(matches!(
-            classify_ssh_failure(protocol_output.status, &protocol_output.stderr, None),
-            Error::SshProcessFailed
-        ));
+        assert!(
+            matches!(
+                classify_ssh_failure(protocol_output.status, &protocol_output.stderr, None),
+                Error::SshProcessFailed
+            ),
+            "stderr={}",
+            String::from_utf8_lossy(&protocol_output.stderr)
+        );
 
         std::fs::remove_file(quiet_config).expect("remove quiet config");
     }
