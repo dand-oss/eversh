@@ -780,6 +780,11 @@ fn observer_first_replacement_gateway_keeps_a_writer_capable_broker_edge() {
 
 #[test]
 fn slow_writer_reconnects_with_its_own_gap_without_stalling_healthy_writer() {
+    check_slow_writer_gap(false);
+    check_slow_writer_gap(true);
+}
+
+fn check_slow_writer_gap(slow_primary: bool) {
     let _serial = process_gate();
     let fixture = Fixture::new();
     let mut healthy = RunningClient::spawn(
@@ -791,6 +796,9 @@ fn slow_writer_reconnects_with_its_own_gap_without_stalling_healthy_writer() {
     healthy.wait_connected();
     let mut slow = RunningClient::spawn(&fixture, "slow", &["attach", "localhost", "process-test"]);
     slow.wait_connected();
+    if slow_primary {
+        std::mem::swap(&mut healthy, &mut slow);
+    }
     healthy.send(b"burst\n");
     let deadline = Instant::now() + Duration::from_secs(60);
     loop {
