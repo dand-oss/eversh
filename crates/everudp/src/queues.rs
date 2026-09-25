@@ -852,8 +852,12 @@ impl GatewayReplaySlabs {
     }
 
     pub fn restart_control_for(&mut self, id: AssociationId) -> Result<(), QueueError> {
-        self.control_for_mut(id)?.clear_and_restart_sequence();
-        Ok(())
+        if self.writer_id == Some(id) {
+            self.restart_writer_control();
+            Ok(())
+        } else {
+            self.restart_observer_control(id)
+        }
     }
 
     pub fn acknowledge_for(
