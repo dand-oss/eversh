@@ -261,6 +261,17 @@ pub async fn run_client<'fd>(
         Err(ClientLinkError::AttachmentRetired) => return Ok(ClientExit::OwnershipRevoked),
         Err(error) => return Err(ClientRunError::Link(error)),
     };
+    if link.association().role() == crate::wire::ConnectionRole::Writer
+        && config.rows != 0
+        && config.columns != 0
+    {
+        link.association_mut().queue_resize(crate::wire::Resize {
+            rows: config.rows,
+            columns: config.columns,
+            pixel_width: 0,
+            pixel_height: 0,
+        })?;
+    }
     let mut driver = ClientDriver::activate(terminal, &link, limits, status)?;
     let mut remote = record.endpoint();
     let mut generation = record.generation();

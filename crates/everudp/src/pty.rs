@@ -311,6 +311,7 @@ impl PtySession {
                     .checked_mul(BROKER_HEADER_LEN)
                     .ok_or(PtyError::Protocol)?,
             )
+            .and_then(|capacity| capacity.checked_add(BROKER_HEADER_LEN + 4))
             .ok_or(PtyError::Protocol)?;
         let mut send = Vec::new();
         send.try_reserve_exact(send_capacity)
@@ -418,6 +419,40 @@ impl PtySession {
 
     pub fn input_pending(&self) -> bool {
         self.pending_input != PendingInput::None
+    }
+
+    /// Stage a size change immediately before the same writer's bytes. The
+    /// framed fallback uses one buffer so neither part can interleave.
+    pub(crate) fn begin_operation_resized(
+        &mut self,
+        operation: InputOperation<'_>,
+        resize: Option<crate::wire::Resize>,
+    ) -> Result<(), PtyError> {
+        let Some(resize) = resize else {
+            return self.begin_operation(operation);
+        };
+        if self.input_pending() || self.send_len != 0 {
+            return Err(PtyError::Protocol);
+        }
+        if let Some(direct) = &self.direct {
+            sys::set_winsize(direct.master.get_ref().as_fd(), resize.rows, resize.columns)?;
+            return self.begin_operation(operation);
+        }
+        self.begin_operation(operation)?;
+        let prefix = BROKER_HEADER_LEN + 4;
+        let end = self
+            .send_len
+            .checked_add(prefix)
+            .filter(|end| *end <= self.send_buffer.len())
+            .ok_or(PtyError::Protocol)?;
+        self.send_buffer.copy_within(..self.send_len, prefix);
+        self.send_buffer[..4].copy_from_slice(&6_u32.to_be_bytes());
+        self.send_buffer[4] = PROTOCOL_VERSION;
+        self.send_buffer[5] = BrokerKind::Resize as u8;
+        self.send_buffer[6..8].copy_from_slice(&resize.rows.to_be_bytes());
+        self.send_buffer[8..10].copy_from_slice(&resize.columns.to_be_bytes());
+        self.send_len = end;
+        Ok(())
     }
 
     /// Delivers one complete ordered input operation to everpty. `Close` is

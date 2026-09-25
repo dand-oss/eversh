@@ -126,6 +126,7 @@ struct Associations {
     next_slot: usize,
     disconnected_at: [Option<tokio::time::Instant>; ASSOCIATION_CAPACITY],
     input_commit: Option<(AssociationId, PreparedInputToken)>,
+    sizes: crate::writer_sizes::WriterSizes,
     outbound_turn: [bool; ASSOCIATION_CAPACITY],
 }
 
@@ -279,6 +280,7 @@ impl Associations {
             next_slot: 0,
             disconnected_at: [None; ASSOCIATION_CAPACITY],
             input_commit: None,
+            sizes: crate::writer_sizes::WriterSizes::new(),
             outbound_turn: [false; ASSOCIATION_CAPACITY],
         })
     }
@@ -290,6 +292,9 @@ impl Associations {
             .enumerate()
             .find(|(_, slot)| slot.is_none())
             .ok_or(QueueError::ObserverCapacity)?;
+        if state.role() == ConnectionRole::Writer {
+            self.sizes.add(state.association_id())?;
+        }
         *slot = Some(ManagedAssociation::new(state));
         self.outbound_turn[index] = false;
         self.disconnected_at[index] = None;
@@ -449,6 +454,7 @@ pub async fn run_gateway(
         .commit_prepared_initial(&mut lifecycle, &mut slabs)
         .await?;
     let mut associations = Associations::new()?;
+    associations.sizes.initial_dimensions(rows, columns);
     associations.insert(AssociationState::Connected(Box::new(link)))?;
     let mut admission = AdmissionDriver::spawn(endpoint.clone(), associations.authorizations());
     let mut pending_pty = None;
@@ -794,6 +800,9 @@ async fn handle_initial(
         retire_association(index, associations, lifecycle, slabs)?;
     }
     associations.insert(AssociationState::Connected(Box::new(candidate)))?;
+    if takeover {
+        associations.sizes.take_over(association_id);
+    }
     Ok(())
 }
 
@@ -851,6 +860,7 @@ async fn process_link_event(
         }
         Ok(event) => {
             let fast_stream_duplicate = link.is_fast_stream_duplicate(&event);
+            let association_id = link.association().association_id();
             let prepared = match link.prepare_inbound(event, slabs) {
                 Ok(prepared) => prepared,
                 Err(error) => {
@@ -875,7 +885,17 @@ async fn process_link_event(
                 InboundApply::Deliver(input) => {
                     let token = input.token();
                     let probe_pty = prefer_pty_after_commit(input.operation());
-                    if let Err(error) = pty.begin_operation(input.operation()) {
+                    let size = associations
+                        .sizes
+                        .operation(association_id, input.operation())?;
+                    if !size.deliver {
+                        link.commit_prepared_input(token, slabs)?;
+                        associations.put(index, AssociationState::Connected(link));
+                        return Ok(false);
+                    }
+                    if let Err(error) =
+                        pty.begin_operation_resized(input.operation(), size.before_input)
+                    {
                         link.abort_prepared_input(token)?;
                         associations.put(index, AssociationState::Connected(link));
                         return Err(error.into());
@@ -1018,6 +1038,7 @@ fn process_terminal_event(
                 let role = link.association().role();
                 (*link).close();
                 let _ = lifecycle.release(association_id);
+                associations.sizes.remove(association_id);
                 if role == ConnectionRole::Observer {
                     slabs.remove_observer(association_id)?;
                 } else {
@@ -1080,6 +1101,7 @@ fn retire_association(
     };
     let association_id = state.association_id();
     let role = state.role();
+    associations.sizes.remove(association_id);
     if let AssociationState::Connected(link) = state {
         (*link).retire();
     }

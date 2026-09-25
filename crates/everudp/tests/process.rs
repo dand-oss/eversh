@@ -915,6 +915,50 @@ fn two_writers_share_by_default_and_detach_is_local() {
 }
 
 #[test]
+fn shared_writer_sizes_follow_input_not_attach_or_inactive_resize() {
+    let _serial = process_gate();
+    let fixture = Fixture::new();
+    let mut first = RunningClient::spawn(&fixture, "size-first",
+        &["connect", "localhost", "--session", "process-test", "--", "/bin/sh", "-c",
+          "(while :; do printf 'TICK:'; stty size < /dev/tty; sleep 0.1; done) & ticker=$!; trap 'kill $ticker 2>/dev/null' EXIT; while IFS= read -r line; do printf 'SIZE:%s:' \"$line\"; stty size; [ \"$line\" != quit ] || exit 58; done"]);
+    first.wait_connected();
+    first.wait_for_bytes(b"TICK:24 80");
+    let mut second = RunningClient::spawn(
+        &fixture,
+        "size-second",
+        &["attach", "localhost", "process-test"],
+    );
+    second.wait_connected();
+    sys::set_winsize(second.master.as_fd(), 40, 120).unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    first.pump();
+    assert!(
+        !first
+            .transcript
+            .windows(b"TICK:40 120".len())
+            .any(|part| part == b"TICK:40 120"),
+        "inactive resize changed the common PTY"
+    );
+    second.send(b"second\n");
+    second.wait_for_bytes(b"SIZE:second:40 120");
+    sys::set_winsize(first.master.as_fd(), 30, 100).unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+    second.pump();
+    assert!(
+        !second
+            .transcript
+            .windows(b"TICK:30 100".len())
+            .any(|part| part == b"TICK:30 100"),
+        "the previous owner stole size without input"
+    );
+    first.send(b"first\n");
+    first.wait_for_bytes(b"SIZE:first:30 100");
+    first.send(b"quit\n");
+    assert_eq!(first.wait_for_exit().code(), Some(58));
+    assert_eq!(second.wait_for_exit().code(), Some(58));
+}
+
+#[test]
 fn nine_writers_are_bounded_and_takeover_works_at_capacity() {
     let _serial = process_gate();
     let fixture = Fixture::new();

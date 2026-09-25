@@ -64,6 +64,7 @@ pub mod status;
 pub mod terminal;
 pub mod transport;
 pub mod wire;
+mod writer_sizes;
 
 pub use actor::{
     ControlReceipt, GatewayLink, GatewayResumeFailure, InboundApply, InputReceipt, LinkError,
