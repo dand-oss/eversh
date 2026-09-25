@@ -503,7 +503,7 @@ fn assert_terminal_failure(client: &RunningClient, fell_back: bool) {
 }
 
 #[test]
-fn authenticated_busy_in_auto_mode_never_falls_back() {
+fn authenticated_shared_attach_in_auto_mode_never_falls_back() {
     let _serial = process_gate();
     let fixture = Fixture::new();
     let mut writer = RunningClient::spawn(
@@ -537,13 +537,15 @@ fn authenticated_busy_in_auto_mode_never_falls_back() {
             "auto",
         ],
     );
-    let rejected = contender.wait_for_exit(Duration::from_secs(15));
-    assert_ne!(rejected.code(), Some(UDP_UNREACHABLE_EXIT));
-    assert_ne!(rejected.code(), Some(0));
+    contender.wait_connected(&fixture);
+    contender.send(b"shared\n");
+    contender.wait_for_bytes(b"OUT:shared");
+    writer.wait_for_bytes(b"OUT:shared");
     assert_eq!(contender.stderr().matches(FALLBACK_NOTICE).count(), 0);
 
     writer.send(b"survived\n");
     writer.wait_for_bytes(b"OUT:survived");
+    contender.wait_for_bytes(b"OUT:survived");
     writer.send(b"quit\n");
     assert_eq!(
         writer.wait_for_exit(Duration::from_secs(15)).code(),
@@ -552,6 +554,45 @@ fn authenticated_busy_in_auto_mode_never_falls_back() {
     let log = fixture.log();
     assert_eq!(count_line(&log, "everudp-bootstrap"), 2, "{log}");
     assert_eq!(count_line(&log, "everssh-fallback"), 0, "{log}");
+}
+
+#[test]
+fn framed_broker_busy_in_auto_mode_never_falls_back() {
+    let _serial = process_gate();
+    let fixture = Fixture::new();
+    let request = eversh::remote::ControlRequest {
+        take_over: false,
+        origins: vec!["test".to_owned()],
+        child_argv: vec![
+            b"/bin/sh".to_vec(),
+            b"-c".to_vec(),
+            b"printf 'BUSY-READY'; while IFS= read -r line; do printf 'OUT:%s\\n' \"$line\"; done"
+                .to_vec(),
+        ],
+    };
+    let token = eversh::remote::base64url_encode(
+        &request.encode(&eversh::limits::Limits::default()).unwrap(),
+    );
+    let mut original = RunningClient::spawn(
+        &fixture,
+        "framed-busy",
+        "normal",
+        &["__everpty", "v1", "attach-or-create", "broker-busy", &token],
+    );
+    original.wait_for_bytes(b"BUSY-READY");
+    let mut contender = RunningClient::spawn(
+        &fixture,
+        "busy-contender",
+        "normal",
+        &["attach", "localhost", "broker-busy", "--transport", "auto"],
+    );
+    let rejected = contender.wait_for_exit(Duration::from_secs(15));
+    assert_ne!(rejected.code(), Some(UDP_UNREACHABLE_EXIT));
+    assert_ne!(rejected.code(), Some(0));
+    assert_eq!(contender.stderr().matches(FALLBACK_NOTICE).count(), 0);
+    original.send(b"survived\r");
+    original.wait_for_bytes(b"OUT:survived");
+    assert_eq!(count_line(&fixture.log(), "everssh-fallback"), 0);
 }
 
 #[test]
