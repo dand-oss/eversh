@@ -779,6 +779,102 @@ fn observer_first_replacement_gateway_keeps_a_writer_capable_broker_edge() {
 }
 
 #[test]
+fn slow_writer_reconnects_with_its_own_gap_without_stalling_healthy_writer() {
+    let _serial = process_gate();
+    let fixture = Fixture::new();
+    let mut healthy = RunningClient::spawn(
+        &fixture, "healthy", &[
+            "connect", "localhost", "--session", "process-test", "--", "/bin/sh", "-c",
+            "chunk=$(yes X | head -c 16384); while IFS= read -r line; do case \"$line\" in burst) i=0; while [ \"$i\" -lt 1024 ]; do printf '%s' \"$chunk\"; i=$((i + 1)); sleep 0.01; done; printf '\\nBURST-DONE\\n';; quit) exit 23;; *) printf 'REPLY:%s\\n' \"$line\";; esac; done",
+        ],
+    );
+    healthy.wait_connected();
+    let mut slow = RunningClient::spawn(&fixture, "slow", &["attach", "localhost", "process-test"]);
+    slow.wait_connected();
+    healthy.send(b"burst\n");
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        healthy.pump();
+        if healthy
+            .transcript
+            .windows(b"BURST-DONE".len())
+            .any(|part| part == b"BURST-DONE")
+        {
+            break;
+        }
+        assert!(healthy.child.try_wait().unwrap().is_none());
+        assert!(
+            Instant::now() < deadline,
+            "healthy writer stopped while slow writer was blocked"
+        );
+        if healthy.transcript.len() > 65536 {
+            let discard = healthy.transcript.len() - 64;
+            healthy.transcript.drain(..discard);
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    assert!(!healthy
+        .stderr()
+        .contains("everudp: output skipped during network outage"));
+    // Resume delivery to the slow terminal only after the burst is over.
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        slow.pump();
+        let status = fs::read_to_string(&slow.status_path).unwrap_or_default();
+        if slow
+            .stderr()
+            .contains("everudp: output skipped during network outage")
+            && status.matches("everudp-status-v1 state connected").count() >= 2
+        {
+            break;
+        }
+        assert!(
+            slow.child.try_wait().unwrap().is_none(),
+            "slow writer must reconnect"
+        );
+        assert!(
+            Instant::now() < deadline,
+            "slow writer did not report and recover its GAP: {status}"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // Drain the bounded retained suffix before measuring fresh input. Keep
+    // the fixture's marker search bounded too, rather than rescanning MiBs.
+    healthy.send(b"resume-barrier\n");
+    healthy.wait_for_bytes(b"REPLY:resume-barrier");
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        slow.pump();
+        if slow
+            .transcript
+            .windows(b"REPLY:resume-barrier".len())
+            .any(|part| part == b"REPLY:resume-barrier")
+        {
+            break;
+        }
+        assert!(slow.child.try_wait().unwrap().is_none());
+        assert!(
+            Instant::now() < deadline,
+            "slow writer did not drain retained output"
+        );
+        if slow.transcript.len() > 65536 {
+            let discard = slow.transcript.len() - 64;
+            slow.transcript.drain(..discard);
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    slow.send(b"after-gap\n");
+    slow.wait_for_bytes(b"REPLY:after-gap");
+    healthy.wait_for_bytes(b"REPLY:after-gap");
+    healthy.send(b"still-healthy\n");
+    healthy.wait_for_bytes(b"REPLY:still-healthy");
+    slow.wait_for_bytes(b"REPLY:still-healthy");
+    healthy.send(b"quit\n");
+    assert_eq!(healthy.wait_for_exit().code(), Some(23));
+    assert_eq!(slow.wait_for_exit().code(), Some(23));
+}
+
+#[test]
 fn flow_controlled_observer_never_stalls_writer_or_pty_drain() {
     let _serial = process_gate();
     let fixture = Fixture::new();
