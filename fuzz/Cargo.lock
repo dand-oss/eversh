@@ -210,7 +210,7 @@ dependencies = [
 
 [[package]]
 name = "everpty"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "libc",
  "nix",
@@ -218,7 +218,7 @@ dependencies = [
 
 [[package]]
 name = "eversh"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "everpty",
  "everssh",
@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "everssh"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "noq",
  "rcgen",
@@ -250,7 +250,7 @@ dependencies = [
 
 [[package]]
 name = "everudp"
-version = "0.2.4"
+version = "0.2.5"
 dependencies = [
  "everpty",
  "everssh",
