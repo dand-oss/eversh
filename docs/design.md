@@ -101,7 +101,19 @@ A new `attach` client has a fresh authenticated association and no durable outpu
 
 During everudp recovery, a bootstrap parent that reports the named session is no longer live (for example after a host reboot) exits 5 — the same value as the supervisor's probe not-live contract — and the client reports the session ended instead of the detached exit 7, so wrappers never offer a resume that cannot succeed. A remote that predates this contract keeps its generic prepare failure, which the client still classifies as an unconfirmed detach.
 
-The frozen everudp contract, its performance release decision, and its evidence are in [plans/everudp-v1.md](../plans/everudp-v1.md).
+Shared writers (EverUDP only): ordinary attach joins the existing gateway without revoking another writer. Automatic network resume replaces the connection for the same authenticated attachment, retaining its input/output positions; it does not add a writer. Local everpty and EverSSH retain their single-writer ownership contract. Bare eversh still defaults to EverSSH; the fleet ever-tool wrappers default to EverUDP and no longer imply takeover on resume or resume-all.
+
+The gateway retains at most nine attachments, including disconnected resumable peers, with at most eight observers. At capacity, ordinary admission may retire the oldest disconnected attachment that has no partially committed input; it never displaces a connected peer. One bounded preparation slot is included within the existing 48 MiB replay allocation limit. Each peer has independent output acknowledgements, control state, and GAP epochs. A lagging writer reconnects with its own GAP without disrupting healthy peers. A new attachment receives future output only, not another client's retained history.
+
+All writers feed one PTY. Scheduling is fair between complete input operations; a partially written operation completes before another writer's bytes start. Acknowledgement follows full sink commit. Input close and local detach affect only that attachment; signals, child exit, and session-level detach/kill affect the common session. Output and control service continue while PTY input is blocked.
+
+The first writer establishes the initial PTY size. Each writer's reported size is cached. Accepted nonempty input selects that writer's size before delivering its bytes; only the current size owner's resize applies immediately. Attach, network resume, and acknowledgement do not steal size ownership. Removing the owner retains current dimensions until another writer types. Explicit takeover selects the replacement. Only changed dimensions trigger a resize; there is no synthetic redraw. Terminal answerback bytes count as input. Legacy clients may not report their size until their first resize event.
+
+Explicit --take-over prepares and authenticates the replacement before retiring every existing writer, including disconnected resumable writers, at a complete-input boundary. Failed or timed-out preparation leaves existing writers intact. Observers survive, and later ordinary attaches may share again: takeover is not an exclusive lock. Retired attachments receive application close code 0x4559; updated clients exit 4 without automatic reconnect or SSH recovery. Retirement lasts for the current gateway generation. Recovery never repeats a previous explicit takeover.
+
+Compatibility: wire layouts, bootstrap records, ALPN everudp-link/1, and everpty protocol version 1 remain unchanged. Already-running older gateways remain single-writer and can return Busy; they are not restarted or implicitly taken over. No server-side VT, terminal parser, screen reconstruction, scrollback, or forced repaint is introduced. Different terminal sizes can display the same byte stream differently; applications remain responsible for redraw after an output gap.
+
+The frozen everudp v1 contract, its historical performance release decision, and its evidence are in [plans/everudp-v1.md](../plans/everudp-v1.md). The shared-writer behavior above supersedes its single-writer assumptions, not its disclosed performance result.
 
 ### 4.4 eversh — supervisor
 

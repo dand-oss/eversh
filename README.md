@@ -60,7 +60,8 @@ The boundaries are deliberate: the local terminal owns rendering and scrollback;
 
 - Closing your connection detaches it; the child keeps running. There is no detach key because eversh does not intercept terminal input.
 - A reattachment receives only output produced after it: everpty keeps no scrollback, log, snapshot, or session history, so output produced while detached is discarded rather than stored.
-- A second writer gets `Busy` unless `--take-over` is explicit. A healthy writer is lossless; a writer that exceeds its stall deadline is detached instead of being allowed to consume unbounded memory. Observers are read-only, see future output only, and are disconnected when they lag.
+- EverUDP attaches share the same PTY by default; network reconnect resumes the same attachment. Explicit `--take-over` retires all existing writers, not observers. Local everpty, EverSSH, and already-running older gateways remain single-writer and may return `Busy`. Bare eversh defaults to EverSSH; fleet wrappers default to EverUDP.
+- EverUDP keeps independent bounded output queues: a lagging writer reconnects with its own GAP while healthy peers continue. New peers see future output only. The most recently typing writer controls the common PTY size; no remote VT or screen reconstruction is involved. See [the ownership and resize contract](docs/design.md#43-everudp--direct-quic-terminal-transport).
 - A lost QUIC connection opens one bounded reconnect epoch (360 s association lease by default): the association retransmits unacknowledged opaque frames and suppresses duplicates, so a live SSH stream survives short outages byte-exactly. Past the lease the transport ends, and eversh opens a fresh SSH connection to reattach the same session. Raw `eversh ssh`, forwarding, SFTP, and SCP are never restarted automatically.
 - No local echo or prediction: interactive latency remains network round-trip time.
 
