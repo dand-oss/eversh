@@ -1090,6 +1090,7 @@ async fn queue_pty_event(
     slabs: &mut GatewayReplaySlabs,
 ) -> Result<Option<i32>, GatewayRunError> {
     match event {
+        PtyEvent::InputCommitted => Err(PtyError::Protocol.into()),
         PtyEvent::Output(bytes) => {
             debug_assert_eq!(pty.output_bytes().len(), bytes);
             if bytes != 0 {

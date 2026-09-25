@@ -73,6 +73,8 @@ impl From<FrameError> for PtyError {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PtyEvent {
+    /// A staged input operation reached its sink in full.
+    InputCommitted,
     /// Number of output bytes retained in [`PtySession::output_bytes`].
     Output(usize),
     Ownership(u8),
@@ -210,11 +212,24 @@ pub struct PtySession {
     send_buffer: Box<[u8]>,
     send_len: usize,
     send_offset: usize,
+    send_deadline: Option<u64>,
+    pending_input: PendingInput,
     limits: everpty::Limits,
     role: Role,
     direct: Option<DirectPtyLease>,
     direct_output: Box<[u8]>,
     direct_output_len: usize,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PendingInput {
+    None,
+    DirectBytes,
+    Framed,
+    Signal,
+    Barrier,
+    WaitingBarrier,
+    Complete,
 }
 
 struct DirectPtyLease {
@@ -312,6 +327,8 @@ impl PtySession {
             send_buffer: send.into_boxed_slice(),
             send_len: 0,
             send_offset: 0,
+            send_deadline: None,
+            pending_input: PendingInput::None,
             limits,
             role,
             direct: None,
@@ -364,10 +381,52 @@ impl PtySession {
         self.role
     }
 
+    /// Own one bounded operation until completion. Polling `next_event` drives
+    /// its persistent write offset while continuing to service PTY output.
+    /// No input acknowledgement is justified until `InputCommitted` is returned.
+    pub fn begin_operation(&mut self, operation: InputOperation<'_>) -> Result<(), PtyError> {
+        if self.pending_input != PendingInput::None || self.send_len != 0 {
+            return Err(PtyError::Protocol);
+        }
+        self.pending_input = if let Some(direct) = self.direct.as_ref() {
+            match operation {
+                InputOperation::Bytes(bytes) => {
+                    if bytes.len() > self.limits.frame_max_body {
+                        return Err(PtyError::Protocol);
+                    }
+                    self.send_buffer[..bytes.len()].copy_from_slice(bytes);
+                    self.send_len = bytes.len();
+                    self.send_offset = 0;
+                    PendingInput::DirectBytes
+                }
+                InputOperation::Resize(resize) => {
+                    sys::set_winsize(direct.master.get_ref().as_fd(), resize.rows, resize.columns)?;
+                    PendingInput::Complete
+                }
+                InputOperation::Signal(signal) => {
+                    self.stage_payload(BrokerKind::Signal, &[signal])?;
+                    PendingInput::Signal
+                }
+                InputOperation::Close => PendingInput::Complete,
+            }
+        } else {
+            self.stage_operation(operation)?;
+            PendingInput::Framed
+        };
+        Ok(())
+    }
+
+    pub fn input_pending(&self) -> bool {
+        self.pending_input != PendingInput::None
+    }
+
     /// Delivers one complete ordered input operation to everpty. `Close` is
     /// a QUIC half-close only: the persistent gateway deliberately retains
     /// its broker writer connection so output and later associations live.
     pub async fn send_operation(&mut self, operation: InputOperation<'_>) -> Result<(), PtyError> {
+        if self.input_pending() {
+            return Err(PtyError::Protocol);
+        }
         if self.direct.is_some() {
             return self.send_direct_operation(operation).await;
         }
@@ -443,45 +502,49 @@ impl PtySession {
     }
 
     pub async fn flush_staged(&mut self) -> Result<(), PtyError> {
-        if self.send_len == 0 {
-            return Ok(());
-        }
-        let deadline = deadline_after(self.limits.incomplete_frame_deadline_ms)?;
-        while self.send_offset < self.send_len {
-            let remaining = remaining(deadline)?;
-            let writable = tokio::time::timeout(remaining, self.socket.writable())
-                .await
-                .map_err(|_| PtyError::Timeout)??;
-            let mut writable = writable;
-            match writable.try_io(|inner| {
-                sys::send_no_sigpipe(
-                    inner.get_ref().as_fd(),
-                    &self.send_buffer[self.send_offset..self.send_len],
-                )
-            }) {
-                Ok(Ok(0)) => return Err(io::Error::from(io::ErrorKind::WriteZero).into()),
-                Ok(Ok(written)) => self.send_offset += written,
-                Ok(Err(error)) => return Err(error.into()),
-                Err(_) => {}
-            }
-        }
-        self.send_len = 0;
-        self.send_offset = 0;
-        Ok(())
+        flush_input_parts(
+            &self.socket,
+            &self.send_buffer,
+            &mut self.send_len,
+            &mut self.send_offset,
+            &mut self.send_deadline,
+            self.limits,
+        )
+        .await
     }
 
-    /// Returns one retained broker event. The event remains current until
+    /// Returns one broker event or input completion. Output events remain current until
     /// [`PtySession::consume_event`] is called, which lets the gateway defer a
-    /// complete frame without allocating a pending payload.
+    /// complete frame without allocating a pending payload. InputCommitted
+    /// is a one-shot notification and must not be consumed with consume_event.
     pub async fn next_event(&mut self) -> Result<PtyEvent, PtyError> {
-        if self.direct_output_len != 0 {
-            return Ok(PtyEvent::Output(self.direct_output_len));
+        enum Ready {
+            Input(Result<(), PtyError>),
+            Output(Result<PtyEvent, PtyError>),
         }
-        if self.direct.is_some() {
-            return self.next_direct_event().await;
+        let ready = tokio::select! {
+            biased;
+            result = advance_input_parts(
+                &self.socket, self.direct.as_ref(), &mut self.send_buffer,
+                &mut self.send_len, &mut self.send_offset, &mut self.send_deadline,
+                &mut self.pending_input, self.limits,
+            ) => Ready::Input(result),
+            result = next_output_parts(
+                &self.socket, self.direct.as_ref(), &mut self.reader,
+                &mut self.direct_output, &mut self.direct_output_len, self.limits,
+            ) => Ready::Output(result),
+        };
+        match ready {
+            Ready::Input(result) => result.map(|()| PtyEvent::InputCommitted),
+            Ready::Output(Ok(PtyEvent::InputCommitted)) => {
+                if self.pending_input != PendingInput::WaitingBarrier {
+                    return Err(PtyError::Protocol);
+                }
+                self.pending_input = PendingInput::None;
+                Ok(PtyEvent::InputCommitted)
+            }
+            Ready::Output(event) => event,
         }
-        self.read_frame_ready().await?;
-        self.decode_event()
     }
 
     pub fn output_bytes(&self) -> &[u8] {
@@ -710,51 +773,6 @@ impl PtySession {
         }
     }
 
-    async fn next_direct_event(&mut self) -> Result<PtyEvent, PtyError> {
-        enum Ready {
-            Master(io::Result<usize>),
-            Broker(Result<(), PtyError>),
-        }
-        let ready = {
-            let direct = self.direct.as_ref().ok_or(PtyError::Protocol)?;
-            let master = &direct.master;
-            let output = &mut self.direct_output;
-            let socket = &self.socket;
-            let reader = &mut self.reader;
-            let limits = self.limits;
-            tokio::select! {
-                biased;
-                result = read_direct_into(master, output) => Ready::Master(result),
-                result = read_frame_ready_parts(socket, reader, limits) => Ready::Broker(result),
-            }
-        };
-        match ready {
-            Ready::Master(Ok(0)) => Ok(PtyEvent::DirectLeaseEnded),
-            Ready::Master(Ok(read)) => {
-                self.direct_output_len = read;
-                Ok(PtyEvent::Output(read))
-            }
-            Ready::Master(Err(error)) if sys::is_pty_terminal_error(&error) => {
-                Ok(PtyEvent::DirectLeaseEnded)
-            }
-            Ready::Master(Err(error)) => Err(error.into()),
-            Ready::Broker(Ok(())) => match self.read_handshake_frame().await? {
-                Frame::Lease {
-                    action: LeaseAction::Revoke,
-                    generation,
-                    lease_id,
-                } if self.direct.as_ref().is_some_and(|lease| {
-                    lease.generation == generation && lease.lease_id == lease_id
-                }) =>
-                {
-                    Ok(PtyEvent::DirectLeaseEnded)
-                }
-                _ => Err(PtyError::Protocol),
-            },
-            Ready::Broker(Err(error)) => Err(error),
-        }
-    }
-
     fn stage_payload(&mut self, kind: BrokerKind, payload: &[u8]) -> Result<(), PtyError> {
         let start = self.stage_header(kind, payload.len())?;
         self.send_buffer[start..start + payload.len()].copy_from_slice(payload);
@@ -794,12 +812,8 @@ impl PtySession {
         Ok(decoded)
     }
 
-    async fn read_frame_ready(&mut self) -> Result<(), PtyError> {
-        read_frame_ready_parts(&self.socket, &mut self.reader, self.limits).await
-    }
-
-    fn decode_event(&self) -> Result<PtyEvent, PtyError> {
-        let frame = self.reader.frame().ok_or(PtyError::Protocol)?;
+    fn decode_event(reader: &BrokerFrameReader) -> Result<PtyEvent, PtyError> {
+        let frame = reader.frame().ok_or(PtyError::Protocol)?;
         let payload = &frame[BROKER_HEADER_LEN..];
         match BrokerKind::from_u8(frame[5]).ok_or(PtyError::Protocol)? {
             BrokerKind::Output => Ok(PtyEvent::Output(payload.len())),
@@ -839,6 +853,159 @@ impl fmt::Debug for PtySession {
             .field("reader", &self.reader)
             .field("payload", &"<REDACTED>")
             .finish_non_exhaustive()
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn advance_input_parts(
+    socket: &AsyncFd<OwnedFd>,
+    direct: Option<&DirectPtyLease>,
+    buffer: &mut [u8],
+    len: &mut usize,
+    offset: &mut usize,
+    deadline: &mut Option<u64>,
+    pending: &mut PendingInput,
+    limits: everpty::Limits,
+) -> Result<(), PtyError> {
+    loop {
+        match *pending {
+            PendingInput::None | PendingInput::WaitingBarrier => {
+                return std::future::pending().await
+            }
+            PendingInput::DirectBytes => {
+                let master = &direct.ok_or(PtyError::Protocol)?.master;
+                while *offset < *len {
+                    let mut writable = master.writable().await?;
+                    match writable.try_io(|inner| {
+                        sys::write_fd(inner.get_ref().as_fd(), &buffer[*offset..*len])
+                    }) {
+                        Ok(Ok(0)) => return Err(io::Error::from(io::ErrorKind::WriteZero).into()),
+                        Ok(Ok(written)) => *offset += written,
+                        Ok(Err(error)) => return Err(error.into()),
+                        Err(_) => {}
+                    }
+                }
+                *len = 0;
+                *offset = 0;
+                *pending = PendingInput::Complete;
+            }
+            PendingInput::Framed | PendingInput::Signal | PendingInput::Barrier => {
+                flush_input_parts(socket, buffer, len, offset, deadline, limits).await?;
+                *pending = match *pending {
+                    PendingInput::Signal => {
+                        let lease = direct.ok_or(PtyError::Protocol)?;
+                        let wire = Frame::Lease {
+                            action: LeaseAction::Barrier,
+                            generation: lease.generation,
+                            lease_id: lease.lease_id,
+                        }
+                        .encode();
+                        if wire.len() > buffer.len() {
+                            return Err(PtyError::Protocol);
+                        }
+                        buffer[..wire.len()].copy_from_slice(&wire);
+                        *len = wire.len();
+                        PendingInput::Barrier
+                    }
+                    PendingInput::Barrier => PendingInput::WaitingBarrier,
+                    _ => PendingInput::Complete,
+                };
+            }
+            PendingInput::Complete => {
+                *pending = PendingInput::None;
+                return Ok(());
+            }
+        }
+    }
+}
+
+async fn flush_input_parts(
+    socket: &AsyncFd<OwnedFd>,
+    buffer: &[u8],
+    len: &mut usize,
+    offset: &mut usize,
+    deadline: &mut Option<u64>,
+    limits: everpty::Limits,
+) -> Result<(), PtyError> {
+    if *len == 0 {
+        return Ok(());
+    }
+    let expires = *deadline.get_or_insert(deadline_after(limits.incomplete_frame_deadline_ms)?);
+    while *offset < *len {
+        let mut writable = tokio::time::timeout(remaining(expires)?, socket.writable())
+            .await
+            .map_err(|_| PtyError::Timeout)??;
+        match writable
+            .try_io(|inner| sys::send_no_sigpipe(inner.get_ref().as_fd(), &buffer[*offset..*len]))
+        {
+            Ok(Ok(0)) => return Err(io::Error::from(io::ErrorKind::WriteZero).into()),
+            Ok(Ok(written)) => *offset += written,
+            Ok(Err(error)) => return Err(error.into()),
+            Err(_) => {}
+        }
+    }
+    *len = 0;
+    *offset = 0;
+    *deadline = None;
+    Ok(())
+}
+
+async fn next_output_parts(
+    socket: &AsyncFd<OwnedFd>,
+    direct: Option<&DirectPtyLease>,
+    reader: &mut BrokerFrameReader,
+    output: &mut [u8],
+    output_len: &mut usize,
+    limits: everpty::Limits,
+) -> Result<PtyEvent, PtyError> {
+    if *output_len != 0 {
+        return Ok(PtyEvent::Output(*output_len));
+    }
+    let Some(direct) = direct else {
+        read_frame_ready_parts(socket, reader, limits).await?;
+        return PtySession::decode_event(reader);
+    };
+    enum Ready {
+        Master(io::Result<usize>),
+        Broker(Result<(), PtyError>),
+    }
+    let ready = tokio::select! {
+        biased;
+        result = read_frame_ready_parts(socket, reader, limits) => Ready::Broker(result),
+        result = read_direct_into(&direct.master, output) => Ready::Master(result),
+    };
+    match ready {
+        Ready::Master(Ok(0)) => Ok(PtyEvent::DirectLeaseEnded),
+        Ready::Master(Ok(read)) => {
+            *output_len = read;
+            Ok(PtyEvent::Output(read))
+        }
+        Ready::Master(Err(error)) if sys::is_pty_terminal_error(&error) => {
+            Ok(PtyEvent::DirectLeaseEnded)
+        }
+        Ready::Master(Err(error)) => Err(error.into()),
+        Ready::Broker(Ok(())) => {
+            let wire = reader.frame().ok_or(PtyError::Protocol)?;
+            let (frame, used) = Frame::decode(wire, &limits)?;
+            if used != wire.len() {
+                return Err(PtyError::Protocol);
+            }
+            reader.consume(&limits)?;
+            match frame {
+                Frame::Lease {
+                    action,
+                    generation,
+                    lease_id,
+                } if generation == direct.generation && lease_id == direct.lease_id => match action
+                {
+                    LeaseAction::BarrierAck => Ok(PtyEvent::InputCommitted),
+                    LeaseAction::Revoke => Ok(PtyEvent::DirectLeaseEnded),
+                    _ => Err(PtyError::Protocol),
+                },
+                _ => Err(PtyError::Protocol),
+            }
+        }
+        Ready::Broker(Err(error)) => Err(error),
     }
 }
 
@@ -977,6 +1144,148 @@ mod tests {
 
     fn write_frame(stream: &mut UnixStream, frame: &Frame) {
         stream.write_all(&frame.encode()).expect("write frame");
+    }
+
+    /// A real non-reading slave forces several partial writes. Repeatedly
+    /// canceling the gateway wait must neither lose wakeups nor resend a prefix.
+    #[tokio::test(flavor = "current_thread")]
+    async fn staged_direct_input_survives_cancellation_and_services_output() {
+        let limits = everpty::Limits::default();
+        let (socket, _broker) = sys::socketpair_cloexec().expect("staged input fixture");
+        let (master, slave) = sys::openpty(24, 80).expect("staged input fixture");
+        let attrs = sys::terminal_attributes(slave.as_fd()).expect("staged input fixture");
+        sys::set_terminal_raw(slave.as_fd(), &attrs).expect("staged input fixture");
+        sys::set_nonblocking(master.as_fd()).expect("staged input fixture");
+        sys::set_nonblocking(socket.as_fd()).expect("staged input fixture");
+        sys::set_nonblocking(slave.as_fd()).expect("staged input fixture");
+        let mut session = PtySession {
+            socket: AsyncFd::new(socket).expect("staged input fixture"),
+            reader: BrokerFrameReader::new(&limits).expect("staged input fixture"),
+            send_buffer: vec![0; limits.frame_max_body + 2 * BROKER_HEADER_LEN].into_boxed_slice(),
+            send_len: 0,
+            send_offset: 0,
+            send_deadline: None,
+            pending_input: PendingInput::None,
+            limits,
+            role: Role::Writer,
+            direct: Some(DirectPtyLease {
+                master: AsyncFd::new(master).expect("staged input fixture"),
+                generation: [1; 16],
+                lease_id: 1,
+            }),
+            direct_output: vec![0; limits.read_chunk_bytes].into_boxed_slice(),
+            direct_output_len: 0,
+        };
+        let allocation = session.allocation_signature();
+        let input: Vec<u8> = (0..limits.frame_max_body)
+            .map(|n| (n % 251) as u8)
+            .collect();
+        session
+            .begin_operation(InputOperation::Bytes(&input))
+            .expect("staged input fixture");
+        for _ in 0..3 {
+            assert!(
+                tokio::time::timeout(Duration::from_millis(10), session.next_event())
+                    .await
+                    .is_err()
+            );
+        }
+        assert!(session.send_offset > 0 && session.send_offset < input.len());
+        assert!(session
+            .begin_operation(InputOperation::Bytes(b"must not interleave"))
+            .is_err());
+        sys::write_fd(slave.as_fd(), b"live output").expect("staged input fixture");
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), session.next_event())
+                .await
+                .expect("staged input fixture")
+                .expect("staged input fixture"),
+            PtyEvent::Output(11),
+        );
+        assert_eq!(session.output_bytes(), b"live output");
+        session.consume_event().expect("staged input fixture");
+        assert!(session.input_pending());
+        let reader = tokio::spawn(async move {
+            let slave = AsyncFd::new(slave).expect("staged input fixture");
+            let mut received = Vec::new();
+            let mut buf = [0; 4096];
+            while received.len() < limits.frame_max_body {
+                let read = read_direct_into(&slave, &mut buf)
+                    .await
+                    .expect("staged input fixture");
+                received.extend_from_slice(&buf[..read]);
+            }
+            // Keep the slave alive until the caller has observed input commit.
+            (received, slave)
+        });
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(2), session.next_event())
+                .await
+                .expect("staged input fixture")
+                .expect("staged input fixture"),
+            PtyEvent::InputCommitted,
+        );
+        let (received, _slave) = reader.await.expect("staged input fixture");
+        assert_eq!(received, input);
+        assert!(!session.input_pending());
+        assert_eq!(session.allocation_signature(), allocation);
+
+        // Signal completion waits for the matching broker barrier receipt,
+        // but a blocked receipt must not prevent terminal output.
+        let (release, wait) = std::sync::mpsc::channel();
+        let worker = thread::spawn(move || {
+            let mut stream = UnixStream::from(_broker);
+            assert_eq!(
+                read_frame(&mut stream, &limits),
+                Frame::Signal { signal: 2 }
+            );
+            assert_eq!(
+                read_frame(&mut stream, &limits),
+                Frame::Lease {
+                    action: LeaseAction::Barrier,
+                    generation: [1; 16],
+                    lease_id: 1,
+                }
+            );
+            wait.recv().expect("staged input fixture");
+            write_frame(
+                &mut stream,
+                &Frame::Lease {
+                    action: LeaseAction::BarrierAck,
+                    generation: [1; 16],
+                    lease_id: 1,
+                },
+            );
+            stream
+        });
+        session
+            .begin_operation(InputOperation::Signal(2))
+            .expect("staged input fixture");
+        assert!(
+            tokio::time::timeout(Duration::from_millis(10), session.next_event())
+                .await
+                .is_err()
+        );
+        sys::write_fd(_slave.get_ref().as_fd(), b"signal output").expect("staged input fixture");
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), session.next_event())
+                .await
+                .expect("staged input fixture")
+                .expect("staged input fixture"),
+            PtyEvent::Output(13)
+        );
+        session.consume_event().expect("staged input fixture");
+        assert!(session.input_pending());
+        release.send(()).expect("staged input fixture");
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(1), session.next_event())
+                .await
+                .expect("staged input fixture")
+                .expect("staged input fixture"),
+            PtyEvent::InputCommitted
+        );
+        let _broker = worker.join().expect("staged input fixture");
+        assert!(!session.input_pending());
     }
 
     #[tokio::test(flavor = "current_thread")]
