@@ -145,6 +145,29 @@ fails with a clear local error before any `ssh` process is spawned.
 
 ## Upgrade
 
+### 0.2.5 shared-writer rollout
+
+New EverUDP gateways accept shared writers by default. Updating the installed
+binary does not change an already-running gateway: an older gateway remains
+single-writer until its session ends. Preserve those processes and sessions;
+do not restart them just to enable sharing. An ordinary resume to an older
+busy gateway can report Busy; takeover remains an explicit operator choice.
+Local everpty and EverSSH remain single-writer.
+
+Replace the combined binary atomically, retain the previous binary and
+wrapper for rollback, and verify both SHA-256 and `--version` on every host.
+The fleet `ever-tool` wrapper must be updated alongside it: resume and
+resume-all no longer imply takeover, and explicit takeover is propagated
+to each tab. Keep any newer session-state diagnostic fixes when consolidating
+wrapper copies.
+
+The disposable real-SSH canary in `crates/eversh/tests/fleet-sharing.py HOST`
+checks the installed 0.2.5 client and remote, two simultaneous writers, local
+detach, reattach to the same shell PID, and common clean exit. It uses a
+unique session name and never attaches an existing user session.
+
+### General compatibility
+
 Upgrades are operator actions: replace the installed binaries. Compatibility
 is decided by wire protocol versions, not file names (design §5):
 
