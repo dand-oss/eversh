@@ -164,7 +164,7 @@ is decided by wire protocol versions, not file names (design §5):
 - everudp's SSH bootstrap request carries the client's `TERM` and, when set,
   `COLORTERM` as trailing optional fields. A client without either field
   still bootstraps against a newer remote; a client with `COLORTERM` requires
-  a remote that understands the new field. An older remote fails closed at
+  eversh 0.2.4 or later on the remote host. An older remote fails closed at
   the bootstrap boundary, naming the remote program and its diagnostic
   (`remote command `/path/to/eversh` exited with status N on the remote
   host: ...`). Upgrade the remote host first, or both endpoints in one
