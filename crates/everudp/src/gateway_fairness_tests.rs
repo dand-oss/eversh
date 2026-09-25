@@ -320,6 +320,63 @@ async fn admission_reads_registry_after_accept_started() {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn capacity_reclaims_only_disconnected_peers_and_rechecks_resumed_target() {
+    let mut associations = Associations::new().expect("associations");
+    let mut keep_alive = Vec::new();
+    for byte in 100..109 {
+        let f = fixture(byte).await;
+        associations
+            .insert(AssociationState::Connected(Box::new(f.gateway)))
+            .expect("writer slot");
+        keep_alive.push((f.client, f._server, f._endpoint));
+    }
+    let limits = Limits::default();
+    assert!(candidate_reclaim(&associations, ConnectionRole::Writer, false, limits).is_err());
+    assert_eq!(
+        candidate_reclaim(&associations, ConnectionRole::Writer, true, limits),
+        Ok(None),
+        "explicit takeover can replace a full writer set"
+    );
+    for index in [3, 1] {
+        let AssociationState::Connected(link) = associations.take(index).expect("writer") else {
+            panic!("connected writer");
+        };
+        associations.put(
+            index,
+            AssociationState::Disconnected(link.into_resumable_association()),
+        );
+        if index == 3 {
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        }
+    }
+    assert_eq!(
+        candidate_reclaim(&associations, ConnectionRole::Writer, false, limits),
+        Ok(Some(3)),
+        "oldest disconnected peer, not lowest slot, is reclaimed"
+    );
+    // Remove the selected peer as publication would; the next check must
+    // consult current membership, not a target cached at initial admission.
+    let removed = associations.take(3).expect("oldest");
+    assert_eq!(
+        candidate_reclaim(&associations, ConnectionRole::Writer, false, limits),
+        Ok(None)
+    );
+    associations.put(3, removed);
+    let replacement = fixture(110).await;
+    let _ = associations.take(3).expect("oldest");
+    associations.put(3, AssociationState::Opening(Box::new(replacement.gateway)));
+    assert_eq!(
+        candidate_reclaim(&associations, ConnectionRole::Writer, false, limits),
+        Ok(Some(1)),
+        "a peer preparing its resume is not reclaimable"
+    );
+    let second = fixture(111).await;
+    let _ = associations.take(1).expect("second");
+    associations.put(1, AssociationState::Opening(Box::new(second.gateway)));
+    assert!(candidate_reclaim(&associations, ConnectionRole::Writer, false, limits).is_err());
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn active_retirement_is_distinct_from_network_loss() {
     let mut f = fixture(87).await;
     f.gateway.retire();
