@@ -364,6 +364,10 @@ start_driver() {
     chown -R "$RUN_USER" "$CURRENT_DIR"
     local messages=200
     local client_binary=$BIN
+    if [[ ${EVERUDP_SHARED_WRITER:-0} == 1 ]]; then
+        [[ $mode == stream ]] || { echo "shared writer requires a stream scenario" >&2; return 2; }
+        trace_window_args+=(--shared-writer)
+    fi
     (( SMOKE == 0 )) || messages=24
     if [[ ${EVERUDP_TRACE_CLIENT:-0} == 1 && ${EVERUDP_TRACE_GATEWAY:-0} == 1 ]]; then
         trace_window_args=(--hold-at-driver-done)

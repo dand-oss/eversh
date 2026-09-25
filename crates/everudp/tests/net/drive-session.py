@@ -80,6 +80,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout", type=float, default=2400.0)
     parser.add_argument("--hold-at-driver-done", action="store_true")
     parser.add_argument("--fresh-after-outage", action="store_true")
+    parser.add_argument("--shared-writer", action="store_true")
     return parser.parse_args()
 
 
@@ -95,6 +96,7 @@ class Driver:
         self.archived_status = ""
         self.identity_receipt = {}
         self.replacements = 0
+        self.peer: Driver | None = None
 
     def spawn(self, attach: bool = False) -> None:
         master, slave = pty.openpty()
@@ -134,6 +136,8 @@ class Driver:
         )
 
     def pump(self, wait: float = 0.02) -> None:
+        if self.peer is not None:
+            self.peer.pump(0)
         if self.master < 0:
             return
         readable, _, _ = select.select([self.master], [], [], wait)
@@ -231,6 +235,18 @@ class Driver:
         pre = f"pre-{self.args.session}"
         self.send(f"{pre}\n".encode())
         self.wait_marker_once(f"RX:{pre}".encode(), "preflight response")
+        if self.args.shared_writer:
+            if self.args.mode != "stream":
+                raise ValueError("shared-writer qualification requires stream mode")
+            peer_args = argparse.Namespace(**vars(self.args))
+            peer_args.control_dir = self.args.control_dir / "peer"
+            peer_args.control_dir.mkdir()
+            peer_args.status = self.args.status.with_name("peer.status")
+            peer_args.stderr = self.args.stderr.with_name("peer.stderr")
+            peer_args.shared_writer = False
+            self.peer = Driver(peer_args)
+            self.peer.spawn(attach=True)
+            self.peer.wait_status("connected", timeout=30.0)
         (self.args.control_dir / "ready").touch()
         self.wait_path("go")
         if self.args.fresh_after_outage:
@@ -242,11 +258,17 @@ class Driver:
                 value = f"{self.args.session}-{index:06d}"
                 marker = f"RX:{value}".encode()
                 expected.append(marker)
-                self.send(f"{value}\n".encode())
+                sender = self.peer if self.peer is not None and index % 2 else self
+                sender.send(f"{value}\n".encode())
             self.wait_for(
                 lambda: all(self.transcript.count(marker) >= 1 for marker in expected),
                 "all exact stream responses",
             )
+            if self.peer is not None:
+                self.wait_for(
+                    lambda: all(self.peer.transcript.count(marker) >= 1 for marker in expected),
+                    "both writers receive all responses",
+                )
             (self.args.control_dir / "driver-done").touch()
             if self.args.hold_at_driver_done:
                 self.wait_path("trace-window-verified")
@@ -360,6 +382,23 @@ class Driver:
         self.pump(0)
         if self.process.returncode != 0:
             raise RuntimeError(f"everudp exited as {self.process.returncode}")
+        if self.peer is not None:
+            assert self.peer.process is not None
+            deadline = time.monotonic() + 30.0
+            while self.peer.process.poll() is None and time.monotonic() < deadline:
+                self.peer.pump()
+            self.peer.pump(0)
+            if self.peer.process.poll() != 0:
+                raise RuntimeError("shared writer did not observe clean common child exit")
+            bad_peer = {
+                marker.decode(): self.peer.transcript.count(marker)
+                for marker in expected if self.peer.transcript.count(marker) != 1
+            }
+            if bad_peer:
+                raise RuntimeError(f"shared writer missing or duplicate responses: {bad_peer}")
+            if GAP_NOTICE in self.peer.stderr_bytes():
+                raise RuntimeError("healthy shared writer unexpectedly gapped")
+            self.args.transcript.with_name("peer-transcript.bin").write_bytes(self.peer.transcript)
 
         duplicates = {marker.decode(): self.transcript.count(marker) for marker in expected}
         bad = {marker: count for marker, count in duplicates.items() if count != 1}
@@ -391,6 +430,7 @@ class Driver:
             "elapsed_ms": round((time.monotonic() - self.started) * 1000),
             "responses": duplicates,
             "fresh_attachments": self.replacements,
+            "shared_writers": 2 if self.peer is not None else 1,
             "unchanged_processes": self.identity_receipt,
         }
 
@@ -424,6 +464,8 @@ class Driver:
         return result
 
     def close(self) -> None:
+        if self.peer is not None:
+            self.peer.close()
         if self.process is not None and self.process.poll() is None:
             try:
                 os.killpg(self.process.pid, signal.SIGTERM)
