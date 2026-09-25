@@ -973,7 +973,12 @@ async fn process_link_event(
                         return Err(error.into());
                     }
                     debug_assert!(associations.input_commit.is_none());
-                    associations.input_commit = Some((link.association().association_id(), token));
+                    if pty.try_commit_direct_input() {
+                        link.commit_prepared_input(token, slabs)?;
+                    } else {
+                        associations.input_commit =
+                            Some((link.association().association_id(), token));
+                    }
                     // Only accepted input earns one nonblocking PTY turn. Pending
                     // output falls straight through to normal ACK/link service.
                     prefer_pty = probe_pty;

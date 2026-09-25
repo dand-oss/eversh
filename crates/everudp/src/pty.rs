@@ -421,6 +421,35 @@ impl PtySession {
         self.pending_input != PendingInput::None
     }
 
+    /// One nonblocking write for the common small-input case. A short write,
+    /// EAGAIN, or terminal error remains owned by next_event, which continues
+    /// the same offset and performs the normal lease/error handling.
+    pub(crate) fn try_commit_direct_input(&mut self) -> bool {
+        if self.pending_input != PendingInput::DirectBytes {
+            return false;
+        }
+        let Some(direct) = self.direct.as_ref() else {
+            return false;
+        };
+        if self.send_offset < self.send_len {
+            match sys::write_fd(
+                direct.master.get_ref().as_fd(),
+                &self.send_buffer[self.send_offset..self.send_len],
+            ) {
+                Ok(written) => self.send_offset += written,
+                Err(_) => return false,
+            }
+        }
+        if self.send_offset != self.send_len {
+            return false;
+        }
+        self.send_len = 0;
+        self.send_offset = 0;
+        self.send_deadline = None;
+        self.pending_input = PendingInput::None;
+        true
+    }
+
     /// Stage a size change immediately before the same writer's bytes. The
     /// framed fallback uses one buffer so neither part can interleave.
     pub(crate) fn begin_operation_resized(
@@ -1251,6 +1280,11 @@ mod tests {
         session
             .begin_operation(InputOperation::Bytes(&input))
             .expect("staged input fixture");
+        assert!(
+            !session.try_commit_direct_input(),
+            "a partial write cannot ACK"
+        );
+        assert!(session.send_offset > 0 && session.send_offset < input.len());
         for _ in 0..3 {
             assert!(
                 tokio::time::timeout(Duration::from_millis(10), session.next_event())
@@ -1297,6 +1331,23 @@ mod tests {
         assert_eq!(received, input);
         assert!(!session.input_pending());
         assert_eq!(session.allocation_signature(), allocation);
+        session
+            .begin_operation(InputOperation::Bytes(b"fast"))
+            .expect("small direct operation");
+        assert!(session.try_commit_direct_input());
+        assert!(!session.input_pending());
+        assert!(
+            !session.try_commit_direct_input(),
+            "completion is emitted only once"
+        );
+        let mut fast = [0_u8; 4];
+        let ready = _slave.readable().await.expect("small input readable");
+        assert_eq!(
+            sys::read_fd(_slave.get_ref().as_fd(), &mut fast).expect("read small input"),
+            4
+        );
+        drop(ready);
+        assert_eq!(&fast, b"fast");
 
         // Signal completion waits for the matching broker barrier receipt,
         // but a blocked receipt must not prevent terminal output.
