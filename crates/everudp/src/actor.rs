@@ -539,6 +539,15 @@ impl GatewayLink {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn stall_preparation_for_test(&mut self, timeout: std::time::Duration) {
+        self.output_send = None;
+        self.output_open = Some(Box::pin(std::future::pending()));
+        self.preparation_deadline
+            .as_mut()
+            .reset(tokio::time::Instant::now() + timeout);
+    }
+
     /// Bounded, cancellation-safe admission progress. No PTY input is
     /// permitted until this reports readiness and the dispatcher publishes it.
     pub(crate) fn poll_prepared(

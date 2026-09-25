@@ -194,6 +194,88 @@ async fn fixture(id_byte: u8) -> Fixture {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn stalled_takeover_does_not_block_output_or_revoke_existing_writer() {
+    let mut first = fixture(88).await;
+    let mut staged = fixture(89).await;
+    let id = first.gateway.association().association_id();
+    let candidate_id = staged.gateway.association().association_id();
+    let mut associations = Associations::new().expect("associations");
+    let index = associations
+        .insert(AssociationState::Connected(Box::new(first.gateway)))
+        .expect("writer");
+    first.slabs.add_writer(candidate_id).expect("staging slot");
+    staged
+        .gateway
+        .stall_preparation_for_test(std::time::Duration::from_millis(300));
+    associations.candidate = Some(StagedInitial {
+        link: Box::new(staged.gateway),
+        takeover: true,
+    });
+    first
+        .slabs
+        .push_output(Kind::Output, b"healthy output")
+        .expect("output");
+    assert!(matches!(
+        tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            next_link_ready(&mut associations, &mut first.slabs)
+        )
+        .await
+        .expect("healthy peer progresses"),
+        LinkReady::OutboundProgress
+    ));
+    first
+        .client
+        .receive_output(|operation| {
+            assert_eq!(operation, crate::OutputOperation::Bytes(b"healthy output"));
+            Ok(())
+        })
+        .await
+        .expect("output delivered");
+    let ready = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        next_link_ready(&mut associations, &mut first.slabs),
+    )
+    .await
+    .expect("candidate deadline wakes");
+    let LinkReady::Candidate(result) = ready else {
+        panic!("candidate must time out");
+    };
+    assert!(result.is_err());
+    let mut lifecycle = GatewayLifecycle::new(&Limits::default()).expect("lifecycle");
+    finish_candidate(
+        result,
+        &mut associations,
+        &mut lifecycle,
+        &mut first.slabs,
+        Limits::default(),
+    )
+    .expect("rollback");
+    assert_eq!(associations.find(id), Some(index));
+    assert!(associations.candidate.is_none());
+    assert!(first.slabs.output_for(candidate_id).is_err());
+    first
+        .client
+        .association_mut()
+        .queue_input(b"after failed takeover")
+        .expect("input");
+    first.client.flush_input().await.expect("write input");
+    let AssociationState::Connected(mut link) = associations.take(index).expect("survivor") else {
+        panic!("writer remains connected");
+    };
+    link.receive_input(&mut first.slabs, |operation| {
+        assert_eq!(
+            operation,
+            crate::InputOperation::Bytes(b"after failed takeover")
+        );
+        Ok(())
+    })
+    .await
+    .expect("survivor still accepts input");
+    link.close();
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn admission_reads_registry_after_accept_started() {
     for now_authorized in [true, false] {
         let f = fixture(if now_authorized { 85 } else { 86 }).await;

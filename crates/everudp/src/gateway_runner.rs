@@ -78,6 +78,7 @@ impl From<QueueError> for GatewayRunError {
 }
 
 enum AssociationState {
+    Opening(Box<GatewayLink>),
     Connected(Box<GatewayLink>),
     Disconnected(GatewayAssociation),
 }
@@ -99,7 +100,7 @@ impl ManagedAssociation {
 impl AssociationState {
     fn association(&self) -> &GatewayAssociation {
         match self {
-            Self::Connected(link) => link.association(),
+            Self::Connected(link) | Self::Opening(link) => link.association(),
             Self::Disconnected(association) => association,
         }
     }
@@ -117,11 +118,17 @@ impl AssociationState {
     }
 
     fn is_connected(&self) -> bool {
-        matches!(self, Self::Connected(_))
+        matches!(self, Self::Connected(_) | Self::Opening(_))
     }
 }
 
+struct StagedInitial {
+    link: Box<GatewayLink>,
+    takeover: bool,
+}
+
 struct Associations {
+    candidate: Option<StagedInitial>,
     slots: Box<[Option<ManagedAssociation>]>,
     next_slot: usize,
     disconnected_at: [Option<tokio::time::Instant>; ASSOCIATION_CAPACITY],
@@ -131,6 +138,8 @@ struct Associations {
 }
 
 enum LinkReady {
+    Candidate(Result<(), LinkError>),
+    Prepared(usize, Result<(), LinkError>),
     Event(usize),
     OutboundProgress,
 }
@@ -277,6 +286,7 @@ impl Associations {
         slots.resize_with(ASSOCIATION_CAPACITY, || None);
         Ok(Self {
             slots: slots.into_boxed_slice(),
+            candidate: None,
             next_slot: 0,
             disconnected_at: [None; ASSOCIATION_CAPACITY],
             input_commit: None,
@@ -458,7 +468,6 @@ pub async fn run_gateway(
     associations.insert(AssociationState::Connected(Box::new(link)))?;
     let mut admission = AdmissionDriver::spawn(endpoint.clone(), associations.authorizations());
     let mut pending_pty = None;
-    let mut pending_admission: Option<(crate::AdmittedConnection, tokio::time::Instant)> = None;
     let mut prefer_pty_once = false;
     let mut next_ready = 0;
     let mut pty_output = Vec::new();
@@ -467,22 +476,6 @@ pub async fn run_gateway(
         .map_err(|_| QueueError::Allocation)?;
 
     loop {
-        if associations.input_commit.is_none() {
-            if let Some((admitted, deadline)) = pending_admission.take() {
-                if tokio::time::Instant::now() >= deadline {
-                    admitted.close();
-                    continue;
-                }
-                handle_admitted(
-                    admitted,
-                    &mut associations,
-                    &mut lifecycle,
-                    &mut slabs,
-                    limits,
-                )
-                .await?;
-            }
-        }
         admission.update(associations.authorizations());
         if let Some(index) = associations.first_pending() {
             let event = associations
@@ -557,39 +550,19 @@ pub async fn run_gateway(
         let ready = select_ready(
             &mut next_ready,
             next_link_ready(&mut associations, &mut slabs),
-            async {
-                if let Some((_, deadline)) = &pending_admission {
-                    tokio::time::sleep_until(*deadline).await;
-                    Ok(None)
-                } else {
-                    admission.next().await.map(Some)
-                }
-            },
+            admission.next(),
             pty.next_event(),
         )
         .await;
         match ready {
-            Ready::Admission(Ok(None)) => {
-                if let Some((admitted, _)) = pending_admission.take() {
-                    admitted.close();
-                }
-            }
-            Ready::Admission(Ok(Some(admitted))) => {
-                if associations.input_commit.is_some() && admitted.take_over() {
-                    pending_admission = Some((
-                        admitted,
-                        tokio::time::Instant::now() + limits.initial_udp_budget(),
-                    ));
-                    continue;
-                }
+            Ready::Admission(Ok(admitted)) => {
                 handle_admitted(
                     admitted,
                     &mut associations,
                     &mut lifecycle,
                     &mut slabs,
                     limits,
-                )
-                .await?;
+                )?;
             }
             Ready::Admission(Err(
                 error @ (TransportError::EndpointClosed
@@ -611,6 +584,18 @@ pub async fn run_gateway(
                 .await?;
             }
             Ready::Inbound(LinkReady::OutboundProgress) => {}
+            Ready::Inbound(LinkReady::Candidate(result)) => {
+                finish_candidate(
+                    result,
+                    &mut associations,
+                    &mut lifecycle,
+                    &mut slabs,
+                    limits,
+                )?;
+            }
+            Ready::Inbound(LinkReady::Prepared(index, result)) => {
+                finish_resume_preparation(index, result, &mut associations);
+            }
             Ready::Pty(event) => {
                 if let Some(status) = queue_ready_pty_event(
                     event,
@@ -659,6 +644,17 @@ async fn next_link_ready(
     slabs: &mut GatewayReplaySlabs,
 ) -> LinkReady {
     poll_fn(|context| {
+        if let Some(candidate) = associations.candidate.as_mut() {
+            match candidate.link.poll_prepared(slabs, context) {
+                Poll::Ready(Ok(()))
+                    if !candidate.takeover || associations.input_commit.is_none() =>
+                {
+                    return Poll::Ready(LinkReady::Candidate(Ok(())))
+                }
+                Poll::Ready(Err(error)) => return Poll::Ready(LinkReady::Candidate(Err(error))),
+                Poll::Ready(Ok(())) | Poll::Pending => {}
+            }
+        }
         let start = associations.next_slot;
         for offset in 0..associations.slots.len() {
             let index = (start + offset) % associations.slots.len();
@@ -670,6 +666,12 @@ async fn next_link_ready(
             associations.next_slot = (index + 1) % ASSOCIATION_CAPACITY;
             if managed.pending.is_some() {
                 return Poll::Ready(LinkReady::Event(index));
+            }
+            if let AssociationState::Opening(link) = &mut managed.state {
+                if let Poll::Ready(result) = link.poll_prepared(slabs, context) {
+                    return Poll::Ready(LinkReady::Prepared(index, result));
+                }
+                continue;
             }
             let AssociationState::Connected(link) = &mut managed.state else {
                 continue;
@@ -734,7 +736,7 @@ async fn next_link_ready(
     .await
 }
 
-async fn handle_admitted(
+fn handle_admitted(
     admitted: crate::AdmittedConnection,
     associations: &mut Associations,
     lifecycle: &mut GatewayLifecycle,
@@ -743,29 +745,22 @@ async fn handle_admitted(
 ) -> Result<(), GatewayRunError> {
     match admitted.hello() {
         ClientHello::Initial { .. } => {
-            handle_initial(admitted, associations, lifecycle, slabs, limits).await
+            handle_initial(admitted, associations, lifecycle, slabs, limits)
         }
         ClientHello::Resume { .. } => {
-            handle_resume(admitted, associations, lifecycle, slabs, limits).await
+            handle_resume(admitted, associations, lifecycle, slabs, limits)
         }
     }
 }
 
-async fn handle_initial(
-    admitted: crate::AdmittedConnection,
-    associations: &mut Associations,
-    lifecycle: &mut GatewayLifecycle,
-    slabs: &mut GatewayReplaySlabs,
+fn candidate_reclaim(
+    associations: &Associations,
+    role: ConnectionRole,
+    takeover: bool,
     limits: Limits,
-) -> Result<(), GatewayRunError> {
-    let association_id = admitted.hello().association_id();
-    if associations.find(association_id).is_some() {
-        admitted.close();
-        return Ok(());
-    }
-    let takeover = admitted.take_over();
-    let observer_full = admitted.hello().role() == ConnectionRole::Observer
-        && associations.observer_count() >= limits.max_observers;
+) -> Result<Option<usize>, ()> {
+    let observer_full =
+        role == ConnectionRole::Observer && associations.observer_count() >= limits.max_observers;
     let capacity_full =
         !(associations.has_capacity() || takeover && associations.writer().is_some());
     let reclaim = if observer_full {
@@ -776,16 +771,69 @@ async fn handle_initial(
         None
     };
     if (observer_full || capacity_full) && reclaim.is_none() {
+        Err(())
+    } else {
+        Ok(reclaim)
+    }
+}
+
+fn handle_initial(
+    admitted: crate::AdmittedConnection,
+    associations: &mut Associations,
+    lifecycle: &mut GatewayLifecycle,
+    slabs: &mut GatewayReplaySlabs,
+    limits: Limits,
+) -> Result<(), GatewayRunError> {
+    let id = admitted.hello().association_id();
+    if associations.find(id).is_some() {
+        admitted.close();
+        return Ok(());
+    }
+    let takeover = admitted.take_over();
+    if associations.candidate.is_some()
+        || candidate_reclaim(associations, admitted.hello().role(), takeover, limits).is_err()
+    {
         admitted.reject_association_capacity();
         return Ok(());
     }
-    // One extra replay slot stages the candidate inside the global memory cap.
-    // Existing membership is untouched if allocation or SERVER_HELLO fails.
-    let candidate = match GatewayLink::accept_initial(admitted, lifecycle, slabs, limits).await {
-        Ok((link, _)) => link,
-        Err(_) => return Ok(()),
-    };
-    if takeover {
+    if let Ok((link, _)) = GatewayLink::stage_initial(admitted, lifecycle, slabs, limits) {
+        associations.candidate = Some(StagedInitial {
+            link: Box::new(link),
+            takeover,
+        });
+    }
+    Ok(())
+}
+
+fn abort_candidate(
+    associations: &mut Associations,
+    lifecycle: &mut GatewayLifecycle,
+    slabs: &mut GatewayReplaySlabs,
+) -> Result<(), GatewayRunError> {
+    if let Some(candidate) = associations.candidate.take() {
+        (*candidate.link).abort_prepared_initial(lifecycle, slabs)?;
+    }
+    Ok(())
+}
+
+fn finish_candidate(
+    result: Result<(), LinkError>,
+    associations: &mut Associations,
+    lifecycle: &mut GatewayLifecycle,
+    slabs: &mut GatewayReplaySlabs,
+    limits: Limits,
+) -> Result<(), GatewayRunError> {
+    let candidate = associations.candidate.take().ok_or(PtyError::Protocol)?;
+    let id = candidate.link.association().association_id();
+    let role = candidate.link.association().role();
+    // Recheck membership at publication: a disconnected reclaim target may
+    // have resumed while this candidate's handshake was blocked.
+    let reclaim = candidate_reclaim(associations, role, candidate.takeover, limits);
+    if result.is_err() || reclaim.is_err() {
+        (*candidate.link).abort_prepared_initial(lifecycle, slabs)?;
+        return Ok(());
+    }
+    if candidate.takeover {
         debug_assert!(associations.input_commit.is_none());
         for index in 0..associations.slots.len() {
             if associations.slots[index]
@@ -796,17 +844,39 @@ async fn handle_initial(
             }
         }
     }
-    if let Some(index) = reclaim {
+    if let Some(index) = reclaim.expect("checked capacity") {
         retire_association(index, associations, lifecycle, slabs)?;
     }
-    associations.insert(AssociationState::Connected(Box::new(candidate)))?;
-    if takeover {
-        associations.sizes.take_over(association_id);
+    associations.insert(AssociationState::Connected(candidate.link))?;
+    if candidate.takeover {
+        associations.sizes.take_over(id);
     }
     Ok(())
 }
 
-async fn handle_resume(
+fn finish_resume_preparation(
+    index: usize,
+    result: Result<(), LinkError>,
+    associations: &mut Associations,
+) {
+    let Some(state) = associations.take(index) else {
+        return;
+    };
+    let AssociationState::Opening(link) = state else {
+        associations.put(index, state);
+        return;
+    };
+    associations.put(
+        index,
+        if result.is_ok() {
+            AssociationState::Connected(link)
+        } else {
+            AssociationState::Disconnected((*link).into_resumable_association())
+        },
+    );
+}
+
+fn handle_resume(
     admitted: crate::AdmittedConnection,
     associations: &mut Associations,
     lifecycle: &mut GatewayLifecycle,
@@ -819,12 +889,14 @@ async fn handle_resume(
         return Ok(());
     };
     let association = match associations.take(index).expect("located association") {
-        AssociationState::Connected(link) => (*link).into_resumable_association(),
+        AssociationState::Connected(link) | AssociationState::Opening(link) => {
+            (*link).into_resumable_association()
+        }
         AssociationState::Disconnected(association) => association,
     };
-    match GatewayLink::try_accept_resume(admitted, association, lifecycle, slabs, limits).await {
+    match GatewayLink::stage_resume(admitted, association, lifecycle, slabs, limits) {
         Ok((link, _)) => {
-            associations.put(index, AssociationState::Connected(Box::new(link)));
+            associations.put(index, AssociationState::Opening(Box::new(link)));
             Ok(())
         }
         Err(failure) => {
@@ -959,6 +1031,7 @@ async fn finish_terminal_delivery(
     limits: Limits,
     admission: &mut AdmissionDriver,
 ) -> Result<(), GatewayRunError> {
+    abort_candidate(&mut associations, lifecycle, slabs)?;
     release_disconnected(&mut associations, lifecycle, slabs)?;
     let mut next_ready = 0;
     loop {
@@ -988,8 +1061,7 @@ async fn finish_terminal_delivery(
             TerminalReady::Admission(admitted) => match admitted {
                 Ok(admitted) => {
                     if matches!(admitted.hello(), ClientHello::Resume { .. }) {
-                        handle_resume(admitted, &mut associations, lifecycle, slabs, limits)
-                            .await?;
+                        handle_resume(admitted, &mut associations, lifecycle, slabs, limits)?;
                     } else {
                         admitted.close();
                     }
@@ -1007,6 +1079,12 @@ async fn finish_terminal_delivery(
                 process_terminal_event(index, event, &mut associations, lifecycle, slabs)?;
             }
             TerminalReady::Inbound(LinkReady::OutboundProgress) => {}
+            TerminalReady::Inbound(LinkReady::Prepared(index, result)) => {
+                finish_resume_preparation(index, result, &mut associations);
+            }
+            TerminalReady::Inbound(LinkReady::Candidate(_)) => {
+                abort_candidate(&mut associations, lifecycle, slabs)?;
+            }
         }
     }
 }
@@ -1102,7 +1180,7 @@ fn retire_association(
     let association_id = state.association_id();
     let role = state.role();
     associations.sizes.remove(association_id);
-    if let AssociationState::Connected(link) = state {
+    if let AssociationState::Connected(link) | AssociationState::Opening(link) = state {
         (*link).retire();
     }
     let _ = lifecycle.release(association_id);
@@ -1146,7 +1224,7 @@ async fn queue_pty_event(
             if let Some(index) = associations.find(id) {
                 let managed = associations.slots[index].as_mut().expect("input owner");
                 match &mut managed.state {
-                    AssociationState::Connected(link) => {
+                    AssociationState::Connected(link) | AssociationState::Opening(link) => {
                         link.commit_prepared_input(token, slabs)?;
                     }
                     AssociationState::Disconnected(association) => {
