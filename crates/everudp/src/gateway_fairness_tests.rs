@@ -377,6 +377,121 @@ async fn capacity_reclaims_only_disconnected_peers_and_rechecks_resumed_target()
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn takeover_retires_connected_and_disconnected_writer_authorizations() {
+    let first = fixture(112).await;
+    let second = fixture(113).await;
+    let replacement = fixture(114).await;
+    let first_id = first.gateway.association().association_id();
+    let second_id = second.gateway.association().association_id();
+    let replacement_id = replacement.gateway.association().association_id();
+    let replacement_authorization = replacement.gateway.association().authorization();
+    let mut slabs = first.slabs;
+    slabs.add_writer(second_id).expect("second writer replay");
+    slabs.add_writer(replacement_id).expect("candidate replay");
+    let mut associations = Associations::new().expect("associations");
+    associations
+        .insert(AssociationState::Connected(Box::new(first.gateway)))
+        .expect("first");
+    associations
+        .insert(AssociationState::Disconnected(
+            second.gateway.into_resumable_association(),
+        ))
+        .expect("disconnected second");
+    associations.candidate = Some(StagedInitial {
+        link: Box::new(replacement.gateway),
+        takeover: true,
+    });
+    let mut lifecycle = GatewayLifecycle::new(&Limits::default()).expect("lifecycle");
+    finish_candidate(
+        Ok(()),
+        &mut associations,
+        &mut lifecycle,
+        &mut slabs,
+        Limits::default(),
+    )
+    .expect("takeover");
+    assert!(associations.find(first_id).is_none());
+    assert!(associations.find(second_id).is_none());
+    assert!(associations.find(replacement_id).is_some());
+    assert!(slabs.output_for(first_id).is_err());
+    assert!(slabs.output_for(second_id).is_err());
+    let authorizations: Vec<_> = associations
+        .authorizations()
+        .into_iter()
+        .flatten()
+        .collect();
+    assert!(
+        authorizations == vec![replacement_authorization],
+        "retired identities cannot authorize resume"
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn prepared_takeover_waits_for_input_boundary_and_times_out_without_eviction() {
+    let mut first = fixture(115).await;
+    first
+        .client
+        .association_mut()
+        .queue_input(b"accepted frame")
+        .expect("input");
+    first.client.flush_input().await.expect("send input");
+    let token = loop {
+        let event = first.gateway.next_inbound().await.expect("input event");
+        if let InboundApply::Deliver(input) = first
+            .gateway
+            .prepare_inbound(event, &mut first.slabs)
+            .expect("prepare input")
+        {
+            break input.token();
+        }
+    };
+    let replacement = fixture(116).await;
+    let id = first.gateway.association().association_id();
+    let candidate_id = replacement.gateway.association().association_id();
+    let mut associations = Associations::new().expect("associations");
+    associations
+        .insert(AssociationState::Connected(Box::new(first.gateway)))
+        .expect("first");
+    first
+        .slabs
+        .add_writer(candidate_id)
+        .expect("candidate replay");
+    associations.input_commit = Some((id, token));
+    associations.candidate = Some(StagedInitial {
+        link: Box::new(replacement.gateway),
+        takeover: true,
+    });
+    let result = tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        loop {
+            match next_link_ready(&mut associations, &mut first.slabs).await {
+                LinkReady::Candidate(result) => break result,
+                LinkReady::OutboundProgress => {}
+                _ => panic!("only candidate preparation or output is expected"),
+            }
+        }
+    })
+    .await
+    .expect("bounded takeover");
+    assert!(
+        result.is_err(),
+        "a ready handshake cannot cross a partial input boundary"
+    );
+    let mut lifecycle = GatewayLifecycle::new(&Limits::default()).expect("lifecycle");
+    finish_candidate(
+        result,
+        &mut associations,
+        &mut lifecycle,
+        &mut first.slabs,
+        Limits::default(),
+    )
+    .expect("rollback");
+    assert!(associations.find(id).is_some());
+    assert_eq!(associations.input_commit, Some((id, token)));
+    assert!(first.slabs.output_for(id).is_ok());
+    assert!(first.slabs.output_for(candidate_id).is_err());
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn active_retirement_is_distinct_from_network_loss() {
     let mut f = fixture(87).await;
     f.gateway.retire();
