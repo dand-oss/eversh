@@ -73,6 +73,7 @@ fn every_operation_round_trips_as_one_canonical_shell_safe_token() {
         assert_eq!(decoded.client_spki_sha256(), [9; 32]);
         assert_eq!(decoded.command(), original.command());
         assert_eq!(decoded.term(), original.term());
+        assert_eq!(decoded.colorterm(), original.colorterm());
         assert_eq!(decoded.encode_token().expect("canonical"), token);
         assert!(!format!("{decoded:?}").contains("--resume"));
     }
@@ -209,5 +210,52 @@ fn term_is_optional_bounded_connect_only_and_absent_from_legacy_tokens() {
     ));
 
     // A trailing zero-length TERM field is not canonical and is refused.
+    assert!(BootstrapRequest::decode_token(&format!("{legacy_token}00")).is_err());
+}
+
+#[test]
+fn colorterm_round_trips_without_breaking_older_term_tokens() {
+    let legacy = connect_with_term("xterm-kitty").expect("legacy request");
+    let colored = connect_with_term("xterm-kitty")
+        .expect("request")
+        .with_colorterm("truecolor".to_owned())
+        .expect("color hint");
+    let legacy_token = legacy.encode_token().expect("legacy token");
+    let colored_token = colored.encode_token().expect("colored token");
+    assert!(colored_token.starts_with(&legacy_token));
+    assert_eq!(
+        BootstrapRequest::decode_token(&legacy_token)
+            .expect("legacy decodes")
+            .colorterm(),
+        ""
+    );
+    assert_eq!(
+        BootstrapRequest::decode_token(&colored_token)
+            .expect("colored decodes")
+            .colorterm(),
+        "truecolor"
+    );
+
+    let no_term = connect_with_term("")
+        .expect("request")
+        .with_colorterm("24bit".to_owned())
+        .expect("color hint");
+    let decoded = BootstrapRequest::decode_token(&no_term.encode_token().expect("token"))
+        .expect("decodes without TERM");
+    assert_eq!(decoded.term(), "");
+    assert_eq!(decoded.colorterm(), "24bit");
+
+    assert!(matches!(
+        connect_with_term("xterm-kitty")
+            .expect("request")
+            .with_colorterm("bad color".to_owned()),
+        Err(RequestError::InvalidColorterm)
+    ));
+    assert!(matches!(
+        request(BootstrapOperation::Attach)
+            .expect("attach")
+            .with_colorterm("truecolor".to_owned()),
+        Err(RequestError::InvalidColorterm)
+    ));
     assert!(BootstrapRequest::decode_token(&format!("{legacy_token}00")).is_err());
 }

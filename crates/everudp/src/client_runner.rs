@@ -44,6 +44,8 @@ pub struct ClientConfig {
     /// The local `TERM` to export into a session this client creates
     /// (empty when unset or unacceptable). Carried only on `Connect`.
     pub term: String,
+    /// The local `COLORTERM` hint to export on `Connect`.
+    pub colorterm: String,
     /// Operator-selected remote UDP port range for a gateway this bootstrap
     /// starts (design §5); `None` keeps the historic remote command.
     pub udp_port_range: Option<everssh::UdpPortRange>,
@@ -543,6 +545,7 @@ fn config_for_recovery(config: &ClientConfig) -> ClientConfig {
         command: Vec::new(),
         status_path: None,
         term: String::new(),
+        colorterm: String::new(),
         udp_port_range: config.udp_port_range,
     }
 }
@@ -581,6 +584,13 @@ fn make_request(
             String::new()
         } else {
             config.term.clone()
+        },
+    )?
+    .with_colorterm(
+        if recovery || config.operation != BootstrapOperation::Connect {
+            String::new()
+        } else {
+            config.colorterm.clone()
         },
     )
 }
@@ -701,8 +711,8 @@ fn monotonic_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_recovery_result, config_for_recovery, jitter_seed, ClientConfig, ClientExit,
-        ClientRunError,
+        classify_recovery_result, config_for_recovery, jitter_seed, make_request, ClientConfig,
+        ClientExit, ClientRunError,
     };
     use crate::{
         reconnect::SESSION_NOT_LIVE_EXIT, BootstrapError, BootstrapOperation, RecoveryAction,
@@ -732,6 +742,7 @@ mod tests {
             command: vec![b"shell".to_vec()],
             status_path: None,
             term: "xterm-kitty".to_owned(),
+            colorterm: "truecolor".to_owned(),
             udp_port_range: None,
         }
     }
@@ -741,8 +752,19 @@ mod tests {
         let recovered = config_for_recovery(&config(BootstrapOperation::Connect));
         assert_eq!(recovered.operation, BootstrapOperation::Attach);
         assert!(recovered.command.is_empty());
+        assert!(recovered.colorterm.is_empty());
         let observed = config_for_recovery(&config(BootstrapOperation::Observe));
         assert_eq!(observed.operation, BootstrapOperation::Observe);
+    }
+
+    #[test]
+    fn connect_carries_color_hint_but_recovery_does_not() {
+        let config = config(BootstrapOperation::Connect);
+        let association = AssociationId::from_bytes([7; 16]).expect("association");
+        let connect = make_request(&config, association, [9; 32], false).expect("connect request");
+        assert_eq!(connect.colorterm(), "truecolor");
+        let recovery = make_request(&config, association, [9; 32], true).expect("recovery request");
+        assert!(recovery.colorterm().is_empty());
     }
 
     #[test]

@@ -136,6 +136,19 @@ pub fn with_term(mut environment: Vec<OsString>, term: &str) -> Vec<OsString> {
     environment
 }
 
+/// Exports the client's terminal color hint only when one was supplied.
+pub fn with_colorterm(mut environment: Vec<OsString>, colorterm: &str) -> Vec<OsString> {
+    use std::os::unix::ffi::OsStrExt;
+    if colorterm.is_empty() {
+        return environment;
+    }
+    environment.retain(|entry| !entry.as_bytes().starts_with(b"COLORTERM="));
+    let mut entry = OsString::from("COLORTERM=");
+    entry.push(colorterm);
+    environment.push(entry);
+    environment
+}
+
 /// Resolves or creates the requested PTY before any Tokio runtime exists.
 /// The daemon-fork child remains the broker; only the parent continues to the
 /// SSH bootstrap and gateway process.
@@ -158,7 +171,10 @@ pub fn prepare_bootstrap_parent(
             name: request.session().to_owned(),
             command,
             default_shell,
-            environment: with_term(environment, request.term()),
+            environment: with_colorterm(
+                with_term(environment, request.term()),
+                request.colorterm(),
+            ),
             path,
             origins: vec![OsString::from(request.origin())],
             rows: request.rows(),
@@ -464,6 +480,25 @@ mod with_term_tests {
         assert_eq!(
             with_term(env(&["TERMINFO=/x", "TERM=dumb"]), "xterm"),
             env(&["TERMINFO=/x", "TERM=xterm"])
+        );
+    }
+}
+
+#[cfg(test)]
+mod with_colorterm_tests {
+    use super::with_colorterm;
+    use std::ffi::OsString;
+
+    #[test]
+    fn replaces_captured_color_hint_only_when_supplied() {
+        let environment = vec![OsString::from("HOME=/h"), OsString::from("COLORTERM=old")];
+        assert_eq!(with_colorterm(environment.clone(), ""), environment);
+        assert_eq!(
+            with_colorterm(environment, "truecolor"),
+            vec![
+                OsString::from("HOME=/h"),
+                OsString::from("COLORTERM=truecolor")
+            ]
         );
     }
 }

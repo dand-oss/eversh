@@ -161,12 +161,11 @@ is decided by wire protocol versions, not file names (design §5):
   reattach path.
 - The private eversh remote-role grammar is versioned (`v1`); a version
   mismatch names the component and version and exits without side effects.
-- everudp's SSH bootstrap request carries the client's `TERM` as a
-  trailing optional field (added after the v2 release). A client without
-  the field still bootstraps against a remote that has it (the session is
-  simply created without `TERM`, as before); a client with the field
-  against an older remote fails closed at the bootstrap boundary. The
-  failure names the remote program and the remote's own diagnostic
+- everudp's SSH bootstrap request carries the client's `TERM` and, when set,
+  `COLORTERM` as trailing optional fields. A client without either field
+  still bootstraps against a newer remote; a client with `COLORTERM` requires
+  a remote that understands the new field. An older remote fails closed at
+  the bootstrap boundary, naming the remote program and its diagnostic
   (`remote command `/path/to/eversh` exited with status N on the remote
   host: ...`). Upgrade the remote host first, or both endpoints in one
   maintenance action.

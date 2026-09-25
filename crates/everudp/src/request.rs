@@ -12,6 +12,7 @@ const MAX_ARGUMENTS: usize = 32;
 /// Longest `TERM` value carried to the remote session. Terminfo names are
 /// short (`xterm-kitty`, `screen-256color`); anything longer is refused.
 const MAX_TERM: usize = 64;
+const MAX_COLORTERM: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BootstrapOperation {
@@ -50,6 +51,7 @@ pub enum RequestError {
     InvalidTakeover,
     InvalidCommand,
     InvalidTerm,
+    InvalidColorterm,
 }
 
 impl fmt::Display for RequestError {
@@ -64,6 +66,7 @@ impl fmt::Display for RequestError {
             Self::InvalidTakeover => formatter.write_str("invalid everudp takeover request"),
             Self::InvalidCommand => formatter.write_str("invalid everudp child command"),
             Self::InvalidTerm => formatter.write_str("invalid everudp terminal type"),
+            Self::InvalidColorterm => formatter.write_str("invalid everudp terminal color hint"),
         }
     }
 }
@@ -85,6 +88,8 @@ pub struct BootstrapRequest {
     /// runs with `RequestTTY=no` and sshd only exports `TERM` when it
     /// allocates a PTY. Empty means "none"; only `Connect` may carry one.
     term: String,
+    /// The client's `COLORTERM` hint, present only on `Connect`.
+    colorterm: String,
 }
 
 impl BootstrapRequest {
@@ -93,6 +98,14 @@ impl BootstrapRequest {
     pub fn acceptable_term(value: &str) -> bool {
         !value.is_empty()
             && value.len() <= MAX_TERM
+            && value.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+')
+            })
+    }
+
+    pub fn acceptable_colorterm(value: &str) -> bool {
+        !value.is_empty()
+            && value.len() <= MAX_COLORTERM
             && value.bytes().all(|byte| {
                 byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+')
             })
@@ -124,6 +137,7 @@ impl BootstrapRequest {
             origin,
             command,
             term,
+            colorterm: String::new(),
         };
         request.validate()?;
         if request.encode_wire()?.len() > MAX_WIRE {
@@ -176,6 +190,19 @@ impl BootstrapRequest {
     /// empty string when the client carried none.
     pub fn term(&self) -> &str {
         &self.term
+    }
+
+    pub fn colorterm(&self) -> &str {
+        &self.colorterm
+    }
+
+    pub fn with_colorterm(mut self, colorterm: String) -> Result<Self, RequestError> {
+        self.colorterm = colorterm;
+        self.validate()?;
+        if self.encode_wire()?.len() > MAX_WIRE {
+            return Err(RequestError::TooLarge);
+        }
+        Ok(self)
     }
 
     pub fn encode_token(&self) -> Result<String, RequestError> {
@@ -231,9 +258,15 @@ impl BootstrapRequest {
         }
         // Trailing optional field: absent when empty so tokens from clients
         // that predate it stay canonical and still decode.
-        if !self.term.is_empty() {
+        if !self.term.is_empty() || !self.colorterm.is_empty() {
             output.push(u8::try_from(self.term.len()).map_err(|_| RequestError::InvalidTerm)?);
             output.extend_from_slice(self.term.as_bytes());
+        }
+        if !self.colorterm.is_empty() {
+            output.push(
+                u8::try_from(self.colorterm.len()).map_err(|_| RequestError::InvalidColorterm)?,
+            );
+            output.extend_from_slice(self.colorterm.as_bytes());
         }
         if output.len() > MAX_WIRE {
             return Err(RequestError::TooLarge);
@@ -310,7 +343,20 @@ impl BootstrapRequest {
             );
             offset = end;
         }
+        let had_term_field = offset != input.len();
         let term = if offset == input.len() {
+            String::new()
+        } else {
+            let length = usize::from(input[offset]);
+            offset += 1;
+            let end = offset.checked_add(length).ok_or(RequestError::Malformed)?;
+            let term = std::str::from_utf8(input.get(offset..end).ok_or(RequestError::Malformed)?)
+                .map_err(|_| RequestError::Malformed)?
+                .to_owned();
+            offset = end;
+            term
+        };
+        let colorterm = if offset == input.len() {
             String::new()
         } else {
             let length = usize::from(input[offset]);
@@ -319,12 +365,17 @@ impl BootstrapRequest {
                 return Err(RequestError::Malformed);
             }
             let end = offset.checked_add(length).ok_or(RequestError::Malformed)?;
-            let term = std::str::from_utf8(input.get(offset..end).ok_or(RequestError::Malformed)?)
-                .map_err(|_| RequestError::Malformed)?
-                .to_owned();
+            let colorterm =
+                std::str::from_utf8(input.get(offset..end).ok_or(RequestError::Malformed)?)
+                    .map_err(|_| RequestError::Malformed)?
+                    .to_owned();
             offset = end;
-            term
+            colorterm
         };
+        if had_term_field && term.is_empty() && colorterm.is_empty() {
+            // A lone zero-length TERM field is not canonical.
+            return Err(RequestError::Malformed);
+        }
         if offset != input.len() {
             return Err(RequestError::Malformed);
         }
@@ -343,7 +394,8 @@ impl BootstrapRequest {
             origin,
             command,
             term,
-        )
+        )?
+        .with_colorterm(colorterm)
     }
 
     fn validate(&self) -> Result<(), RequestError> {
@@ -394,6 +446,12 @@ impl BootstrapRequest {
         {
             return Err(RequestError::InvalidTerm);
         }
+        if !self.colorterm.is_empty()
+            && (self.operation != BootstrapOperation::Connect
+                || !Self::acceptable_colorterm(&self.colorterm))
+        {
+            return Err(RequestError::InvalidColorterm);
+        }
         Ok(())
     }
 }
@@ -413,6 +471,7 @@ impl fmt::Debug for BootstrapRequest {
             .field("origin", &self.origin)
             .field("command_arguments", &self.command.len())
             .field("term", &self.term)
+            .field("colorterm", &self.colorterm)
             .finish()
     }
 }

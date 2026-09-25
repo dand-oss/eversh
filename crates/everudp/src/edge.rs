@@ -212,6 +212,7 @@ fn prepare(
                 command: child.into_iter().map(|word| word.into_vec()).collect(),
                 status_path: status_file,
                 term: local_term(),
+                colorterm: local_colorterm(),
                 udp_port_range,
             }))
         }
@@ -236,6 +237,7 @@ fn prepare(
                 command: Vec::new(),
                 status_path: status_file,
                 term: String::new(),
+                colorterm: String::new(),
                 udp_port_range,
             }))
         }
@@ -257,6 +259,7 @@ fn prepare(
             command: Vec::new(),
             status_path: status_file,
             term: String::new(),
+            colorterm: String::new(),
             udp_port_range,
         })),
         Command::BootstrapParentV1 { request } => {
@@ -327,6 +330,13 @@ fn local_term() -> String {
     std::env::var("TERM")
         .ok()
         .filter(|value| BootstrapRequest::acceptable_term(value))
+        .unwrap_or_default()
+}
+
+fn local_colorterm() -> String {
+    std::env::var("COLORTERM")
+        .ok()
+        .filter(|value| BootstrapRequest::acceptable_colorterm(value))
         .unwrap_or_default()
 }
 
