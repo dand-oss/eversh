@@ -873,7 +873,7 @@ async fn hostile_resume_bindings_are_terminal_but_do_not_kill_the_gateway_endpoi
 // the fresh generation must be told about the epochs it actually missed
 // instead of the epochs the previous generation had already absorbed.
 #[tokio::test(flavor = "current_thread")]
-async fn a_fresh_writer_attach_is_told_the_epochs_it_missed() {
+async fn a_fresh_writer_attach_does_not_inherit_a_confirmed_gap() {
     tokio::time::timeout(Duration::from_secs(8), async {
         let limits = Limits::default();
         let store = Arc::new(Mutex::new(
@@ -1017,19 +1017,16 @@ async fn a_fresh_writer_attach_is_told_the_epochs_it_missed() {
         assert_eq!(client_link.association_mut().take_gap_notice(), None);
         assert_eq!(slabs.writer_output().pending_gap(), None);
 
-        // The client process goes away. The next attach retires its writer
-        // generation exactly as `handle_initial` -> `retire_writer` does.
+        // Retiring an attachment clears only its replay identity. A later
+        // fresh writer must not inherit its confirmed or pending epochs.
         server_link.close();
         client_link.close();
         assert_eq!(
             lifecycle.release(association()),
             Some(ConnectionRole::Writer)
         );
-        assert_eq!(
-            slabs.replace_writer_generation().expect("replacement"),
-            (1, 2)
-        );
-        assert_eq!(slabs.writer_output().pending_gap(), Some((1, 2)));
+        slabs.remove_writer(association()).expect("retire writer");
+        assert_eq!(slabs.writer_output().pending_gap(), None);
 
         // A brand-new process attaches with no durable position.
         let fresh_association = AssociationId::from_bytes([53; 16]).expect("fresh association");
@@ -1088,13 +1085,10 @@ async fn a_fresh_writer_attach_is_told_the_epochs_it_missed() {
             fresh_client_result.expect("a fresh attach after a confirmed gap must be accepted");
         assert_eq!(
             fresh_client_link.association().position().output_epoch,
-            2,
-            "the fresh generation adopts the current output epoch"
+            0,
+            "the fresh identity starts at its own output epoch"
         );
-        assert_eq!(
-            fresh_client_link.association_mut().take_gap_notice(),
-            Some(everudp::wire::EpochGap::new(0, 2).expect("gap"))
-        );
+        assert_eq!(fresh_client_link.association_mut().take_gap_notice(), None);
         fresh_client_link
             .association_mut()
             .queue_input(b"fresh-input")
