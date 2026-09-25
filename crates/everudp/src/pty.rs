@@ -535,6 +535,11 @@ impl PtySession {
             ) => Ready::Output(result),
         };
         match ready {
+            Ready::Input(Err(PtyError::Io(error)))
+                if self.direct.is_some() && sys::is_pty_terminal_error(&error) =>
+            {
+                Ok(PtyEvent::DirectLeaseEnded)
+            }
             Ready::Input(result) => result.map(|()| PtyEvent::InputCommitted),
             Ready::Output(Ok(PtyEvent::InputCommitted)) => {
                 if self.pending_input != PendingInput::WaitingBarrier {
@@ -744,6 +749,24 @@ impl PtySession {
         let generation = direct.generation;
         let lease_id = direct.lease_id;
         drop(direct);
+        let mut pending_barrier = matches!(
+            self.pending_input,
+            PendingInput::Barrier | PendingInput::WaitingBarrier
+        );
+        match self.pending_input {
+            PendingInput::Signal | PendingInput::Barrier => {
+                // Finish a partially sent control frame before encoding Release.
+                self.flush_staged().await?;
+            }
+            PendingInput::DirectBytes => {
+                // The lease has ended. Never resend the unwritten suffix through
+                // the broker or acknowledge a partially delivered operation.
+                self.send_len = 0;
+                self.send_offset = 0;
+            }
+            _ => {}
+        }
+        self.pending_input = PendingInput::None;
         self.stage_control_frame(&Frame::Lease {
             action: LeaseAction::Release,
             generation,
@@ -753,6 +776,16 @@ impl PtySession {
         let mut saw_revoke = false;
         loop {
             match self.read_handshake_frame().await? {
+                Frame::Lease {
+                    action: LeaseAction::BarrierAck,
+                    generation: acknowledged_generation,
+                    lease_id: acknowledged_id,
+                } if pending_barrier
+                    && acknowledged_generation == generation
+                    && acknowledged_id == lease_id =>
+                {
+                    pending_barrier = false;
+                }
                 Frame::Lease {
                     action: LeaseAction::Revoke,
                     generation: revoked_generation,

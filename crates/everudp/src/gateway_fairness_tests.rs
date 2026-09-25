@@ -194,6 +194,48 @@ async fn fixture(id_byte: u8) -> Fixture {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn paused_input_still_services_detach_control() {
+    let mut f = fixture(84).await;
+    f.client
+        .association_mut()
+        .queue_input(b"queued input")
+        .expect("input");
+    f.client.flush_input().await.expect("write input");
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(20),
+            f.gateway.next_inbound_allow_input(false),
+        )
+        .await
+        .is_err(),
+        "paused input must stay unread"
+    );
+    f.client.association_mut().queue_detach().expect("detach");
+    f.client.flush_control().await.expect("write detach");
+    let event = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        f.gateway.next_inbound_allow_input(false),
+    )
+    .await
+    .expect("control remains live")
+    .expect("control");
+    assert!(matches!(
+        f.gateway
+            .prepare_inbound(event, &mut f.slabs)
+            .expect("apply"),
+        InboundApply::Detach
+    ));
+    assert_eq!(
+        f.gateway
+            .association()
+            .server_hello(&f.slabs)
+            .expect("hello")
+            .accepted_input_ack,
+        0
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn ready_control_does_not_skip_output_poll() {
     let mut f = fixture(81).await;
     f.client

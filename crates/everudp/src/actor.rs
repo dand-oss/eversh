@@ -200,6 +200,34 @@ pub struct PreparedInputToken {
     sequence: u64,
 }
 
+impl PreparedInputToken {
+    pub(crate) fn commit_to(
+        self,
+        association: &mut GatewayAssociation,
+        slabs: &mut GatewayReplaySlabs,
+    ) -> Result<InputReceipt, LinkError> {
+        let acknowledgement = association.commit_input(self.sequence, slabs)?;
+        #[cfg(feature = "path-diagnostics")]
+        if self.kind == Kind::Input {
+            // Production caller commits only after PtySession accepts the
+            // whole operation; this is not a remote-application render marker.
+            slabs.trace_boundary(
+                crate::path_trace::Stage::GatewayInputAccepted,
+                acknowledgement.epoch,
+                self.sequence,
+            );
+        }
+        if self.kind == Kind::InputClose {
+            association.mark_input_closed();
+        }
+        Ok(InputReceipt::Delivered {
+            kind: self.kind,
+            sequence: self.sequence,
+            acknowledgement: acknowledgement.next_expected,
+        })
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum InboundApply<'a> {
     None,
@@ -550,6 +578,14 @@ impl GatewayLink {
     // return after one operation but share the same cancellation-safe body.
     #[cfg_attr(not(feature = "datagram-spike"), allow(clippy::never_loop))]
     pub async fn next_inbound(&mut self) -> Result<LinkInbound, LinkError> {
+        self.next_inbound_allow_input(true).await
+    }
+
+    #[cfg_attr(not(feature = "datagram-spike"), allow(clippy::never_loop))]
+    pub(crate) async fn next_inbound_allow_input(
+        &mut self,
+        allow_input: bool,
+    ) -> Result<LinkInbound, LinkError> {
         enum Ready {
             #[cfg(feature = "datagram-spike")]
             Fast(Result<Bytes, noq::ConnectionError>),
@@ -589,7 +625,7 @@ impl GatewayLink {
                 };
             }
 
-            if self.input_finished {
+            if self.input_finished || !allow_input {
                 return match self
                     .control_reader
                     .receive_copy(
@@ -885,25 +921,7 @@ impl GatewayLink {
         token: PreparedInputToken,
         slabs: &mut GatewayReplaySlabs,
     ) -> Result<InputReceipt, LinkError> {
-        let acknowledgement = self.association.commit_input(token.sequence, slabs)?;
-        #[cfg(feature = "path-diagnostics")]
-        if token.kind == Kind::Input {
-            // Production caller commits only after PtySession accepts the
-            // whole operation; this is not a remote-application render marker.
-            slabs.trace_boundary(
-                crate::path_trace::Stage::GatewayInputAccepted,
-                acknowledgement.epoch,
-                token.sequence,
-            );
-        }
-        if token.kind == Kind::InputClose {
-            self.association.mark_input_closed();
-        }
-        Ok(InputReceipt::Delivered {
-            kind: token.kind,
-            sequence: token.sequence,
-            acknowledgement: acknowledgement.next_expected,
-        })
+        token.commit_to(&mut self.association, slabs)
     }
 
     pub fn abort_prepared_input(&mut self, token: PreparedInputToken) -> Result<(), LinkError> {

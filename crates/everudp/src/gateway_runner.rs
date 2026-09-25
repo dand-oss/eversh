@@ -1,7 +1,7 @@
 //! Persistent gateway loop joining authenticated QUIC associations to one
 //! terminal-free `everpty` attachment.
 
-use crate::actor::{GatewayLink, InboundApply, LinkError, LinkInbound};
+use crate::actor::{GatewayLink, InboundApply, LinkError, LinkInbound, PreparedInputToken};
 use crate::association::GatewayAssociation;
 use crate::gateway::GatewayLifecycle;
 use crate::handshake::ClientHello;
@@ -124,6 +124,7 @@ impl AssociationState {
 struct Associations {
     slots: Box<[Option<ManagedAssociation>]>,
     next_slot: usize,
+    input_commit: Option<(AssociationId, PreparedInputToken)>,
     outbound_turn: [bool; ASSOCIATION_CAPACITY],
 }
 
@@ -268,6 +269,7 @@ impl Associations {
         Ok(Self {
             slots: slots.into_boxed_slice(),
             next_slot: 0,
+            input_commit: None,
             outbound_turn: [false; ASSOCIATION_CAPACITY],
         })
     }
@@ -415,6 +417,7 @@ pub async fn run_gateway(
     associations.insert(AssociationState::Connected(Box::new(link)))?;
     let mut admission = AdmissionDriver::spawn(endpoint.clone(), associations.authorizations());
     let mut pending_pty = None;
+    let mut pending_admission = None;
     let mut prefer_pty_once = false;
     let mut next_ready = 0;
     let mut pty_output = Vec::new();
@@ -423,6 +426,18 @@ pub async fn run_gateway(
         .map_err(|_| QueueError::Allocation)?;
 
     loop {
+        if associations.input_commit.is_none() {
+            if let Some(admitted) = pending_admission.take() {
+                handle_admitted(
+                    admitted,
+                    &mut associations,
+                    &mut lifecycle,
+                    &mut slabs,
+                    limits,
+                )
+                .await?;
+            }
+        }
         if let Some(index) = associations.first_pending() {
             let event = associations
                 .take_pending(index)
@@ -496,12 +511,22 @@ pub async fn run_gateway(
         let ready = select_ready(
             &mut next_ready,
             next_link_ready(&mut associations, &mut slabs),
-            admission.next(),
+            async {
+                if pending_admission.is_some() {
+                    std::future::pending().await
+                } else {
+                    admission.next().await
+                }
+            },
             pty.next_event(),
         )
         .await;
         match ready {
             Ready::Admission(Ok(admitted)) => {
+                if associations.input_commit.is_some() {
+                    pending_admission = Some(admitted);
+                    continue;
+                }
                 handle_admitted(
                     admitted,
                     &mut associations,
@@ -624,7 +649,9 @@ async fn next_link_ready(
             // Always give ACKs a turn between successful outbound steps to
             // avoid manufacturing an overrun from unread cumulative ACKs.
             let event = {
-                let mut future = std::pin::pin!(link.next_inbound());
+                let mut future = std::pin::pin!(
+                    link.next_inbound_allow_input(associations.input_commit.is_none())
+                );
                 match Future::poll(future.as_mut(), context) {
                     Poll::Ready(event) => Some(event),
                     Poll::Pending => None,
@@ -851,12 +878,13 @@ async fn process_link_event(
                 InboundApply::Deliver(input) => {
                     let token = input.token();
                     let probe_pty = prefer_pty_after_commit(input.operation());
-                    if let Err(error) = pty.send_operation(input.operation()).await {
+                    if let Err(error) = pty.begin_operation(input.operation()) {
                         link.abort_prepared_input(token)?;
                         associations.put(index, AssociationState::Connected(link));
                         return Err(error.into());
                     }
-                    link.commit_prepared_input(token, slabs)?;
+                    debug_assert!(associations.input_commit.is_none());
+                    associations.input_commit = Some((link.association().association_id(), token));
                     // Only accepted input earns one nonblocking PTY turn. Pending
                     // output falls straight through to normal ACK/link service.
                     prefer_pty = probe_pty;
@@ -1090,7 +1118,23 @@ async fn queue_pty_event(
     slabs: &mut GatewayReplaySlabs,
 ) -> Result<Option<i32>, GatewayRunError> {
     match event {
-        PtyEvent::InputCommitted => Err(PtyError::Protocol.into()),
+        PtyEvent::InputCommitted => {
+            let (id, token) = associations.input_commit.take().ok_or(PtyError::Protocol)?;
+            // A locally detached/retired peer gets no ACK, but its already
+            // accepted operation still finishes before another writer starts.
+            if let Some(index) = associations.find(id) {
+                let managed = associations.slots[index].as_mut().expect("input owner");
+                match &mut managed.state {
+                    AssociationState::Connected(link) => {
+                        link.commit_prepared_input(token, slabs)?;
+                    }
+                    AssociationState::Disconnected(association) => {
+                        token.commit_to(association, slabs)?;
+                    }
+                }
+            }
+            Ok(None)
+        }
         PtyEvent::Output(bytes) => {
             debug_assert_eq!(pty.output_bytes().len(), bytes);
             if bytes != 0 {
@@ -1129,6 +1173,7 @@ async fn queue_ready_pty_event(
 ) -> Result<Option<i32>, GatewayRunError> {
     let event = event?;
     if event == PtyEvent::DirectLeaseEnded {
+        associations.input_commit = None;
         // `PtySession::next_event` participates in cancellable selects (and
         // in the zero-wait coalescing poll below). Keep the stateful release
         // handshake here, after the readiness result has been committed.
