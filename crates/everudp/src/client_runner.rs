@@ -538,7 +538,8 @@ fn config_for_recovery(config: &ClientConfig) -> ClientConfig {
             BootstrapOperation::Connect | BootstrapOperation::Attach => BootstrapOperation::Attach,
         },
         session: config.session.clone(),
-        take_over: config.take_over,
+        // Takeover is an explicit initial action, never a reconnect policy.
+        take_over: false,
         rows: config.rows,
         columns: config.columns,
         origin: config.origin.clone(),
@@ -745,6 +746,17 @@ mod tests {
             colorterm: "truecolor".to_owned(),
             udp_port_range: None,
         }
+    }
+
+    #[test]
+    fn recovery_never_repeats_explicit_takeover() {
+        let mut original = config(BootstrapOperation::Attach);
+        original.take_over = true;
+        assert!(!config_for_recovery(&original).take_over);
+        assert!(
+            original.take_over,
+            "the explicit initial action remains intact"
+        );
     }
 
     #[test]
