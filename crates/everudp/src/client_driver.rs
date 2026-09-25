@@ -142,6 +142,15 @@ impl<'fd> ClientDriver<'fd> {
         link: &mut ClientLink,
     ) -> Result<ClientRunOutcome, ClientDriverError> {
         let result = self.run_link_inner(link).await;
+        let result = if link.attachment_retired()
+            && !matches!(
+                result,
+                Ok(ClientRunOutcome::LocalCancelled { .. } | ClientRunOutcome::PtyExited(_))
+            ) {
+            Ok(ClientRunOutcome::OwnershipRevoked)
+        } else {
+            result
+        };
         self.settle_run_result(result, link.association().ambiguous_input_operations())
     }
 

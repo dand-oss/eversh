@@ -213,7 +213,7 @@ async fn admission_reads_registry_after_accept_started() {
         });
         let association = f.client.into_resumable_association();
         let hello = association.resume_hello().expect("resume hello");
-        let (admitted, _session) = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        let (admitted, session) = tokio::time::timeout(std::time::Duration::from_secs(3), async {
             tokio::join!(
                 driver.next(),
                 f._endpoint.connect_resume(f._server.local_addr(), &hello)
@@ -222,10 +222,32 @@ async fn admission_reads_registry_after_accept_started() {
         .await
         .expect("admission deadline");
         assert_eq!(admitted.is_ok(), now_authorized);
+        if !now_authorized {
+            match session {
+                Ok(session) => assert!(matches!(
+                    ClientLink::finish_resume(session, association, Limits::default()).await,
+                    Err(crate::ClientLinkError::AttachmentRetired)
+                )),
+                Err(error) => assert!(matches!(error, TransportError::AttachmentRetired)),
+            }
+        }
         if let Ok(admitted) = admitted {
             admitted.close();
         }
     }
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn active_retirement_is_distinct_from_network_loss() {
+    let mut f = fixture(87).await;
+    f.gateway.retire();
+    let _ = tokio::time::timeout(
+        std::time::Duration::from_secs(2),
+        f.client.receive_control(),
+    )
+    .await
+    .expect("retirement reaches peer");
+    assert!(f.client.attachment_retired());
 }
 
 #[tokio::test(flavor = "current_thread")]

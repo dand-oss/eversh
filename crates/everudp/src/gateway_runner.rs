@@ -761,7 +761,7 @@ async fn handle_resume(
 ) -> Result<(), GatewayRunError> {
     let association_id = admitted.hello().association_id();
     let Some(index) = associations.find(association_id) else {
-        admitted.close();
+        admitted.reject_retired();
         return Ok(());
     };
     let association = match associations.take(index).expect("located association") {
@@ -800,7 +800,7 @@ async fn retire_writer(
             )
             .await;
         }
-        (*link).close();
+        (*link).retire();
     }
     let released = lifecycle.release(association_id);
     debug_assert_eq!(released, Some(ConnectionRole::Writer));

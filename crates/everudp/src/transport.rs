@@ -33,6 +33,7 @@ use std::time::Duration;
 const CLOSE_CODE: VarInt = VarInt::from_u32(0x4555);
 pub(crate) const WRITER_BUSY_CLOSE_CODE: VarInt = VarInt::from_u32(0x4557);
 pub(crate) const ASSOCIATION_CAPACITY_CLOSE_CODE: VarInt = VarInt::from_u32(0x4558);
+pub(crate) const ATTACHMENT_RETIRED_CLOSE_CODE: VarInt = VarInt::from_u32(0x4559);
 const MAX_INCOMING: usize = 8;
 const INCOMING_BUFFER_SIZE: u64 = 64 * 1024;
 const INCOMING_BUFFER_TOTAL: u64 = MAX_INCOMING as u64 * INCOMING_BUFFER_SIZE;
@@ -142,6 +143,7 @@ pub enum TransportError {
     Timeout,
     PinMismatch,
     Rejected,
+    AttachmentRetired,
     Retry,
     Connection,
     Stream,
@@ -166,6 +168,9 @@ impl fmt::Display for TransportError {
             Self::Timeout => formatter.write_str("everudp transport deadline expired"),
             Self::PinMismatch => formatter.write_str("everudp gateway SPKI pin mismatch"),
             Self::Rejected => formatter.write_str("everudp association was rejected"),
+            Self::AttachmentRetired => {
+                formatter.write_str("everudp attachment retired; attach manually to join again")
+            }
             Self::Retry => formatter.write_str("everudp QUIC Retry failed"),
             Self::Connection => formatter.write_str("everudp QUIC connection failed"),
             Self::Stream => formatter.write_str("everudp QUIC stream failed"),
@@ -731,6 +736,8 @@ impl GatewayEndpoint {
                 }
                 ClientHello::Resume { .. } => {
                     if !authorize(&hello, client_spki_sha256) {
+                        failed_connection
+                            .close(ATTACHMENT_RETIRED_CLOSE_CODE, b"everudp attachment retired");
                         return Err(TransportError::Admission(AdmissionError::BindingMismatch));
                     }
                     false
@@ -970,8 +977,17 @@ impl ClientEndpoint {
         let (mut control_send, control_recv) = connection
             .open_bi()
             .await
-            .map_err(|_| TransportError::Stream)?;
-        write_client_hello(&mut control_send, hello, &self.limits).await?;
+            .map_err(|error| map_client_connection_error(&error, &self.pin_mismatch))?;
+        write_client_hello(&mut control_send, hello, &self.limits)
+            .await
+            .map_err(|error| match connection.close_reason() {
+                Some(ConnectionError::ApplicationClosed(close))
+                    if close.error_code == ATTACHMENT_RETIRED_CLOSE_CODE =>
+                {
+                    TransportError::AttachmentRetired
+                }
+                _ => error,
+            })?;
         Ok(ClientSession {
             connection,
             control_send,
@@ -1047,6 +1063,11 @@ impl AdmittedConnection {
     pub(crate) fn reject_writer_busy(self) {
         self.connection
             .close(WRITER_BUSY_CLOSE_CODE, b"everudp writer is busy");
+    }
+
+    pub(crate) fn reject_retired(self) {
+        self.connection
+            .close(ATTACHMENT_RETIRED_CLOSE_CODE, b"everudp attachment retired");
     }
 
     pub(crate) fn reject_association_capacity(self) {
@@ -1478,6 +1499,11 @@ fn map_client_connection_error(
         return TransportError::PinMismatch;
     }
     match error {
+        ConnectionError::ApplicationClosed(close)
+            if close.error_code == ATTACHMENT_RETIRED_CLOSE_CODE =>
+        {
+            TransportError::AttachmentRetired
+        }
         ConnectionError::ApplicationClosed(close) if close.error_code == CLOSE_CODE => {
             TransportError::Rejected
         }

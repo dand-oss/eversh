@@ -39,6 +39,7 @@ pub enum ClientLinkError {
     ControlBackpressure,
     WriterBusy,
     AssociationCapacity,
+    AttachmentRetired,
     Sink(io::Error),
 }
 
@@ -59,7 +60,8 @@ impl fmt::Display for ClientLinkError {
             Self::ControlBackpressure => {
                 formatter.write_str("everudp client control queue is full")
             }
-            Self::WriterBusy => formatter.write_str("everudp gateway writer is busy"),
+            Self::WriterBusy => formatter.write_str("everudp gateway writer is busy; an older live gateway remains single-writer (use explicit --take-over or wait for that session to end)"),
+            Self::AttachmentRetired => formatter.write_str("everudp attachment retired; attach manually to join again"),
             Self::AssociationCapacity => {
                 formatter.write_str("everudp gateway association capacity is exhausted")
             }
@@ -108,6 +110,7 @@ mod classification_tests {
         assert!(!ClientLinkError::Framing(LinkError::StreamEndedMidRecord).is_transient());
         assert!(!ClientLinkError::Protocol(WireError::VersionUnsupported(99)).is_transient());
         assert!(!ClientLinkError::ServerHelloMissing.is_transient());
+        assert!(!ClientLinkError::AttachmentRetired.is_transient());
     }
 
     #[test]
@@ -269,6 +272,12 @@ pub struct ClientLink {
 }
 
 impl ClientLink {
+    pub(crate) fn attachment_retired(&self) -> bool {
+        matches!(
+            initial_server_rejection(&self.connection),
+            Some(ClientLinkError::AttachmentRetired)
+        )
+    }
     /// Validates the server's first control record before returning. Callers
     /// may activate terminal raw mode only after this succeeds.
     pub async fn finish_initial(
@@ -1080,7 +1089,9 @@ fn initial_server_rejection(connection: &Connection) -> Option<ClientLinkError> 
     let noq::ConnectionError::ApplicationClosed(close) = connection.close_reason()? else {
         return None;
     };
-    if close.error_code == WRITER_BUSY_CLOSE_CODE {
+    if close.error_code == crate::transport::ATTACHMENT_RETIRED_CLOSE_CODE {
+        Some(ClientLinkError::AttachmentRetired)
+    } else if close.error_code == WRITER_BUSY_CLOSE_CODE {
         Some(ClientLinkError::WriterBusy)
     } else if close.error_code == ASSOCIATION_CAPACITY_CLOSE_CODE {
         Some(ClientLinkError::AssociationCapacity)

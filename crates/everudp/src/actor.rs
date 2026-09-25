@@ -1378,6 +1378,14 @@ impl GatewayLink {
         self.connection.close(CLOSE_CODE, b"everudp link closed");
     }
 
+    pub(crate) fn retire(mut self) {
+        self.abort_incoming_uni();
+        self.connection.close(
+            crate::transport::ATTACHMENT_RETIRED_CLOSE_CODE,
+            b"everudp attachment retired",
+        );
+    }
+
     pub fn into_resumable_association(mut self) -> GatewayAssociation {
         self.abort_incoming_uni();
         self.connection

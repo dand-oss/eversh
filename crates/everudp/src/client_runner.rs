@@ -249,9 +249,18 @@ pub async fn run_client<'fd>(
         }
         association
     };
-    let mut link = ClientLink::finish_initial_until(session, association, limits, initial_deadline)
-        .await
-        .map_err(ClientRunError::Link)?;
+    let mut link = match ClientLink::finish_initial_until(
+        session,
+        association,
+        limits,
+        initial_deadline,
+    )
+    .await
+    {
+        Ok(link) => link,
+        Err(ClientLinkError::AttachmentRetired) => return Ok(ClientExit::OwnershipRevoked),
+        Err(error) => return Err(ClientRunError::Link(error)),
+    };
     let mut driver = ClientDriver::activate(terminal, &link, limits, status)?;
     let mut remote = record.endpoint();
     let mut generation = record.generation();
@@ -376,6 +385,14 @@ pub async fn run_client<'fd>(
         drop(cancel_tx);
         let success = match success {
             Ok(success) => success,
+            Err(
+                ReconnectError::Link(ClientLinkError::AttachmentRetired)
+                | ReconnectError::Transport(TransportError::AttachmentRetired),
+            ) => {
+                driver.deactivate_with_status(TerminalCause::Killed, ambiguous_input)?;
+                route.join().await;
+                return Ok(ClientExit::OwnershipRevoked);
+            }
             Err(error) => {
                 let cause = reconnect_terminal_cause(&error);
                 driver.deactivate_with_status(cause, ambiguous_input)?;
