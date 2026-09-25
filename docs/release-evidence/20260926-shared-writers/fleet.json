@@ -1,0 +1,70 @@
+{
+  "version": "0.2.5",
+  "binary_sha256": "5e6f0a39afa161452be8cb8bf190a83c69e366a3ec96b0d475294c2cc2f65887",
+  "wrapper_sha256": "1ef1a6be1eef6f28e059fc4dbedbbf278e6ec564e4f117a513a1bc42d8c55a40",
+  "hosts": [
+    {
+      "host": "badger",
+      "preserved_sessions": 9
+    },
+    {
+      "host": "dandeb",
+      "preserved_sessions": 0
+    },
+    {
+      "host": "bugger",
+      "preserved_sessions": 3
+    },
+    {
+      "host": "bagger",
+      "preserved_sessions": 3
+    }
+  ],
+  "all_versions_and_hashes_verified": true,
+  "rollback_copies_retained": true,
+  "canaries": [
+    {
+      "client": "badger",
+      "server": "badger",
+      "verdict": "PASS",
+      "writers": 2,
+      "same_shell": true,
+      "local_detach_and_fresh_attach": true
+    },
+    {
+      "client": "dandeb",
+      "server": "dandeb",
+      "verdict": "PASS",
+      "writers": 2,
+      "same_shell": true,
+      "local_detach_and_fresh_attach": true
+    },
+    {
+      "client": "bugger",
+      "server": "bugger",
+      "verdict": "PASS",
+      "writers": 2,
+      "same_shell": true,
+      "local_detach_and_fresh_attach": true
+    },
+    {
+      "client": "badger",
+      "server": "bagger",
+      "verdict": "PASS",
+      "writers": 2,
+      "same_shell": true,
+      "local_detach_and_fresh_attach": true
+    },
+    {
+      "client": "bagger",
+      "server": "badger",
+      "verdict": "PASS",
+      "writers": 2,
+      "same_shell": true,
+      "local_detach_and_fresh_attach": true
+    }
+  ],
+  "wrapper_argument_tests": "PASS on all four hosts",
+  "existing_gateway_restarts": 0,
+  "caveat": "Bagger self-SSH host-key mismatch left untouched; verified both roles through Badger instead."
+}
