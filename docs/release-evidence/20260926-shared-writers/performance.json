@@ -1,0 +1,162 @@
+{
+  "method": "Five alternating-order paired blocks per loss cell; 200 sequential full-product PTY request/response samples per block; all disposable test processes pinned to CPU 6. Nearest-rank p50/p95. This is a baseline regression check, not the historical zmosh performance gate.",
+  "baseline": "0.2.4 combined eversh (01333387), rebuilt and matching installed SHA",
+  "candidate": "6b1d13df runtime, combined eversh, separate fast-build release target",
+  "cells": [
+    {
+      "loss_percent": 0,
+      "median_paired_p50_ratio": 1.0395316385307047,
+      "median_paired_p95_ratio": 1.0007247091278817,
+      "pairs": [
+        {
+          "round": 1,
+          "baseline_us": {
+            "p50": 1432.642,
+            "p95": 4148.616
+          },
+          "candidate_us": {
+            "p50": 747.69,
+            "p95": 1860.204
+          },
+          "p50_ratio": 0.5218959097946312,
+          "p95_ratio": 0.44839146356278814,
+          "samples_per_binary": 200
+        },
+        {
+          "round": 2,
+          "baseline_us": {
+            "p50": 1429.665,
+            "p95": 3996.086
+          },
+          "candidate_us": {
+            "p50": 1486.182,
+            "p95": 3998.982
+          },
+          "p50_ratio": 1.0395316385307047,
+          "p95_ratio": 1.0007247091278817,
+          "samples_per_binary": 200
+        },
+        {
+          "round": 3,
+          "baseline_us": {
+            "p50": 1439.824,
+            "p95": 4060.257
+          },
+          "candidate_us": {
+            "p50": 1533.913,
+            "p95": 4397.205
+          },
+          "p50_ratio": 1.065347570258587,
+          "p95_ratio": 1.0829868651171588,
+          "samples_per_binary": 200
+        },
+        {
+          "round": 4,
+          "baseline_us": {
+            "p50": 574.414,
+            "p95": 1887.989
+          },
+          "candidate_us": {
+            "p50": 1400.907,
+            "p95": 2507.458
+          },
+          "p50_ratio": 2.438845501676491,
+          "p95_ratio": 1.328110492169181,
+          "samples_per_binary": 200
+        },
+        {
+          "round": 5,
+          "baseline_us": {
+            "p50": 1421.169,
+            "p95": 3653.757
+          },
+          "candidate_us": {
+            "p50": 1415.064,
+            "p95": 3377.067
+          },
+          "p50_ratio": 0.9957042406638479,
+          "p95_ratio": 0.9242724680376938,
+          "samples_per_binary": 200
+        }
+      ]
+    },
+    {
+      "loss_percent": 5,
+      "median_paired_p50_ratio": 1.0336875937552863,
+      "median_paired_p95_ratio": 0.9976193575514816,
+      "pairs": [
+        {
+          "round": 1,
+          "baseline_us": {
+            "p50": 1339.856,
+            "p95": 5206.678
+          },
+          "candidate_us": {
+            "p50": 1313.745,
+            "p95": 4733.196
+          },
+          "p50_ratio": 0.9805120848807632,
+          "p95_ratio": 0.9090625538971298,
+          "samples_per_binary": 200
+        },
+        {
+          "round": 2,
+          "baseline_us": {
+            "p50": 1430.586,
+            "p95": 5144.99
+          },
+          "candidate_us": {
+            "p50": 1478.779,
+            "p95": 5381.892
+          },
+          "p50_ratio": 1.0336875937552863,
+          "p95_ratio": 1.0460451818176517,
+          "samples_per_binary": 200
+        },
+        {
+          "round": 3,
+          "baseline_us": {
+            "p50": 602.213,
+            "p95": 4044.186
+          },
+          "candidate_us": {
+            "p50": 1480.916,
+            "p95": 4999.33
+          },
+          "p50_ratio": 2.4591232670168197,
+          "p95_ratio": 1.236177069996286,
+          "samples_per_binary": 200
+        },
+        {
+          "round": 4,
+          "baseline_us": {
+            "p50": 1467.192,
+            "p95": 5139.369
+          },
+          "candidate_us": {
+            "p50": 1427.681,
+            "p95": 5127.134
+          },
+          "p50_ratio": 0.9730703275372276,
+          "p95_ratio": 0.9976193575514816,
+          "samples_per_binary": 200
+        },
+        {
+          "round": 5,
+          "baseline_us": {
+            "p50": 1094.468,
+            "p95": 5360.73
+          },
+          "candidate_us": {
+            "p50": 1494.46,
+            "p95": 5219.195
+          },
+          "p50_ratio": 1.3654670579678894,
+          "p95_ratio": 0.9735978122382586,
+          "samples_per_binary": 200
+        }
+      ]
+    }
+  ],
+  "caveat": "Substantial scheduler variance and outlier pairs remain. No repeatable >10% regression in the paired medians; no absolute latency or zmosh superiority claim."
+}
