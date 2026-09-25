@@ -81,6 +81,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--hold-at-driver-done", action="store_true")
     parser.add_argument("--fresh-after-outage", action="store_true")
     parser.add_argument("--shared-writer", action="store_true")
+    parser.add_argument("--measure-latency", action="store_true")
     return parser.parse_args()
 
 
@@ -253,13 +254,21 @@ class Driver:
             self.identity_receipt = self.identities()
 
         expected: list[bytes] = []
+        latency_us: list[float] = []
         if self.args.mode == "stream":
             for index in range(self.args.messages):
                 value = f"{self.args.session}-{index:06d}"
                 marker = f"RX:{value}".encode()
                 expected.append(marker)
                 sender = self.peer if self.peer is not None and index % 2 else self
+                sent_at = time.perf_counter_ns()
                 sender.send(f"{value}\n".encode())
+                if self.args.measure_latency:
+                    self.wait_for(
+                        lambda: self.transcript.count(marker) >= 1,
+                        "latency response",
+                    )
+                    latency_us.append((time.perf_counter_ns() - sent_at) / 1000)
             self.wait_for(
                 lambda: all(self.transcript.count(marker) >= 1 for marker in expected),
                 "all exact stream responses",
@@ -431,6 +440,7 @@ class Driver:
             "responses": duplicates,
             "fresh_attachments": self.replacements,
             "shared_writers": 2 if self.peer is not None else 1,
+            "latency_us": latency_us,
             "unchanged_processes": self.identity_receipt,
         }
 

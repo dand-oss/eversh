@@ -364,13 +364,17 @@ start_driver() {
     chown -R "$RUN_USER" "$CURRENT_DIR"
     local messages=200
     local client_binary=$BIN
+    if [[ ${EVERUDP_MEASURE_LATENCY:-0} == 1 ]]; then
+        [[ $mode == stream ]] || { echo "latency requires a stream scenario" >&2; return 2; }
+        trace_window_args+=(--measure-latency)
+    fi
     if [[ ${EVERUDP_SHARED_WRITER:-0} == 1 ]]; then
         [[ $mode == stream ]] || { echo "shared writer requires a stream scenario" >&2; return 2; }
         trace_window_args+=(--shared-writer)
     fi
     (( SMOKE == 0 )) || messages=24
     if [[ ${EVERUDP_TRACE_CLIENT:-0} == 1 && ${EVERUDP_TRACE_GATEWAY:-0} == 1 ]]; then
-        trace_window_args=(--hold-at-driver-done)
+        trace_window_args+=(--hold-at-driver-done)
     fi
     "$IP" netns exec "$CLIENT_NS" /usr/bin/sudo -n -H -u "$RUN_USER" \
         /usr/bin/env PYTHONDONTWRITEBYTECODE=1 PATH=/usr/bin:/bin HOME="$RUN_HOME" \
@@ -720,6 +724,7 @@ if [[ -n $ONLY ]]; then
         interface-migration) run_migration ;;
         mtu1200) run_mtu ;;
         loss0) run_stream loss0 0 0 0 0 ;;
+        loss5) run_stream loss5 5 0 0 0 ;;
         loss5-jitter25) run_stream loss5-jitter25 5 25 0 0 ;;
         loss5-reorder2-duplicate2) run_stream loss5-reorder2-duplicate2 5 10 2 2 ;;
         *) echo "unknown EVERUDP_ONLY scenario: $ONLY" >&2; exit 2 ;;
