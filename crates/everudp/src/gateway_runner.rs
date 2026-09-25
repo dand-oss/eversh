@@ -212,13 +212,20 @@ struct AdmissionDriver {
 
 impl AdmissionDriver {
     fn spawn(endpoint: GatewayEndpoint, initial: AuthorizationSet) -> Self {
-        let (authorizations, mut updates) = watch::channel(initial);
+        let (authorizations, updates) = watch::channel(initial);
         let (sender, incoming) = mpsc::channel(1);
         let task = tokio::spawn(async move {
             loop {
-                let current = *updates.borrow_and_update();
                 crate::exit_trace::record("gateway-admission-wait");
-                let admitted = endpoint.accept_any(&current).await;
+                let admitted = endpoint
+                    .accept_any_current(|hello, pin| {
+                        updates
+                            .borrow()
+                            .iter()
+                            .flatten()
+                            .any(|authorization| authorization.authorize(hello, pin).is_ok())
+                    })
+                    .await;
                 crate::exit_trace::record(if admitted.is_ok() {
                     "gateway-admission-ready"
                 } else {
@@ -438,6 +445,7 @@ pub async fn run_gateway(
                 .await?;
             }
         }
+        admission.update(associations.authorizations());
         if let Some(index) = associations.first_pending() {
             let event = associations
                 .take_pending(index)

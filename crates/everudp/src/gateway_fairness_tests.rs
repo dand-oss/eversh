@@ -194,6 +194,41 @@ async fn fixture(id_byte: u8) -> Fixture {
 }
 
 #[tokio::test(flavor = "current_thread")]
+async fn admission_reads_registry_after_accept_started() {
+    for now_authorized in [true, false] {
+        let f = fixture(if now_authorized { 85 } else { 86 }).await;
+        let mut allowed = [None; ASSOCIATION_CAPACITY];
+        allowed[0] = Some(f.gateway.association().authorization());
+        let initial = if now_authorized {
+            [None; ASSOCIATION_CAPACITY]
+        } else {
+            allowed
+        };
+        let mut driver = AdmissionDriver::spawn(f._server.clone(), initial);
+        tokio::task::yield_now().await;
+        driver.update(if now_authorized {
+            allowed
+        } else {
+            [None; ASSOCIATION_CAPACITY]
+        });
+        let association = f.client.into_resumable_association();
+        let hello = association.resume_hello().expect("resume hello");
+        let (admitted, _session) = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            tokio::join!(
+                driver.next(),
+                f._endpoint.connect_resume(f._server.local_addr(), &hello)
+            )
+        })
+        .await
+        .expect("admission deadline");
+        assert_eq!(admitted.is_ok(), now_authorized);
+        if let Ok(admitted) = admitted {
+            admitted.close();
+        }
+    }
+}
+
+#[tokio::test(flavor = "current_thread")]
 async fn paused_input_still_services_detach_control() {
     let mut f = fixture(84).await;
     f.client

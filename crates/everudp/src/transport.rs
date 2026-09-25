@@ -563,8 +563,24 @@ impl GatewayEndpoint {
         &self,
         authorizations: &[Option<AssociationAuthorization>],
     ) -> Result<AdmittedConnection, TransportError> {
+        self.accept_any_current(|hello, pin| {
+            authorizations
+                .iter()
+                .flatten()
+                .any(|authorization| authorization.authorize(hello, pin).is_ok())
+        })
+        .await
+    }
+
+    /// Read current authorization only after the peer's hello is available.
+    /// Capturing a registry before awaiting a connection would authorize
+    /// retired writers and reject writers admitted while accept was pending.
+    pub(crate) async fn accept_any_current(
+        &self,
+        authorize: impl Fn(&ClientHello, [u8; 32]) -> bool,
+    ) -> Result<AdmittedConnection, TransportError> {
         let connection = self.accept_transport().await?;
-        self.authenticate_any(connection, authorizations).await
+        self.authenticate_any(connection, authorize).await
     }
 
     async fn accept_transport(&self) -> Result<Connection, TransportError> {
@@ -683,7 +699,7 @@ impl GatewayEndpoint {
     async fn authenticate_any(
         &self,
         connection: Connection,
-        authorizations: &[Option<AssociationAuthorization>],
+        authorize: impl Fn(&ClientHello, [u8; 32]) -> bool,
     ) -> Result<AdmittedConnection, TransportError> {
         let failed_connection = connection.clone();
         let outcome = async {
@@ -714,10 +730,7 @@ impl GatewayEndpoint {
                         )?
                 }
                 ClientHello::Resume { .. } => {
-                    let authorized = authorizations.iter().flatten().any(|authorization| {
-                        authorization.authorize(&hello, client_spki_sha256).is_ok()
-                    });
-                    if !authorized {
+                    if !authorize(&hello, client_spki_sha256) {
                         return Err(TransportError::Admission(AdmissionError::BindingMismatch));
                     }
                     false
