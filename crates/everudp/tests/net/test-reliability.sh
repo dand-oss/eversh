@@ -367,6 +367,10 @@ start_driver() {
     if [[ ${EVERUDP_MEASURE_LATENCY:-0} == 1 ]]; then
         [[ $mode == stream ]] || { echo "latency requires a stream scenario" >&2; return 2; }
         trace_window_args+=(--measure-latency)
+        if [[ -n ${EVERUDP_RAW_ECHO:-} ]]; then
+            [[ -x $EVERUDP_RAW_ECHO ]] || { echo "raw echo helper is not executable" >&2; return 2; }
+            trace_window_args+=(--raw-echo "$EVERUDP_RAW_ECHO")
+        fi
     fi
     if [[ ${EVERUDP_SHARED_WRITER:-0} == 1 ]]; then
         [[ $mode == stream ]] || { echo "shared writer requires a stream scenario" >&2; return 2; }

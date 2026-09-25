@@ -82,6 +82,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fresh-after-outage", action="store_true")
     parser.add_argument("--shared-writer", action="store_true")
     parser.add_argument("--measure-latency", action="store_true")
+    parser.add_argument("--raw-echo", help="existing compiled pty-echo helper for latency only")
     return parser.parse_args()
 
 
@@ -113,8 +114,15 @@ class Driver:
             command += ["connect", self.args.destination, "--session", self.args.session]
         command += ["--ssh-option", f"-F{self.args.ssh_config}", "--status-file", str(self.args.status)]
         if not attach:
-            command += ["--", "/bin/sh", "-c", REMOTE_SCRIPT, "everudp-net-child",
-                        str(self.args.control_dir), self.args.mode, self.args.session]
+            if self.args.raw_echo:
+                command += [
+                    "--", "/bin/sh", "-c",
+                    'printf "%s\\n" "$$" > "$1/child-pid"; exec "$2"',
+                    "everudp-latency-child", str(self.args.control_dir), self.args.raw_echo,
+                ]
+            else:
+                command += ["--", "/bin/sh", "-c", REMOTE_SCRIPT, "everudp-net-child",
+                            str(self.args.control_dir), self.args.mode, self.args.session]
 
         def child_setup() -> None:
             os.setsid()
@@ -229,12 +237,16 @@ class Driver:
             raise RuntimeError(f"{description} appeared {count} times")
 
     def run(self) -> dict[str, object]:
+        if self.args.raw_echo and (
+            self.args.mode != "stream" or not self.args.measure_latency or self.args.shared_writer
+        ):
+            raise ValueError("raw echo requires single-writer stream latency measurement")
         self.spawn()
         assert self.process is not None
         self.wait_status("connected", timeout=30.0)
 
         pre = f"pre-{self.args.session}"
-        self.send(f"{pre}\n".encode())
+        self.send(f"{'RX:' if self.args.raw_echo else ''}{pre}\n".encode())
         self.wait_marker_once(f"RX:{pre}".encode(), "preflight response")
         if self.args.shared_writer:
             if self.args.mode != "stream":
@@ -256,13 +268,18 @@ class Driver:
         expected: list[bytes] = []
         latency_us: list[float] = []
         if self.args.mode == "stream":
+            if self.args.raw_echo:
+                for index in range(100):
+                    marker = f"RX:warmup-{index:06d}".encode()
+                    self.send(marker + b"\n")
+                    self.wait_marker_once(marker, "raw PTY warmup")
             for index in range(self.args.messages):
                 value = f"{self.args.session}-{index:06d}"
                 marker = f"RX:{value}".encode()
                 expected.append(marker)
                 sender = self.peer if self.peer is not None and index % 2 else self
                 sent_at = time.perf_counter_ns()
-                sender.send(f"{value}\n".encode())
+                sender.send(f"{'RX:' if self.args.raw_echo else ''}{value}\n".encode())
                 if self.args.measure_latency:
                     self.wait_for(
                         lambda: self.transcript.count(marker) >= 1,
@@ -281,6 +298,21 @@ class Driver:
             (self.args.control_dir / "driver-done").touch()
             if self.args.hold_at_driver_done:
                 self.wait_path("trace-window-verified")
+            if self.args.raw_echo:
+                bad = {marker.decode(): self.transcript.count(marker)
+                       for marker in expected if self.transcript.count(marker) != 1}
+                if bad or GAP_NOTICE in self.stderr_bytes():
+                    raise RuntimeError(f"raw PTY byte delivery failed: {bad}")
+                self.process.send_signal(signal.SIGTERM)
+                if self.process.wait(timeout=10) != 143:
+                    raise RuntimeError("raw latency client cancellation failed")
+                return {
+                    "schema_version": 1, "verdict": "PASS", "mode": "stream",
+                    "workload": "raw-pty-echo", "warmup_samples": 100,
+                    "messages": self.args.messages, "latency_us": latency_us,
+                    "exit_code": 143, "gap_notices": 0,
+                    "elapsed_ms": round((time.monotonic() - self.started) * 1000),
+                }
         elif self.args.mode == "outage":
             value = f"during-{self.args.session}"
             expected.extend(
