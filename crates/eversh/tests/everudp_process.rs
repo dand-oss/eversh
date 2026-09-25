@@ -217,7 +217,7 @@ impl RunningClient {
             std::env::var_os("EVERSH_TEST_EXISTING_BROKER_BIN")
                 .unwrap_or_else(|| binary().to_os_string())
         } else {
-            binary().to_os_string()
+            std::env::var_os("EVERSH_TEST_CLIENT_BIN").unwrap_or_else(|| binary().to_os_string())
         };
         let mut command = Command::new(executable);
         command
@@ -228,7 +228,10 @@ impl RunningClient {
             .env("PATH", fixture.path())
             .env("SHELL", "/bin/sh");
         if arguments.first() != Some(&"__everpty") {
-            command.arg("--remote-eversh").arg(binary());
+            command.arg("--remote-eversh").arg(
+                std::env::var_os("EVERSH_TEST_REMOTE_BIN")
+                    .unwrap_or_else(|| binary().to_os_string()),
+            );
         }
         command
             .args(arguments)
