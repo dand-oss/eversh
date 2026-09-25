@@ -124,6 +124,7 @@ impl AssociationState {
 struct Associations {
     slots: Box<[Option<ManagedAssociation>]>,
     next_slot: usize,
+    disconnected_at: [Option<tokio::time::Instant>; ASSOCIATION_CAPACITY],
     input_commit: Option<(AssociationId, PreparedInputToken)>,
     outbound_turn: [bool; ASSOCIATION_CAPACITY],
 }
@@ -276,6 +277,7 @@ impl Associations {
         Ok(Self {
             slots: slots.into_boxed_slice(),
             next_slot: 0,
+            disconnected_at: [None; ASSOCIATION_CAPACITY],
             input_commit: None,
             outbound_turn: [false; ASSOCIATION_CAPACITY],
         })
@@ -290,6 +292,7 @@ impl Associations {
             .ok_or(QueueError::ObserverCapacity)?;
         *slot = Some(ManagedAssociation::new(state));
         self.outbound_turn[index] = false;
+        self.disconnected_at[index] = None;
         Ok(index)
     }
 
@@ -299,6 +302,11 @@ impl Associations {
 
     fn put(&mut self, index: usize, state: AssociationState) {
         debug_assert!(self.slots[index].is_none());
+        self.disconnected_at[index] = if state.is_connected() {
+            None
+        } else {
+            self.disconnected_at[index].or_else(|| Some(tokio::time::Instant::now()))
+        };
         self.slots[index] = Some(ManagedAssociation::new(state));
     }
 
@@ -322,12 +330,32 @@ impl Associations {
         })
     }
 
-    fn disconnected_observer(&self) -> Option<usize> {
-        self.slots.iter().position(|slot| {
-            slot.as_ref().is_some_and(|managed| {
-                managed.state.role() == ConnectionRole::Observer && !managed.state.is_connected()
+    fn oldest_disconnected(&self, observer_only: bool) -> Option<usize> {
+        self.slots
+            .iter()
+            .enumerate()
+            .filter_map(|(index, slot)| {
+                let managed = slot.as_ref()?;
+                if managed.state.is_connected()
+                    || (observer_only && managed.state.role() != ConnectionRole::Observer)
+                    || self
+                        .input_commit
+                        .is_some_and(|(id, _)| id == managed.state.association_id())
+                {
+                    return None;
+                }
+                Some((index, self.disconnected_at[index]))
             })
-        })
+            .min_by_key(|(_, time)| *time)
+            .map(|(index, _)| index)
+    }
+
+    fn observer_count(&self) -> usize {
+        self.slots
+            .iter()
+            .flatten()
+            .filter(|managed| managed.state.role() == ConnectionRole::Observer)
+            .count()
     }
 
     fn authorizations(&self) -> AuthorizationSet {
@@ -424,7 +452,7 @@ pub async fn run_gateway(
     associations.insert(AssociationState::Connected(Box::new(link)))?;
     let mut admission = AdmissionDriver::spawn(endpoint.clone(), associations.authorizations());
     let mut pending_pty = None;
-    let mut pending_admission = None;
+    let mut pending_admission: Option<(crate::AdmittedConnection, tokio::time::Instant)> = None;
     let mut prefer_pty_once = false;
     let mut next_ready = 0;
     let mut pty_output = Vec::new();
@@ -434,7 +462,11 @@ pub async fn run_gateway(
 
     loop {
         if associations.input_commit.is_none() {
-            if let Some(admitted) = pending_admission.take() {
+            if let Some((admitted, deadline)) = pending_admission.take() {
+                if tokio::time::Instant::now() >= deadline {
+                    admitted.close();
+                    continue;
+                }
                 handle_admitted(
                     admitted,
                     &mut associations,
@@ -520,19 +552,28 @@ pub async fn run_gateway(
             &mut next_ready,
             next_link_ready(&mut associations, &mut slabs),
             async {
-                if pending_admission.is_some() {
-                    std::future::pending().await
+                if let Some((_, deadline)) = &pending_admission {
+                    tokio::time::sleep_until(*deadline).await;
+                    Ok(None)
                 } else {
-                    admission.next().await
+                    admission.next().await.map(Some)
                 }
             },
             pty.next_event(),
         )
         .await;
         match ready {
-            Ready::Admission(Ok(admitted)) => {
-                if associations.input_commit.is_some() {
-                    pending_admission = Some(admitted);
+            Ready::Admission(Ok(None)) => {
+                if let Some((admitted, _)) = pending_admission.take() {
+                    admitted.close();
+                }
+            }
+            Ready::Admission(Ok(Some(admitted))) => {
+                if associations.input_commit.is_some() && admitted.take_over() {
+                    pending_admission = Some((
+                        admitted,
+                        tokio::time::Instant::now() + limits.initial_udp_budget(),
+                    ));
                     continue;
                 }
                 handle_admitted(
@@ -716,40 +757,44 @@ async fn handle_initial(
         admitted.close();
         return Ok(());
     }
-    if admitted.hello().role() == ConnectionRole::Writer {
-        if let Some(previous) = associations.writer() {
-            let connected = associations.slots[previous]
-                .as_ref()
-                .is_some_and(|managed| managed.state.is_connected());
-            if connected && !admitted.take_over() {
-                admitted.reject_writer_busy();
-                return Ok(());
-            }
-            crate::exit_trace::record("gateway-prepare-retire-writer");
-            retire_writer(previous, connected, associations, lifecycle, slabs, limits).await?;
-            crate::exit_trace::record("gateway-prepare-writer-retired");
-        }
-    } else if !associations.has_capacity() {
-        // Disconnected observers remain resumable until capacity pressure.
-        // At that boundary, retire one stale observer so locally cancelled
-        // or permanently lost clients cannot exhaust the PTY-lifetime cap.
-        if let Some(stale) = associations.disconnected_observer() {
-            retire_association(stale, associations, lifecycle, slabs)?;
-        }
-    }
-    if !associations.has_capacity() {
+    let takeover = admitted.take_over();
+    let observer_full = admitted.hello().role() == ConnectionRole::Observer
+        && associations.observer_count() >= limits.max_observers;
+    let capacity_full =
+        !(associations.has_capacity() || takeover && associations.writer().is_some());
+    let reclaim = if observer_full {
+        associations.oldest_disconnected(true)
+    } else if capacity_full {
+        associations.oldest_disconnected(false)
+    } else {
+        None
+    };
+    if (observer_full || capacity_full) && reclaim.is_none() {
         admitted.reject_association_capacity();
         return Ok(());
     }
-    crate::exit_trace::record("gateway-prepare-accept-initial");
-    match GatewayLink::accept_initial(admitted, lifecycle, slabs, limits).await {
-        Ok((link, _)) => {
-            crate::exit_trace::record("gateway-prepare-initial-accepted");
-            associations.insert(AssociationState::Connected(Box::new(link)))?;
-            Ok(())
+    // One extra replay slot stages the candidate inside the global memory cap.
+    // Existing membership is untouched if allocation or SERVER_HELLO fails.
+    let candidate = match GatewayLink::accept_initial(admitted, lifecycle, slabs, limits).await {
+        Ok((link, _)) => link,
+        Err(_) => return Ok(()),
+    };
+    if takeover {
+        debug_assert!(associations.input_commit.is_none());
+        for index in 0..associations.slots.len() {
+            if associations.slots[index]
+                .as_ref()
+                .is_some_and(|managed| managed.state.role() == ConnectionRole::Writer)
+            {
+                retire_association(index, associations, lifecycle, slabs)?;
+            }
         }
-        Err(_) => Ok(()),
     }
+    if let Some(index) = reclaim {
+        retire_association(index, associations, lifecycle, slabs)?;
+    }
+    associations.insert(AssociationState::Connected(Box::new(candidate)))?;
+    Ok(())
 }
 
 async fn handle_resume(
@@ -777,62 +822,6 @@ async fn handle_resume(
             let (_error, association) = failure.into_parts();
             associations.put(index, AssociationState::Disconnected(association));
             Ok(())
-        }
-    }
-}
-
-async fn retire_writer(
-    index: usize,
-    notify: bool,
-    associations: &mut Associations,
-    lifecycle: &mut GatewayLifecycle,
-    slabs: &mut GatewayReplaySlabs,
-    limits: Limits,
-) -> Result<(), GatewayRunError> {
-    let state = associations.take(index).expect("located writer");
-    let association_id = state.association_id();
-    if let AssociationState::Connected(mut link) = state {
-        if notify {
-            let _ = slabs.push_output_for(association_id, Kind::Ownership, &[2])?;
-            let _ = tokio::time::timeout(
-                limits.initial_udp_budget(),
-                drain_revoked_writer(&mut link, slabs),
-            )
-            .await;
-        }
-        (*link).retire();
-    }
-    let released = lifecycle.release(association_id);
-    debug_assert_eq!(released, Some(ConnectionRole::Writer));
-    slabs.remove_writer(association_id)?;
-    Ok(())
-}
-
-async fn drain_revoked_writer(
-    link: &mut GatewayLink,
-    slabs: &mut GatewayReplaySlabs,
-) -> Result<(), GatewayRunError> {
-    loop {
-        link.flush_control(slabs).await?;
-        link.flush_output(slabs).await?;
-        let pending = link
-            .association()
-            .output(slabs)
-            .map_err(LinkError::from)?
-            .unacknowledged_operations();
-        match link.next_inbound().await {
-            Ok(LinkInbound::ControlFinished) if pending == 0 => return Ok(()),
-            Ok(LinkInbound::ControlFinished) => return Ok(()),
-            Ok(event) => {
-                let rejected = match link.prepare_inbound(event, slabs)? {
-                    InboundApply::Deliver(input) => Some(input.token()),
-                    InboundApply::None | InboundApply::Detach | InboundApply::Receipt(_) => None,
-                };
-                if let Some(token) = rejected {
-                    link.abort_prepared_input(token)?;
-                }
-            }
-            Err(_) => return Ok(()),
         }
     }
 }
@@ -1031,6 +1020,8 @@ fn process_terminal_event(
                 let _ = lifecycle.release(association_id);
                 if role == ConnectionRole::Observer {
                     slabs.remove_observer(association_id)?;
+                } else {
+                    slabs.remove_writer(association_id)?;
                 }
             } else {
                 crate::exit_trace::record("terminal-fin-unacked");
@@ -1090,7 +1081,7 @@ fn retire_association(
     let association_id = state.association_id();
     let role = state.role();
     if let AssociationState::Connected(link) = state {
-        (*link).close();
+        (*link).retire();
     }
     let _ = lifecycle.release(association_id);
     match role {

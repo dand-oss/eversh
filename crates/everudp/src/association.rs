@@ -169,7 +169,7 @@ impl GatewayAssociation {
         }
         let association_id = admitted.hello().association_id();
         let role = admitted.hello().role();
-        let action = lifecycle.admit(admitted, admitted.take_over())?;
+        let action = lifecycle.admit_staged(admitted)?;
         let registered = match role {
             ConnectionRole::Writer => slabs.add_writer(association_id),
             ConnectionRole::Observer => slabs.add_observer(association_id),

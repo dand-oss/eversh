@@ -408,6 +408,7 @@ impl GatewayBootstrapContext {
 pub enum GatewayAction {
     CommitEverptyWriter,
     WriterResumed,
+    WriterAdded,
     ObserverAdded,
     ObserverResumed,
     TransferWriter {
@@ -424,9 +425,9 @@ enum TerminalState {
 
 #[derive(Debug)]
 pub struct GatewayLifecycle {
-    writer: Option<AssociationId>,
+    writers: [Option<AssociationId>; 10],
     everpty_writer_committed: bool,
-    observers: [Option<AssociationId>; 8],
+    observers: [Option<AssociationId>; 9],
     max_observers: usize,
     terminal: Option<TerminalState>,
 }
@@ -437,9 +438,9 @@ impl GatewayLifecycle {
             .validate()
             .map_err(|_| GatewayError::ControlMalformed)?;
         Ok(Self {
-            writer: None,
+            writers: [None; 10],
             everpty_writer_committed: false,
-            observers: [None; 8],
+            observers: [None; 9],
             max_observers: limits.max_observers,
             terminal: None,
         })
@@ -467,32 +468,63 @@ impl GatewayLifecycle {
         )
     }
 
+    pub(crate) fn admit_staged(
+        &mut self,
+        connection: &AdmittedConnection,
+    ) -> Result<GatewayAction, GatewayError> {
+        self.admit_capacity(
+            connection.hello().association_id(),
+            connection.hello().role(),
+            connection.take_over(),
+            true,
+        )
+    }
+
     fn admit_identity(
         &mut self,
         association_id: AssociationId,
         role: ConnectionRole,
         take_over: bool,
     ) -> Result<GatewayAction, GatewayError> {
+        self.admit_capacity(association_id, role, take_over, false)
+    }
+
+    fn admit_capacity(
+        &mut self,
+        association_id: AssociationId,
+        role: ConnectionRole,
+        take_over: bool,
+        staged: bool,
+    ) -> Result<GatewayAction, GatewayError> {
         if self.terminal.is_some() {
             return Err(GatewayError::Terminal);
         }
         match role {
-            ConnectionRole::Writer => match self.writer {
-                None => {
-                    self.writer = Some(association_id);
-                    self.everpty_writer_committed = true;
-                    Ok(GatewayAction::CommitEverptyWriter)
+            ConnectionRole::Writer => {
+                if self.writers.contains(&Some(association_id)) {
+                    return Ok(GatewayAction::WriterResumed);
                 }
-                Some(current) if current == association_id => Ok(GatewayAction::WriterResumed),
-                Some(current) if take_over => {
-                    self.writer = Some(association_id);
-                    Ok(GatewayAction::TransferWriter {
-                        previous: current,
-                        replacement: association_id,
-                    })
+                let count =
+                    self.writers.iter().flatten().count() + self.observers.iter().flatten().count();
+                if count >= 9 + usize::from(staged) {
+                    return Err(GatewayError::ObserverCapacity);
                 }
-                Some(_) => Err(GatewayError::WriterBusy),
-            },
+                let first = self.writers.iter().all(Option::is_none);
+                let slot = self
+                    .writers
+                    .iter_mut()
+                    .find(|slot| slot.is_none())
+                    .ok_or(GatewayError::ObserverCapacity)?;
+                *slot = Some(association_id);
+                self.everpty_writer_committed = true;
+                // The dispatcher commits takeover only after the candidate
+                // handshake succeeds; admission itself never evicts anybody.
+                Ok(if first {
+                    GatewayAction::CommitEverptyWriter
+                } else {
+                    GatewayAction::WriterAdded
+                })
+            }
             ConnectionRole::Observer => {
                 if take_over {
                     return Err(GatewayError::InvalidTakeover);
@@ -505,7 +537,12 @@ impl GatewayLifecycle {
                 {
                     return Ok(GatewayAction::ObserverResumed);
                 }
-                let slot = self.observers[..self.max_observers]
+                let count =
+                    self.writers.iter().flatten().count() + self.observers.iter().flatten().count();
+                if count >= 9 + usize::from(staged) {
+                    return Err(GatewayError::ObserverCapacity);
+                }
+                let slot = self.observers[..self.max_observers + usize::from(staged)]
                     .iter()
                     .position(Option::is_none)
                     .ok_or(GatewayError::ObserverCapacity)?;
@@ -524,11 +561,15 @@ impl GatewayLifecycle {
     /// disconnected-generation replacement, or a terminal per-peer protocol
     /// failure; ordinary network loss never calls it.
     pub fn release(&mut self, association_id: AssociationId) -> Option<ConnectionRole> {
-        if self.writer == Some(association_id) {
-            self.writer = None;
+        if let Some(writer) = self
+            .writers
+            .iter_mut()
+            .find(|slot| **slot == Some(association_id))
+        {
+            *writer = None;
             return Some(ConnectionRole::Writer);
         }
-        let observer = self.observers[..self.max_observers]
+        let observer = self.observers[..]
             .iter_mut()
             .find(|candidate| **candidate == Some(association_id))?;
         *observer = None;
@@ -655,19 +696,19 @@ mod tests {
             GatewayAction::CommitEverptyWriter
         );
         assert!(lifecycle.everpty_writer_committed());
-        assert!(lifecycle
-            .admit_identity(association(3), ConnectionRole::Writer, false)
-            .is_err());
+        assert_eq!(
+            lifecycle
+                .admit_identity(association(3), ConnectionRole::Writer, false)
+                .expect("shared writer"),
+            GatewayAction::WriterAdded
+        );
         assert_eq!(
             lifecycle
                 .admit_identity(association(3), ConnectionRole::Writer, true)
                 .expect("takeover"),
-            GatewayAction::TransferWriter {
-                previous: association(2),
-                replacement: association(3),
-            }
+            GatewayAction::WriterResumed
         );
-        for byte in 4..=10 {
+        for byte in 4..=9 {
             lifecycle
                 .admit_identity(association(byte), ConnectionRole::Observer, false)
                 .expect("bounded observer");

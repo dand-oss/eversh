@@ -645,6 +645,15 @@ fn explicit_takeover_revokes_the_old_writer_and_new_writer_is_future_only() {
     original.send(b"original\n");
     original.wait_for_bytes(b"OUT:original");
 
+    let mut shared =
+        RunningClient::spawn(&fixture, "shared", &["attach", "localhost", "process-test"]);
+    shared.wait_connected();
+    let mut observer = RunningClient::spawn(
+        &fixture,
+        "observer",
+        &["observe", "localhost", "process-test"],
+    );
+    observer.wait_connected();
     let mut replacement = RunningClient::spawn(
         &fixture,
         "replacement",
@@ -652,17 +661,27 @@ fn explicit_takeover_revokes_the_old_writer_and_new_writer_is_future_only() {
     );
     replacement.wait_connected();
     assert_eq!(original.wait_for_exit().code(), Some(4));
+    assert_eq!(shared.wait_for_exit().code(), Some(4));
 
     replacement.send(b"replacement\n");
     replacement.wait_for_bytes(b"OUT:replacement");
+    observer.wait_for_bytes(b"OUT:replacement");
+    let mut later =
+        RunningClient::spawn(&fixture, "later", &["attach", "localhost", "process-test"]);
+    later.wait_connected();
+    later.send(b"later\n");
+    replacement.wait_for_bytes(b"OUT:later");
+    observer.wait_for_bytes(b"OUT:later");
     replacement.send(b"quit\n");
     assert_eq!(replacement.wait_for_exit().code(), Some(19));
+    assert_eq!(later.wait_for_exit().code(), Some(19));
+    assert_eq!(observer.wait_for_exit().code(), Some(19));
     assert_eq!(
         replacement
             .stderr()
             .matches("everudp: output skipped during network outage")
             .count(),
-        1
+        0
     );
 }
 
@@ -856,7 +875,7 @@ fn hostile_observer_is_closed_without_disturbing_the_writer() {
 }
 
 #[test]
-fn active_writer_rejects_non_takeover_without_udp_fallback_code() {
+fn two_writers_share_by_default_and_detach_is_local() {
     let _serial = process_gate();
     let fixture = Fixture::new();
     let mut writer = RunningClient::spawn(
@@ -880,18 +899,61 @@ fn active_writer_rejects_non_takeover_without_udp_fallback_code() {
         "contender",
         &["attach", "localhost", "process-test"],
     );
-    let rejected = contender.wait_for_exit();
-    assert_ne!(
-        rejected.code(),
-        Some(i32::from(everudp::UDP_UNREACHABLE_EXIT)),
-        "a busy authenticated gateway is not UDP unreachability; stderr={}",
-        contender.stderr()
-    );
+    contender.wait_connected();
+    writer.send(b"first\n");
+    writer.wait_for_bytes(b"OUT:first");
+    contender.wait_for_bytes(b"OUT:first");
+    contender.send(b"second\n");
+    writer.wait_for_bytes(b"OUT:second");
+    contender.wait_for_bytes(b"OUT:second");
+    assert_eq!(contender.cancel().code(), Some(143));
 
     writer.send(b"survived\n");
     writer.wait_for_bytes(b"OUT:survived");
     writer.send(b"quit\n");
     assert_eq!(writer.wait_for_exit().code(), Some(37));
+}
+
+#[test]
+fn nine_writers_are_bounded_and_takeover_works_at_capacity() {
+    let _serial = process_gate();
+    let fixture = Fixture::new();
+    let mut writers = vec![RunningClient::spawn(&fixture, "first",
+        &["connect", "localhost", "--session", "process-test", "--", "/bin/sh", "-c",
+          "while IFS= read -r line; do printf 'OUT:%s\\n' \"$line\"; [ \"$line\" != quit ] || exit 57; done"])];
+    writers[0].wait_connected();
+    for n in 1..9 {
+        let mut client = RunningClient::spawn(
+            &fixture,
+            &format!("writer-{n}"),
+            &["attach", "localhost", "process-test"],
+        );
+        client.wait_connected();
+        writers.push(client);
+    }
+    let mut rejected =
+        RunningClient::spawn(&fixture, "tenth", &["attach", "localhost", "process-test"]);
+    assert!(!rejected.wait_for_exit().success());
+    assert!(
+        rejected.stderr().contains("capacity"),
+        "{}",
+        rejected.stderr()
+    );
+    writers[8].send(b"ninth\n");
+    for writer in &mut writers {
+        writer.wait_for_bytes(b"OUT:ninth");
+    }
+    let mut replacement = RunningClient::spawn(
+        &fixture,
+        "takeover",
+        &["attach", "localhost", "process-test", "--take-over"],
+    );
+    replacement.wait_connected();
+    for writer in &mut writers {
+        assert_eq!(writer.wait_for_exit().code(), Some(4));
+    }
+    replacement.send(b"quit\n");
+    assert_eq!(replacement.wait_for_exit().code(), Some(57));
 }
 
 #[test]

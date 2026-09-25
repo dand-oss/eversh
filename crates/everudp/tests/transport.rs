@@ -653,10 +653,7 @@ async fn pinned_mutual_tls_claims_once_and_gateway_accepts_sequential_connection
                 lifecycle
                     .admit(&admitted, admitted.take_over())
                     .expect("authenticated takeover"),
-                GatewayAction::TransferWriter {
-                    previous: association(1),
-                    replacement: association(2),
-                }
+                GatewayAction::WriterAdded
             );
         }
         admitted.close();

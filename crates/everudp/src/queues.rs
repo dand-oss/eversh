@@ -8,7 +8,8 @@ use std::fmt;
 use std::mem::size_of;
 
 const CONTROL_QUEUE_BYTES: usize = 64 * 1024;
-const OBSERVER_SLOTS: usize = 8;
+// Eight additional live attachments plus one bounded admission staging slot.
+const OBSERVER_SLOTS: usize = 9;
 const GATEWAY_RING_COUNT: usize = 3 + OBSERVER_SLOTS * 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -811,6 +812,13 @@ impl GatewayReplaySlabs {
             return Ok(());
         }
         if self.writer_id.is_none() {
+            // Unbound primary storage can have accumulated output while only
+            // other peers were attached. A new peer receives future bytes only.
+            if self.writer_output.unacknowledged_operations() != 0
+                || self.writer_output.is_discarding()
+            {
+                self.replace_writer_generation()?;
+            }
             self.writer_id = Some(id);
             return Ok(());
         }

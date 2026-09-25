@@ -10,6 +10,27 @@ fn association(byte: u8) -> AssociationId {
 }
 
 #[test]
+fn staging_slot_keeps_ten_replay_states_inside_global_cap() {
+    let limits = Limits::default();
+    let mut slabs = GatewayReplaySlabs::new(&limits).expect("slabs");
+    let allocation = slabs.allocation_signature();
+    for byte in 1..=10 {
+        slabs
+            .add_writer(association(byte))
+            .expect("nine live plus staging");
+    }
+    assert!(slabs.add_writer(association(11)).is_err());
+    assert!(slabs.allocated_bytes() <= limits.global_queue_bytes);
+    slabs
+        .remove_writer(association(10))
+        .expect("discard failed candidate");
+    assert_eq!(slabs.allocation_signature(), allocation);
+    for byte in 1..=9 {
+        assert!(slabs.output_for(association(byte)).is_ok());
+    }
+}
+
+#[test]
 fn writer_replay_acknowledgements_and_overruns_are_independent() {
     let limits = Limits::default();
     let mut slabs = GatewayReplaySlabs::new(&limits).expect("slabs");

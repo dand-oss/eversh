@@ -1060,11 +1060,6 @@ impl AdmittedConnection {
         self.connection.close(CLOSE_CODE, b"everudp test close");
     }
 
-    pub(crate) fn reject_writer_busy(self) {
-        self.connection
-            .close(WRITER_BUSY_CLOSE_CODE, b"everudp writer is busy");
-    }
-
     pub(crate) fn reject_retired(self) {
         self.connection
             .close(ATTACHMENT_RETIRED_CLOSE_CODE, b"everudp attachment retired");
