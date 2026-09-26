@@ -182,6 +182,7 @@ fn outer_ssh_argv_is_ordered_and_exact() {
         take_over: false,
         origins: vec!["eversh:box".to_owned()],
         child_argv: vec![b"claude".to_vec()],
+        colorterm: String::new(),
     };
     let words = remote_words(
         "eversh",

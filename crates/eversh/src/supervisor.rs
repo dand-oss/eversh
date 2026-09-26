@@ -145,6 +145,8 @@ pub struct Config {
     pub remote_eversh: String,
     /// `KITTY_LISTEN_ON` when present.
     pub kitty_listen_on: Option<String>,
+    /// Validated local hint exported only when a new everssh child starts.
+    pub colorterm: String,
     /// The local host name used for generated origin metadata.
     pub local_host: String,
     /// The private local root eversh's own per-spawn everssh link-status
@@ -1019,6 +1021,7 @@ fn reconnect(
             take_over: run.take_over,
             origins: Vec::new(),
             child_argv: Vec::new(),
+            colorterm: String::new(),
         };
         let (op, interactive) = if run.observer {
             (RemoteOp::Observe { name: run.name }, false)
@@ -1115,6 +1118,7 @@ pub fn connect(
         take_over,
         origins: vec![origin_label(&config.local_host)],
         child_argv,
+        colorterm: config.colorterm.clone(),
     };
     run_with_reconnect(
         config,
@@ -1146,6 +1150,7 @@ pub fn attach(
         take_over,
         origins: Vec::new(),
         child_argv: Vec::new(),
+        colorterm: String::new(),
     };
     run_with_reconnect(
         config,

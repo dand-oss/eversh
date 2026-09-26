@@ -182,9 +182,17 @@ if [ "$#" -eq 0 ]; then exit 255; fi
 if [ "$is_probe" -eq 0 ]; then status_carrying; fi
 exec 3<&0
 if [ "$has_pty" -eq 1 ]; then
-  "$@" <&3 3<&- 2>&1 &
+  if [ "${FAKE_STRIP_COLORTERM:-}" = 1 ]; then
+    env -u COLORTERM "$@" <&3 3<&- 2>&1 &
+  else
+    "$@" <&3 3<&- 2>&1 &
+  fi
 else
-  "$@" <&3 3<&- &
+  if [ "${FAKE_STRIP_COLORTERM:-}" = 1 ]; then
+    env -u COLORTERM "$@" <&3 3<&- &
+  else
+    "$@" <&3 3<&- &
+  fi
 fi
 child=$!
 exec 3<&-
@@ -718,6 +726,68 @@ fn child_exit_returns_status_without_any_retry() {
         1,
         "child exit must not probe or retry: {captures:?}"
     );
+}
+
+#[test]
+fn everssh_connect_passes_colorterm_without_ssh_environment_forwarding() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let mut session = spawn_interactive_env(
+        &fixture,
+        "color",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "color",
+            "--",
+            "/bin/sh",
+            "-c",
+            r#"printf 'COLOR:%s\n' "$COLORTERM""#,
+        ],
+        &[("COLORTERM", "testcolor"), ("FAKE_STRIP_COLORTERM", "1")],
+    );
+    let status = wait_bounded(&mut session.child, "color child");
+    let mut output = Vec::new();
+    read_available(&mut session.master, &mut output);
+    assert_eq!(status.code(), Some(0));
+    assert!(
+        String::from_utf8_lossy(&output).contains("COLOR:testcolor"),
+        "{}",
+        String::from_utf8_lossy(&output)
+    );
+}
+
+#[test]
+fn everssh_connect_ignores_empty_invalid_and_overlong_colorterm() {
+    for color in ["", "not valid", &"x".repeat(65)] {
+        let fixture = Fixture::new();
+        fixture.set_mode("run");
+        let mut session = spawn_interactive_env(
+            &fixture,
+            "bad-color",
+            &[
+                "connect",
+                "testhost",
+                "--session",
+                "bad-color",
+                "--",
+                "/bin/sh",
+                "-c",
+                r#"printf 'COLOR:%s\n' "${COLORTERM-unset}""#,
+            ],
+            &[("COLORTERM", color), ("FAKE_STRIP_COLORTERM", "1")],
+        );
+        let status = wait_bounded(&mut session.child, "bad color child");
+        let mut output = Vec::new();
+        read_available(&mut session.master, &mut output);
+        assert_eq!(status.code(), Some(0));
+        assert!(
+            String::from_utf8_lossy(&output).contains("COLOR:unset"),
+            "{}",
+            String::from_utf8_lossy(&output)
+        );
+    }
 }
 
 #[test]
@@ -2001,6 +2071,7 @@ fn library_config(fixture: &Fixture, limits: eversh::Limits) -> SupervisorConfig
         self_exe: fs::canonicalize(binary()).unwrap(),
         remote_eversh: fixture.bin.join("eversh").to_str().unwrap().to_owned(),
         kitty_listen_on: None,
+        colorterm: String::new(),
         local_host: "testlocal".to_owned(),
         link_status_root: Some(fixture.state.clone()),
         udp_port_range: None,

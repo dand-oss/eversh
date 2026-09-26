@@ -110,6 +110,16 @@ pub struct ControlRequest {
     pub take_over: bool,
     pub origins: Vec<String>,
     pub child_argv: Vec<Vec<u8>>,
+    /// Optional client color hint for a newly created child.
+    pub colorterm: String,
+}
+
+pub fn acceptable_colorterm(value: &str) -> bool {
+    !value.is_empty()
+        && value.len() <= 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+'))
 }
 
 impl ControlRequest {
@@ -139,6 +149,13 @@ impl ControlRequest {
             }
             out.extend_from_slice(&be32(arg.len() as u32));
             out.extend_from_slice(arg);
+        }
+        if !self.colorterm.is_empty() {
+            if !acceptable_colorterm(&self.colorterm) {
+                return Err(Error::RequestTooLarge);
+            }
+            out.push(self.colorterm.len() as u8);
+            out.extend_from_slice(self.colorterm.as_bytes());
         }
         if out.len() > limits.remote_control_max {
             return Err(Error::RequestTooLarge);
@@ -206,13 +223,24 @@ impl ControlRequest {
             child_argv.push(arg.to_vec());
             rest = &rest[4 + len..];
         }
-        if !rest.is_empty() {
-            return Err(Error::RequestTooLarge);
-        }
+        let colorterm = if rest.is_empty() {
+            String::new()
+        } else {
+            let len = usize::from(rest[0]);
+            if len == 0 || rest.len() != len + 1 {
+                return Err(Error::RequestTooLarge);
+            }
+            let value = std::str::from_utf8(&rest[1..]).map_err(|_| Error::RequestTooLarge)?;
+            if !acceptable_colorterm(value) {
+                return Err(Error::RequestTooLarge);
+            }
+            value.to_owned()
+        };
         Ok(Self {
             take_over: flags & FLAG_TAKE_OVER != 0,
             origins,
             child_argv,
+            colorterm,
         })
     }
 }

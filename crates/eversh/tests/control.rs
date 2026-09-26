@@ -12,6 +12,7 @@ fn sample() -> ControlRequest {
         take_over: true,
         origins: vec!["eversh:laptop-1".to_owned()],
         child_argv: vec![b"claude".to_vec(), vec![0xff, 0x80, 0x01], b"--x".to_vec()],
+        colorterm: String::new(),
     }
 }
 
@@ -29,6 +30,37 @@ fn control_request_roundtrips_canonically() {
     let wire = empty.encode(&l).unwrap();
     assert_eq!(wire, vec![1, 0, 0, 0, 0, 0]);
     assert_eq!(ControlRequest::decode(&wire, &l).unwrap(), empty);
+
+    let mut color = sample();
+    color.colorterm = "truecolor".to_owned();
+    let wire = color.encode(&l).unwrap();
+    assert_eq!(ControlRequest::decode(&wire, &l).unwrap(), color);
+    assert_eq!(&wire[wire.len() - 10..], b"\ttruecolor");
+}
+
+#[test]
+fn colorterm_optional_field_is_strict_and_old_requests_still_decode() {
+    let limits = Limits::default();
+    let old = sample().encode(&limits).unwrap();
+    assert!(ControlRequest::decode(&old, &limits)
+        .unwrap()
+        .colorterm
+        .is_empty());
+    for invalid in ["", "a b", "a\n", "a/b", &"x".repeat(65)] {
+        assert!(!acceptable_colorterm(invalid));
+        if !invalid.is_empty() {
+            let request = ControlRequest {
+                colorterm: invalid.to_owned(),
+                ..sample()
+            };
+            assert!(request.encode(&limits).is_err());
+        }
+    }
+    for trailer in [vec![0], vec![2, b'a'], vec![1, b'/'], vec![1, 0xff]] {
+        let mut wire = old.clone();
+        wire.extend(trailer);
+        assert!(ControlRequest::decode(&wire, &limits).is_err());
+    }
 }
 
 #[test]

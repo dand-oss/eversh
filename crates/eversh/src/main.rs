@@ -164,7 +164,10 @@ fn execute_everpty_role(
                     .map(OsString::from_vec)
                     .collect(),
                 default_shell: std::env::var_os("SHELL"),
-                environment: captured_environment(),
+                environment: everudp::roles::with_colorterm(
+                    captured_environment(),
+                    &request.colorterm,
+                ),
                 path: std::env::var_os("PATH"),
                 origins: request.origins.into_iter().map(OsString::from).collect(),
                 stdin,
@@ -521,6 +524,10 @@ fn build_config(
         remote_eversh: remote_eversh.unwrap_or_else(|| "eversh".to_owned()),
         kitty_listen_on: std::env::var_os("KITTY_LISTEN_ON")
             .and_then(|value| value.into_string().ok()),
+        colorterm: std::env::var("COLORTERM")
+            .ok()
+            .filter(|value| eversh::remote::acceptable_colorterm(value))
+            .unwrap_or_default(),
         local_host: local_host_name(),
         // The same state-root precedence as the remote everpty role edge
         // (design §4.1), resolved locally: the highest-precedence candidate

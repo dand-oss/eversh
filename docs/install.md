@@ -184,6 +184,12 @@ is decided by wire protocol versions, not file names (design §5):
   reattach path.
 - The private eversh remote-role grammar is versioned (`v1`); a version
   mismatch names the component and version and exits without side effects.
+- A new everssh managed session carries a valid client `COLORTERM` (up to 64
+  terminfo-style characters) as an optional final control-request field.
+  Unset, empty, or invalid values leave the remote environment unchanged.
+  Reattach never changes a running child's environment. Old requests remain
+  readable; a remote eversh predating this field rejects a new request that
+  carries it, so upgrade the remote binary first.
 - everudp's SSH bootstrap request carries the client's `TERM` and, when set,
   `COLORTERM` as trailing optional fields. A client without either field
   still bootstraps against a newer remote; a client with `COLORTERM` requires

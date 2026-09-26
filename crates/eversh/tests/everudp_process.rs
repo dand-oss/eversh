@@ -572,6 +572,7 @@ fn framed_broker_busy_in_auto_mode_never_falls_back() {
             b"printf 'BUSY-READY'; while IFS= read -r line; do printf 'OUT:%s\\n' \"$line\"; done"
                 .to_vec(),
         ],
+        colorterm: String::new(),
     };
     let token = eversh::remote::base64url_encode(
         &request.encode(&eversh::limits::Limits::default()).unwrap(),
@@ -665,6 +666,7 @@ fn gateway_takeover_preserves_existing_framed_shell_and_enter() {
         take_over: false,
         origins: vec!["test".to_owned()],
         child_argv: vec![b"/bin/sh".to_vec(), b"-c".to_vec(), program.into_bytes()],
+        colorterm: String::new(),
     };
     let token = eversh::remote::base64url_encode(
         &request.encode(&eversh::limits::Limits::default()).unwrap(),
