@@ -14,7 +14,7 @@ use std::io::{Read, Write};
 use std::os::fd::AsFd;
 use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
@@ -25,6 +25,9 @@ mod exit_snapshot;
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 static PROCESS_GATE: Mutex<()> = Mutex::new(());
+
+#[path = "support/agent.rs"]
+mod agent_support;
 
 const UDP_UNREACHABLE_EXIT: i32 = 69;
 const FALLBACK_EXIT: i32 = 47;
@@ -75,6 +78,7 @@ case "$remote" in
 esac
 
 export SSH_CONNECTION='127.0.0.1 40000 SERVER_IP 22'
+unset SSH_AUTH_SOCK
 if [ "${FAKE_EVERUDP_MODE:-normal}" = blackhole ]; then
   line=$(/bin/sh -c "$remote")
   set -- $line
@@ -206,6 +210,16 @@ struct RunningClient {
 
 impl RunningClient {
     fn spawn(fixture: &Fixture, label: &str, mode: &str, arguments: &[&str]) -> Self {
+        Self::spawn_with_home(fixture, label, mode, arguments, None)
+    }
+
+    fn spawn_with_home(
+        fixture: &Fixture,
+        label: &str,
+        mode: &str,
+        arguments: &[&str],
+        home: Option<&Path>,
+    ) -> Self {
         let status_before = fixture.status_files();
         let (master, slave) = sys::openpty(24, 80).unwrap();
         let initial_termios = sys::terminal_attributes(slave.as_fd()).unwrap();
@@ -227,6 +241,9 @@ impl RunningClient {
             .env("FAKE_EVERUDP_MODE", mode)
             .env("PATH", fixture.path())
             .env("SHELL", "/bin/sh");
+        if let Some(home) = home {
+            command.env("HOME", home);
+        }
         if arguments.first() != Some(&"__everpty") {
             command.arg("--remote-eversh").arg(
                 std::env::var_os("EVERSH_TEST_REMOTE_BIN")
@@ -443,6 +460,53 @@ fn combined_binary_carries_terminal_directly_over_everudp() {
     assert_eq!(count_line(&log, "everudp-bootstrap"), 1, "{log}");
     assert_eq!(count_line(&log, "everssh-fallback"), 0, "{log}");
     assert!(!client.stderr().contains(FALLBACK_NOTICE));
+}
+
+#[test]
+fn everudp_remote_role_recovers_saved_agent_without_ssh_forwarding() {
+    let _serial = process_gate();
+    let fixture = Fixture::new();
+    let socket = fixture.root.join("agent.sock");
+    let _agent = agent_support::FakeAgent::start(&socket, 1);
+    let keychain = fixture.root.join(".keychain");
+    fs::create_dir(&keychain).unwrap();
+    fs::set_permissions(&keychain, fs::Permissions::from_mode(0o700)).unwrap();
+    let hostname = fs::read_to_string("/proc/sys/kernel/hostname").unwrap();
+    let state = keychain.join(format!("{}-sh", hostname.trim()));
+    fs::write(
+        &state,
+        format!(
+            "SSH_AUTH_SOCK=\"{}\"; export SSH_AUTH_SOCK\n",
+            socket.display()
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&state, fs::Permissions::from_mode(0o600)).unwrap();
+    let mut client = RunningClient::spawn_with_home(
+        &fixture,
+        "agent",
+        "normal",
+        &[
+            "connect",
+            "localhost",
+            "--transport",
+            "everudp",
+            "--session",
+            "agent",
+            "--",
+            "/bin/sh",
+            "-c",
+            "printf 'AGENT:%s\\n' \"$SSH_AUTH_SOCK\"; IFS= read -r line; exit 0",
+        ],
+        Some(&fixture.root),
+    );
+    client.wait_connected(&fixture);
+    client.wait_for_bytes(format!("AGENT:{}", socket.display()).as_bytes());
+    client.send(b"quit\n");
+    assert_eq!(
+        client.wait_for_exit(Duration::from_secs(15)).code(),
+        Some(0)
+    );
 }
 
 #[test]

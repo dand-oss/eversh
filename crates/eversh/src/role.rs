@@ -8,7 +8,7 @@
 
 use crate::error::Error;
 use crate::limits::Limits;
-use crate::remote::{base64url_decode, validate_name, ControlRequest};
+use crate::remote::{base64url_decode, validate_name, ControlRequest, RemoteRequest};
 
 /// Combined-binary role marker for the everpty role.
 pub const EVERPTY_ROLE: &str = "__everpty";
@@ -48,6 +48,9 @@ pub fn select_role<T: AsRef<str>>(args: &[T]) -> Role {
 /// One parsed everpty-role remote operation (the words after `__everpty`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EverptyRoleCommand {
+    Exec {
+        command: Vec<Vec<u8>>,
+    },
     AttachOrCreate {
         name: String,
         request: ControlRequest,
@@ -107,6 +110,17 @@ pub fn parse_everpty_role(args: &[String], limits: &Limits) -> Result<EverptyRol
     }
     let rest = &args[1..];
     match rest.first().map(String::as_str) {
+        Some("exec") => {
+            exactly(rest, 2)?;
+            let bytes = base64url_decode(&rest[1], limits.remote_control_max)?;
+            let request = RemoteRequest::decode(&bytes, limits)?;
+            if request.args.is_empty() || request.args[0].is_empty() {
+                return Err(Error::RoleProtocol("invalid one-shot command"));
+            }
+            Ok(EverptyRoleCommand::Exec {
+                command: request.args,
+            })
+        }
         Some("attach-or-create") => {
             exactly(rest, 3)?;
             Ok(EverptyRoleCommand::AttachOrCreate {

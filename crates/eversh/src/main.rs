@@ -36,13 +36,17 @@ fn main() {
             std::process::exit(i32::from(code));
         }
         Role::Everudp => {
+            initialize_agent();
             let code = everudp::edge::run(
                 everudp::edge::Invocation::CombinedEversh,
                 args[1..].to_vec(),
             );
             std::process::exit(i32::from(code));
         }
-        Role::Everpty => run_everpty_role(&args[1..]),
+        Role::Everpty => {
+            initialize_agent();
+            run_everpty_role(&args[1..])
+        }
         Role::Supervisor => run_supervisor(),
     }
 }
@@ -79,6 +83,20 @@ fn captured_environment() -> Vec<OsString> {
         .collect()
 }
 
+fn initialize_agent() {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let socket = eversh::agent::resolve(
+        std::env::var_os("SSH_AUTH_SOCK").as_deref(),
+        home.as_deref(),
+        &local_host_name(),
+    );
+    if let Some(socket) = socket {
+        std::env::set_var("SSH_AUTH_SOCK", socket);
+    } else {
+        std::env::remove_var("SSH_AUTH_SOCK");
+    }
+}
+
 /// Exit code for role-protocol violations (bad grammar/token).
 const ROLE_PROTOCOL_EXIT: u8 = 2;
 /// Exit code when the remote role protocol version is unsupported.
@@ -112,6 +130,26 @@ fn run_everpty_role(args: &[OsString]) -> ! {
     if let Err(error) = everpty::sys::ignore_sigpipe() {
         everpty_role_error(everpty::Error::Io(error));
     }
+    if let EverptyRoleCommand::Exec { command } = parsed {
+        use std::os::unix::ffi::OsStringExt;
+        let mut args = command.into_iter().map(OsString::from_vec);
+        let program = args.next().expect("validated one-shot argv");
+        let status = std::process::Command::new(program).args(args).status();
+        match status {
+            Ok(status) => {
+                use std::os::unix::process::ExitStatusExt;
+                std::process::exit(
+                    status
+                        .code()
+                        .unwrap_or_else(|| 128 + status.signal().unwrap_or(0)),
+                );
+            }
+            Err(error) => {
+                eprintln!("eversh: one-shot command: {error}");
+                std::process::exit(1);
+            }
+        }
+    }
     match execute_everpty_role(parsed) {
         Ok(outcome) => everpty_role_outcome(outcome),
         Err(error) => everpty_role_error(error),
@@ -139,6 +177,7 @@ fn execute_everpty_role(
     let stdin = stdin_handle.as_fd();
     let stdout = stdout_handle.as_fd();
     match parsed {
+        EverptyRoleCommand::Exec { .. } => unreachable!("handled by role edge"),
         EverptyRoleCommand::AttachOrCreate { name, request } => {
             if request.take_over {
                 // Takeover targets an existing session; only a session that

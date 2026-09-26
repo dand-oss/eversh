@@ -1377,7 +1377,26 @@ pub fn raw_ssh(
     // outer-ssh-only rather than erroring in raw mode (finding 4).
     let audited = crate::command::audited_subset(pre_options);
     let proxy = proxy_for(config, &audited, None)?;
-    let args = raw_ssh_args(&proxy, pre_options, host, post_command)?;
+    let remote_command = if post_command.is_empty() {
+        Vec::new()
+    } else {
+        let request = crate::remote::RemoteRequest {
+            version: crate::remote::REQUEST_VERSION,
+            args: post_command
+                .iter()
+                .map(|word| word.as_bytes().to_vec())
+                .collect(),
+        };
+        let wire = request.encode(&config.limits)?;
+        vec![
+            config.remote_eversh.clone(),
+            crate::role::EVERPTY_ROLE.to_owned(),
+            crate::role::EVERPTY_ROLE_VERSION.to_owned(),
+            "exec".to_owned(),
+            crate::remote::base64url_encode(&wire),
+        ]
+    };
+    let args = raw_ssh_args(&proxy, pre_options, host, &remote_command)?;
     Ok(match spawn_inherited(config, &args)? {
         ExitKind::Code(code) => SessionEnd::Remote(code),
         ExitKind::Signaled(signal) => SessionEnd::SshSignaled(signal),

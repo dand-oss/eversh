@@ -8,6 +8,7 @@
 //! global arguments, or exits; the supervisor never owns a PTY fd, QUIC
 //! endpoint, or terminal relay loop, and never constructs a runtime.
 
+pub mod agent;
 pub mod command;
 pub mod error;
 pub mod limits;

@@ -23,6 +23,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+#[path = "support/agent.rs"]
+mod agent_support;
+
 /// Send a signal via the system `kill` binary (no extra test dependencies).
 fn send_signal(pid: i32, signal: &str) {
     let status = Command::new("kill")
@@ -1822,16 +1825,19 @@ fn raw_ssh_passes_through_and_never_retries() {
 fn raw_ssh_forwards_a_remote_command_after_inner_separator() {
     let fixture = Fixture::new();
     fixture.set_mode("run");
+    let marker = fixture.base.join("one-shot-count");
+    let script = format!("printf x >> '{}'; exit 37", marker.display());
     // An inner `--` splits outer SSH options (before it) from a remote
     // command (after it, placed after the destination): finding 4.
     let output = fixture
         .command()
         .args([
-            "ssh", "testhost", "--", "-4", "--", "/bin/sh", "-c", "exit 37",
+            "ssh", "testhost", "--", "-4", "--", "/bin/sh", "-c", &script,
         ])
         .output()
         .unwrap();
     assert_eq!(output.status.code(), Some(37));
+    assert_eq!(fs::read(&marker).unwrap(), b"x");
     let captures = fixture.captures("ssh");
     assert_eq!(captures.len(), 1, "raw ssh must never probe or retry");
     let argv = &captures[0].1;
@@ -1840,9 +1846,103 @@ fn raw_ssh_forwards_a_remote_command_after_inner_separator() {
     // `-4` passes the audit and is mirrored into the bootstrap.
     assert!(argv[1].contains("--ssh-option '-4'"), "{}", argv[1]);
     assert_eq!(
-        argv[2..],
-        ["-4", "--", "testhost", "/bin/sh", "-c", "exit 37"].map(str::to_owned)
+        &argv[2..9],
+        ["-4", "--", "testhost", "eversh", "__everpty", "v1", "exec"]
     );
+    let bytes =
+        eversh::remote::base64url_decode(&argv[9], eversh::Limits::default().remote_control_max)
+            .unwrap();
+    let request =
+        eversh::remote::RemoteRequest::decode(&bytes, &eversh::Limits::default()).unwrap();
+    assert_eq!(
+        request.args,
+        [b"/bin/sh".to_vec(), b"-c".to_vec(), script.into_bytes()]
+    );
+}
+
+#[test]
+fn one_shot_command_uses_saved_remote_agent_when_ssh_environment_lacks_it() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let socket = fixture.base.join("agent.sock");
+    let _agent = agent_support::FakeAgent::start(&socket, 1);
+    let keychain = fixture.base.join(".keychain");
+    fs::create_dir(&keychain).unwrap();
+    fs::set_permissions(&keychain, fs::Permissions::from_mode(0o700)).unwrap();
+    let hostname = fs::read_to_string("/proc/sys/kernel/hostname").unwrap();
+    let state = keychain.join(format!("{}-sh", hostname.trim()));
+    fs::write(
+        &state,
+        format!(
+            "SSH_AUTH_SOCK=\"{}\"; export SSH_AUTH_SOCK\n",
+            socket.display()
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&state, fs::Permissions::from_mode(0o600)).unwrap();
+    let marker = fixture.base.join("agent-result");
+    let script = format!("printf '%s' \"$SSH_AUTH_SOCK\" > '{}'", marker.display());
+    let output = fixture
+        .command()
+        .env("HOME", &fixture.base)
+        .env_remove("SSH_AUTH_SOCK")
+        .args(["ssh", "testhost", "--", "--", "/bin/sh", "-c", &script])
+        .output()
+        .unwrap();
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(&marker).unwrap(),
+        socket.to_str().unwrap()
+    );
+    assert_eq!(fixture.captures("ssh").len(), 1);
+}
+
+#[test]
+fn everssh_managed_child_uses_saved_agent_without_ssh_forwarding() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let socket = fixture.base.join("agent.sock");
+    let _agent = agent_support::FakeAgent::start(&socket, 1);
+    let keychain = fixture.base.join(".keychain");
+    fs::create_dir(&keychain).unwrap();
+    fs::set_permissions(&keychain, fs::Permissions::from_mode(0o700)).unwrap();
+    let hostname = fs::read_to_string("/proc/sys/kernel/hostname").unwrap();
+    let state = keychain.join(format!("{}-sh", hostname.trim()));
+    fs::write(
+        &state,
+        format!(
+            "SSH_AUTH_SOCK=\"{}\"; export SSH_AUTH_SOCK\n",
+            socket.display()
+        ),
+    )
+    .unwrap();
+    fs::set_permissions(&state, fs::Permissions::from_mode(0o600)).unwrap();
+    let home = fixture.base.to_str().unwrap();
+    let mut session = spawn_interactive_env(
+        &fixture,
+        "managed-agent",
+        &[
+            "connect",
+            "testhost",
+            "--session",
+            "managed-agent",
+            "--",
+            "/bin/sh",
+            "-c",
+            r#"printf 'AGENT:%s\n' "$SSH_AUTH_SOCK""#,
+        ],
+        &[("HOME", home)],
+    );
+    let status = wait_bounded(&mut session.child, "managed agent child");
+    let mut output = Vec::new();
+    read_available(&mut session.master, &mut output);
+    assert_eq!(status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&output).contains(&format!("AGENT:{}", socket.display())));
 }
 
 #[test]

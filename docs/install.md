@@ -125,7 +125,9 @@ every partial failure is reported.
 contain one further literal `--`: tokens before it are passed to the outer
 `ssh` client verbatim as SSH options (unaudited; the subset that passes the
 `--ssh-option` audit is also mirrored into the everssh bootstrap), and
-tokens after it become the remote command, placed after the destination.
+tokens after it become one exact argument vector sent to the remote eversh
+one-shot helper. Install eversh 0.2.6 or later on the remote host before
+using this form with an updated client; an older remote rejects the helper.
 With no inner `--`, every token is an SSH option — `eversh ssh HOST -- -4`
 behaves exactly as before. Raw `eversh ssh` is never retried and never
 passes a link-status file, so its exit is always reported as the ssh client
@@ -190,6 +192,18 @@ is decided by wire protocol versions, not file names (design §5):
   Reattach never changes a running child's environment. Old requests remain
   readable; a remote eversh predating this field rejects a new request that
   carries it, so upgrade the remote binary first.
+- Remote eversh command creation keeps an inherited `SSH_AUTH_SOCK` only when
+  its agent answers with loaded identities. Otherwise it reads the destination
+  user's private `~/.keychain/$(hostname)-sh` state and reuses its owned socket
+  only when that agent answers with loaded identities. The complete identity
+  probe has a 500 ms deadline, including connection and response.
+  The file is parsed as data; eversh never executes it, starts an agent, or
+  loads keys. A missing, stale, or untrusted state leaves agent access absent.
+  `eversh ssh HOST -- -- COMMAND...` uses the remote eversh one-shot helper
+  and preserves each argument exactly, with the command's exit status and no
+  automatic replay. Use an explicit shell such as `/bin/sh -c '...'` when
+  shell expansion is wanted. Install the 0.2.6 remote binary before using
+  this command form from an updated client.
 - everudp's SSH bootstrap request carries the client's `TERM` and, when set,
   `COLORTERM` as trailing optional fields. A client without either field
   still bootstraps against a newer remote; a client with `COLORTERM` requires
