@@ -1,0 +1,23 @@
+{
+  "version": "0.2.6",
+  "source_commit": "8008e149f23e1ff9cbe68f34e573dc43a4fa8918",
+  "binary_sha256": "702468ff205a72b2416d24f0c1ab31f788e509770b1519ac6e189ecdc025e976",
+  "previous_binary_sha256": "5e6f0a39afa161452be8cb8bf190a83c69e366a3ec96b0d475294c2cc2f65887",
+  "unchanged_wrapper_sha256": "1ef1a6be1eef6f28e059fc4dbedbbf278e6ec564e4f117a513a1bc42d8c55a40",
+  "staging_path": "/home/appsmith/.local/share/eversh/upgrade-0.2.6-20260926",
+  "hosts": [
+    {"host": "badger.a", "installed_version": "0.2.6", "preserved_sessions": 9, "one_shot_exit": 37, "agent_identities": 4, "batch_git_lookup": "PASS"},
+    {"host": "bugger.a", "installed_version": "0.2.6", "preserved_sessions": 4, "one_shot_exit": 37, "agent_identities": 4, "batch_git_lookup": "PASS"},
+    {"host": "bagger.a", "installed_version": "0.2.6", "preserved_sessions": 1, "one_shot_exit": 37, "agent_identities": 4, "batch_git_lookup": "PASS"},
+    {"host": "dandeb.a", "installed_version": "0.2.6", "preserved_sessions": 0, "one_shot_exit": 37, "agent_identities": 4, "batch_git_lookup": "PASS"}
+  ],
+  "all_installed_hashes_verified": true,
+  "all_previous_binaries_retained": true,
+  "badger_color_canary": {
+    "ssh_config": "-F/dev/null",
+    "distinct_marker": ["everssh", "everudp"],
+    "unset_empty_invalid_overlong_remain_unset": ["everssh", "everudp"],
+    "child_environment_preserved_after_attach": ["everssh", "everudp"],
+    "disposable_sessions_cleaned": true
+  }
+}
