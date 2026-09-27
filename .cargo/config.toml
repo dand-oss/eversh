@@ -1,0 +1,5 @@
+# ring compiles C for musl targets; use musl-tools' musl-gcc rather than a
+# globally exported CC (a glibc compiler). tools/build-musl.sh checks that it
+# is installed. An exported CC_x86_64_unknown_linux_musl still wins.
+[env]
+CC_x86_64_unknown_linux_musl = "musl-gcc"
