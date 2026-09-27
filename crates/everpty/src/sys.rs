@@ -940,7 +940,7 @@ pub fn send_one_fd(
     message.msg_iov = &mut iov;
     message.msg_iovlen = 1;
     message.msg_control = control.as_mut_ptr().cast();
-    message.msg_controllen = control_len;
+    message.msg_controllen = control_len as _;
     let header = unsafe { libc::CMSG_FIRSTHDR(&message) };
     if header.is_null() {
         return Err(io::Error::other("SCM_RIGHTS header is unavailable"));
@@ -948,7 +948,7 @@ pub fn send_one_fd(
     unsafe {
         (*header).cmsg_level = libc::SOL_SOCKET;
         (*header).cmsg_type = libc::SCM_RIGHTS;
-        (*header).cmsg_len = libc::CMSG_LEN(std::mem::size_of::<RawFd>() as _) as usize;
+        (*header).cmsg_len = libc::CMSG_LEN(std::mem::size_of::<RawFd>() as _) as _;
         std::ptr::write_unaligned(
             libc::CMSG_DATA(header).cast::<RawFd>(),
             descriptor.as_raw_fd(),
@@ -986,7 +986,7 @@ pub fn recv_optional_fd(
     message.msg_iov = &mut iov;
     message.msg_iovlen = 1;
     message.msg_control = control.as_mut_ptr().cast();
-    message.msg_controllen = std::mem::size_of_val(&control);
+    message.msg_controllen = std::mem::size_of_val(&control) as _;
     let received = loop {
         let result =
             unsafe { libc::recvmsg(socket.as_raw_fd(), &mut message, libc::MSG_CMSG_CLOEXEC) };
@@ -1012,15 +1012,16 @@ pub fn recv_optional_fd(
     while !header.is_null() {
         let value = unsafe { &*header };
         let minimum = unsafe { libc::CMSG_LEN(0) as usize };
-        if value.cmsg_len < minimum {
+        let cmsg_len = value.cmsg_len as usize;
+        if cmsg_len < minimum {
             invalid = true;
             break;
         }
-        let data_len = value.cmsg_len - minimum;
+        let data_len = cmsg_len - minimum;
         if value.cmsg_level != libc::SOL_SOCKET
             || value.cmsg_type != libc::SCM_RIGHTS
             || data_len == 0
-            || data_len % std::mem::size_of::<RawFd>() != 0
+            || !data_len.is_multiple_of(std::mem::size_of::<RawFd>())
         {
             invalid = true;
         } else {
@@ -2411,14 +2412,14 @@ mod tests {
         message.msg_iov = &mut vector;
         message.msg_iovlen = 1;
         message.msg_control = control.as_mut_ptr().cast();
-        message.msg_controllen = control_len;
+        message.msg_controllen = control_len as _;
         let header = unsafe { libc::CMSG_FIRSTHDR(&message) };
         assert!(!header.is_null());
         unsafe {
             (*header).cmsg_level = libc::SOL_SOCKET;
             (*header).cmsg_type = libc::SCM_RIGHTS;
             (*header).cmsg_len =
-                libc::CMSG_LEN(std::mem::size_of_val(&rights) as libc::c_uint) as usize;
+                libc::CMSG_LEN(std::mem::size_of_val(&rights) as libc::c_uint) as _;
             std::ptr::copy_nonoverlapping(
                 rights.as_ptr(),
                 libc::CMSG_DATA(header).cast::<RawFd>(),
