@@ -210,7 +210,12 @@ const ATTACH_SIGNALS: [libc::c_int; 7] = [
 
 /// Opaque Linux pthread identifier, used to target attach signals without
 /// exposing libc at higher layers (notably deterministic real-signal tests).
-pub type ThreadId = libc::pthread_t;
+#[derive(Clone, Copy, Debug)]
+pub struct ThreadId(libc::pthread_t);
+
+// SAFETY: a pthread_t is a process-wide thread handle (a pointer on musl)
+// that is only passed back to pthread_kill, never dereferenced.
+unsafe impl Send for ThreadId {}
 
 /// Logical snapshot of the calling thread's complete Linux signal mask.
 /// Equality compares membership for every supported signal rather than raw
@@ -257,7 +262,7 @@ pub fn current_signal_mask() -> io::Result<SignalMask> {
 
 pub fn current_thread_id() -> ThreadId {
     // SAFETY: pthread_self has no preconditions or failure mode.
-    unsafe { libc::pthread_self() }
+    ThreadId(unsafe { libc::pthread_self() })
 }
 
 pub fn signal_thread(thread: ThreadId, signal: libc::c_int) -> io::Result<()> {
@@ -269,7 +274,7 @@ pub fn signal_thread(thread: ThreadId, signal: libc::c_int) -> io::Result<()> {
     }
     // SAFETY: callers supply an identifier returned by current_thread_id;
     // pthread_kill only queues the signal and reports an errno value.
-    let error = unsafe { libc::pthread_kill(thread, signal) };
+    let error = unsafe { libc::pthread_kill(thread.0, signal) };
     if error == 0 {
         Ok(())
     } else {
