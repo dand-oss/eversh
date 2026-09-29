@@ -59,6 +59,7 @@ The boundaries are deliberate: the local terminal owns rendering and scrollback;
 ## Behavior
 
 - Closing your connection detaches it; the child keeps running. There is no detach key because eversh does not intercept terminal input.
+- `nohup` is not needed: the child runs under everpty, not under your SSH connection, so a dropped link or a closed terminal never sends it SIGHUP. Start long jobs directly, e.g. `eversh connect badger.a --session backup -- ./long-job.sh`. Tee output to a file if you want to see what it printed while you were detached.
 - A reattachment receives only output produced after it: everpty keeps no scrollback, log, snapshot, or session history, so output produced while detached is discarded rather than stored.
 - EverUDP attaches share the same PTY by default; network reconnect resumes the same attachment. Explicit `--take-over` retires all existing writers, not observers. Local everpty, EverSSH, and already-running older gateways remain single-writer and may return `Busy`. Bare eversh defaults to EverSSH; fleet wrappers default to EverUDP.
 - EverUDP keeps independent bounded output queues: a lagging writer reconnects with its own GAP while healthy peers continue. New peers see future output only. The most recently typing writer controls the common PTY size; no remote VT or screen reconstruction is involved. See [the ownership and resize contract](docs/design.md#43-everudp--direct-quic-terminal-transport).
