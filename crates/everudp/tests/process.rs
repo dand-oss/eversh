@@ -578,6 +578,42 @@ fn standalone_client_composes_real_gateway_broker_and_quic() {
 }
 
 #[test]
+fn full_udp_port_range_is_named_instead_of_a_malformed_record() {
+    let _serial = process_gate();
+    let fixture = Fixture::new();
+    let held = std::net::UdpSocket::bind((route_selected_ip().as_str(), 0)).unwrap();
+    let port = held.local_addr().unwrap().port();
+    let range = format!("{port}:{port}");
+    let mut client = RunningClient::spawn(
+        &fixture,
+        "full-range",
+        &[
+            "--udp-port-range",
+            &range,
+            "connect",
+            "localhost",
+            "--session",
+            "full-range-test",
+            "--",
+            "/bin/sh",
+            "-c",
+            "exit 0",
+        ],
+    );
+    let status = client.wait_for_exit();
+    let _ = run::kill(&fixture.pty_context(), "full-range-test");
+    drop(held);
+
+    let stderr = client.stderr();
+    assert!(!status.success(), "stderr={stderr}");
+    assert!(
+        stderr.contains(&format!("no free UDP port in everudp range {range}")),
+        "stderr={stderr}"
+    );
+    assert!(!stderr.contains("malformed"), "stderr={stderr}");
+}
+
+#[test]
 fn persistent_gateway_fans_future_output_to_a_concurrent_observer() {
     let _serial = process_gate();
     let fixture = Fixture::new();

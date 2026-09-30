@@ -28,6 +28,10 @@ use tokio::process::Command;
 pub const COMBINED_EVERUDP_ROLE: &str = "__everudp";
 pub const BOOTSTRAP_PARENT_ROLE: &str = "__bootstrap-parent-v1";
 pub const GATEWAY_ROLE: &str = "__gateway-v1";
+/// Gateway exit status when every port of its `--udp-port-range` is held,
+/// so the bootstrap parent can name the full range instead of reporting
+/// the empty bootstrap stdout as a malformed record.
+pub const GATEWAY_PORT_RANGE_EXHAUSTED_EXIT: u8 = 75;
 
 #[derive(Debug)]
 pub enum RoleError {
@@ -44,6 +48,20 @@ pub enum RoleError {
     Io(io::Error),
     Child,
     AssociationMismatch,
+    PortRangeExhausted(UdpPortRange),
+}
+
+impl RoleError {
+    /// True when the gateway could not bind because its operator port range
+    /// has no free port left.
+    pub fn is_port_range_exhausted(&self) -> bool {
+        matches!(
+            self,
+            Self::Everssh(everssh::Error::PortRangeExhausted)
+                | Self::Transport(TransportError::Route(everssh::Error::PortRangeExhausted))
+                | Self::PortRangeExhausted(_)
+        )
+    }
 }
 
 impl fmt::Display for RoleError {
@@ -64,6 +82,10 @@ impl fmt::Display for RoleError {
             Self::AssociationMismatch => {
                 formatter.write_str("everudp bootstrap association does not match")
             }
+            Self::PortRangeExhausted(range) => write!(
+                formatter,
+                "no free UDP port in everudp range {range}; each live session gateway holds one port"
+            ),
         }
     }
 }
@@ -82,7 +104,7 @@ impl std::error::Error for RoleError {
             Self::GatewayRun(error) => Some(error),
             Self::ClientRun(error) => Some(error),
             Self::Io(error) => Some(error),
-            Self::Child | Self::AssociationMismatch => None,
+            Self::Child | Self::AssociationMismatch | Self::PortRangeExhausted(_) => None,
         }
     }
 }
@@ -261,6 +283,19 @@ where
     })
     .await;
     let operation = match read {
+        Ok(Ok(_)) if wire.is_empty() => {
+            // The gateway closed stdout without a record; it has exited or is
+            // exiting. Name a full port range rather than an empty record.
+            let status = tokio::time::timeout(limits.initial_udp_budget(), child.wait()).await;
+            match (status, udp_port_range) {
+                (Ok(Ok(status)), Some(range))
+                    if status.code() == Some(i32::from(GATEWAY_PORT_RANGE_EXHAUSTED_EXIT)) =>
+                {
+                    Err(RoleError::PortRangeExhausted(range))
+                }
+                _ => Err(BootstrapError::Malformed.into()),
+            }
+        }
         Ok(Ok(_)) if wire.len() <= limits.bootstrap_record_max => {
             let line = std::str::from_utf8(&wire)
                 .map_err(|_| BootstrapError::Malformed)

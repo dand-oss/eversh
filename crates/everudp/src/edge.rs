@@ -9,7 +9,7 @@ use crate::reconnect::SESSION_NOT_LIVE_EXIT;
 use crate::request::BootstrapRequest;
 use crate::roles::{
     prepare_bootstrap_parent, run_bootstrap_parent, run_gateway_role, BootstrapPreparation,
-    COMBINED_EVERUDP_ROLE,
+    COMBINED_EVERUDP_ROLE, GATEWAY_PORT_RANGE_EXHAUSTED_EXIT,
 };
 use crate::{
     run_client, BootstrapOperation, ClientConfig, ClientExit, ClientRunError, Limits, RoleError,
@@ -397,6 +397,7 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
         }
     };
     let limits = Limits::default();
+    let is_gateway = matches!(prepared, PreparedRole::Gateway { .. });
     let result: Result<Option<ClientExit>, RoleError> = runtime.block_on(async move {
         match prepared {
             PreparedRole::Client(config) => {
@@ -477,6 +478,12 @@ pub fn run(invocation: Invocation, args: Vec<OsString>) -> u8 {
         Err(RoleError::ClientRun(error)) if error.is_session_survives_disconnect() => {
             eprintln!("everudp: {error}");
             everpty::run::DETACHED_EXIT
+        }
+        // Only the detached gateway exits with this; the bootstrap parent
+        // reports its own full-range error with the generic status below.
+        Err(error) if is_gateway && error.is_port_range_exhausted() => {
+            eprintln!("everudp: {error}");
+            GATEWAY_PORT_RANGE_EXHAUSTED_EXIT
         }
         Err(error) => {
             eprintln!("everudp: {error}");
