@@ -67,9 +67,13 @@ where
     let mut readiness = owner.take_stdout()?;
 
     let operation = async {
-        let writer = control.as_mut().ok_or(Error::SshProcessFailed)?;
+        let writer = control.as_mut().ok_or_else(|| {
+            Error::SshProcessFailed("server control stream is not attached".to_owned())
+        })?;
         write_at(writer, start.as_bytes(), deadline).await?;
-        let writer = control.as_mut().ok_or(Error::SshProcessFailed)?;
+        let writer = control.as_mut().ok_or_else(|| {
+            Error::SshProcessFailed("server control stream is not attached".to_owned())
+        })?;
         flush_at(writer, deadline).await?;
 
         let wire = tokio::time::timeout_at(
@@ -79,21 +83,31 @@ where
         .await
         .map_err(|_| Error::BootstrapTimedOut)??;
         if owner.try_wait()?.is_some() {
-            return Err(Error::SshProcessFailed);
+            return Err(Error::SshProcessFailed(
+                "server exited before its bootstrap record was authorized".to_owned(),
+            ));
         }
         let record = parse_canonical_bootstrap_line(&wire, &limits)?;
         drop(record);
         write_at(&mut output, wire.as_slice(), deadline).await?;
         flush_at(&mut output, deadline).await?;
         if owner.try_wait()?.is_some() {
-            return Err(Error::SshProcessFailed);
+            return Err(Error::SshProcessFailed(
+                "server exited before its release record was written".to_owned(),
+            ));
         }
 
-        let writer = control.as_mut().ok_or(Error::SshProcessFailed)?;
+        let writer = control.as_mut().ok_or_else(|| {
+            Error::SshProcessFailed("server control stream is not attached".to_owned())
+        })?;
         write_at(writer, RELEASE_RECORD, deadline).await?;
-        let writer = control.as_mut().ok_or(Error::SshProcessFailed)?;
+        let writer = control.as_mut().ok_or_else(|| {
+            Error::SshProcessFailed("server control stream is not attached".to_owned())
+        })?;
         flush_at(writer, deadline).await?;
-        close_control(control.take().ok_or(Error::SshProcessFailed)?)?;
+        close_control(control.take().ok_or_else(|| {
+            Error::SshProcessFailed("server control stream is not attached".to_owned())
+        })?)?;
         Ok(())
     }
     .await;

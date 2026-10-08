@@ -1002,7 +1002,8 @@ exit 10
         if query_mode == "overflow" {
             assert_eq!(
                 output.stderr,
-                b"everssh: effective SSH proxy configuration is not permitted\n"
+                b"everssh: effective SSH proxy configuration is not permitted: \
+                  effective configuration output exceeded its cap\n"
             );
         }
         assert_eq!(fs::read_to_string(calls).unwrap(), "query\n");

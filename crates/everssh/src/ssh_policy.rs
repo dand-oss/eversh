@@ -412,7 +412,9 @@ pub fn validate_effective_config(output: &[u8]) -> Result<(), Error> {
             *byte == b'\0' || *byte == b'\r' || (*byte < b' ' && *byte != b'\n' && *byte != b'\t')
         })
     {
-        return Err(Error::SshPolicyRejected);
+        return Err(Error::SshPolicyRejected(
+            "effective configuration output is empty or non-canonical".to_owned(),
+        ));
     }
 
     let mut lines = 0usize;
@@ -424,28 +426,40 @@ pub fn validate_effective_config(output: &[u8]) -> Result<(), Error> {
         let split = line
             .iter()
             .position(|byte| byte.is_ascii_whitespace())
-            .ok_or(Error::SshPolicyRejected)?;
+            .ok_or_else(|| {
+                Error::SshPolicyRejected("effective configuration line has no value".to_owned())
+            })?;
         let name = &line[..split];
         let value = line[split..]
             .iter()
             .position(|byte| !byte.is_ascii_whitespace())
             .map(|offset| &line[split + offset..])
-            .ok_or(Error::SshPolicyRejected)?;
+            .ok_or_else(|| {
+                Error::SshPolicyRejected(
+                    "effective configuration line has an empty value".to_owned(),
+                )
+            })?;
         if name.is_empty()
             || !name
                 .iter()
                 .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'-')
         {
-            return Err(Error::SshPolicyRejected);
+            return Err(Error::SshPolicyRejected(
+                "effective configuration has an invalid option name".to_owned(),
+            ));
         }
         if (name.eq_ignore_ascii_case(b"proxycommand") || name.eq_ignore_ascii_case(b"proxyjump"))
             && !value.eq_ignore_ascii_case(b"none")
         {
-            return Err(Error::SshPolicyRejected);
+            return Err(Error::SshPolicyRejected(
+                "effective configuration still requests a proxy".to_owned(),
+            ));
         }
     }
     if lines == 0 {
-        return Err(Error::SshPolicyRejected);
+        return Err(Error::SshPolicyRejected(
+            "effective configuration output is empty".to_owned(),
+        ));
     }
     Ok(())
 }

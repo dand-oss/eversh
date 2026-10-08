@@ -100,25 +100,33 @@ impl ChildOwner {
         self.child_mut()?
             .stdin
             .take()
-            .ok_or(Error::SshProcessFailed)
+            .ok_or(Error::SshProcessFailed(
+                "owned ssh stdin stream is not attached".to_owned(),
+            ))
     }
 
     pub(crate) fn take_stdout(&mut self) -> Result<ChildStdout, Error> {
         self.child_mut()?
             .stdout
             .take()
-            .ok_or(Error::SshProcessFailed)
+            .ok_or(Error::SshProcessFailed(
+                "owned ssh stdout stream is not attached".to_owned(),
+            ))
     }
 
     fn take_stderr(&mut self) -> Result<ChildStderr, Error> {
         self.child_mut()?
             .stderr
             .take()
-            .ok_or(Error::SshProcessFailed)
+            .ok_or(Error::SshProcessFailed(
+                "owned ssh stderr stream is not attached".to_owned(),
+            ))
     }
 
     fn child_mut(&mut self) -> Result<&mut Child, Error> {
-        self.child.as_mut().ok_or(Error::SshProcessFailed)
+        self.child.as_mut().ok_or(Error::SshProcessFailed(
+            "owned ssh child is not running".to_owned(),
+        ))
     }
 
     pub(crate) fn try_wait(&mut self) -> Result<Option<ExitStatus>, Error> {
@@ -170,7 +178,9 @@ impl ChildOwner {
     /// Deliberately transfer a released one-shot process to the system reaper.
     pub(crate) fn release(mut self) -> Result<(), Error> {
         if !self.transferable {
-            return Err(Error::SshProcessFailed);
+            return Err(Error::SshProcessFailed(
+                "process was not spawned as transferable".to_owned(),
+            ));
         }
         self.released = true;
         drop(self.child.take());
@@ -216,7 +226,9 @@ impl Drop for ChildOwner {
 pub async fn verify_effective_config(plan: &SshPlan, limits: &Limits) -> Result<(), Error> {
     let output = run_owned_ssh(&plan.config_query_args(), None, CONFIG_OUTPUT_MAX, limits).await?;
     if output.overflowed() {
-        return Err(Error::SshPolicyRejected);
+        return Err(Error::SshPolicyRejected(
+            "effective configuration output exceeded its cap".to_owned(),
+        ));
     }
     validate_effective_config(output.as_slice())
 }
@@ -332,14 +344,15 @@ async fn run_owned_ssh(
 /// failing to run it, exit 126/127), and is reported with the remote program
 /// word so the operator can see which path on which side was at fault.
 fn classify_ssh_failure(status: ExitStatus, stderr: &[u8], remote_program: Option<&str>) -> Error {
+    let diagnostic = diagnostic_excerpt(stderr);
     if status.code() != Some(255) {
         return match remote_program {
             Some(remote_program) => Error::SshRemoteCommandFailed(RemoteCommandFailure {
                 remote_program: remote_program.to_owned(),
                 exit_code: status.code(),
-                diagnostic: diagnostic_excerpt(stderr),
+                diagnostic,
             }),
-            None => Error::SshProcessFailed,
+            None => Error::SshProcessFailed(diagnostic),
         };
     }
     const AUTHENTICATION: [&[u8]; 5] = [
@@ -353,7 +366,7 @@ fn classify_ssh_failure(status: ExitStatus, stderr: &[u8], remote_program: Optio
         .iter()
         .any(|needle| contains_bytes(stderr, needle))
     {
-        return Error::SshAuthenticationRejected;
+        return Error::SshAuthenticationRejected(diagnostic);
     }
     const POLICY: [&[u8]; 8] = [
         b"Bad configuration option",
@@ -366,7 +379,7 @@ fn classify_ssh_failure(status: ExitStatus, stderr: &[u8], remote_program: Optio
         b"no matching cipher found",
     ];
     if POLICY.iter().any(|needle| contains_bytes(stderr, needle)) {
-        return Error::SshPolicyRejected;
+        return Error::SshPolicyRejected(diagnostic);
     }
     // Exit 255 is also used for negotiation, configuration, and other client
     // failures. Retry only diagnostics that positively identify endpoint or
@@ -390,9 +403,9 @@ fn classify_ssh_failure(status: ExitStatus, stderr: &[u8], remote_program: Optio
         .iter()
         .any(|needle| contains_bytes(stderr, needle))
     {
-        return Error::SshUnavailable;
+        return Error::SshUnavailable(diagnostic);
     }
-    Error::SshProcessFailed
+    Error::SshProcessFailed(diagnostic)
 }
 
 /// Reduce a remote stderr capture to a bounded single line of printable
@@ -586,7 +599,7 @@ mod tests {
         let failed = ExitStatus::from_raw(255 << 8);
         assert!(matches!(
             classify_ssh_failure(failed, b"user@host: Permission denied (publickey).\n", None),
-            Error::SshAuthenticationRejected
+            Error::SshAuthenticationRejected(_)
         ));
         let failed = ExitStatus::from_raw(255 << 8);
         assert!(matches!(
@@ -595,7 +608,7 @@ mod tests {
                 b"command-line line 0: Bad configuration option\n",
                 None
             ),
-            Error::SshPolicyRejected
+            Error::SshPolicyRejected(_)
         ));
         let failed = ExitStatus::from_raw(255 << 8);
         assert!(matches!(
@@ -604,7 +617,7 @@ mod tests {
                 b"ssh: connect to host h port 22: No route to host\n",
                 None
             ),
-            Error::SshUnavailable
+            Error::SshUnavailable(_)
         ));
         for terminal in [
             b"Unable to negotiate with 192.0.2.1 port 22: no matching host key type found\n"
@@ -616,7 +629,7 @@ mod tests {
             assert!(
                 !matches!(
                     classify_ssh_failure(failed, terminal, None),
-                    Error::SshUnavailable
+                    Error::SshUnavailable(_)
                 ),
                 "terminal diagnostic was classified as retryable: {terminal:?}"
             );
@@ -624,7 +637,36 @@ mod tests {
         let remote_failure = ExitStatus::from_raw(23 << 8);
         assert!(matches!(
             classify_ssh_failure(remote_failure, b"remote role failed\n", None),
-            Error::SshProcessFailed
+            Error::SshProcessFailed(_)
+        ));
+    }
+
+    #[test]
+    fn classified_failures_quote_the_bounded_ssh_diagnostic() {
+        let failed = ExitStatus::from_raw(255 << 8);
+        assert!(matches!(
+            classify_ssh_failure(
+                failed,
+                b"Bad owner or permissions on /home/appsmith/.ssh/config.\n",
+                None
+            ),
+            Error::SshPolicyRejected(diagnostic)
+                if diagnostic == "Bad owner or permissions on /home/appsmith/.ssh/config."
+        ));
+        let failed = ExitStatus::from_raw(255 << 8);
+        assert!(matches!(
+            classify_ssh_failure(failed, b"user@host: Permission denied (publickey).\n", None),
+            Error::SshAuthenticationRejected(diagnostic)
+                if diagnostic.contains("Permission denied (publickey)")
+        ));
+        let failed = ExitStatus::from_raw(255 << 8);
+        assert!(matches!(
+            classify_ssh_failure(
+                failed,
+                b"ssh: connect to host h port 22: No route to host\n",
+                None
+            ),
+            Error::SshUnavailable(diagnostic) if diagnostic.contains("No route to host")
         ));
     }
 
@@ -768,7 +810,7 @@ mod tests {
         );
         assert!(matches!(
             classify_ssh_failure(refused_output.status, &refused_output.stderr, None),
-            Error::SshUnavailable
+            Error::SshUnavailable(_)
         ));
 
         let timeout = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("timeout listener");
@@ -793,7 +835,7 @@ mod tests {
         assert_eq!(timeout_output.status.code(), Some(255));
         assert!(matches!(
             classify_ssh_failure(timeout_output.status, &timeout_output.stderr, None),
-            Error::SshUnavailable
+            Error::SshUnavailable(_)
         ));
 
         let protocol = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("protocol listener");
@@ -821,7 +863,7 @@ mod tests {
         assert!(
             matches!(
                 classify_ssh_failure(protocol_output.status, &protocol_output.stderr, None),
-                Error::SshProcessFailed
+                Error::SshProcessFailed(_)
             ),
             "stderr={}",
             String::from_utf8_lossy(&protocol_output.stderr)

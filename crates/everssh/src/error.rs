@@ -94,10 +94,10 @@ pub enum Error {
     ServerStartMalformed,
     ReleaseRejected,
     InvalidSshArgument,
-    SshPolicyRejected,
-    SshAuthenticationRejected,
-    SshUnavailable,
-    SshProcessFailed,
+    SshPolicyRejected(String),
+    SshAuthenticationRejected(String),
+    SshUnavailable(String),
+    SshProcessFailed(String),
     SshRemoteCommandFailed(RemoteCommandFailure),
     /// The remote bootstrap rejected its argument grammar while an operator
     /// UDP port range was requested: the remote binary predates
@@ -227,14 +227,22 @@ impl std::fmt::Display for Error {
             Self::ServerStartMalformed => f.write_str("malformed private server-start record"),
             Self::ReleaseRejected => f.write_str("private server release was not authorized"),
             Self::InvalidSshArgument => f.write_str("SSH argument rejected by bootstrap policy"),
-            Self::SshPolicyRejected => {
-                f.write_str("effective SSH proxy configuration is not permitted")
+            Self::SshPolicyRejected(diagnostic) => {
+                f.write_str("effective SSH proxy configuration is not permitted")?;
+                write_bounded_diagnostic(f, diagnostic)
             }
-            Self::SshAuthenticationRejected => {
-                f.write_str("OpenSSH bootstrap authentication was rejected")
+            Self::SshAuthenticationRejected(diagnostic) => {
+                f.write_str("OpenSSH bootstrap authentication was rejected")?;
+                write_bounded_diagnostic(f, diagnostic)
             }
-            Self::SshUnavailable => f.write_str("OpenSSH bootstrap endpoint is unavailable"),
-            Self::SshProcessFailed => f.write_str("owned OpenSSH bootstrap process failed"),
+            Self::SshUnavailable(diagnostic) => {
+                f.write_str("OpenSSH bootstrap endpoint is unavailable")?;
+                write_bounded_diagnostic(f, diagnostic)
+            }
+            Self::SshProcessFailed(diagnostic) => {
+                f.write_str("owned OpenSSH bootstrap process failed")?;
+                write_bounded_diagnostic(f, diagnostic)
+            }
             Self::SshRemoteCommandFailed(failure) => write!(f, "{failure}"),
             Self::RemoteUdpPortRangeUnsupported(failure) => write!(
                 f,
@@ -305,6 +313,16 @@ impl std::fmt::Display for Error {
             }
             Self::Io(source) => write!(f, "io: {source}"),
         }
+    }
+}
+
+/// Append a non-empty bounded ssh diagnostic after an error's base text.
+/// Empty diagnostics leave the base text unchanged.
+fn write_bounded_diagnostic(f: &mut std::fmt::Formatter<'_>, diagnostic: &str) -> std::fmt::Result {
+    if diagnostic.is_empty() {
+        Ok(())
+    } else {
+        write!(f, ": {diagnostic}")
     }
 }
 

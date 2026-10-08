@@ -497,7 +497,7 @@ fn classify_recovery_result(
 fn recovery_failure(error: &ClientRunError) -> Option<RecoveryFailure> {
     match error {
         ClientRunError::Everssh(
-            everssh::Error::SshUnavailable | everssh::Error::BootstrapTimedOut,
+            everssh::Error::SshUnavailable(_) | everssh::Error::BootstrapTimedOut,
         ) => None,
         ClientRunError::Everssh(everssh::Error::Io(error))
             if matches!(
@@ -514,7 +514,7 @@ fn recovery_failure(error: &ClientRunError) -> Option<RecoveryFailure> {
             None
         }
         ClientRunError::Everssh(
-            everssh::Error::SshAuthenticationRejected | everssh::Error::AuthRejected,
+            everssh::Error::SshAuthenticationRejected(_) | everssh::Error::AuthRejected,
         ) => Some(RecoveryFailure::Authentication),
         ClientRunError::Everssh(everssh::Error::PinMismatch)
         | ClientRunError::AssociationMismatch => Some(RecoveryFailure::Pin),
@@ -875,14 +875,14 @@ mod tests {
     #[test]
     fn recovery_keeps_network_loss_temporary_but_terminates_auth_pin_and_protocol() {
         assert!(matches!(
-            classify_recovery_result(Err(
-                ClientRunError::Everssh(everssh::Error::SshUnavailable,)
-            )),
+            classify_recovery_result(Err(ClientRunError::Everssh(
+                everssh::Error::SshUnavailable(String::new())
+            ))),
             Ok(RecoveryAction::Unchanged)
         ));
         assert!(matches!(
             classify_recovery_result(Err(ClientRunError::Everssh(
-                everssh::Error::SshAuthenticationRejected,
+                everssh::Error::SshAuthenticationRejected(String::new()),
             ))),
             Err(RecoveryFailure::Authentication)
         ));
@@ -905,8 +905,8 @@ mod tests {
             Err(RecoveryFailure::Protocol)
         ));
         for terminal in [
-            everssh::Error::SshProcessFailed,
-            everssh::Error::SshPolicyRejected,
+            everssh::Error::SshProcessFailed(String::new()),
+            everssh::Error::SshPolicyRejected(String::new()),
             everssh::Error::Io(std::io::Error::from(std::io::ErrorKind::NotFound)),
         ] {
             assert!(matches!(
