@@ -519,8 +519,15 @@ enum Cmd {
     /// parses them, and the child inherits the SSH bootstrap environment.
     /// For shell builtins, pipes, `&&`, or redirects, wrap the command
     /// explicitly in `/bin/sh -c '...'`.
+    ///
+    /// `--shell` performs that wrapping for you: words after the inner `--`
+    /// are joined with single spaces and executed as one `/bin/sh -c`
+    /// command. The shell parses the joined string, so arguments containing
+    /// spaces are re-split, exactly as with the OpenSSH client.
     Ssh {
         host: String,
+        #[arg(long)]
+        shell: bool,
         #[arg(last = true, value_name = "TOKENS")]
         tokens: Vec<String>,
     },
@@ -961,9 +968,13 @@ fn run_supervisor() -> ! {
             Ok(kind) => exit_kind(kind),
             Err(error) => exit_error(error),
         },
-        Cmd::Ssh { host, tokens } => {
+        Cmd::Ssh {
+            host,
+            shell,
+            tokens,
+        } => {
             let (pre, post) = eversh::command::split_raw_tokens(&tokens);
-            match supervisor::raw_ssh(&config, &host, pre, post) {
+            match supervisor::raw_ssh(&config, &host, pre, post, shell) {
                 Ok(end) => exit_session_end(end),
                 Err(error) => exit_error(error),
             }
@@ -987,6 +998,29 @@ mod tests {
         match build_config(None, Some(value.to_owned())) {
             Err(Error::UdpPortRangeInvalid(violation)) => violation,
             other => panic!("{value:?} was not rejected as a range: {:?}", other.err()),
+        }
+    }
+
+    #[test]
+    fn ssh_shell_flag_parses_and_defaults_off() {
+        let parsed = cli(&["ssh", "--shell", "testhost", "--", "-4", "--", "echo", "hi"]);
+        match parsed.cmd {
+            Cmd::Ssh {
+                host,
+                shell,
+                tokens,
+            } => {
+                assert_eq!(host, "testhost");
+                assert!(shell);
+                assert_eq!(tokens, ["-4", "--", "echo", "hi"].map(str::to_owned));
+            }
+            other => panic!("wrong command: {other:?}"),
+        }
+
+        let plain = cli(&["ssh", "testhost", "--", "-4"]);
+        match plain.cmd {
+            Cmd::Ssh { shell, .. } => assert!(!shell),
+            other => panic!("wrong command: {other:?}"),
         }
     }
 

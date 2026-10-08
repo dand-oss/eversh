@@ -1364,11 +1364,16 @@ pub fn simple_remote(
 /// before the destination, unaudited); `post_command` is an optional
 /// remote command (placed after the destination) — see
 /// [`crate::command::split_raw_tokens`] (finding 4).
+///
+/// `shell` opts the one-shot command into explicit `/bin/sh -c` evaluation:
+/// the caller's words are joined with single spaces (OpenSSH-client style)
+/// and wrapped client-side, so default requests keep the no-shell contract.
 pub fn raw_ssh(
     config: &Config,
     host: &str,
     pre_options: &[String],
     post_command: &[String],
+    shell: bool,
 ) -> Result<SessionEnd, Error> {
     config.limits.validate()?;
     // Raw options are passed verbatim to the outer ssh (unaudited escape
@@ -1377,12 +1382,21 @@ pub fn raw_ssh(
     // outer-ssh-only rather than erroring in raw mode (finding 4).
     let audited = crate::command::audited_subset(pre_options);
     let proxy = proxy_for(config, &audited, None)?;
-    let remote_command = if post_command.is_empty() {
+    let command_words = if shell {
+        if post_command.is_empty() {
+            return Err(Error::ShellCommandMissing);
+        }
+        let joined = post_command.join(" ");
+        vec!["/bin/sh".to_owned(), "-c".to_owned(), joined]
+    } else {
+        post_command.to_vec()
+    };
+    let remote_command = if command_words.is_empty() {
         Vec::new()
     } else {
         let request = crate::remote::RemoteRequest {
             version: crate::remote::REQUEST_VERSION,
-            args: post_command
+            args: command_words
                 .iter()
                 .map(|word| word.as_bytes().to_vec())
                 .collect(),

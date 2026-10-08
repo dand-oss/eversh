@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `eversh ssh --shell` joins the one-shot command words and runs them
+  through `/bin/sh -c` client-side, an explicit opt-in that keeps default
+  requests free of shell evaluation.
+
 ## 0.2.8
 
 ### Added

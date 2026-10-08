@@ -1861,6 +1861,55 @@ fn raw_ssh_forwards_a_remote_command_after_inner_separator() {
 }
 
 #[test]
+fn raw_ssh_shell_wraps_joined_command_in_sh() {
+    let fixture = Fixture::new();
+    fixture.set_mode("run");
+    let marker = fixture.base.join("shell-one-shot");
+    let script = format!("printf s >> '{}'; exit 37", marker.display());
+    let output = fixture
+        .command()
+        .args(["ssh", "--shell", "testhost", "--", "-4", "--", &script])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(37));
+    assert_eq!(fs::read(&marker).unwrap(), b"s");
+    let captures = fixture.captures("ssh");
+    assert_eq!(captures.len(), 1, "raw ssh must never probe or retry");
+    let argv = &captures[0].1;
+    assert!(argv[1].contains("--ssh-option '-4'"), "{}", argv[1]);
+    assert_eq!(
+        &argv[2..9],
+        ["-4", "--", "testhost", "eversh", "__everpty", "v1", "exec"].map(str::to_owned)
+    );
+    let bytes =
+        eversh::remote::base64url_decode(&argv[9], eversh::Limits::default().remote_control_max)
+            .unwrap();
+    let request =
+        eversh::remote::RemoteRequest::decode(&bytes, &eversh::Limits::default()).unwrap();
+    assert_eq!(
+        request.args,
+        [b"/bin/sh".to_vec(), b"-c".to_vec(), script.into_bytes()]
+    );
+}
+
+#[test]
+fn raw_ssh_shell_requires_a_remote_command() {
+    let fixture = Fixture::new();
+    let output = fixture
+        .command()
+        .args(["ssh", "--shell", "testhost", "--", "-4"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains("--shell requires a remote command"),
+        "{stderr}"
+    );
+    assert!(fixture.captures("ssh").is_empty());
+}
+
+#[test]
 fn one_shot_exec_not_found_names_program_and_hints_at_shell() {
     let request = eversh::remote::RemoteRequest {
         version: eversh::remote::REQUEST_VERSION,

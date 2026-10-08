@@ -30,6 +30,9 @@ pub enum Error {
     RemoteWordInvalid,
     /// A user-supplied SSH option failed the audited allowlist.
     SshOptionRejected,
+    /// `eversh ssh --shell` was passed without a remote command after the
+    /// inner separator.
+    ShellCommandMissing,
     /// `--udp-port-range` failed validation (design §5).
     UdpPortRangeInvalid(everssh::error::UdpPolicyViolation),
     /// Remote-role argument grammar violation (private protocol).
@@ -133,6 +136,12 @@ impl std::fmt::Display for Error {
             Self::RemoteWordInvalid => write!(f, "invalid remote command word"),
             Self::SshOptionRejected => {
                 write!(f, "SSH option rejected by the audited allowlist")
+            }
+            Self::ShellCommandMissing => {
+                write!(
+                    f,
+                    "--shell requires a remote command after the inner -- separator"
+                )
             }
             Self::UdpPortRangeInvalid(violation) => write!(
                 f,
