@@ -1,5 +1,58 @@
 # Changelog
 
+## 0.2.8
+
+### Added
+
+- README notes that `nohup` is not needed for eversh sessions.
+
+### Fixed
+
+- everudp names an exhausted `--udp-port-range` as "no free UDP port in
+  everudp range START:END" instead of reporting a malformed bootstrap record
+  when every port is held by live session gateways.
+
+### Compatibility
+
+- No wire or ALPN change. An exhausted-range gateway exits with dedicated
+  status 75; only the parent diagnostic changes.
+
+## 0.2.7
+
+### Added
+
+- Reproducible static musl release build: `tools/build-musl.sh` selects
+  musl-gcc for ring's C code and builds with the cli features.
+
+### Fixed
+
+- everpty builds SCM_RIGHTS control messages on musl and keeps its pthread
+  ThreadId Send, so the workspace suite passes on musl.
+
+### Compatibility
+
+- First release that builds as a static musl binary for hosts whose glibc is
+  older than the build host.
+
+## 0.2.6
+
+### Added
+
+- eversh reuses verified remote SSH agents for launched commands through a
+  bounded identities probe, private keychain fallback, and one-shot command
+  routing without replay.
+
+### Fixed
+
+- everssh session creation carries the validated client COLORTERM hint and
+  applies it only when a new remote child starts.
+
+### Compatibility
+
+- Coordinated client and remote upgrade. The recorded four-host rollout
+  preserves the atomic installer, installed hashes, session checks, and real
+  environment and agent canary results.
+
 ## 0.2.5
 
 ### Changed
