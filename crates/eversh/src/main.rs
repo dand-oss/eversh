@@ -513,6 +513,12 @@ enum Cmd {
     /// audited allowlist (design §4.2) are also mirrored into the everssh
     /// bootstrap; options that fail the audit stay outer-ssh-only and are
     /// not an error in raw mode.
+    ///
+    /// A remote command execs directly: the first token becomes the program
+    /// and the remaining tokens become byte-exact arguments; no remote shell
+    /// parses them, and the child inherits the SSH bootstrap environment.
+    /// For shell builtins, pipes, `&&`, or redirects, wrap the command
+    /// explicitly in `/bin/sh -c '...'`.
     Ssh {
         host: String,
         #[arg(last = true, value_name = "TOKENS")]
