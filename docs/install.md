@@ -69,7 +69,7 @@ remote command is unchanged, so older remotes keep working.
     eversh [--remote-eversh WORD_OR_PATH] [--udp-port-range START:END] resume-all HOST [--local-host NAME] [--transport everssh|everudp|auto] [--ssh-option OPTION]...
     eversh [--remote-eversh WORD_OR_PATH] [--udp-port-range START:END] detach  HOST NAME [--ssh-option OPTION]...
     eversh [--remote-eversh WORD_OR_PATH] [--udp-port-range START:END] kill    HOST NAME [--ssh-option OPTION]...
-    eversh ssh     HOST [-- SSH_OPTIONS... [-- COMMAND...]]
+    eversh ssh [--shell] HOST [-- SSH_OPTIONS... [-- COMMAND...]]
     everudp [--remote-program WORD_OR_PATH] [--udp-port-range START:END] connect HOST [--session NAME] [--take-over] [--ssh-option OPTION]... [-- COMMAND...]
     everudp [--remote-program WORD_OR_PATH] [--udp-port-range START:END] attach  HOST NAME [--take-over] [--ssh-option OPTION]...
     everudp [--remote-program WORD_OR_PATH] [--udp-port-range START:END] observe HOST NAME [--ssh-option OPTION]...
@@ -132,6 +132,37 @@ With no inner `--`, every token is an SSH option — `eversh ssh HOST -- -4`
 behaves exactly as before. Raw `eversh ssh` is never retried and never
 passes a link-status file, so its exit is always reported as the ssh client
 itself left it.
+
+### One-shot command semantics
+
+`eversh ssh` one-shot commands exec directly: the first token after the
+inner `--` becomes the program, the remaining tokens become byte-exact
+arguments, no remote shell parses them, and the child inherits the SSH
+bootstrap environment rather than your interactive shell profile. This is
+the opposite of OpenSSH, which joins every command argument with single
+spaces and runs the joined string through the remote login shell
+(`$SHELL -c 'joined words'`).
+
+The trade-off is deliberate. OpenSSH's model is universal — shell builtins,
+`&&`, pipes, and redirects work with no thought — but the remote shell
+re-parses everything: quoting does not survive the hop and shell
+metacharacters inside arguments are interpreted. eversh's model keeps the
+argument vector exact and injectable-string-free, at the cost of making
+the shell explicit.
+
+Two equivalent forms opt in to shell parsing:
+
+    eversh ssh HOST -- -o BatchMode=yes -- /bin/sh -c 'git -C ~/repo pull && git -C ~/repo status --short'
+    eversh ssh --shell HOST -- -o BatchMode=yes -- 'git -C ~/repo pull && git -C ~/repo status --short'
+
+`--shell` joins the words after the inner `--` with single spaces and wraps
+them as exactly one `/bin/sh -c` request before encoding, so the wire
+contract keeps its no-silent-evaluation guarantee. As with OpenSSH, the
+shell re-parses the joined string, so arguments containing spaces are
+re-split. Without `--shell`, pass an explicit shell yourself; a bare
+command string such as `command -v git` fails with `No such file or
+directory` because it is exec'd as a program path, and the diagnostic
+points at `/bin/sh -c`.
 
 **State root and the link-status channel:** interactive operations
 (`connect`, `attach`, `observe`) and every reconnect probe allocate a
@@ -201,8 +232,9 @@ is decided by wire protocol versions, not file names (design §5):
   loads keys. A missing, stale, or untrusted state leaves agent access absent.
   `eversh ssh HOST -- -- COMMAND...` uses the remote eversh one-shot helper
   and preserves each argument exactly, with the command's exit status and no
-  automatic replay. Use an explicit shell such as `/bin/sh -c '...'` when
-  shell expansion is wanted. Install the 0.2.6 remote binary before using
+  automatic replay. Use an explicit shell such as `/bin/sh -c '...'`, or the
+  opt-in `--shell` flag (see *One-shot command semantics* above), when shell
+  expansion is wanted. Install the 0.2.6 remote binary before using
   this command form from an updated client.
 - everudp's SSH bootstrap request carries the client's `TERM` and, when set,
   `COLORTERM` as trailing optional fields. A client without either field
