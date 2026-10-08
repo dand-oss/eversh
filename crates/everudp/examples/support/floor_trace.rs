@@ -176,13 +176,9 @@ impl Trace {
         #[cfg(not(feature = "floor-diagnostics"))]
         let valid = true;
         #[cfg(feature = "floor-diagnostics")]
-        let clock_origin = super::floor_resources::clock_identity()
+        let clock_origin = super::floor_resources::clock_anchor()
             .ok()
-            .and_then(|identity| {
-                super::floor_resources::clock_anchor()
-                    .ok()
-                    .map(|anchor| (anchor, identity))
-            });
+            .zip(super::floor_resources::clock_identity().ok());
         #[cfg(feature = "floor-diagnostics")]
         let started = clock_origin
             .as_ref()
