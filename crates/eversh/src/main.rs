@@ -134,7 +134,7 @@ fn run_everpty_role(args: &[OsString]) -> ! {
         use std::os::unix::ffi::OsStringExt;
         let mut args = command.into_iter().map(OsString::from_vec);
         let program = args.next().expect("validated one-shot argv");
-        let status = std::process::Command::new(program).args(args).status();
+        let status = std::process::Command::new(&program).args(args).status();
         match status {
             Ok(status) => {
                 use std::os::unix::process::ExitStatusExt;
@@ -145,7 +145,13 @@ fn run_everpty_role(args: &[OsString]) -> ! {
                 );
             }
             Err(error) => {
-                eprintln!("eversh: one-shot command: {error}");
+                eprintln!("eversh: one-shot command {program:?}: {error}");
+                if error.kind() == std::io::ErrorKind::NotFound {
+                    eprintln!(
+                        "eversh: one-shot commands exec argv[0] directly with no shell; \
+                         wrap shell syntax in /bin/sh -c '...'"
+                    );
+                }
                 std::process::exit(1);
             }
         }

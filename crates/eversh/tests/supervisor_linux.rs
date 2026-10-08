@@ -1861,6 +1861,39 @@ fn raw_ssh_forwards_a_remote_command_after_inner_separator() {
 }
 
 #[test]
+fn one_shot_exec_not_found_names_program_and_hints_at_shell() {
+    let request = eversh::remote::RemoteRequest {
+        version: eversh::remote::REQUEST_VERSION,
+        args: vec![b"command -v git".to_vec()],
+    };
+    let wire = request.encode(&eversh::Limits::default()).unwrap();
+    let token = eversh::remote::base64url_encode(&wire);
+    let output = std::process::Command::new(OsStr::new(env!("CARGO_BIN_EXE_eversh")))
+        .args([
+            eversh::role::EVERPTY_ROLE,
+            eversh::role::EVERPTY_ROLE_VERSION,
+            "exec",
+            &token,
+        ])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.contains("one-shot command \"command -v git\": No such file or directory"),
+        "stderr must name the missing program: {stderr}"
+    );
+    assert!(
+        stderr.contains("exec argv[0] directly with no shell"),
+        "stderr must explain the direct-exec semantics: {stderr}"
+    );
+    assert!(
+        stderr.contains("/bin/sh -c"),
+        "stderr must point at the explicit shell form: {stderr}"
+    );
+}
+
+#[test]
 fn one_shot_command_uses_saved_remote_agent_when_ssh_environment_lacks_it() {
     let fixture = Fixture::new();
     fixture.set_mode("run");
