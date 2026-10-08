@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.10
+
+### Fixed
+
+- everssh bootstrap failures quote the bounded OpenSSH diagnostic, so a
+  group-writable ssh config names itself instead of printing only the
+  generic policy sentence.
+
 ## 0.2.9
 
 ### Added
